@@ -10,15 +10,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ArduinoOrAlternate.h>
+#include <ArduinoOrAlt.h>
 #include <RdJson.h>
 #include <Logger.h>
+#include <RdUtils.h>
 #include "unity.h"
-#include <Utils.h>
 
 static const char* MODULE_PREFIX = "RdJsonUnitTest";
 
-static bool testFindElemEnd(jsmntok_t* pTokens, int numTokens, int tokenIdx, int expEndPos, const char* pSourceStr)
+static bool testFindElemEnd(rd_jsmntok_t* pTokens, int numTokens, int tokenIdx, int expEndPos, const char* pSourceStr)
 {
     
     // Find element end
@@ -32,12 +32,12 @@ static bool testFindElemEnd(jsmntok_t* pTokens, int numTokens, int tokenIdx, int
     return true;
 }
 
-static bool testFindKeyInJson(jsmntok_t* pTokens, int numTokens, 
+static bool testFindKeyInJson(rd_jsmntok_t* pTokens, int numTokens, 
                 const char* dataPath, const char* expStr, const char* pSourceStr)
 {
     // find key
     int endTokenIdx = 0;
-    jsmntype_t keyType = JSMN_UNDEFINED;
+    rd_jsmntype_t keyType = RD_JSMN_UNDEFINED;
     int foundTokenIdx = RdJson::findKeyInJson(pSourceStr, pTokens, numTokens, dataPath, endTokenIdx, keyType);
     String elemStr;
     if (foundTokenIdx >= 0)
@@ -149,7 +149,7 @@ TEST_CASE("test_rdjson", "[rdjson]")
 
     // Parse json into tokens
     int numTokens = 0;
-    jsmntok_t *pTokens = RdJson::parseJson(testJSON, numTokens);
+    rd_jsmntok_t *pTokens = RdJson::parseJson(testJSON, numTokens);
     if (pTokens == NULL)
     {
         LOG_I(MODULE_PREFIX, "testFindElemEnd parseJson failed");

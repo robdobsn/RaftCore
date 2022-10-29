@@ -11,7 +11,7 @@
 
 #include <Logger.h>
 #include <RdJson.h>
-#include "Utils.h"
+#include <RdUtils.h>
 
 static const char *MODULE_PREFIX = "RdJson";
 
@@ -35,14 +35,14 @@ static const char *MODULE_PREFIX = "RdJson";
  * @param  {char*} dataPath       : path to element to return info about
  * @param  {int&} startPos        : [out] start position 
  * @param  {int&} strLen          : [out] length
- * @param  {jsmntype_t&} elemType : [out] element type
+ * @param  {rd_jsmntype_t&} elemType : [out] element type
  * @param  {int&} elemSize        : [out] element size
  * @param  {char*} pSourceStr     : json string to search for element
  * @return {bool}                 : true if element found
  */
 bool RdJson::getElement(const char *dataPath,
                         int &startPos, int &strLen,
-                        jsmntype_t &elemType, int &elemSize,
+                        rd_jsmntype_t &elemType, int &elemSize,
                         const char *pSourceStr)
 {
     // Check for null
@@ -56,7 +56,7 @@ bool RdJson::getElement(const char *dataPath,
 
     // Parse json into tokens
     int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+    rd_jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
     if (pTokens == NULL)
     {
 #ifdef DEBUG_GET_ELEMENT
@@ -97,14 +97,14 @@ bool RdJson::getElement(const char *dataPath,
  * @param  {char*} dataPath       : path of element to return
  * @param  {char*} defaultValue   : default value to return
  * @param  {bool&} isValid        : [out] true if element found
- * @param  {jsmntype_t&} elemType : [out] type of element found (maybe a primitive or maybe object/array)
+ * @param  {rd_jsmntype_t&} elemType : [out] type of element found (maybe a primitive or maybe object/array)
  * @param  {int&} elemSize        : [out] size of element found
  * @param  {char*} pSourceStr     : json to search
  * @return {String}               : found string value or default
  */
 String RdJson::getString(const char *dataPath,
                          const char *defaultValue, bool &isValid,
-                         jsmntype_t &elemType, int &elemSize,
+                         rd_jsmntype_t &elemType, int &elemSize,
                          const char *pSourceStr)
 {
     // Find the element in the JSON
@@ -116,7 +116,7 @@ String RdJson::getString(const char *dataPath,
     // Extract string
     String outStr;
     char *pStr = safeStringDup(pSourceStr + startPos, strLen,
-                               !(elemType == JSMN_STRING || elemType == JSMN_PRIMITIVE));
+                               !(elemType == RD_JSMN_STRING || elemType == RD_JSMN_PRIMITIVE));
     if (pStr)
     {
         outStr = pStr;
@@ -124,7 +124,7 @@ String RdJson::getString(const char *dataPath,
     }
 
     // If the underlying element is a string or primitive value return size as length of string
-    if (elemType == JSMN_STRING || elemType == JSMN_PRIMITIVE)
+    if (elemType == RD_JSMN_STRING || elemType == RD_JSMN_PRIMITIVE)
         elemSize = outStr.length();
     return outStr;
 }
@@ -141,7 +141,7 @@ String RdJson::getString(const char *dataPath,
 String RdJson::getString(const char *dataPath, const char *defaultValue,
                          const char *pSourceStr, bool &isValid)
 {
-    jsmntype_t elemType = JSMN_UNDEFINED;
+    rd_jsmntype_t elemType = RD_JSMN_UNDEFINED;
     int elemSize = 0;
     return getString(dataPath, defaultValue, isValid, elemType, elemSize,
                      pSourceStr);
@@ -160,7 +160,7 @@ String RdJson::getString(const char *dataPath, const char *defaultValue,
                          const char *pSourceStr)
 {
     bool isValid = false;
-    jsmntype_t elemType = JSMN_UNDEFINED;
+    rd_jsmntype_t elemType = RD_JSMN_UNDEFINED;
     int elemSize = 0;
     return getString(dataPath, defaultValue, isValid, elemType, elemSize,
                      pSourceStr);
@@ -184,7 +184,7 @@ double RdJson::getDouble(const char *dataPath,
 {
     // Find the element in the JSON
     int startPos = 0, strLen = 0;
-    jsmntype_t elemType = JSMN_UNDEFINED;
+    rd_jsmntype_t elemType = RD_JSMN_UNDEFINED;
     int elemSize = 0;
     isValid = getElement(dataPath, startPos, strLen, elemType, elemSize, pSourceStr);
     if (!isValid)
@@ -229,7 +229,7 @@ long RdJson::getLong(const char *dataPath,
 {
     // Find the element in the JSON
     int startPos = 0, strLen = 0;
-    jsmntype_t elemType = JSMN_UNDEFINED;
+    rd_jsmntype_t elemType = RD_JSMN_UNDEFINED;
     int elemSize = 0;
     isValid = getElement(dataPath, startPos, strLen, elemType, elemSize, pSourceStr);
     if (!isValid)
@@ -259,19 +259,19 @@ long RdJson::getLong(const char *dataPath, long defaultValue, const char *pSourc
 // getLong
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const char *RdJson::getElemTypeStr(jsmntype_t type)
+const char *RdJson::getElemTypeStr(rd_jsmntype_t type)
 {
     switch (type)
     {
-    case JSMN_PRIMITIVE:
+    case RD_JSMN_PRIMITIVE:
         return "PRIMITIVE";
-    case JSMN_STRING:
+    case RD_JSMN_STRING:
         return "STRING";
-    case JSMN_OBJECT:
+    case RD_JSMN_OBJECT:
         return "OBJECT";
-    case JSMN_ARRAY:
+    case RD_JSMN_ARRAY:
         return "ARRAY";
-    case JSMN_UNDEFINED:
+    case RD_JSMN_UNDEFINED:
         return "UNDEFINED";
     }
     return "UNKNOWN";
@@ -286,24 +286,24 @@ const char *RdJson::getElemTypeStr(jsmntype_t type)
  * 
  * @param  {int&} arrayLen    : length of array or object
  * @param  {char*} pSourceStr : json string to search
- * @return {jsmntype_t}       : returned value is the type of the object
+ * @return {rd_jsmntype_t}       : returned value is the type of the object
  */
-jsmntype_t RdJson::getType(int &arrayLen, const char *pSourceStr)
+rd_jsmntype_t RdJson::getType(int &arrayLen, const char *pSourceStr)
 {
     arrayLen = 0;
     // Check for null
     if (!pSourceStr)
-        return JSMN_UNDEFINED;
+        return RD_JSMN_UNDEFINED;
 
     // Parse json into tokens
     int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+    rd_jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
     if (pTokens == NULL)
-        return JSMN_UNDEFINED;
+        return RD_JSMN_UNDEFINED;
 
     // Get the type of the first token
     arrayLen = pTokens->size;
-    jsmntype_t typ = pTokens->type;
+    rd_jsmntype_t typ = pTokens->type;
     delete pTokens;
     return typ;
 }
@@ -328,7 +328,7 @@ bool RdJson::getKeys(const char *dataPath, std::vector<String>& keysVector, cons
 
     // Parse json into tokens
     int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+    rd_jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
     if (pTokens == NULL)
     {
         return false;
@@ -353,7 +353,7 @@ bool RdJson::getKeys(const char *dataPath, std::vector<String>& keysVector, cons
 #endif
 
     // Check its an object
-    if ((pTokens[startTokenIdx].type != JSMN_OBJECT) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
+    if ((pTokens[startTokenIdx].type != RD_JSMN_OBJECT) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
     {
         delete[] pTokens;
         return false;
@@ -367,7 +367,7 @@ bool RdJson::getKeys(const char *dataPath, std::vector<String>& keysVector, cons
     for (int keyIdx = 0; keyIdx < numKeys; keyIdx++)
     {
         // Check valid
-        if ((tokIdx >= numTokens) || (pTokens[tokIdx].type != JSMN_STRING))
+        if ((tokIdx >= numTokens) || (pTokens[tokIdx].type != RD_JSMN_STRING))
             break;
 
         // Extract the string
@@ -410,7 +410,7 @@ bool RdJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems
 
     // Parse json into tokens
     int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+    rd_jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
     if (pTokens == NULL)
     {
         return false;
@@ -432,7 +432,7 @@ bool RdJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems
 #endif
 
     // Check its an array
-    if ((pTokens[startTokenIdx].type != JSMN_ARRAY) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
+    if ((pTokens[startTokenIdx].type != RD_JSMN_ARRAY) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
     {
         delete[] pTokens;
         return false;
@@ -467,14 +467,14 @@ bool RdJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * jsmntok_t* RdJson::parseJson 
+ * rd_jsmntok_t* RdJson::parseJson 
  * 
  * @param  {char*} jsonStr  : json string to search
  * @param  {int&} numTokens : [out] number of tokens found
  * @param  {int} maxTokens  : max number of tokens to return
- * @return {jsmntok_t*}     : tokens found - NOTE - pointer must be delete[] by caller
+ * @return {rd_jsmntok_t*}     : tokens found - NOTE - pointer must be delete[] by caller
  */
-jsmntok_t *RdJson::parseJson(const char *jsonStr, int &numTokens,
+rd_jsmntok_t *RdJson::parseJson(const char *jsonStr, int &numTokens,
                               int maxTokens)
 {
     // Check for null source string
@@ -485,9 +485,9 @@ jsmntok_t *RdJson::parseJson(const char *jsonStr, int &numTokens,
     }
 
     // Find how many tokens in the string
-    jsmn_parser parser;
-    jsmn_init(&parser);
-    int tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    rd_jsmn_parser parser;
+    rd_jsmn_init(&parser);
+    int tokenCountRslt = rd_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                      NULL, maxTokens);
     if (tokenCountRslt < 0)
     {
@@ -495,18 +495,18 @@ jsmntok_t *RdJson::parseJson(const char *jsonStr, int &numTokens,
         LOG_I(MODULE_PREFIX, "parseJson result %d maxTokens %d jsonLen %d jsonStr %s", tokenCountRslt, 
                         maxTokens, strlen(jsonStr), jsonStr);
 #endif
-        // jsmn_logLongStr("RdJson: jsonStr", jsonStr, false);
+        // rd_jsmn_logLongStr("RdJson: jsonStr", jsonStr, false);
         return NULL;
     }
 
     // Allocate space for tokens
     if (tokenCountRslt > maxTokens)
         tokenCountRslt = maxTokens;
-    jsmntok_t *pTokens = new jsmntok_t[tokenCountRslt];
+    rd_jsmntok_t *pTokens = new rd_jsmntok_t[tokenCountRslt];
 
     // Parse again
-    jsmn_init(&parser);
-    tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    rd_jsmn_init(&parser);
+    tokenCountRslt = rd_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                  pTokens, tokenCountRslt);
     if (tokenCountRslt < 0)
     {
@@ -539,9 +539,9 @@ bool RdJson::validateJson(const char* pSourceStr, int& numTokens)
     }
 
     // Find how many tokens in the string
-    jsmn_parser parser;
-    jsmn_init(&parser);
-    numTokens = jsmn_parse(&parser, pSourceStr, strlen(pSourceStr),
+    rd_jsmn_parser parser;
+    rd_jsmn_init(&parser);
+    numTokens = rd_jsmn_parse(&parser, pSourceStr, strlen(pSourceStr),
                                      NULL, RDJSON_MAX_TOKENS);
     if (numTokens < 0)
     {
@@ -549,7 +549,7 @@ bool RdJson::validateJson(const char* pSourceStr, int& numTokens)
         LOG_I(MODULE_PREFIX, "validateJson result %d maxTokens %d jsonLen %d", 
                 numTokens, RDJSON_MAX_TOKENS, strlen(pSourceStr));
 #endif
-        // jsmn_logLongStr("RdJson: jsonStr", pSourceStr, false);
+        // rd_jsmn_logLongStr("RdJson: jsonStr", pSourceStr, false);
         return false;
     }
     return true;
@@ -563,14 +563,14 @@ bool RdJson::validateJson(const char* pSourceStr, int& numTokens)
  * findElemEnd 
  * 
  * @param  {char*} jsonOriginal   : json to search
- * @param  {jsmntok_t []} tokens  : tokens from jsmn parser
+ * @param  {rd_jsmntok_t []} tokens  : tokens from jsmn parser
  * @param  {unsigned} int         : count of tokens from parser
  * @param  {int} startTokenIdx    : token index to start search from
  * @return {int}                  : token index of token after the element
  *                                : OR numTokens+1 if element occupies rest of json
  *                                : OR -1 on error
  */
-int RdJson::findElemEnd(const char *jsonOriginal, jsmntok_t tokens[],
+int RdJson::findElemEnd(const char *jsonOriginal, rd_jsmntok_t tokens[],
                           unsigned int numTokens, int startTokenIdx)
 {
     // Check valid
@@ -585,8 +585,8 @@ int RdJson::findElemEnd(const char *jsonOriginal, jsmntok_t tokens[],
     // Handle simple elements
     switch(tokens[startTokenIdx].type)
     {
-        case JSMN_PRIMITIVE:
-        case JSMN_STRING:
+        case RD_JSMN_PRIMITIVE:
+        case RD_JSMN_STRING:
             return startTokenIdx+1;
         default:
             break;
@@ -611,13 +611,13 @@ int RdJson::findElemEnd(const char *jsonOriginal, jsmntok_t tokens[],
  * findArrayElem 
  * 
  * @param  {char*} jsonOriginal  : json to search
- * @param  {jsmntok_t []} tokens : tokens from jsmn parser
+ * @param  {rd_jsmntok_t []} tokens : tokens from jsmn parser
  * @param  {unsigned} numTokens  : count of tokens from parser
  * @param  {int} startTokenIdx   : token index to start search from
  * @param  {int} arrayElemIdx    : 
  * @return {int}                 : 
  */
-int RdJson::findArrayElem(const char *jsonOriginal, jsmntok_t tokens[],
+int RdJson::findArrayElem(const char *jsonOriginal, rd_jsmntok_t tokens[],
                           unsigned int numTokens, int startTokenIdx, 
                           int arrayElemIdx)
 {
@@ -626,7 +626,7 @@ int RdJson::findArrayElem(const char *jsonOriginal, jsmntok_t tokens[],
         return -1;
 
     // Check this is an array
-    if (tokens[startTokenIdx].type != JSMN_ARRAY)
+    if (tokens[startTokenIdx].type != RD_JSMN_ARRAY)
         return -1;
 
     // // All top-level array elements have the array token as their parent
@@ -653,17 +653,17 @@ int RdJson::findArrayElem(const char *jsonOriginal, jsmntok_t tokens[],
  * findKeyInJson : find an element in a json string using a search path 
  * 
  * @param  {char*} jsonOriginal     : json string to search
- * @param  {jsmntok_t []} tokens    : tokens from jsmn parser
+ * @param  {rd_jsmntok_t []} tokens    : tokens from jsmn parser
  * @param  {unsigned int} numTokens : number of tokens
  * @param  {char*} dataPath         : path of searched for element
  * @param  {int} endTokenIdx        : token index to end search
- * @param  {jsmntype_t} keyType     : type of json element to find
+ * @param  {rd_jsmntype_t} keyType     : type of json element to find
  * @return {int}                    : index of found token or -1 if failed
  */
-int RdJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
+int RdJson::findKeyInJson(const char *jsonOriginal, rd_jsmntok_t tokens[],
                           unsigned int numTokens, const char *dataPath,
                           int &endTokenIdx,
-                          jsmntype_t keyType)
+                          rd_jsmntype_t keyType)
 {
     // TODO - fixed size buffer - review to ensure ok
     const int MAX_SRCH_KEY_LEN = 150;
@@ -723,20 +723,20 @@ int RdJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
         // Iterate over tokens to find key of the right type
         // If we are already looking at the node level then search for requested type
         // Otherwise search for an element that will contain the next level key
-        jsmntype_t keyTypeToFind = atNodeLevel ? keyType : JSMN_STRING;
+        rd_jsmntype_t keyTypeToFind = atNodeLevel ? keyType : RD_JSMN_STRING;
         for (int tokIdx = curTokenIdx; tokIdx <= maxTokenIdx;)
         {
             // See if the key matches - this can either be a string match on an object key or
             // just an array element match (with an empty key)
-            jsmntok_t *pTok = tokens + tokIdx;
+            rd_jsmntok_t *pTok = tokens + tokIdx;
             bool keyMatchFound = false;
-            if ((pTok->type == JSMN_STRING) && ((int)strlen(srchKey) == pTok->end - pTok->start) && (strncmp(jsonOriginal + pTok->start, srchKey, pTok->end - pTok->start) == 0))
+            if ((pTok->type == RD_JSMN_STRING) && ((int)strlen(srchKey) == pTok->end - pTok->start) && (strncmp(jsonOriginal + pTok->start, srchKey, pTok->end - pTok->start) == 0))
             {
                 keyMatchFound = true;
                 tokIdx += 1;
                 pTok = tokens + tokIdx;
             }
-            else if (((pTok->type == JSMN_ARRAY) || (pTok->type == JSMN_OBJECT)) && ((int)strlen(srchKey) == 0))
+            else if (((pTok->type == RD_JSMN_ARRAY) || (pTok->type == RD_JSMN_OBJECT)) && ((int)strlen(srchKey) == 0))
             {
                 keyMatchFound = true;
             }
@@ -752,7 +752,7 @@ int RdJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                 // Check if we were looking for an array element
                 if (arrayElementReqd)
                 {
-                    if (tokens[tokIdx].type == JSMN_ARRAY)
+                    if (tokens[tokIdx].type == RD_JSMN_ARRAY)
                     {
                         int newTokIdx = findArrayElem(jsonOriginal, tokens, numTokens, tokIdx, reqdArrayIdx);
 #ifdef DEBUG_FIND_KEY_IN_JSON
@@ -776,7 +776,7 @@ int RdJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                 if (atNodeLevel)
                 {
                     // LOG_I(MODULE_PREFIX, "findKeyInJson we have got it %d", tokIdx);
-                    if ((keyTypeToFind == JSMN_UNDEFINED) || (tokens[tokIdx].type == keyTypeToFind))
+                    if ((keyTypeToFind == RD_JSMN_UNDEFINED) || (tokens[tokIdx].type == keyTypeToFind))
                     {
                         endTokenIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx);
                         return tokIdx;
@@ -792,11 +792,11 @@ int RdJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
 #ifdef DEBUG_FIND_KEY_IN_JSON
                     LOG_I(MODULE_PREFIX, "findKeyInJson findElemEnd inside tokIdx %d", tokIdx);
 #endif
-                    if ((tokens[tokIdx].type == JSMN_OBJECT) || (tokens[tokIdx].type == JSMN_ARRAY))
+                    if ((tokens[tokIdx].type == RD_JSMN_OBJECT) || (tokens[tokIdx].type == RD_JSMN_ARRAY))
                     {
                         // Continue next level of search in this object
                         maxTokenIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx);
-                        curTokenIdx = (tokens[tokIdx].type == JSMN_OBJECT) ? tokIdx + 1 : tokIdx;
+                        curTokenIdx = (tokens[tokIdx].type == RD_JSMN_OBJECT) ? tokIdx + 1 : tokIdx;
 #ifdef DEBUG_FIND_KEY_IN_JSON
                         LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d max %d next %d", 
                                     tokIdx, maxTokenIdx, curTokenIdx);
@@ -813,17 +813,17 @@ int RdJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                     }
                 }
             }
-            else if (pTok->type == JSMN_STRING)
+            else if (pTok->type == RD_JSMN_STRING)
             {
                 // We're at a key string but it isn't the one we want so skip its contents
                 tokIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx+1);
             }
-            else if (pTok->type == JSMN_OBJECT)
+            else if (pTok->type == RD_JSMN_OBJECT)
             {
                 // Move to the first key of the object
                 tokIdx++;
             }
-            else if (pTok->type == JSMN_ARRAY)
+            else if (pTok->type == RD_JSMN_ARRAY)
             {
                 // Root level array which doesn't match the dataPath
 #ifdef DEBUG_FIND_KEY_IN_JSON
@@ -967,7 +967,7 @@ char *RdJson::safeStringDup(const char *pSrc, size_t maxx,
     return pDest;
 }
 
-void RdJson::debugDumpParseResult(const char* pSourceStr, jsmntok_t* pTokens, int numTokens)
+void RdJson::debugDumpParseResult(const char* pSourceStr, rd_jsmntok_t* pTokens, int numTokens)
 {
     for (int i = 0; i < numTokens; i++)
     {
@@ -1151,7 +1151,7 @@ bool RdJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef RDJSON_RECREATE_JSON
-int RdJson::recreateJson(const char *js, jsmntok_t *t,
+int RdJson::recreateJson(const char *js, rd_jsmntok_t *t,
                          size_t count, int indent, String &outStr)
 {
     int i, j, k;
@@ -1160,7 +1160,7 @@ int RdJson::recreateJson(const char *js, jsmntok_t *t,
     {
         return 0;
     }
-    if (t->type == JSMN_PRIMITIVE)
+    if (t->type == RD_JSMN_PRIMITIVE)
     {
         LOG_D(MODULE_PREFIX, "recreateJson Found primitive size %d, start %d, end %d",
                   t->size, t->start, t->end);
@@ -1171,7 +1171,7 @@ int RdJson::recreateJson(const char *js, jsmntok_t *t,
         delete[] pStr;
         return 1;
     }
-    else if (t->type == JSMN_STRING)
+    else if (t->type == RD_JSMN_STRING)
     {
         LOG_D(MODULE_PREFIX, "recreateJson Found string size %d, start %d, end %d",
                   t->size, t->start, t->end);
@@ -1184,7 +1184,7 @@ int RdJson::recreateJson(const char *js, jsmntok_t *t,
         delete[] pStr;
         return 1;
     }
-    else if (t->type == JSMN_OBJECT)
+    else if (t->type == RD_JSMN_OBJECT)
     {
         LOG_D(MODULE_PREFIX, "recreateJson Found object size %d, start %d, end %d",
                   t->size, t->start, t->end);
@@ -1209,7 +1209,7 @@ int RdJson::recreateJson(const char *js, jsmntok_t *t,
         outStr.concat("}");
         return j + 1;
     }
-    else if (t->type == JSMN_ARRAY)
+    else if (t->type == RD_JSMN_ARRAY)
     {
         LOG_D(MODULE_PREFIX, "#Found array size %d, start %d, end %d",
                   t->size, t->start, t->end);
@@ -1242,18 +1242,18 @@ int RdJson::recreateJson(const char *js, jsmntok_t *t,
 
 bool RdJson::doPrint(const char *jsonStr)
 {
-    jsmn_parser parser;
-    jsmn_init(&parser);
-    int tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    rd_jsmn_parser parser;
+    rd_jsmn_init(&parser);
+    int tokenCountRslt = rd_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                      NULL, 1000);
     if (tokenCountRslt < 0)
     {
         LOG_I(MODULE_PREFIX, "JSON parse result: %d", tokenCountRslt);
         return false;
     }
-    jsmntok_t *pTokens = new jsmntok_t[tokenCountRslt];
-    jsmn_init(&parser);
-    tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    rd_jsmntok_t *pTokens = new rd_jsmntok_t[tokenCountRslt];
+    rd_jsmn_init(&parser);
+    tokenCountRslt = rd_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                  pTokens, tokenCountRslt);
     if (tokenCountRslt < 0)
     {
@@ -1262,7 +1262,7 @@ bool RdJson::doPrint(const char *jsonStr)
         return false;
     }
     // Top level item must be an object
-    if (tokenCountRslt < 1 || pTokens[0].type != JSMN_OBJECT)
+    if (tokenCountRslt < 1 || pTokens[0].type != RD_JSMN_OBJECT)
     {
         LOG_E(MODULE_PREFIX "JSON must have top level object");
         delete pTokens;

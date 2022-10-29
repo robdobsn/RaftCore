@@ -11,7 +11,7 @@
 #ifndef ESP8266
 
 #include <cstdint>
-#include <ArduinoOrAlternate.h>
+#include <ArduinoOrAlt.h>
 #include "esp_system.h"
 
 #ifndef ARDUINO

@@ -10,7 +10,7 @@
 #include "ConfigBase.h"
 
 #include <Logger.h>
-#include <Utils.h>
+#include <RdUtils.h>
 
 // #define DEBUG_CHECK_BACKWARDS_COMPATIBILITY
 // #define DEBUG_CONFIG_BASE
@@ -101,7 +101,7 @@ void ConfigBase::_setConfigData(const char* configJSONStr)
 String ConfigBase::_helperGetString(const char *dataPath, const char *defaultValue, const char* pSourceStr)
 {
     String element;
-    jsmntype_t type = JSMN_UNDEFINED;
+    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
@@ -119,7 +119,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
 
     // Normalise whitespace
     char *pStr = RdJson::safeStringDup(element.c_str(), element.length(),
-                                       !(type == JSMN_STRING || type == JSMN_PRIMITIVE));
+                                       !(type == RD_JSMN_STRING || type == RD_JSMN_PRIMITIVE));
     if (pStr)
     {
         element = pStr;
@@ -144,7 +144,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
 long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr)
 {
     String element;
-    jsmntype_t type = JSMN_UNDEFINED;
+    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
     long result = defaultValue;
     if (exists)
@@ -177,7 +177,7 @@ long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const c
 double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr)
 {
     String element;
-    jsmntype_t type = JSMN_UNDEFINED;
+    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
     double result = defaultValue;
     if (exists)
@@ -210,7 +210,7 @@ double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, c
 bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr)
 {
     String element;
-    jsmntype_t type = JSMN_UNDEFINED;
+    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
@@ -259,7 +259,7 @@ bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>&
 bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr)
 {
     String element;
-    jsmntype_t type = JSMN_UNDEFINED;
+    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
@@ -308,7 +308,7 @@ bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysV
 bool ConfigBase::_helperContains(const char *dataPath, const char* pSourceStr)
 {
     String element;
-    jsmntype_t type = JSMN_UNDEFINED;
+    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
     return _helperGetElement(dataPath, element, type, pSourceStr);
 }
 
@@ -316,7 +316,7 @@ bool ConfigBase::_helperContains(const char *dataPath, const char* pSourceStr)
 // _helperGetElement
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsmntype_t& elementType, const char* pConfigStr)
+bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_jsmntype_t& elementType, const char* pConfigStr)
 {
 #ifdef DEBUG_CONFIG_BASE
     LOG_I(MODULE_PREFIX, "Looking for element '%s'", dataPath);
@@ -350,7 +350,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsm
         return false;  // Invalid path
 
     Utils::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, elementStr);
-    if (elementType != JSMN_ARRAY || size <= 0)
+    if (elementType != RD_JSMN_ARRAY || size <= 0)
         return true;  // Not an array of option objects - return the element as is
 
     // Try to parse an array of option objects
@@ -358,7 +358,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsm
     RdJson::getArrayElems("", optionObjs, elementStr.c_str());
     bool hasSomeOptionObjs = false;
     bool hasOnlyOptionObjs = true;
-    jsmntype_t defaultValueType = JSMN_UNDEFINED;
+    rd_jsmntype_t defaultValueType = RD_JSMN_UNDEFINED;
     for (auto &&optionObj : optionObjs)
     {
         optionObj.trim();
@@ -407,7 +407,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsm
         // The first element was not an option object - assume a normal array, not a revision switch
         return true;
     }
-    else if (defaultValueType != JSMN_UNDEFINED)
+    else if (defaultValueType != RD_JSMN_UNDEFINED)
     {
         // We checked the whole array and found a default value. There are only valid option objects.
         elementType = defaultValueType;

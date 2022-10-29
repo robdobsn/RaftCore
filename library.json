@@ -28,11 +28,19 @@
     "libArchive": false,
     "extraScript": "lib_script.py",
     "flags": [
-      "-DJSMN_PARENT_LINKS", 
-      "-DJSMN_STRICT",
+        "-Icomponents/core/APICommon",
         "-Icomponents/core/ArduinoUtils",
         "-Icomponents/core/Config",
+        "-Icomponents/core/ConfigPinMap",
+        "-Icomponents/core/DebounceButton",
+        "-Icomponents/core/ExpressionEval",
+        "-Icomponents/core/libb64",
         "-Icomponents/core/Logger",
+        "-Icomponents/core/MiniHDLC",
+        "-Icomponents/core/NumericalFilters",
+        "-Icomponents/core/RingBuffer",
+        "-Icomponents/core/SupervisorStats",
+        "-Icomponents/core/ThreadSafeQueue",
         "-Icomponents/core/Utils"
     ]
   }

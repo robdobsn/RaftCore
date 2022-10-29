@@ -1,4 +1,4 @@
-// ArduinoOrAlternate
+// ArduinoOrAlt
 // Rob Dobson 2012-2022
 
 #pragma once

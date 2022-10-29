@@ -11,8 +11,8 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <Utils.h>
-#include "Arduino.h"
+#include <RdUtils.h>
+#include <ArduinoOrAlt.h>
 
 class ExecTimer
 {
