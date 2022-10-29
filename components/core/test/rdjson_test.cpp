@@ -14,7 +14,6 @@
 #include <RdJson.h>
 #include <Logger.h>
 #include "unity.h"
-#include <jsmn.h>
 #include <Utils.h>
 
 static const char* MODULE_PREFIX = "RdJsonUnitTest";

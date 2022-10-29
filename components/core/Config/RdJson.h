@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <ArduinoOrAlternate.h>
-#include "jsmn.h"
+#include <jsmn.h>
 #include <vector>
 
 // Define this to enable reformatting of JSON

@@ -14,7 +14,6 @@
 #include <RdJson.h>
 #include <Logger.h>
 #include "unity.h"
-#include <jsmn.h>
 #include <Utils.h>
 #include <ArduinoTime.h>
 

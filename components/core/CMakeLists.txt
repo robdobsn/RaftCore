@@ -6,7 +6,6 @@ idf_component_register(
                   "ArduinoUtils/ArduinoStdlibNonISO.c"
                   "Utils/Utils.cpp"
                   "Utils/ESPUtils.cpp"
-                  "Logger/Logger.cpp"
                   "Logger/LoggerCore.cpp"
                   "Config/ConfigBase.cpp"
                   "Config/ConfigMulti.cpp"
@@ -17,5 +16,5 @@ idf_component_register(
                   "Logger"
                   "Config"
                 REQUIRES
-                  jsmn
+                  "jsmn"
                 )
