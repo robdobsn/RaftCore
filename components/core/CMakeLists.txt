@@ -1,0 +1,21 @@
+idf_component_register(
+                SRCS 
+                  "ArduinoUtils/ArduinoGPIO.cpp"
+                  "ArduinoUtils/ArduinoTime.cpp"
+                  "ArduinoUtils/ArduinoWString.cpp"
+                  "ArduinoUtils/ArduinoStdlibNonISO.c"
+                  "Utils/Utils.cpp"
+                  "Utils/ESPUtils.cpp"
+                  "Logger/Logger.cpp"
+                  "Logger/LoggerCore.cpp"
+                  "Config/ConfigBase.cpp"
+                  "Config/ConfigMulti.cpp"
+                  "Config/RdJson.cpp"
+                INCLUDE_DIRS
+                  "Utils"
+                  "ArduinoUtils"
+                  "Logger"
+                  "Config"
+                REQUIRES
+                  jsmn
+                )

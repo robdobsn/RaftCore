@@ -1,0 +1,39 @@
+{
+  "name": "RaftCore",
+  "version": "1.0.0",
+  "description": "Core elements for the Raft ESP32 framework",
+  "keywords": "esp32, esp32s3, framework",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/robdobsn/RaftCore"
+  },
+  "authors":
+  [
+    {
+      "name": "Rob Dobson",
+      "email": "rob@dobson.com",
+      "url": "https://robdobson.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/robdobsn/RaftCore",
+  "frameworks": ["arduino", "espidf"],
+  "platforms": ["espressif32"],
+  "build": {
+      "srcDir": "components/core",
+      "includeDir": "components/core",
+    "libLDFMode": "deep+",
+    "libArchive": false,
+    "extraScript": "lib_script.py",
+    "flags": [
+      "-DJSMN_PARENT_LINKS", 
+      "-DJSMN_STRICT",
+        "-Icomponents/core/ArduinoUtils",
+        "-Icomponents/core/Config",
+        "-Icomponents/core/Logger",
+        "-Icomponents/core/Utils"
+    ]
+  }
+}
