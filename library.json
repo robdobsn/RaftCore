@@ -22,26 +22,26 @@
   "frameworks": ["arduino", "espidf"],
   "platforms": ["espressif32"],
   "build": {
-      "srcDir": "components/core",
-      "includeDir": "components/core",
+      "srcDir": "src",
+      "includeDir": "src",
     "libLDFMode": "deep+",
     "libArchive": false,
     "extraScript": "lib_script.py",
     "flags": [
-        "-Icomponents/core/APICommon",
-        "-Icomponents/core/ArduinoUtils",
-        "-Icomponents/core/Config",
-        "-Icomponents/core/ConfigPinMap",
-        "-Icomponents/core/DebounceButton",
-        "-Icomponents/core/ExpressionEval",
-        "-Icomponents/core/libb64",
-        "-Icomponents/core/Logger",
-        "-Icomponents/core/MiniHDLC",
-        "-Icomponents/core/NumericalFilters",
-        "-Icomponents/core/RingBuffer",
-        "-Icomponents/core/SupervisorStats",
-        "-Icomponents/core/ThreadSafeQueue",
-        "-Icomponents/core/Utils"
+        "-Isrc/APICommon",
+        "-Isrc/ArduinoUtils",
+        "-Isrc/Config",
+        "-Isrc/ConfigPinMap",
+        "-Isrc/DebounceButton",
+        "-Isrc/ExpressionEval",
+        "-Isrc/libb64",
+        "-Isrc/Logger",
+        "-Isrc/MiniHDLC",
+        "-Isrc/NumericalFilters",
+        "-Isrc/RingBuffer",
+        "-Isrc/SupervisorStats",
+        "-Isrc/ThreadSafeQueue",
+        "-Isrc/Utils"
     ]
   }
 }

@@ -4,6 +4,8 @@ idf_component_register(
                   "./rdjson_test.cpp"
                   "./rdjson_perf_test.cpp"
                   "./ConfigBase_test.cpp"
+                  "./exprCtx_unit_test.cpp"
+                  "./expressions_unit_test.cpp"
                 INCLUDE_DIRS
                   "."
                 REQUIRES
