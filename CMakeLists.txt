@@ -1,5 +1,49 @@
 # Ensure CMake supports FetchContent
 cmake_minimum_required(VERSION 3.16)
 
-# Include component
-# include(components/core/CMakeLists.txt)
+# Ensure CMake supports FetchContent
+cmake_minimum_required(VERSION 3.16)
+idf_component_register(
+    SRCS 
+      "components/core/ArduinoUtils/ArduinoGPIO.cpp"
+      "components/core/ArduinoUtils/ArduinoTime.cpp"
+      "components/core/ArduinoUtils/ArduinoWString.cpp"
+      "components/core/ArduinoUtils/ArduinoStdlibNonISO.c"
+      "components/core/Config/ConfigBase.cpp"
+      "components/core/Config/ConfigMulti.cpp"
+      "components/core/Config/RdJsmn.cpp"
+      "components/core/Config/RdJson.cpp"
+      "components/core/ConfigPinMap/ConfigPinMap.cpp"
+      "components/core/DebounceButton/DebounceButton.cpp"
+      "components/core/ExpressionEval/ExpressionEval.cpp"
+      "components/core/ExpressionEval/ExpressionContext.cpp"
+      "components/core/ExpressionEval/tinyexpr.c"
+      "components/core/libb64/cencode.cpp"
+      "components/core/Logger/LoggerCore.cpp"
+      "components/core/MiniHDLC/MiniHDLC.cpp"
+      "components/core/NetworkSystem/NetworkSystem.cpp"
+      "components/core/NetworkSystem/WiFiScanner.cpp"
+      "components/core/SupervisorStats/SupervisorStats.cpp"
+      "components/core/Utils/RaftUtils.cpp"
+      "components/core/Utils/ESPUtils.cpp"
+    INCLUDE_DIRS
+      "components/core/APICommon"
+      "components/core/ArduinoUtils"
+      "components/core/Config"
+      "components/core/ConfigPinMap"
+      "components/core/DebounceButton"
+      "components/core/ExpressionEval"
+      "components/core/libb64"
+      "components/core/Logger"
+      "components/core/MiniHDLC"
+      "components/core/NetworkSystem"
+      "components/core/NumericalFilters"
+      "components/core/RingBuffer"
+      "components/core/SupervisorStats"
+      "components/core/ThreadSafeQueue"
+      "components/core/Utils"
+    REQUIRES
+      nvs_flash
+      mdns
+    )
+

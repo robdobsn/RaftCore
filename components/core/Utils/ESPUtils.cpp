@@ -9,7 +9,7 @@
 #ifndef ESP8266
 
 #include <ESPUtils.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 #include <limits.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -76,7 +76,7 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
     int rc = esp_read_mac(addr, macType);
     if (rc != ESP_OK)
         return "";
-    String macStr = Utils::formatMACAddr(addr, pSeparator);
+    String macStr = Raft::formatMACAddr(addr, pSeparator);
     if (macType == ESP_MAC_BT)
         __systemMACAddrBT = macStr;
     else if (macType == ESP_MAC_ETH)

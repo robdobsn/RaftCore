@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 #include <ArduinoOrAlt.h>
 #include <ExecTimer.h>
 
@@ -95,7 +95,7 @@ private:
         }
         void endLoop()
         {
-            int64_t loopTime = Utils::timeElapsed(micros(), _lastLoopStartMicros);
+            int64_t loopTime = Raft::timeElapsed(micros(), _lastLoopStartMicros);
             _loopTimeAvgSum += loopTime;
             _loopTimeAvgCount++;
             if (_loopTimeMin > loopTime)

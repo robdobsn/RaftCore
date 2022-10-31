@@ -8,7 +8,7 @@
 
 #include "WiFiScanner.h"
 #include <Logger.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <esp_wifi.h>
@@ -136,11 +136,11 @@ bool WiFiScanner::getScanResults(WiFiScanResultList& results)
         // Create WiFiScanResult
         static const uint32_t SSID_MAX_LEN = 32;
         WiFiScanResult result;
-        Utils::strFromBuffer(pRecord->ssid, SSID_MAX_LEN, result.ssid);
+        Raft::strFromBuffer(pRecord->ssid, SSID_MAX_LEN, result.ssid);
         result.rssi = pRecord->rssi;
         result.primaryChannel = pRecord->primary;
         result.secondaryChannel = pRecord->second;
-        result.bssid = Utils::formatMACAddr(pRecord->bssid, ":");
+        result.bssid = Raft::formatMACAddr(pRecord->bssid, ":");
         result.authMode = pRecord->authmode;
         result.pairwiseCipher = pRecord->pairwise_cipher;
         result.groupCipher = pRecord->group_cipher;

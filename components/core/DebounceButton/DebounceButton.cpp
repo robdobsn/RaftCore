@@ -11,7 +11,7 @@
 #include "DebounceButton.h"
 #include "Logger.h"
 #include <ArduinoOrAlt.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 #include <driver/gpio.h>
 
 // Constructor
@@ -72,7 +72,7 @@ void DebounceButton::service()
 
     // Check time for check
     uint64_t curMs = millis();
-    if (Utils::isTimeout(curMs, _lastCheckMs, PIN_CHECK_MS))
+    if (Raft::isTimeout(curMs, _lastCheckMs, PIN_CHECK_MS))
     {
         // Accumulate ms elapsed since state of button (pressed/unpressed) changed
         _timeInPresentStateMs += (curMs - _lastCheckMs);
@@ -115,7 +115,7 @@ void DebounceButton::service()
             // Check if active
             if (curVal)
             {
-                if (Utils::isTimeout(curMs, _lastRepeatTimeMs, _activeRepeatTimeMs))
+                if (Raft::isTimeout(curMs, _lastRepeatTimeMs, _activeRepeatTimeMs))
                 {
                     _lastRepeatTimeMs = curMs;
                     _repeatCount++;

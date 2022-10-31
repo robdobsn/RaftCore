@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Utils
+// RaftUtils
 //
 // Rob Dobson 2012-2022
 //
@@ -13,7 +13,7 @@
 #include <Logger.h>
 #include <stdio.h>
 
-namespace Utils
+namespace Raft
 {
     // Test for a timeout handling wrap around
     // Usage example: isTimeout(millis(), myLastTime, 1000)

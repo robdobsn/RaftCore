@@ -10,7 +10,7 @@
 #include "ConfigBase.h"
 
 #include <Logger.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 
 // #define DEBUG_CHECK_BACKWARDS_COMPATIBILITY
 // #define DEBUG_CONFIG_BASE
@@ -329,7 +329,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
 #ifdef DEBUG_CONFIG_BASE
     {
         String debugOutStr;
-        Utils::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
+        Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
         LOG_I(MODULE_PREFIX, "  - found=%d, start=%d, len=%d, type=%s, size=%d, elemSubstr='%s'",
             (int)found, startPos, strLen, RdJson::getElemTypeStr(elementType), size,
             (startPos < 0 || strLen < 0 || startPos > strnlen(pConfigStr, startPos+1)) ? "" : debugOutStr.c_str());
@@ -339,7 +339,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
     if (strcasecmp(dataPath, DEBUG_CONFIG_BASE_SPECIFIC_PATH) == 0)
     {
         String debugOutStr;
-        Utils::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
+        Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
         LOG_I(MODULE_PREFIX, "path %s found=%d, start=%d, len=%d, type=%s, size=%d, elemSubstr='%s'",
             dataPath, (int)found, startPos, strLen, RdJson::getElemTypeStr(elementType), size,
             (startPos < 0 || strLen < 0 || startPos > strnlen(pConfigStr, startPos+1)) ? "" : debugOutStr.c_str());
@@ -349,7 +349,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
     if (!found || (startPos < 0) || (strLen < 0) || (startPos > strnlen(pConfigStr, startPos+1)))
         return false;  // Invalid path
 
-    Utils::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, elementStr);
+    Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, elementStr);
     if (elementType != RD_JSMN_ARRAY || size <= 0)
         return true;  // Not an array of option objects - return the element as is
 

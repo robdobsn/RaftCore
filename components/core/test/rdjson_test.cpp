@@ -13,7 +13,7 @@
 #include <ArduinoOrAlt.h>
 #include <RdJson.h>
 #include <Logger.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 #include "unity.h"
 
 static const char* MODULE_PREFIX = "RdJsonUnitTest";
@@ -41,7 +41,7 @@ static bool testFindKeyInJson(rd_jsmntok_t* pTokens, int numTokens,
     int foundTokenIdx = RdJson::findKeyInJson(pSourceStr, pTokens, numTokens, dataPath, endTokenIdx, keyType);
     String elemStr;
     if (foundTokenIdx >= 0)
-        Utils::strFromBuffer((uint8_t*)pSourceStr + pTokens[foundTokenIdx].start, 
+        Raft::strFromBuffer((uint8_t*)pSourceStr + pTokens[foundTokenIdx].start, 
                 pTokens[foundTokenIdx].end - pTokens[foundTokenIdx].start,
                 // ((endTokenIdx < numTokens) && (endTokenIdx >= 0)) ? pTokens[foundTokenIdx].end - pTokens[foundTokenIdx].start : strlen(pSourceStr) - pTokens[foundTokenIdx].start,
                 elemStr);

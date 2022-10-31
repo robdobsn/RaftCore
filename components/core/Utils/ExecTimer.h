@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 #include <ArduinoOrAlt.h>
 
 class ExecTimer
@@ -37,7 +37,7 @@ public:
     // Record that execution has ended
     inline void ended()
     {
-        unsigned long durUs = Utils::timeElapsed(micros(), _execStartTimeUs);
+        unsigned long durUs = Raft::timeElapsed(micros(), _execStartTimeUs);
         if (_execMaxTimeUs < durUs)
             _execMaxTimeUs = durUs;
     }

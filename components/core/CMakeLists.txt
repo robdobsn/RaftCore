@@ -21,7 +21,7 @@ idf_component_register(
       "NetworkSystem/NetworkSystem.cpp"
       "NetworkSystem/WiFiScanner.cpp"
       "SupervisorStats/SupervisorStats.cpp"
-      "Utils/RdUtils.cpp"
+      "Utils/RaftUtils.cpp"
       "Utils/ESPUtils.cpp"
     INCLUDE_DIRS
       "APICommon"

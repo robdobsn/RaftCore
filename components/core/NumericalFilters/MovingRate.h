@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <ArduinoOrAlt.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 
 /*
  * Moving Rate
@@ -49,7 +49,7 @@ public:
     {
         uint32_t lastIdx = (index + N - 1) % N;
         uint32_t firstIdx = (lastIdx + N + 1 - usedIdxs) % N;
-        uint32_t timeDeltaMs = Utils::timeElapsed(previousTimeMs[lastIdx], previousTimeMs[firstIdx]);
+        uint32_t timeDeltaMs = Raft::timeElapsed(previousTimeMs[lastIdx], previousTimeMs[firstIdx]);
         if (timeDeltaMs == 0)
             return 0;
         return (previousInputs[lastIdx] - previousInputs[firstIdx]) * 1000.0 / timeDeltaMs;

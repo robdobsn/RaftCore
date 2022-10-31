@@ -10,7 +10,7 @@
 #include <Logger.h>
 #include "NetworkSystem.h"
 #include <mdns.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 #include <ArduinoOrAlt.h>
 
 static const char* MODULE_PREFIX = "NetworkSystem";
@@ -124,7 +124,7 @@ void NetworkSystem::service()
 {
     // Get RSSI value if connected
     // Don't set RSSI_CHECK_MS too low as getting AP info taked ~2ms
-    if (Utils::isTimeout(millis(), _rssiLastMs, RSSI_CHECK_MS))
+    if (Raft::isTimeout(millis(), _rssiLastMs, RSSI_CHECK_MS))
     {
         _rssiLastMs = millis();
         _rssi = 0;

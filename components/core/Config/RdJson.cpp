@@ -11,7 +11,7 @@
 
 #include <Logger.h>
 #include <RdJson.h>
-#include <RdUtils.h>
+#include <RaftUtils.h>
 
 static const char *MODULE_PREFIX = "RdJson";
 
@@ -371,7 +371,7 @@ bool RdJson::getKeys(const char *dataPath, std::vector<String>& keysVector, cons
             break;
 
         // Extract the string
-        Utils::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, keyStr);
+        Raft::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, keyStr);
         keysVector[keyIdx] = keyStr;
         
         // Find end of value
@@ -450,7 +450,7 @@ bool RdJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems
             break;
 
         // Extract the elem
-        Utils::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, elemStr);
+        Raft::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, elemStr);
         arrayElems[elemIdx] = elemStr;
         
         // Find end of elem
@@ -972,7 +972,7 @@ void RdJson::debugDumpParseResult(const char* pSourceStr, rd_jsmntok_t* pTokens,
     for (int i = 0; i < numTokens; i++)
     {
         String elemStr;
-        Utils::strFromBuffer((uint8_t*)pSourceStr+pTokens[i].start, pTokens[i].end-pTokens[i].start, elemStr);
+        Raft::strFromBuffer((uint8_t*)pSourceStr+pTokens[i].start, pTokens[i].end-pTokens[i].start, elemStr);
         LOG_I(MODULE_PREFIX, "Token %2d type %9s size %d start %4d end %4d parent %3d str %s",
                 i, getElemTypeStr(pTokens[i].type), pTokens[i].size, pTokens[i].start, pTokens[i].end,
                 pTokens[i].parent, elemStr.c_str());
@@ -1078,7 +1078,7 @@ void RdJson::extractNameValues(const String& inStr,
             pCurSep = strstr(pElemStart, pNameValueSep);
             if (!pCurSep)
                 break;
-            Utils::strFromBuffer((uint8_t*)pElemStart, pCurSep-pElemStart, name);
+            Raft::strFromBuffer((uint8_t*)pElemStart, pCurSep-pElemStart, name);
             pCurSep++;
         }
         else
@@ -1089,7 +1089,7 @@ void RdJson::extractNameValues(const String& inStr,
                 pCurSep = strstr(pElemStart, pPairDelimAlt);
             if (pCurSep)
             {
-                Utils::strFromBuffer((uint8_t*)pElemStart, pCurSep-pElemStart, val);
+                Raft::strFromBuffer((uint8_t*)pElemStart, pCurSep-pElemStart, val);
                 pCurSep++;
             }
             else
@@ -1128,7 +1128,7 @@ bool RdJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
     if ((*pBuf == 'f') || (*pBuf == 't'))
     {
         String elemStr;
-        Utils::strFromBuffer((uint8_t*)pBuf, bufLen, elemStr);
+        Raft::strFromBuffer((uint8_t*)pBuf, bufLen, elemStr);
 #ifdef DEBUG_IS_BOOLEAN
         LOG_I(MODULE_PREFIX, "isBoolean str %s", elemStr.c_str());
 #endif

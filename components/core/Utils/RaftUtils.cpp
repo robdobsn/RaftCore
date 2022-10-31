@@ -1,14 +1,14 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Utils
+// RaftUtils
 //
 // Rob Dobson 2012-2022
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <RdUtils.h>
-#include <limits.h>
 #include <Logger.h>
+#include <RaftUtils.h>
+#include <limits.h>
 
 #ifndef INADDR_NONE
 #define INADDR_NONE         ((uint32_t)0xffffffffUL)
@@ -24,7 +24,7 @@ static const char* MODULE_PREFIX = "Utils";
 // Timeouts
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool Utils::isTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
+bool Raft::isTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
 {
     if (curTime >= lastTime)
     {
@@ -33,7 +33,7 @@ bool Utils::isTimeout(unsigned long curTime, unsigned long lastTime, unsigned lo
     return (ULONG_MAX - (lastTime - curTime) > maxDuration);
 }
 
-bool Utils::isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
+bool Raft::isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 {
     if (curTime >= lastTime)
     {
@@ -47,7 +47,7 @@ bool Utils::isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Time to timeout handling counter wrapping
-unsigned long Utils::timeToTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
+unsigned long Raft::timeToTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
 {
     if (curTime >= lastTime)
     {
@@ -65,7 +65,7 @@ unsigned long Utils::timeToTimeout(unsigned long curTime, unsigned long lastTime
     return maxDuration - wrapTime;
 }
 
-uint64_t Utils::timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
+uint64_t Raft::timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 {
     if (curTime >= lastTime)
     {
@@ -86,14 +86,14 @@ uint64_t Utils::timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxD
 // Elapsed time handling counter wrapping
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// unsigned long Utils::timeElapsed(unsigned long curTime, unsigned long lastTime)
+// unsigned long Raft::timeElapsed(unsigned long curTime, unsigned long lastTime)
 // {
 //     if (curTime >= lastTime)
 //         return curTime - lastTime;
 //     return (ULONG_MAX - lastTime) + 1 + curTime;
 // }
 
-uint64_t Utils::timeElapsed(uint64_t curTime, uint64_t lastTime)
+uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
 {
     if (curTime >= lastTime)
         return curTime - lastTime;
@@ -104,7 +104,7 @@ uint64_t Utils::timeElapsed(uint64_t curTime, uint64_t lastTime)
 // Set results for JSON communications
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Utils::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
+void Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
 {
     String additionalJson = "";
     if ((otherJson) && (otherJson[0] != '\0'))
@@ -118,7 +118,7 @@ void Utils::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const c
 }
 
 // Set a result error
-void Utils::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson)
+void Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson)
 {
     String additionalJson = "";
     if ((otherJson) && (otherJson[0] != 0))
@@ -131,7 +131,7 @@ void Utils::setJsonErrorResult(const char* pReq, String& resp, const char* error
 }
 
 // Set result
-void Utils::setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg, const char* otherJson)
+void Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg, const char* otherJson)
 {
     if (rslt)
         setJsonBoolResult(pReq, resp, rslt, otherJson);
@@ -143,7 +143,7 @@ void Utils::setJsonResult(const char* pReq, String& resp, bool rslt, const char*
 // Escape JSON string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String Utils::escapeJSON(const String& inStr)
+String Raft::escapeJSON(const String& inStr)
 {
     String outStr;
     // Reserve a bit more than the inStr length
@@ -173,7 +173,7 @@ String Utils::escapeJSON(const String& inStr)
 // JSON only contains name/value pairs and not {}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String Utils::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark)
+String Raft::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark)
 {
     String outStr;
     static const uint32_t MAX_HTTP_QUERY_LEN = 4096;
@@ -250,7 +250,7 @@ String Utils::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuest
 // Get Nth field from delimited string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String Utils::getNthField(const char* inStr, int N, char separator)
+String Raft::getNthField(const char* inStr, int N, char separator)
 {
 	String retStr;
 	// Find separators
@@ -298,7 +298,7 @@ String Utils::getNthField(const char* inStr, int N, char separator)
 // false if the string was truncated
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool Utils::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly)
+bool Raft::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly)
 {
     // Handling on stack or heap?
     static const uint32_t STR_FROM_BUFFER_STACK_MAXLEN = 250;
@@ -346,7 +346,7 @@ bool Utils::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, 
 // Assumes no space between hex digits (e.g. 55aa55aa, etc)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t Utils::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen)
+uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen)
 {
     // Mapping ASCII to hex
     static const uint8_t chToNyb[] =
@@ -375,7 +375,7 @@ uint32_t Utils::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t ma
 // Generates no space between hex digits (e.g. 55aa55aa, etc)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Utils::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr)
+void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr)
 {
     // Setup outStr
     outStr = "";
@@ -401,7 +401,7 @@ void Utils::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& out
 // Generates no space between hex digits (e.g. 55aa55aa, etc)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Utils::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, const char* separator)
+void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, const char* separator)
 {
     // Setup outStr
     outStr = "";
@@ -423,7 +423,7 @@ void Utils::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& o
 // This code from Unix sources
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-unsigned long Utils::convIPStrToAddr(String &inStr)
+unsigned long Raft::convIPStrToAddr(String &inStr)
 {
     char buf[30];
     char *cp = buf;
@@ -536,7 +536,7 @@ unsigned long Utils::convIPStrToAddr(String &inStr)
 }
 
 // Format MAC address
-String Utils::formatMACAddr(const uint8_t* pMacAddr, const char* separator)
+String Raft::formatMACAddr(const uint8_t* pMacAddr, const char* separator)
 {
     String outStr;
     outStr.reserve(18);
@@ -558,7 +558,7 @@ String Utils::formatMACAddr(const uint8_t* pMacAddr, const char* separator)
 // Get a uint8_t value from the uint8_t pointer passed in
 // Increment the pointer (by 1)
 // Also checks endStop pointer value if provided
-uint16_t Utils::getUint8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint16_t Raft::getUint8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal >= pEndStop)))
         return 0;
@@ -570,7 +570,7 @@ uint16_t Utils::getUint8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 // Get an int8_t value from the uint8_t pointer passed in
 // Increment the pointer (by 1)
 // Also checks endStop pointer value if provided
-int16_t Utils::getInt8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+int16_t Raft::getInt8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal >= pEndStop)))
         return 0;
@@ -582,7 +582,7 @@ int16_t Utils::getInt8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 // Get a uint16_t little endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-uint16_t Utils::getLEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint16_t Raft::getLEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
         return 0;
@@ -594,7 +594,7 @@ uint16_t Utils::getLEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 // Get a int16_t little endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-int16_t Utils::getLEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+int16_t Raft::getLEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
         return 0;
@@ -608,7 +608,7 @@ int16_t Utils::getLEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 // Get a uint16_t big endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-uint16_t Utils::getBEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint16_t Raft::getBEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
         return 0;
@@ -620,7 +620,7 @@ uint16_t Utils::getBEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 // Get a int16_t big endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-int16_t Utils::getBEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+int16_t Raft::getBEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
         return 0;
@@ -634,7 +634,7 @@ int16_t Utils::getBEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 // Get a uint32_t big endian value from the uint8_t pointer passed in
 // Increment the pointer (by 4)
 // Also checks endStop pointer value if provided
-uint32_t Utils::getBEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint32_t Raft::getBEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal + 3 >= pEndStop)))
         return 0;
@@ -647,7 +647,7 @@ uint32_t Utils::getBEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 // Get a float32_t big endian value from the uint8_t pointer passed in
 // Increment the pointer (by 4)
 // Also checks endStop pointer value if provided
-float Utils::getBEfloat32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+float Raft::getBEfloat32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 {
     if (!pVal || (pEndStop && (pVal + 3 >= pEndStop)))
         return 0;
@@ -660,7 +660,7 @@ float Utils::getBEfloat32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
 }
 
 // Set values into a buffer
-void Utils::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
+void Raft::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
 {
     if (!pBuf)
         return;
@@ -668,7 +668,7 @@ void Utils::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
 }
 
 // Set values into a buffer
-void Utils::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
+void Raft::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
 {
     if (!pBuf)
         return;
@@ -676,7 +676,7 @@ void Utils::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
 }
 
 // Set values into a buffer
-void Utils::setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
+void Raft::setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
 {
     if (!pBuf)
         return;
@@ -685,7 +685,7 @@ void Utils::setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
 }
 
 // Set values into a buffer
-void Utils::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
+void Raft::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 {
     if (!pBuf)
         return;
@@ -694,7 +694,7 @@ void Utils::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 }
 
 // Set values into a buffer
-void Utils::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
+void Raft::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
 {
     if (!pBuf)
         return;
@@ -706,7 +706,7 @@ void Utils::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
 
 // Set values into a buffer
 // Since ESP32 is little-endian this means reversing the order
-void Utils::setBEFloat32(uint8_t* pBuf, uint32_t offset, float val)
+void Raft::setBEFloat32(uint8_t* pBuf, uint32_t offset, float val)
 {
     if (!pBuf)
         return;
@@ -718,14 +718,14 @@ void Utils::setBEFloat32(uint8_t* pBuf, uint32_t offset, float val)
 
 // Get a string from a fixed-length buffer
 // false if the string was truncated
-bool Utils::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly);
+bool Raft::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Clamp
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Clamp - like std::clamp but for uint32_t
-uint32_t Utils::clamp(uint32_t val, uint32_t lo, uint32_t hi)
+uint32_t Raft::clamp(uint32_t val, uint32_t lo, uint32_t hi)
 {
     if (val < lo)
         val = lo;
@@ -739,14 +739,14 @@ uint32_t Utils::clamp(uint32_t val, uint32_t lo, uint32_t hi)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Get RGB from hex string
-Utils::RGBValue Utils::getRGBFromHex(const String& colourStr)
+Raft::RGBValue Raft::getRGBFromHex(const String& colourStr)
 {
     uint32_t colourRGB = strtoul(colourStr.c_str(), nullptr, 16);
     return RGBValue((colourRGB >> 16) & 0xff, (colourRGB >> 8) & 0xff, colourRGB & 0xff);
 }
 
 // Get decimal value of hex char
-uint32_t Utils::getHexFromChar(int ch)
+uint32_t Raft::getHexFromChar(int ch)
 {
     ch = toupper(ch);
     if (ch >= '0' && ch <= '9')
@@ -757,16 +757,16 @@ uint32_t Utils::getHexFromChar(int ch)
 }
 
 // Extract bytes from hex encoded string
-uint32_t Utils::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
+uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
 
 // Generate a hex string from bytes
-void Utils::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
+void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
 
 // Generate a hex string from uint32_t
-void Utils::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, 
+void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, 
             const char* separator);
 
-void Utils::logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro)
+void Raft::logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro)
 {
     if (!pBuf)
         return;
@@ -804,7 +804,7 @@ void Utils::logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefi
 
 // Find match in buffer (like strstr for unterminated strings)
 // Returns position in buffer of val or -1 if not found
-int Utils::findInBuf(const uint8_t* pBuf, uint32_t bufLen, 
+int Raft::findInBuf(const uint8_t* pBuf, uint32_t bufLen, 
             const uint8_t* pToFind, uint32_t toFindLen)
 {
     for (uint32_t i = 0; i < bufLen; i++)
