@@ -28,20 +28,22 @@
     "libArchive": false,
     "extraScript": "lib_script.py",
     "flags": [
-        "-Icomponenents/core/APICommon",
-        "-Icomponenents/core/ArduinoUtils",
-        "-Icomponenents/core/Config",
-        "-Icomponenents/core/ConfigPinMap",
-        "-Icomponenents/core/DebounceButton",
-        "-Icomponenents/core/ExpressionEval",
-        "-Icomponenents/core/libb64",
-        "-Icomponenents/core/Logger",
-        "-Icomponenents/core/MiniHDLC",
-        "-Icomponenents/core/NumericalFilters",
-        "-Icomponenents/core/RingBuffer",
-        "-Icomponenents/core/SupervisorStats",
-        "-Icomponenents/core/ThreadSafeQueue",
-        "-Icomponenents/core/Utils"
+      "-DJSMN_PARENT_LINKS", 
+      "-DJSMN_STRICT",
+      "-Icomponents/core/ArduinoUtils",
+      "-Icomponents/core/Config",
+      "-Icomponents/core/Logger",
+      "-Icomponents/core/Utils",
+      "-Icomponenents/core/APICommon",
+      "-Icomponenents/core/ConfigPinMap",
+      "-Icomponenents/core/DebounceButton",
+      "-Icomponenents/core/ExpressionEval",
+      "-Icomponenents/core/libb64",
+      "-Icomponenents/core/MiniHDLC",
+      "-Icomponenents/core/NumericalFilters",
+      "-Icomponenents/core/RingBuffer",
+      "-Icomponenents/core/SupervisorStats",
+      "-Icomponenents/core/ThreadSafeQueue"
     ]
   }
 }

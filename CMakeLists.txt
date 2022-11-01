@@ -1,8 +1,6 @@
 # Ensure CMake supports FetchContent
 cmake_minimum_required(VERSION 3.16)
 
-# Ensure CMake supports FetchContent
-cmake_minimum_required(VERSION 3.16)
 idf_component_register(
     SRCS 
       "components/core/ArduinoUtils/ArduinoGPIO.cpp"
