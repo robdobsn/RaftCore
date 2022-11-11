@@ -46,5 +46,7 @@ idf_component_register(
     REQUIRES
       nvs_flash
       mdns
+      spiffs
+      fatfs
     )
 
