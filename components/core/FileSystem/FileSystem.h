@@ -159,7 +159,9 @@ private:
     bool checkFileSystem(const String& fileSystemStr, String& fsName) const;
     String getFilePath(const String& nameOfFS, const String& filename) const;
     void localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bool formatIfCorrupt);
+#ifdef ESP_LITTLEFS_SUPPORT
     bool localFileSystemSetupLittleFS(bool formatIfCorrupt);
+#endif
     bool localFileSystemSetupSPIFFS(bool formatIfCorrupt);
     bool sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin);
     bool fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr);

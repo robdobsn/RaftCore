@@ -873,12 +873,14 @@ void FileSystem::localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bo
     }
 
     // Init LittleFS if enabled
+#ifdef ESP_LITTLEFS_SUPPORT
     if (enableLittleFS)
     {
         // Init LittleFS file system (format if required)
         if (localFileSystemSetupLittleFS(formatIfCorrupt))
             return;
     }
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
