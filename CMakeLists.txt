@@ -31,6 +31,7 @@ idf_component_register(
       "components/core/ConfigPinMap"
       "components/core/DebounceButton"
       "components/core/ExpressionEval"
+      "components/core/FileSystem"
       "components/core/libb64"
       "components/core/Logger"
       "components/core/MiniHDLC"
