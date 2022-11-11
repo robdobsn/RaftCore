@@ -16,6 +16,8 @@ idf_component_register(
       "components/core/ExpressionEval/ExpressionEval.cpp"
       "components/core/ExpressionEval/ExpressionContext.cpp"
       "components/core/ExpressionEval/tinyexpr.c"
+      "components/core/FileSystem/FileSystem.cpp"
+      "components/core/FileSystem/FileSystemChunker.cpp"
       "components/core/libb64/cencode.cpp"
       "components/core/Logger/LoggerCore.cpp"
       "components/core/MiniHDLC/MiniHDLC.cpp"
