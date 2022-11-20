@@ -50,15 +50,25 @@ public:
     {
         return _isWiFiEnabled;
     }
-    // Station mode connected
+    // Station mode connected / eth connected
     bool isWiFiStaConnectedWithIP();
+    bool isEthConnectedWithIP()
+    {
+        return _ethConnected;
+    }
 
     // Is TCPIP connected
     bool isTCPIPConnected();
 
     // Connection info
-    uint32_t getWiFiIPV4Addr();
-    String getWiFiIPV4AddrStr();
+    String getWiFiIPV4AddrStr()
+    {
+        return _wifiIPV4Addr;
+    }
+    String getEthIPV4AddrStr()
+    {
+        return _ethIPV4Addr;
+    }
 
     String getHostname()
     {
@@ -143,6 +153,10 @@ private:
     // Retry max, -1 means try forever
     static const int WIFI_CONNECT_MAX_RETRY = -1;
 
+    // Ethernet
+    static bool _ethConnected;
+    static String _ethIPV4Addr;
+
 #ifdef PRIVATE_EVENT_LOOP
     // Event loop for WiFi connection
     esp_event_loop_handle_t _wifiEventLoopHandle;
@@ -165,7 +179,10 @@ private:
     bool startStationMode();
     static void wifiEventHandler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data);
-
+    static void ethEventHandler(void *arg, esp_event_base_t event_base,
+                                int32_t event_id, void *event_data);
+    static void ethGotIPEvent(void *arg, esp_event_base_t event_base,
+                                 int32_t event_id, void *event_data);
 };
 
 extern NetworkSystem networkSystem;

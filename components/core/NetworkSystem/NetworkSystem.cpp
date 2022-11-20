@@ -12,6 +12,7 @@
 #include <mdns.h>
 #include <RaftUtils.h>
 #include <ArduinoOrAlt.h>
+#include "driver/gpio.h"
 
 static const char* MODULE_PREFIX = "NetworkSystem";
 
@@ -23,11 +24,22 @@ int NetworkSystem::_numConnectRetries = 0;
 EventGroupHandle_t NetworkSystem::_wifiRTOSEventGroup;
 String NetworkSystem::_staSSID;
 String NetworkSystem::_wifiIPV4Addr;
+bool NetworkSystem::_ethConnected = false;
+String NetworkSystem::_ethIPV4Addr;
 
 // Paused
 bool NetworkSystem::_isPaused = false;
 
 // #define DEBUG_RSSI_GET_TIME
+
+#ifdef ETHERNET_HARDWARE_OLIMEX
+#define	ETH_PIN_PHY_POWER	12
+#define	ETH_PIN_SMI_MDC		23
+#define	ETH_PIN_SMI_MDIO	18
+#define ETH_PHY_LAN87XX
+#define ETH_PHY_ADDR 0
+#define ETH_PHY_RST_GPIO -1
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -80,7 +92,7 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
         if (esp_netif_init() == ESP_OK)
             _netifStarted = true;
         else
-            LOG_E(MODULE_PREFIX, "could not start netif");
+            LOG_E(MODULE_PREFIX, "setup could not start netif");
 #else
         tcpip_adapter_init();
         _netifStarted = true;
@@ -104,16 +116,107 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
             {
                 esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &configFromNVS);
                 configFromNVS.sta.ssid[sizeof(configFromNVS.sta.ssid)-1] = 0;
-                LOG_I(MODULE_PREFIX, "applySetup from NVS ... connect to ssid %s", configFromNVS.sta.ssid);
+                LOG_I(MODULE_PREFIX, "setup from NVS ... connect to ssid %s", configFromNVS.sta.ssid);
             }
             else
             {
-                LOG_W(MODULE_PREFIX, "applySetup failed to get config from NVS");
+                LOG_W(MODULE_PREFIX, "setup failed to get config from NVS");
             }
             esp_wifi_connect();
         }
         _isPaused = false;
     }
+
+#ifdef ETHERNET_HARDWARE_OLIMEX
+    if (_netifStarted && _isEthEnabled)
+    {
+        // Create ethernet event loop that running in background
+        esp_netif_t *pEthNetif = nullptr;
+        esp_eth_handle_t eth_handle = nullptr;
+        // Create new default instance of esp-netif for Ethernet
+        esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+        pEthNetif = esp_netif_new(&cfg);
+
+        // Init MAC and PHY configs to default
+        eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+        eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+
+        phy_config.phy_addr = ETH_PHY_ADDR;
+        phy_config.reset_gpio_num = ETH_PHY_RST_GPIO;
+        gpio_pad_select_gpio((gpio_num_t) ETH_PIN_PHY_POWER);
+        gpio_set_direction((gpio_num_t) ETH_PIN_PHY_POWER, GPIO_MODE_OUTPUT);
+        gpio_set_level((gpio_num_t) ETH_PIN_PHY_POWER, 1);
+        vTaskDelay(pdMS_TO_TICKS(10));
+
+        // Create Ethernet driver
+        mac_config.smi_mdc_gpio_num = (gpio_num_t) ETH_PIN_SMI_MDC;
+        mac_config.smi_mdio_gpio_num = (gpio_num_t) ETH_PIN_SMI_MDIO;
+        esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+    #if defined(ETH_PHY_IP101)
+        esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
+    #elif defined(ETH_PHY_RTL8201)
+        esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
+    #elif defined(ETH_PHY_LAN87XX)
+        esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
+    #elif defined(ETH_PHY_DP83848)
+        esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
+    #elif defined(ETH_PHY_KSZ8041)
+        esp_eth_phy_t *phy = esp_eth_phy_new_ksz8041(&phy_config);
+    #elif defined(ETH_PHY_KSZ8081)
+        esp_eth_phy_t *phy = esp_eth_phy_new_ksz8081(&phy_config);
+    #endif
+        esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
+
+        // Install Ethernet driver
+        esp_err_t err = esp_eth_driver_install(&config, &eth_handle);
+
+        // Check driver ok
+        if (err != ESP_OK)
+        {
+            LOG_W(MODULE_PREFIX, "setup failed to install eth driver");
+        }
+        else if (pEthNetif)
+        {
+            // Attach Ethernet driver to Ethernet netif
+            err = esp_netif_attach(pEthNetif, esp_eth_new_netif_glue(eth_handle));
+        }
+        else
+        {
+            LOG_W(MODULE_PREFIX, "setup failed to create netif for ethernet");
+            err = ESP_FAIL;
+        }
+
+        // Check attach ok
+        if (err != ESP_OK)
+        {
+            LOG_W(MODULE_PREFIX, "setup failed to attach eth driver to netif");
+        }
+        else
+        {
+            // Register user defined event handers
+            err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &NetworkSystem::ethEventHandler, NULL);
+            if (err == ESP_OK)
+                err = esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &NetworkSystem::ethGotIPEvent, NULL);
+        }
+
+        // Check event handler ok
+        if (err != ESP_OK)
+        {
+            LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
+        }
+        if (err == ESP_OK)
+        {
+            // Start Ethernet driver state machine
+            err = esp_eth_start(eth_handle);
+        }
+
+        // Check for error
+        if (err != ESP_OK)
+        {
+            LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
+        }
+    }
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -169,11 +272,6 @@ bool NetworkSystem::isTCPIPConnected()
     return (connBits & IP_CONNECTED_BIT);
 }
 
-String NetworkSystem::getWiFiIPV4AddrStr()
-{
-    return _wifiIPV4Addr;
-}
-
 // Connection codes
 enum ConnStateCode
 {
@@ -207,7 +305,7 @@ NetworkSystem::ConnStateCode NetworkSystem::getConnState()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Event handler
+// WiFi Event handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
@@ -216,9 +314,9 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
     LOG_I(MODULE_PREFIX, "============================= WIFI EVENT base %d id %d", (int)event_base, event_id);
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
-        LOG_I(MODULE_PREFIX, "STA_START ... calling connect");
+        LOG_I(MODULE_PREFIX, "WiFi STA_START ... calling connect");
         esp_wifi_connect();
-        LOG_I(MODULE_PREFIX, "STA_START ... connect returned");
+        LOG_I(MODULE_PREFIX, "WiFi STA_START ... connect returned");
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED)
     {
@@ -235,7 +333,7 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
         esp_err_t espErr = mdns_init();
         if (espErr == ESP_OK)
         {
-            LOG_I(MODULE_PREFIX, "MDNS initialization %s", 
+            LOG_I(MODULE_PREFIX, "WiFi MDNS initialization %s", 
                             networkSystem.getHostname().c_str());
             // Set hostname
             mdns_hostname_set(networkSystem.getHostname().c_str());
@@ -248,7 +346,7 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
         {
             if ((WIFI_CONNECT_MAX_RETRY < 0) || (_numConnectRetries < WIFI_CONNECT_MAX_RETRY))
             {
-                LOG_W(MODULE_PREFIX, "disconnected, retry to connect to the AP retries %d", _numConnectRetries);
+                LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d", _numConnectRetries);
                 if (esp_wifi_disconnect() == ESP_OK)
                 {
                     esp_wifi_connect();
@@ -259,7 +357,7 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
             {
                 xEventGroupSetBits(_wifiRTOSEventGroup, WIFI_FAIL_BIT);
             }
-            LOG_W(MODULE_PREFIX, "disconnected, connect failed");
+            LOG_W(MODULE_PREFIX, "WiFi disconnected, connect failed");
             _staSSID = "";
         }
         xEventGroupClearBits(_wifiRTOSEventGroup, WIFI_CONNECTED_BIT);
@@ -272,21 +370,70 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-        LOG_I(MODULE_PREFIX, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        LOG_I(MODULE_PREFIX, "WiFi got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         _numConnectRetries = 0;
         char ipAddrStr[32];
         sprintf(ipAddrStr, IPSTR, IP2STR(&event->ip_info.ip));
         _wifiIPV4Addr = ipAddrStr;
-        IP2STR(&event->ip_info.ip);
         xEventGroupSetBits(_wifiRTOSEventGroup, IP_CONNECTED_BIT);
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP)
     {
-        LOG_W(MODULE_PREFIX, "lost ip");
+        LOG_W(MODULE_PREFIX, "WiFi lost ip");
         if (!_isPaused)
             _wifiIPV4Addr = "";
         xEventGroupClearBits(_wifiRTOSEventGroup, IP_CONNECTED_BIT);
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Ethernet Event handler
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NetworkSystem::ethEventHandler(void *arg, esp_event_base_t event_base,
+                              int32_t event_id, void *event_data)
+{
+    uint8_t mac_addr[6] = {0};
+    /* we can get the ethernet driver handle from event data */
+    esp_eth_handle_t eth_handle = *(esp_eth_handle_t *)event_data;
+
+    switch (event_id) {
+    case ETHERNET_EVENT_CONNECTED:
+        esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
+        LOG_I(MODULE_PREFIX, "Ethernet Link up HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
+                 mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+        _ethConnected = true;
+        break;
+    case ETHERNET_EVENT_DISCONNECTED:
+        LOG_I(MODULE_PREFIX, "Ethernet Link Down");
+        _ethConnected = false;
+        break;
+    case ETHERNET_EVENT_START:
+        LOG_I(MODULE_PREFIX, "Ethernet Started");
+        break;
+    case ETHERNET_EVENT_STOP:
+        LOG_I(MODULE_PREFIX, "Ethernet Stopped");
+        break;
+    default:
+        break;
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Ethernet got IP event handler
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::ethGotIPEvent(void *arg, esp_event_base_t event_base,
+                                 int32_t event_id, void *event_data)
+{
+    ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+    const esp_netif_ip_info_t *ip_info = &event->ip_info;
+
+    LOG_I(MODULE_PREFIX, "eth got IP event: " IPSTR, IP2STR(&ip_info->ip));
+    char ipAddrStr[32];
+    sprintf(ipAddrStr, IPSTR, IP2STR(&event->ip_info.ip));
+    _ethIPV4Addr = ipAddrStr;
+    // ESP_LOGI(TAG, "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
+    // ESP_LOGI(TAG, "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

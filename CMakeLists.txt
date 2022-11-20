@@ -16,6 +16,8 @@ idf_component_register(
       "components/core/ExpressionEval/ExpressionEval.cpp"
       "components/core/ExpressionEval/ExpressionContext.cpp"
       "components/core/ExpressionEval/tinyexpr.c"
+      "components/core/FileSystem/FileSystem.cpp"
+      "components/core/FileSystem/FileSystemChunker.cpp"
       "components/core/libb64/cencode.cpp"
       "components/core/Logger/LoggerCore.cpp"
       "components/core/MiniHDLC/MiniHDLC.cpp"
@@ -31,6 +33,7 @@ idf_component_register(
       "components/core/ConfigPinMap"
       "components/core/DebounceButton"
       "components/core/ExpressionEval"
+      "components/core/FileSystem"
       "components/core/libb64"
       "components/core/Logger"
       "components/core/MiniHDLC"
@@ -43,5 +46,7 @@ idf_component_register(
     REQUIRES
       nvs_flash
       mdns
+      spiffs
+      fatfs
     )
 
