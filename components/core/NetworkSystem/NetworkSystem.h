@@ -41,7 +41,8 @@ public:
     NetworkSystem();
 
     // Setup 
-    void setup(bool enableWiFi, bool enableEthernet, const char* hostname);
+    void setup(bool enableWiFi, bool enableEthernet, const char* hostname, 
+                    bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge);
 
     // Service
     void service();
@@ -85,7 +86,7 @@ public:
         return _staSSID;
     }
 
-    bool configureWiFi(const String& ssid, const String& pw, const String& hostname);
+    bool configureWiFi(const String& ssid, const String& pw, const String& hostname, const String& apSsid, const String& apPassword);
 
     // Connection codes
     enum ConnStateCode
@@ -126,19 +127,40 @@ public:
 private:
 
     // Enabled
-    bool _isWiFiEnabled;
-    bool _isEthEnabled;
+    bool _isWiFiEnabled = false;
+    bool _isEthEnabled = false;
     static bool _isPaused;
 
+    // Wifi modes
+    bool _enWifiSTAMode = false;
+    bool _enWifiAPMode = false;
+
     // Started flags
-    bool _netifStarted;
-    bool _wifiSTAStarted;
+    bool _netifStarted = false;
+    bool _wifiSTAStarted = false;
+    bool _wifiAPStarted = false;
 
     // WiFi connection details
     static String _staSSID;
     static String _wifiIPV4Addr;
     String _hostname;
     String _defaultHostname;
+
+    // WiFi AP client count
+    static uint8_t _wifiAPClientCount;
+
+    // Ethernet - WiFi bridge
+    static bool _ethWiFiBridge;
+    static const uint32_t FLOW_CONTROL_QUEUE_TIMEOUT_MS = 100;
+    static const uint32_t FLOW_CONTROL_WIFI_SEND_TIMEOUT_MS  = 100;
+    static const uint32_t FLOW_CONTROL_QUEUE_LENGTH = 100;
+    static QueueHandle_t _ethWiFiBridgeFlowControlQueue;
+
+    // Flow control message
+    typedef struct {
+        void *packet;
+        uint16_t length;
+    } flow_control_msg_t;
 
     // RSSI
     int8_t _rssi = 0;
@@ -155,6 +177,7 @@ private:
 
     // Ethernet
     static bool _ethConnected;
+    static esp_eth_handle_t _ethernetHandle;
     static String _ethIPV4Addr;
 
 #ifdef PRIVATE_EVENT_LOOP
@@ -176,13 +199,20 @@ private:
     WiFiScanner _wifiScanner;
 
     // Helpers
-    bool startStationMode();
+    bool startWifi();
     static void wifiEventHandler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data);
     static void ethEventHandler(void *arg, esp_event_base_t event_base,
                                 int32_t event_id, void *event_data);
     static void ethGotIPEvent(void *arg, esp_event_base_t event_base,
                                  int32_t event_id, void *event_data);
+    
+    // WiFi - Ethernet bridge helpers
+    static esp_err_t initEthWiFiBridgeFlowControl(void);
+    static void ethWiFiFlowCtrlTask(void *args);
+    static esp_err_t wifiRxPacketCallback(void *buffer, uint16_t len, void *eb);
+    static esp_err_t ethRxPacketCallback(esp_eth_handle_t eth_handle, uint8_t *buffer, uint32_t len, void *priv);
+
 };
 
 extern NetworkSystem networkSystem;
