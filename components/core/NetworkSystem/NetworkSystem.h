@@ -76,10 +76,7 @@ public:
         return _hostname;
     }
 
-    void setHostname(const char* hostname)
-    {
-        _hostname = hostnameMakeValid(hostname);
-    }
+    void setHostname(const char* hostname);
 
     String getSSID()
     {

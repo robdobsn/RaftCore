@@ -55,7 +55,7 @@ String ConfigMulti::getString(const char *dataPath, const char *defaultValue) co
     // Iterate other configs in the order added
     for (const ConfigRec& rec : _configsList)
     {
-        if (rec._prefix.length() > 0)
+        if ((rec._prefix.length() > 0) && (dataPath[0] != '/'))
         {
             String prefixedPath = rec._prefix + "/" + String(dataPath);
             retVal = rec._pConfig->getString(prefixedPath.c_str(), retVal);

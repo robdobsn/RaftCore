@@ -20,6 +20,11 @@ extern "C" {
 #endif
 #endif
 
+// #define DEBUG_PINMODE
+#ifdef DEBUG_PINMODE
+#include <Logger.h>
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Low-level GPIO functions
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,9 +57,15 @@ extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
                     gpio_set_pull_mode((gpio_num_t)pin, GPIO_PULLDOWN_ONLY);
                 else
                     gpio_set_pull_mode((gpio_num_t)pin, GPIO_FLOATING);
+#ifdef DEBUG_PINMODE
+                LOG_I("pinmode", "pinMode pin %d INPUT", pin);
+#endif
                 break;
             case OUTPUT:
                 gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT);
+#ifdef DEBUG_PINMODE
+                LOG_I("pinmode", "pinMode pin %d OUTPUT", pin);
+#endif
                 break;
         }
     }

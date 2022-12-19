@@ -43,6 +43,7 @@ esp_eth_handle_t NetworkSystem::_ethernetHandle = nullptr;
 bool NetworkSystem::_isPaused = false;
 
 // #define DEBUG_RSSI_GET_TIME
+#define DEBUG_HOSTNAME_SETTING
 
 #ifdef ETHERNET_HARDWARE_OLIMEX
 #define ETHERNET_IS_SUPPORTED
@@ -647,11 +648,8 @@ bool NetworkSystem::startWifi()
 
 bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const String& hostname, const String& apSsid, const String& apPassword)
 {
-    if (hostname.length() == 0)
-        _hostname = _defaultHostname;
-    else
-        _hostname = hostname;
-    _hostname = hostnameMakeValid(_hostname);
+    // Set hostname
+    setHostname(hostname.length() == 0 ? _defaultHostname.c_str() : hostname.c_str());
 
     // Handle STA mode config
     bool rsltOk = true;
@@ -691,7 +689,7 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
             return false;
         }
 
-            LOG_I(MODULE_PREFIX, "WiFi STA Credentials Set SSID %s hostname %s", ssid.c_str(), hostname.c_str());
+            LOG_I(MODULE_PREFIX, "WiFi STA Credentials Set SSID %s hostname %s", ssid.c_str(), _hostname.c_str());
 
         // Connect
         if (esp_wifi_disconnect() == ESP_OK)
@@ -911,4 +909,16 @@ esp_err_t NetworkSystem::ethRxPacketCallback(esp_eth_handle_t eth_handle, uint8_
         ret = ESP_FAIL;
     }
     return ret;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Set Hostname
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::setHostname(const char* hostname)
+{
+    _hostname = hostnameMakeValid(hostname);
+#ifdef DEBUG_HOSTNAME_SETTING
+    LOG_I(MODULE_PREFIX, "setHostname (req %s) actual %s", hostname, _hostname.c_str());
+#endif    
 }
