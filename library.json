@@ -34,16 +34,16 @@
       "-Icomponents/core/Config",
       "-Icomponents/core/Logger",
       "-Icomponents/core/Utils",
-      "-Icomponenents/core/APICommon",
-      "-Icomponenents/core/ConfigPinMap",
-      "-Icomponenents/core/DebounceButton",
-      "-Icomponenents/core/ExpressionEval",
-      "-Icomponenents/core/libb64",
-      "-Icomponenents/core/MiniHDLC",
-      "-Icomponenents/core/NumericalFilters",
-      "-Icomponenents/core/RingBuffer",
-      "-Icomponenents/core/SupervisorStats",
-      "-Icomponenents/core/ThreadSafeQueue"
+      "-Icomponents/core/APICommon",
+      "-Icomponents/core/ConfigPinMap",
+      "-Icomponents/core/DebounceButton",
+      "-Icomponents/core/ExpressionEval",
+      "-Icomponents/core/libb64",
+      "-Icomponents/core/MiniHDLC",
+      "-Icomponents/core/NumericalFilters",
+      "-Icomponents/core/RingBuffer",
+      "-Icomponents/core/SupervisorStats",
+      "-Icomponents/core/ThreadSafeQueue"
     ]
   }
 }
