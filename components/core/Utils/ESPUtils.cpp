@@ -58,18 +58,22 @@ void disableCore1WDT(){
 
 #endif
 
-static String __systemMACAddrBT;
-static String __systemMACAddrETH;
-static String __systemMACAddrSTA;
+static String __systemMACCachedBT;
+static String __systemMACCachedETH;
+static String __systemMACCachedSTA;
+static String __systemMACCachedSep;
 String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
 {
+    if (pSeparator && (__systemMACCachedSep.equals(pSeparator)))
+    {
     // Check if already got
-    if ((macType == ESP_MAC_BT) && (__systemMACAddrBT.length() > 0))
-        return __systemMACAddrBT;
-    else if ((macType == ESP_MAC_ETH) && (__systemMACAddrETH.length() > 0))
-        return __systemMACAddrETH;
-    else if ((macType == ESP_MAC_WIFI_STA) && (__systemMACAddrSTA.length() > 0))
-        return __systemMACAddrSTA;
+        if ((macType == ESP_MAC_BT) && (__systemMACCachedBT.length() > 0))
+            return __systemMACCachedBT;
+        else if ((macType == ESP_MAC_ETH) && (__systemMACCachedETH.length() > 0))
+            return __systemMACCachedETH;
+        else if ((macType == ESP_MAC_WIFI_STA) && (__systemMACCachedSTA.length() > 0))
+            return __systemMACCachedSTA;
+    }
 
     // Use the public (MAC) address of BLE
     uint8_t addr[6] = {0,0,0,0,0,0};
@@ -78,11 +82,13 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
         return "";
     String macStr = Raft::formatMACAddr(addr, pSeparator);
     if (macType == ESP_MAC_BT)
-        __systemMACAddrBT = macStr;
+        __systemMACCachedBT = macStr;
     else if (macType == ESP_MAC_ETH)
-        __systemMACAddrETH = macStr;
+        __systemMACCachedETH = macStr;
     else if (macType == ESP_MAC_WIFI_STA)
-        __systemMACAddrSTA = macStr;
+        __systemMACCachedSTA = macStr;
+    if (pSeparator)
+        __systemMACCachedSep = pSeparator;
     return macStr;
 }
 

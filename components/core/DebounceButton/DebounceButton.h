@@ -32,6 +32,12 @@ public:
     // Service - must be called frequently to check button state
     void service();
 
+    // Get button pressed state
+    bool isButtonPressed()
+    {
+        return _lastStableVal;
+    }
+
 private:
     // Settings
     int16_t _buttonPin;

@@ -42,8 +42,13 @@ esp_eth_handle_t NetworkSystem::_ethernetHandle = nullptr;
 // Paused
 bool NetworkSystem::_isPaused = false;
 
+// Warnings
+#define WARN_ON_WIFI_DISCONNECT_IF_ETH_NOT_CONNECTED
+
+// Debug
 // #define DEBUG_RSSI_GET_TIME
-#define DEBUG_HOSTNAME_SETTING
+// #define DEBUG_HOSTNAME_SETTING
+// #define DEBUG_WIFI_EVENTS
 
 #ifdef ETHERNET_HARDWARE_OLIMEX
 #define ETHERNET_IS_SUPPORTED
@@ -68,7 +73,8 @@ NetworkSystem::NetworkSystem()
 
     // Create the default event loop
     esp_err_t err = esp_event_loop_create_default();
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         LOG_E(MODULE_PREFIX, "failed to create default event loop");
     }
 
@@ -328,12 +334,11 @@ bool NetworkSystem::isWiFiStaConnectedWithIP()
     return (connBits & WIFI_CONNECTED_BIT) && (connBits & IP_CONNECTED_BIT);
 }
 
-bool NetworkSystem::isTCPIPConnected()
+bool NetworkSystem::isIPConnected()
 {
-    // TODO V4.1 add ethernet support when available in netif
     // Use the clear bits function with nothing to clear as a way to get the current value
     uint connBits = xEventGroupClearBits(_wifiRTOSEventGroup, 0);
-    return (connBits & IP_CONNECTED_BIT);
+    return (connBits & IP_CONNECTED_BIT) | _ethConnected;
 }
 
 // Connection codes
@@ -348,8 +353,10 @@ String NetworkSystem::getConnStateCodeStr(NetworkSystem::ConnStateCode connState
 {
     switch(connStateCode)
     {
-        case CONN_STATE_WIFI_BUT_NO_IP: return "WiFiNoIP";
-        case CONN_STATE_WIFI_AND_IP: return "WiFiAndIP";
+    case CONN_STATE_WIFI_BUT_NO_IP:
+        return "WiFiNoIP";
+    case CONN_STATE_WIFI_AND_IP:
+        return "WiFiAndIP";
         case CONN_STATE_NONE: 
         default: 
             return "None";
@@ -375,16 +382,22 @@ NetworkSystem::ConnStateCode NetworkSystem::getConnState()
 void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
                                       int32_t event_id, void *event_data)
 {
+#ifdef DEBUG_WIFI_EVENTS
     LOG_I(MODULE_PREFIX, "============================= WIFI EVENT base %d id %d", (int)event_base, event_id);
+#endif
     if (event_base == WIFI_EVENT)
     {
         switch (event_id)
         {
             case WIFI_EVENT_STA_START:
     {
+#ifdef DEBUG_WIFI_EVENTS
         LOG_I(MODULE_PREFIX, "WiFi STA_START ... calling connect");
+#endif
         esp_wifi_connect();
+#ifdef DEBUG_WIFI_EVENTS
         LOG_I(MODULE_PREFIX, "WiFi STA_START ... connect returned");
+#endif
                 break;
     }
             case WIFI_EVENT_STA_CONNECTED:
@@ -416,7 +429,18 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
         {
             if ((WIFI_CONNECT_MAX_RETRY < 0) || (_numConnectRetries < WIFI_CONNECT_MAX_RETRY))
             {
+#ifdef WARN_ON_WIFI_DISCONNECT_IF_ETH_NOT_CONNECTED
+                    if (!_ethConnected)
+                    {
+                        if ((_numConnectRetries < 3) || 
+                            ((_numConnectRetries < 100) && (_numConnectRetries % 10) == 0) ||
+                            ((_numConnectRetries < 1000) && (_numConnectRetries % 100) == 0) ||
+                            ((_numConnectRetries % 1000) == 0))
+                        {
                 LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d", _numConnectRetries);
+                        }
+                    }
+#endif
                 if (esp_wifi_disconnect() == ESP_OK)
                 {
                     esp_wifi_connect();
@@ -427,7 +451,6 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
             {
                 xEventGroupSetBits(_wifiRTOSEventGroup, WIFI_FAIL_BIT);
             }
-            LOG_W(MODULE_PREFIX, "WiFi disconnected, connect failed");
             _staSSID = "";
         }
         xEventGroupClearBits(_wifiRTOSEventGroup, WIFI_CONNECTED_BIT);
@@ -511,7 +534,8 @@ void NetworkSystem::ethEventHandler(void *arg, esp_event_base_t event_base,
     /* we can get the ethernet driver handle from event data */
     esp_eth_handle_t ethHandle = *(esp_eth_handle_t *)event_data;
 
-    switch (event_id) {
+    switch (event_id)
+    {
     case ETHERNET_EVENT_CONNECTED:
         esp_eth_ioctl(ethHandle, ETH_CMD_G_MAC_ADDR, mac_addr);
         LOG_I(MODULE_PREFIX, "Ethernet Link up HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
@@ -618,8 +642,7 @@ bool NetworkSystem::startWifi()
 
     // Set mode
     err = esp_wifi_set_mode(_enWifiSTAMode && _enWifiAPMode ? WIFI_MODE_APSTA : 
-                (_enWifiSTAMode ? WIFI_MODE_STA : 
-                        (_enWifiAPMode ? WIFI_MODE_AP : WIFI_MODE_NULL)));
+                    (_enWifiSTAMode ? WIFI_MODE_STA : (_enWifiAPMode ? WIFI_MODE_AP : WIFI_MODE_NULL)));
     if (err != ESP_OK)
     {
         LOG_E(MODULE_PREFIX, "start failed to set mode err %s (%d)", esp_err_to_name(err), err);
@@ -639,7 +662,6 @@ bool NetworkSystem::startWifi()
     // Init ok
     _wifiSTAStarted = true;
     return true;
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -648,8 +670,12 @@ bool NetworkSystem::startWifi()
 
 bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const String& hostname, const String& apSsid, const String& apPassword)
 {
-    // Set hostname
-    setHostname(hostname.length() == 0 ? _defaultHostname.c_str() : hostname.c_str());
+    // Set hostname if specified (or use default if not already set)
+    if (hostname.length() != 0)
+        setHostname(hostname.c_str());
+    else if (getHostname().length() == 0)
+        setHostname(_defaultHostname.c_str());
+    LOG_I(MODULE_PREFIX, "Hostname set to %s", getHostname().c_str());
 
     // Handle STA mode config
     bool rsltOk = true;
@@ -676,6 +702,9 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
                 .btm_enabled = 0,
                 .mbo_enabled  = 0,
                 .reserved = 0,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 3)
+                .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
 #endif
                 }};
             strlcpy((char *)wifiSTAConfig.sta.ssid, ssid.c_str(), 32);
@@ -719,8 +748,7 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
                 .max_connection = 10,
                 .beacon_interval = 100,
                 .pairwise_cipher = WIFI_CIPHER_TYPE_CCMP,
-                .ftm_responder = 0
-            }};
+                .ftm_responder = 0}};
         strlcpy((char *)wifiAPConfig.ap.ssid, apSsid.c_str(), 32);
         strlcpy((char *)wifiAPConfig.ap.password, apPassword.c_str(), 64);
 
@@ -748,9 +776,12 @@ esp_err_t NetworkSystem::clearCredentials()
     _staSSID = "";
     _wifiIPV4Addr = "";
     esp_err_t err = esp_wifi_restore();
-    if (err == ESP_OK) {
+    if (err == ESP_OK)
+    {
         LOG_I(MODULE_PREFIX, "apiWifiClear CLEARED WiFi Credentials");
-    } else {
+    }
+    else
+    {
         LOG_W(MODULE_PREFIX, "apiWifiClear Failed to clear WiFi credentials esp_err %s (%d)", esp_err_to_name(err), err);
     }
     return err;
@@ -801,7 +832,7 @@ String NetworkSystem::hostnameMakeValid(const String& hostname)
     String okHostname;
     for (uint32_t i = 0; i < hostname.length(); i++)
     {
-        if (isalpha(hostname[i]) || isdigit(hostname[i] || (hostname[i] == '-')))
+        if (isalpha(hostname[i]) || isdigit(hostname[i]) || (hostname[i] == '-'))
             okHostname += hostname[i];
     }
     return okHostname;
@@ -833,12 +864,14 @@ bool NetworkSystem::wifiScan(bool start, String& jsonResult)
 esp_err_t NetworkSystem::initEthWiFiBridgeFlowControl(void)
 {
     _ethWiFiBridgeFlowControlQueue = xQueueCreate(FLOW_CONTROL_QUEUE_LENGTH, sizeof(flow_control_msg_t));
-    if (!_ethWiFiBridgeFlowControlQueue) {
+    if (!_ethWiFiBridgeFlowControlQueue)
+    {
         ESP_LOGE(MODULE_PREFIX, "initEthWiFiBridgeFlowControl create queue failed");
         return ESP_FAIL;
     }
     BaseType_t ret = xTaskCreate(ethWiFiFlowCtrlTask, "flow_ctl", 2048, NULL, (tskIDLE_PRIORITY + 2), NULL);
-    if (ret != pdTRUE) {
+    if (ret != pdTRUE)
+    {
         ESP_LOGE(MODULE_PREFIX, "initEthWiFiBridgeFlowControl create task failed");
         return ESP_FAIL;
     }
@@ -856,16 +889,21 @@ void NetworkSystem::ethWiFiFlowCtrlTask(void *args)
     flow_control_msg_t msg;
     int res = 0;
     uint32_t timeout = 0;
-    while (1) {
-        if (xQueueReceive(_ethWiFiBridgeFlowControlQueue, &msg, pdMS_TO_TICKS(FLOW_CONTROL_QUEUE_TIMEOUT_MS)) == pdTRUE) {
+    while (1)
+    {
+        if (xQueueReceive(_ethWiFiBridgeFlowControlQueue, &msg, pdMS_TO_TICKS(FLOW_CONTROL_QUEUE_TIMEOUT_MS)) == pdTRUE)
+        {
             timeout = 0;
-            if ((_wifiAPClientCount > 0) && msg.length) {
-                do {
+            if ((_wifiAPClientCount > 0) && msg.length)
+            {
+                do
+                {
                     vTaskDelay(pdMS_TO_TICKS(timeout));
                     timeout += 2;
                     res = esp_wifi_internal_tx(WIFI_IF_AP, msg.packet, msg.length);
                 } while (res && timeout < FLOW_CONTROL_WIFI_SEND_TIMEOUT_MS);
-                if (res != ESP_OK) {
+                if (res != ESP_OK)
+                {
                     ESP_LOGE(MODULE_PREFIX, "ethWiFiFlowCtrlTask WiFi send packet failed: %d", res);
                 }
             }
@@ -881,8 +919,10 @@ void NetworkSystem::ethWiFiFlowCtrlTask(void *args)
 
 esp_err_t NetworkSystem::wifiRxPacketCallback(void *buffer, uint16_t len, void *eb)
 {
-    if (_ethConnected) {
-        if (esp_eth_transmit(_ethernetHandle, buffer, len) != ESP_OK) {
+    if (_ethConnected)
+    {
+        if (esp_eth_transmit(_ethernetHandle, buffer, len) != ESP_OK)
+        {
             ESP_LOGE(MODULE_PREFIX, "Ethernet send packet failed");
         }
     }
@@ -901,9 +941,9 @@ esp_err_t NetworkSystem::ethRxPacketCallback(esp_eth_handle_t eth_handle, uint8_
     esp_err_t ret = ESP_OK;
     flow_control_msg_t msg = {
         .packet = buffer,
-        .length = (uint16_t)len
-    };
-    if (xQueueSend(_ethWiFiBridgeFlowControlQueue, &msg, pdMS_TO_TICKS(FLOW_CONTROL_QUEUE_TIMEOUT_MS)) != pdTRUE) {
+        .length = (uint16_t)len};
+    if (xQueueSend(_ethWiFiBridgeFlowControlQueue, &msg, pdMS_TO_TICKS(FLOW_CONTROL_QUEUE_TIMEOUT_MS)) != pdTRUE)
+    {
         ESP_LOGE(MODULE_PREFIX, "send flow control message failed or timeout");
         free(buffer);
         ret = ESP_FAIL;

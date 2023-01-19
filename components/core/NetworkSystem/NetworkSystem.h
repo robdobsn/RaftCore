@@ -58,8 +58,8 @@ public:
         return _ethConnected;
     }
 
-    // Is TCPIP connected
-    bool isTCPIPConnected();
+    // Is IP connected
+    bool isIPConnected();
 
     // Connection info
     String getWiFiIPV4AddrStr()

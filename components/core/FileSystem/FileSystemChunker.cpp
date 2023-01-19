@@ -10,12 +10,23 @@
 #include "FileSystem.h"
 #include <Logger.h>
 
-// #define DEBUG_FILE_CHUNKER
+// Warn
+#define WARN_ON_FILE_CHUNKER_START_FAIL
+
+// Debug
+// #define DEBUG_FILE_CHUNKER_START_END
+// #define DEBUG_FILE_CHUNKER_CHUNKS
 // #define DEBUG_FILE_CHUNKER_PERFORMANCE
 // #define DEBUG_FILE_CHUNKER_CONTENTS
-#define DEBUG_FILE_CHUNKER_READ_THRESH_MS 50
+#define DEBUG_FILE_CHUNKER_READ_THRESH_MS 100
 
-#if defined(DEBUG_FILE_CHUNKER) || defined(DEBUG_FILE_CHUNKER_CONTENTS) || defined(DEBUG_FILE_CHUNKER_PERFORMANCE) || defined(DEBUG_FILE_CHUNKER_READ_THRESH_MS)
+// Module prefix
+#if defined(WARN_ON_FILE_CHUNKER_START_FAIL) || \
+    defined(DEBUG_FILE_CHUNKER_START_END) || \
+    defined(DEBUG_FILE_CHUNKER_CHUNKS) || \
+    defined(DEBUG_FILE_CHUNKER_CONTENTS) || \
+    defined(DEBUG_FILE_CHUNKER_PERFORMANCE) || \
+    defined(DEBUG_FILE_CHUNKER_READ_THRESH_MS)
 static const char* MODULE_PREFIX = "FileSystemChunker";
 #endif
 
@@ -59,8 +70,8 @@ bool FileSystemChunker::start(const String& filePath, uint32_t chunkMaxLen, bool
     // Get file details
     if (!writing && !fileSystem.getFileInfo("", filePath, _fileLen))
     {
-#ifdef DEBUG_FILE_CHUNKER
-        LOG_D(MODULE_PREFIX, "start cannot getFileInfo %s", filePath.c_str());
+#ifdef WARN_ON_FILE_CHUNKER_START_FAIL
+        LOG_E(MODULE_PREFIX, "start cannot getFileInfo %s", filePath.c_str());
 #endif
         return false;
     }
@@ -74,7 +85,7 @@ bool FileSystemChunker::start(const String& filePath, uint32_t chunkMaxLen, bool
     _isActive = true;
     _curPos = 0;
 
-#ifdef DEBUG_FILE_CHUNKER
+#ifdef DEBUG_FILE_CHUNKER_START_END
     // Debug
     LOG_I(MODULE_PREFIX, "start filename %s size %d byLine %s", 
             filePath.c_str(), _fileLen, (_readByLine ? "Y" : "N"));
@@ -118,7 +129,7 @@ bool FileSystemChunker::nextRead(uint8_t* pBuf, uint32_t bufLen, uint32_t& handl
             handledBytes = strnlen((char*)pBuf, bufLen);
         }
 
-#ifdef DEBUG_FILE_CHUNKER
+#ifdef DEBUG_FILE_CHUNKER_CHUNKS
         // Debug
         LOG_I(MODULE_PREFIX, "next byLine filename %s readOk %s pos %d read %d busy %s", 
                 _filePath.c_str(), readOk ? "YES" : "NO", _curPos, handledBytes, _isActive ? "YES" : "NO");
@@ -140,7 +151,7 @@ bool FileSystemChunker::nextRead(uint8_t* pBuf, uint32_t bufLen, uint32_t& handl
         finalChunk = true; 
     }
 
-#ifdef DEBUG_FILE_CHUNKER
+#ifdef DEBUG_FILE_CHUNKER_CHUNKS
         // Debug
         LOG_I(MODULE_PREFIX, "next binary filename %s readOk %s pos %d read %d busy %s", 
                 _filePath.c_str(), readOk ? "YES" : "NO", _curPos, handledBytes, _isActive ? "YES" : "NO");
@@ -210,7 +221,7 @@ bool FileSystemChunker::nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_
                 _filePath.c_str(), handledBytes, _isActive ? "YES" : "NO");
     }
 #endif
-#ifdef DEBUG_FILE_CHUNKER
+#ifdef DEBUG_FILE_CHUNKER_CHUNKS
     // Debug
     LOG_I(MODULE_PREFIX, "nextReadKeepOpen filename %s readBytes %d busy %s", 
             _filePath.c_str(), handledBytes, _isActive ? "YES" : "NO");
@@ -266,7 +277,7 @@ bool FileSystemChunker::nextWrite(const uint8_t* pBuf, uint32_t bufLen, uint32_t
         }
     }
 
-#ifdef DEBUG_FILE_CHUNKER
+#ifdef DEBUG_FILE_CHUNKER_CHUNKS
         // Debug
         LOG_I(MODULE_PREFIX, "nextWrite filename %s writeOk %s written %d busy %s", 
                 _filePath.c_str(), writeOk ? "YES" : "NO", handledBytes, _isActive ? "YES" : "NO");
