@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// NetworkSystem 
+// NetworkSystem
 // Handles WiFi / Ethernet and IP
 //
 // Rob Dobson 2018-2020
@@ -9,7 +9,6 @@
 
 #include <Logger.h>
 #include "NetworkSystem.h"
-#include <mdns.h>
 #include <RaftUtils.h>
 #include <ArduinoOrAlt.h>
 #include "driver/gpio.h"
@@ -22,7 +21,7 @@
 #include "nvs_flash.h"
 #include "esp_private/wifi.h"
 
-static const char* MODULE_PREFIX = "NetworkSystem";
+static const char *MODULE_PREFIX = "NetworkSystem";
 
 // Global object
 NetworkSystem networkSystem;
@@ -52,9 +51,9 @@ bool NetworkSystem::_isPaused = false;
 
 #ifdef ETHERNET_HARDWARE_OLIMEX
 #define ETHERNET_IS_SUPPORTED
-#define	ETH_PIN_PHY_POWER	12
-#define	ETH_PIN_SMI_MDC		23
-#define	ETH_PIN_SMI_MDIO	18
+#define ETH_PIN_PHY_POWER 12
+#define ETH_PIN_SMI_MDC 23
+#define ETH_PIN_SMI_MDIO 18
 #define ETH_PHY_LAN87XX
 #define ETH_PHY_ADDR 0
 #define ETH_PHY_RST_GPIO -1
@@ -87,15 +86,15 @@ NetworkSystem::NetworkSystem()
     xEventGroupClearBits(_wifiRTOSEventGroup, WIFI_FAIL_BIT);
 
     // WiFi log level
-    esp_log_level_set("wifi", ESP_LOG_WARN);    
+    esp_log_level_set("wifi", ESP_LOG_WARN);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defaultHostname, 
-        bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge)
+void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char *defaultHostname,
+                          bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge)
 {
     _defaultHostname = defaultHostname;
     // Start netif if not done already
@@ -124,9 +123,9 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
 #endif
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup wifiMode %s defaultHostname %s AP %d STA %d", 
-                (_enWifiAPMode && _enWifiSTAMode) ? "AP+STA" : (_enWifiAPMode ? "AP" : (_enWifiSTAMode ? "STA" : "OFF")),
-                ethWiFiBridge ? " EthWiFiBridge": "", defaultHostname, enWiFiAPMode, enWifiSTAMode);
+    LOG_I(MODULE_PREFIX, "setup wifiMode %s defaultHostname %s AP %d STA %d",
+          (_enWifiAPMode && _enWifiSTAMode) ? "AP+STA" : (_enWifiAPMode ? "AP" : (_enWifiSTAMode ? "STA" : "OFF")),
+          ethWiFiBridge ? " EthWiFiBridge" : "", defaultHostname, enWiFiAPMode, enWifiSTAMode);
 
     // Start WiFi STA if required
     if (_netifStarted && _isWiFiEnabled)
@@ -137,25 +136,25 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
         // Check STA mode
         if (_enWifiSTAMode)
         {
-        // Connect
-        if (!isWiFiStaConnectedWithIP())
-        {
-            wifi_config_t configFromNVS;
-            esp_err_t err = esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &configFromNVS);
-            if (err == ESP_OK)
+            // Connect
+            if (!isWiFiStaConnectedWithIP())
             {
-                esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &configFromNVS);
-                configFromNVS.sta.ssid[sizeof(configFromNVS.sta.ssid)-1] = 0;
-                LOG_I(MODULE_PREFIX, "setup from NVS ... connect to ssid %s", configFromNVS.sta.ssid);
+                wifi_config_t configFromNVS;
+                esp_err_t err = esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &configFromNVS);
+                if (err == ESP_OK)
+                {
+                    esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &configFromNVS);
+                    configFromNVS.sta.ssid[sizeof(configFromNVS.sta.ssid) - 1] = 0;
+                    LOG_I(MODULE_PREFIX, "setup from NVS ... connect to ssid %s", configFromNVS.sta.ssid);
+                }
+                else
+                {
+                    LOG_W(MODULE_PREFIX, "setup failed to get config from NVS");
+                }
+                esp_wifi_connect();
             }
-            else
-            {
-                LOG_W(MODULE_PREFIX, "setup failed to get config from NVS");
-            }
-            esp_wifi_connect();
+            _isPaused = false;
         }
-        _isPaused = false;
-    }
     }
 
 #ifdef ETHERNET_HARDWARE_OLIMEX
@@ -174,28 +173,28 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
 
         phy_config.phy_addr = ETH_PHY_ADDR;
         phy_config.reset_gpio_num = ETH_PHY_RST_GPIO;
-        gpio_pad_select_gpio((gpio_num_t) ETH_PIN_PHY_POWER);
-        gpio_set_direction((gpio_num_t) ETH_PIN_PHY_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level((gpio_num_t) ETH_PIN_PHY_POWER, 1);
+        gpio_pad_select_gpio((gpio_num_t)ETH_PIN_PHY_POWER);
+        gpio_set_direction((gpio_num_t)ETH_PIN_PHY_POWER, GPIO_MODE_OUTPUT);
+        gpio_set_level((gpio_num_t)ETH_PIN_PHY_POWER, 1);
         vTaskDelay(pdMS_TO_TICKS(10));
 
         // Create Ethernet driver
-        mac_config.smi_mdc_gpio_num = (gpio_num_t) ETH_PIN_SMI_MDC;
-        mac_config.smi_mdio_gpio_num = (gpio_num_t) ETH_PIN_SMI_MDIO;
+        mac_config.smi_mdc_gpio_num = (gpio_num_t)ETH_PIN_SMI_MDC;
+        mac_config.smi_mdio_gpio_num = (gpio_num_t)ETH_PIN_SMI_MDIO;
         esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
-    #if defined(ETH_PHY_IP101)
+#if defined(ETH_PHY_IP101)
         esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
-    #elif defined(ETH_PHY_RTL8201)
+#elif defined(ETH_PHY_RTL8201)
         esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
-    #elif defined(ETH_PHY_LAN87XX)
+#elif defined(ETH_PHY_LAN87XX)
         esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
-    #elif defined(ETH_PHY_DP83848)
+#elif defined(ETH_PHY_DP83848)
         esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
-    #elif defined(ETH_PHY_KSZ8041)
+#elif defined(ETH_PHY_KSZ8041)
         esp_eth_phy_t *phy = esp_eth_phy_new_ksz8041(&phy_config);
-    #elif defined(ETH_PHY_KSZ8081)
+#elif defined(ETH_PHY_KSZ8081)
         esp_eth_phy_t *phy = esp_eth_phy_new_ksz8081(&phy_config);
-    #endif
+#endif
         esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
 
         // Install Ethernet driver
@@ -223,7 +222,7 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
             // Update input path for ethernet packets
             err = esp_eth_update_input_path(_ethernetHandle, ethRxPacketCallback, NULL);
 
-            // Check ok 
+            // Check ok
             if (err != ESP_OK)
             {
                 LOG_W(MODULE_PREFIX, "setup failed to update ethernet input path");
@@ -351,15 +350,15 @@ enum ConnStateCode
 
 String NetworkSystem::getConnStateCodeStr(NetworkSystem::ConnStateCode connStateCode)
 {
-    switch(connStateCode)
+    switch (connStateCode)
     {
     case CONN_STATE_WIFI_BUT_NO_IP:
         return "WiFiNoIP";
     case CONN_STATE_WIFI_AND_IP:
         return "WiFiAndIP";
-        case CONN_STATE_NONE: 
-        default: 
-            return "None";
+    case CONN_STATE_NONE:
+    default:
+        return "None";
     }
 }
 
@@ -372,7 +371,7 @@ NetworkSystem::ConnStateCode NetworkSystem::getConnState()
         return CONN_STATE_WIFI_AND_IP;
     else if (connBits & WIFI_CONNECTED_BIT)
         return CONN_STATE_WIFI_BUT_NO_IP;
-    return CONN_STATE_NONE;    
+    return CONN_STATE_NONE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -380,7 +379,7 @@ NetworkSystem::ConnStateCode NetworkSystem::getConnState()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
-                                      int32_t event_id, void *event_data)
+                                     int32_t event_id, void *event_data)
 {
 #ifdef DEBUG_WIFI_EVENTS
     LOG_I(MODULE_PREFIX, "============================= WIFI EVENT base %d id %d", (int)event_base, event_id);
@@ -389,137 +388,127 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
     {
         switch (event_id)
         {
-            case WIFI_EVENT_STA_START:
-    {
-#ifdef DEBUG_WIFI_EVENTS
-        LOG_I(MODULE_PREFIX, "WiFi STA_START ... calling connect");
-#endif
-        esp_wifi_connect();
-#ifdef DEBUG_WIFI_EVENTS
-        LOG_I(MODULE_PREFIX, "WiFi STA_START ... connect returned");
-#endif
-                break;
-    }
-            case WIFI_EVENT_STA_CONNECTED:
-    {
-        wifi_event_sta_connected_t *event = (wifi_event_sta_connected_t *)event_data;
-        uint32_t ssidLen = event->ssid_len;
-        if (ssidLen > 32)
-            ssidLen = 32;
-        char ssidStr[33];
-        strlcpy(ssidStr, (const char*)(event->ssid), ssidLen+1);
-        _staSSID = ssidStr;
-        xEventGroupSetBits(_wifiRTOSEventGroup, WIFI_CONNECTED_BIT);
-
-        // Set hostname using mDNS service
-        esp_err_t espErr = mdns_init();
-        if (espErr == ESP_OK)
+        case WIFI_EVENT_STA_START:
         {
-            LOG_I(MODULE_PREFIX, "WiFi MDNS initialization %s", 
-                            networkSystem.getHostname().c_str());
-            // Set hostname
-            mdns_hostname_set(networkSystem.getHostname().c_str());
+#ifdef DEBUG_WIFI_EVENTS
+            LOG_I(MODULE_PREFIX, "WiFi STA_START ... calling connect");
+#endif
+            esp_wifi_connect();
+#ifdef DEBUG_WIFI_EVENTS
+            LOG_I(MODULE_PREFIX, "WiFi STA_START ... connect returned");
+#endif
+            break;
         }
-                break;
-    }
-            case WIFI_EVENT_STA_DISCONNECTED:
-    {
-        // Handle pause
-        if (!_isPaused)
+        case WIFI_EVENT_STA_CONNECTED:
         {
-            if ((WIFI_CONNECT_MAX_RETRY < 0) || (_numConnectRetries < WIFI_CONNECT_MAX_RETRY))
+            wifi_event_sta_connected_t *event = (wifi_event_sta_connected_t *)event_data;
+            uint32_t ssidLen = event->ssid_len;
+            if (ssidLen > 32)
+                ssidLen = 32;
+            char ssidStr[33];
+            strlcpy(ssidStr, (const char *)(event->ssid), ssidLen + 1);
+            _staSSID = ssidStr;
+            xEventGroupSetBits(_wifiRTOSEventGroup, WIFI_CONNECTED_BIT);
+            break;
+        }
+        case WIFI_EVENT_STA_DISCONNECTED:
+        {
+            // Handle pause
+            if (!_isPaused)
             {
+                if ((WIFI_CONNECT_MAX_RETRY < 0) || (_numConnectRetries < WIFI_CONNECT_MAX_RETRY))
+                {
 #ifdef WARN_ON_WIFI_DISCONNECT_IF_ETH_NOT_CONNECTED
                     if (!_ethConnected)
                     {
-                        if ((_numConnectRetries < 3) || 
+                        if ((_numConnectRetries < 3) ||
                             ((_numConnectRetries < 100) && (_numConnectRetries % 10) == 0) ||
                             ((_numConnectRetries < 1000) && (_numConnectRetries % 100) == 0) ||
                             ((_numConnectRetries % 1000) == 0))
                         {
-                LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d", _numConnectRetries);
+                            LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d", _numConnectRetries);
                         }
                     }
 #endif
-                if (esp_wifi_disconnect() == ESP_OK)
-                {
-                    esp_wifi_connect();
-                }
-                _numConnectRetries++;
-            }
-            else
-            {
-                xEventGroupSetBits(_wifiRTOSEventGroup, WIFI_FAIL_BIT);
-            }
-            _staSSID = "";
-        }
-        xEventGroupClearBits(_wifiRTOSEventGroup, WIFI_CONNECTED_BIT);
-                break;
-    }
-            case WIFI_EVENT_SCAN_DONE:
-    {
-        // LOG_W(MODULE_PREFIX, "scan complete");
-        networkSystem._wifiScanner.scanComplete();
-                break;
-            }
-            case WIFI_EVENT_AP_STACONNECTED:
-            {
-                wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
-                LOG_I(MODULE_PREFIX, "WiFi AP client join MAC " MACSTR " aid %d", MAC2STR(event->mac), event->aid);
-#ifdef ETHERNET_IS_SUPPORTED
-                if (_wifiAPClientCount == 0)
-                {
-                    // Register receive callback
-                    if (_ethWiFiBridge)
+                    if (esp_wifi_disconnect() == ESP_OK)
                     {
-                        esp_wifi_internal_reg_rxcb(WIFI_IF_AP, wifiRxPacketCallback);
-                        LOG_I(MODULE_PREFIX, "WiFi AP registered receive callback");
+                        esp_wifi_connect();
                     }
+                    _numConnectRetries++;
                 }
-#endif
-                _wifiAPClientCount++;
-                break;
-            }
-            case WIFI_EVENT_AP_STADISCONNECTED:
-            {
-                wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
-                LOG_I(MODULE_PREFIX, "WiFi AP client leave MAC " MACSTR " aid %d", MAC2STR(event->mac), event->aid);
-                _wifiAPClientCount--;
-#ifdef ETHERNET_IS_SUPPORTED                
-                if (_wifiAPClientCount == 0)
+                else
                 {
-                    // Unregister receive callback
-                    if (_ethWiFiBridge)
-                        esp_wifi_internal_reg_rxcb(WIFI_IF_AP, NULL);
+                    xEventGroupSetBits(_wifiRTOSEventGroup, WIFI_FAIL_BIT);
                 }
-#endif
-                break;
+                _staSSID = "";
             }
+            xEventGroupClearBits(_wifiRTOSEventGroup, WIFI_CONNECTED_BIT);
+            break;
+        }
+        case WIFI_EVENT_SCAN_DONE:
+        {
+            // LOG_W(MODULE_PREFIX, "scan complete");
+            networkSystem._wifiScanner.scanComplete();
+            break;
+        }
+        case WIFI_EVENT_AP_STACONNECTED:
+        {
+            wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
+            LOG_I(MODULE_PREFIX, "WiFi AP client join MAC " MACSTR " aid %d", MAC2STR(event->mac), event->aid);
+#ifdef ETHERNET_IS_SUPPORTED
+            if (_wifiAPClientCount == 0)
+            {
+                // Register receive callback
+                if (_ethWiFiBridge)
+                {
+                    esp_wifi_internal_reg_rxcb(WIFI_IF_AP, wifiRxPacketCallback);
+                    LOG_I(MODULE_PREFIX, "WiFi AP registered receive callback");
+                }
+            }
+#endif
+            _wifiAPClientCount++;
+            break;
+        }
+        case WIFI_EVENT_AP_STADISCONNECTED:
+        {
+            wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
+            LOG_I(MODULE_PREFIX, "WiFi AP client leave MAC " MACSTR " aid %d", MAC2STR(event->mac), event->aid);
+            _wifiAPClientCount--;
+#ifdef ETHERNET_IS_SUPPORTED
+            if (_wifiAPClientCount == 0)
+            {
+                // Unregister receive callback
+                if (_ethWiFiBridge)
+                    esp_wifi_internal_reg_rxcb(WIFI_IF_AP, NULL);
+            }
+#endif
+            break;
+        }
         }
     }
     else if (event_base == IP_EVENT)
     {
         switch (event_id)
         {
-            case IP_EVENT_STA_GOT_IP:
-    {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-        LOG_I(MODULE_PREFIX, "WiFi got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        _numConnectRetries = 0;
-        char ipAddrStr[32];
-        sprintf(ipAddrStr, IPSTR, IP2STR(&event->ip_info.ip));
-        _wifiIPV4Addr = ipAddrStr;
-        xEventGroupSetBits(_wifiRTOSEventGroup, IP_CONNECTED_BIT);
-                break;
-    }
-            case IP_EVENT_STA_LOST_IP:
-    {
-        LOG_W(MODULE_PREFIX, "WiFi lost ip");
-        if (!_isPaused)
-            _wifiIPV4Addr = "";
-        xEventGroupClearBits(_wifiRTOSEventGroup, IP_CONNECTED_BIT);
-                break;
-            }
+        case IP_EVENT_STA_GOT_IP:
+        {
+            ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+            LOG_I(MODULE_PREFIX, "WiFi got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+            _numConnectRetries = 0;
+            char ipAddrStr[32];
+            sprintf(ipAddrStr, IPSTR, IP2STR(&event->ip_info.ip));
+            _wifiIPV4Addr = ipAddrStr;
+            xEventGroupSetBits(_wifiRTOSEventGroup, IP_CONNECTED_BIT);
+            break;
+        }
+        case IP_EVENT_STA_LOST_IP:
+        {
+            LOG_W(MODULE_PREFIX, "WiFi lost ip");
+            if (!_isPaused)
+                _wifiIPV4Addr = "";
+            xEventGroupClearBits(_wifiRTOSEventGroup, IP_CONNECTED_BIT);
+            break;
+        }
         }
     }
 }
@@ -528,7 +517,7 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
 // Ethernet Event handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NetworkSystem::ethEventHandler(void *arg, esp_event_base_t event_base,
-                              int32_t event_id, void *event_data)
+                                    int32_t event_id, void *event_data)
 {
     uint8_t mac_addr[6] = {0};
     /* we can get the ethernet driver handle from event data */
@@ -539,7 +528,7 @@ void NetworkSystem::ethEventHandler(void *arg, esp_event_base_t event_base,
     case ETHERNET_EVENT_CONNECTED:
         esp_eth_ioctl(ethHandle, ETH_CMD_G_MAC_ADDR, mac_addr);
         LOG_I(MODULE_PREFIX, "Ethernet Link up HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
-                 mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+              mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
         _ethConnected = true;
         break;
     case ETHERNET_EVENT_DISCONNECTED:
@@ -562,9 +551,9 @@ void NetworkSystem::ethEventHandler(void *arg, esp_event_base_t event_base,
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void NetworkSystem::ethGotIPEvent(void *arg, esp_event_base_t event_base,
-                                 int32_t event_id, void *event_data)
+                                  int32_t event_id, void *event_data)
 {
-    ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+    ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
     const esp_netif_ip_info_t *ip_info = &event->ip_info;
 
     LOG_I(MODULE_PREFIX, "eth got IP event: " IPSTR, IP2STR(&ip_info->ip));
@@ -601,7 +590,7 @@ bool NetworkSystem::startWifi()
         {
             LOG_E(MODULE_PREFIX, "startWifi FAILED to start event loop");
             return false;
-        }            
+        }
     }
 #endif
 
@@ -609,7 +598,7 @@ bool NetworkSystem::startWifi()
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)
     if (_enWifiSTAMode)
     {
-    esp_netif_create_default_wifi_sta();
+        esp_netif_create_default_wifi_sta();
     }
     if (_enWifiAPMode)
     {
@@ -641,8 +630,7 @@ bool NetworkSystem::startWifi()
     esp_wifi_set_storage(WIFI_STORAGE_FLASH);
 
     // Set mode
-    err = esp_wifi_set_mode(_enWifiSTAMode && _enWifiAPMode ? WIFI_MODE_APSTA : 
-                    (_enWifiSTAMode ? WIFI_MODE_STA : (_enWifiAPMode ? WIFI_MODE_AP : WIFI_MODE_NULL)));
+    err = esp_wifi_set_mode(_enWifiSTAMode && _enWifiAPMode ? WIFI_MODE_APSTA : (_enWifiSTAMode ? WIFI_MODE_STA : (_enWifiAPMode ? WIFI_MODE_AP : WIFI_MODE_NULL)));
     if (err != ESP_OK)
     {
         LOG_E(MODULE_PREFIX, "start failed to set mode err %s (%d)", esp_err_to_name(err), err);
@@ -668,7 +656,7 @@ bool NetworkSystem::startWifi()
 // Configure WiFi
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const String& hostname, const String& apSsid, const String& apPassword)
+bool NetworkSystem::configureWiFi(const String &ssid, const String &pw, const String &hostname, const String &apSsid, const String &apPassword)
 {
     // Set hostname if specified (or use default if not already set)
     if (hostname.length() != 0)
@@ -681,50 +669,50 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
     bool rsltOk = true;
     if (_enWifiSTAMode)
     {
-    // Check if both SSID and pw have now been set
-    if (ssid.length() != 0 && pw.length() != 0)
-    {
-        // Populate configuration for WiFi
+        // Check if both SSID and pw have now been set
+        if (ssid.length() != 0 && pw.length() != 0)
+        {
+            // Populate configuration for WiFi
             wifi_config_t wifiSTAConfig = {
-            .sta = {
-                {.ssid = ""},
-                {.password = ""},
-                .scan_method = WIFI_FAST_SCAN,
-                .bssid_set = 0,
-                {.bssid = ""},
-                .channel = 0,
-                .listen_interval = 0,
-                .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
-                .threshold = {.rssi = 0, .authmode = WIFI_AUTH_OPEN},
-                .pmf_cfg = {.capable = 0, .required = 0},
+                .sta = {
+                    {.ssid = ""},
+                    {.password = ""},
+                    .scan_method = WIFI_FAST_SCAN,
+                    .bssid_set = 0,
+                    {.bssid = ""},
+                    .channel = 0,
+                    .listen_interval = 0,
+                    .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
+                    .threshold = {.rssi = 0, .authmode = WIFI_AUTH_OPEN},
+                    .pmf_cfg = {.capable = 0, .required = 0},
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
-                .rm_enabled = 1,
-                .btm_enabled = 0,
-                .mbo_enabled  = 0,
-                .reserved = 0,
+                    .rm_enabled = 1,
+                    .btm_enabled = 0,
+                    .mbo_enabled = 0,
+                    .reserved = 0,
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 3)
-                .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
+                    .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
 #endif
                 }};
             strlcpy((char *)wifiSTAConfig.sta.ssid, ssid.c_str(), 32);
             strlcpy((char *)wifiSTAConfig.sta.password, pw.c_str(), 64);
 
-        // Set configuration
+            // Set configuration
             esp_err_t err = esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &wifiSTAConfig);
-        if (err != ESP_OK)
-        {
+            if (err != ESP_OK)
+            {
                 LOG_E(MODULE_PREFIX, "configureWiFi *** WiFi STA failed to set configuration err %s (%d) ***", esp_err_to_name(err), err);
-            return false;
-        }
+                return false;
+            }
 
             LOG_I(MODULE_PREFIX, "WiFi STA Credentials Set SSID %s hostname %s", ssid.c_str(), _hostname.c_str());
 
-        // Connect
-        if (esp_wifi_disconnect() == ESP_OK)
-        {
-            esp_wifi_connect();
-        }
+            // Connect
+            if (esp_wifi_disconnect() == ESP_OK)
+            {
+                esp_wifi_connect();
+            }
         }
         else
         {
@@ -827,7 +815,7 @@ void NetworkSystem::pauseWiFi(bool pause)
 // Hostname can only contain certain characters
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String NetworkSystem::hostnameMakeValid(const String& hostname)
+String NetworkSystem::hostnameMakeValid(const String &hostname)
 {
     String okHostname;
     for (uint32_t i = 0; i < hostname.length(); i++)
@@ -842,7 +830,7 @@ String NetworkSystem::hostnameMakeValid(const String& hostname)
 // Scan WiFi
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool NetworkSystem::wifiScan(bool start, String& jsonResult)
+bool NetworkSystem::wifiScan(bool start, String &jsonResult)
 {
     // Check for start
     if (start)
@@ -955,10 +943,10 @@ esp_err_t NetworkSystem::ethRxPacketCallback(esp_eth_handle_t eth_handle, uint8_
 // Set Hostname
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void NetworkSystem::setHostname(const char* hostname)
+void NetworkSystem::setHostname(const char *hostname)
 {
     _hostname = hostnameMakeValid(hostname);
 #ifdef DEBUG_HOSTNAME_SETTING
     LOG_I(MODULE_PREFIX, "setHostname (req %s) actual %s", hostname, _hostname.c_str());
-#endif    
+#endif
 }
