@@ -3,10 +3,10 @@
 
 #ifndef ARDUINO
 
-#include "ArduinoGPIO.h"
-#include "stdint.h"
-#include "ArduinoTime.h"
-#include "esp_attr.h"
+#include <stdint.h>
+#include <ArduinoGPIO.h>
+#include <ArduinoTime.h>
+#include <esp_attr.h>
 #include <driver/gpio.h>
 
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
@@ -43,7 +43,7 @@ extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
         }
 #endif
 
-        gpio_pad_select_gpio((gpio_num_t)pin);
+        // Configure the GPIO
         switch(mode)
         {
             case INPUT:
@@ -64,6 +64,12 @@ extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
                 gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT);
 #ifdef DEBUG_PINMODE
                 LOG_I("pinmode", "pinMode pin %d OUTPUT", pin);
+#endif
+                break;
+            case OUTPUT_OPEN_DRAIN:
+                gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT_OD);
+#ifdef DEBUG_PINMODE
+                LOG_I("pinmode", "pinMode pin %d OUTPUT_OPEN_DRAIN", pin);
 #endif
                 break;
         }

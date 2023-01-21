@@ -14,7 +14,7 @@ LoggerCore loggerCore;
 
 #include <stdio.h>
 
-void IRAM_ATTR loggerLog(esp_log_level_t level, const char *tag, const char *format, ...)
+extern "C" void LOGGING_FUNCTION_DECORATOR loggerLog(esp_log_level_t level, const char *tag, const char *format, ...)
 {
     va_list args;
     va_start(args, format);

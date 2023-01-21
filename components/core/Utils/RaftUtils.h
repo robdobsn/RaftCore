@@ -18,18 +18,15 @@ namespace Raft
     // Test for a timeout handling wrap around
     // Usage example: isTimeout(millis(), myLastTime, 1000)
     // This will return true if myLastTime was set to millis() more than 1000 milliseconds ago
-    bool isTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration);
     bool isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration);
 
     // Get time until a timeout handling wrap around
     // Usage example: timeToTimeout(millis(), myLastTime)
     // Returns milliseconds since myLastTime
-    unsigned long timeToTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration);
     uint64_t timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration);
 
     // Get time elapsed handling wrap around
     // Usage example: timeElapsed(millis(), myLastTime)
-    // static unsigned long timeElapsed(unsigned long curTime, unsigned long lastTime);
     uint64_t timeElapsed(uint64_t curTime, uint64_t lastTime);
 
     // Setup a result string

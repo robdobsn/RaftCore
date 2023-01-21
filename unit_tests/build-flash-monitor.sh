@@ -1,5 +1,5 @@
 FLASHPORT=${1:-COM4}
-BUILD_IDF_VERS=${2:-esp-idf}
+BUILD_IDF_VERS=${2:-esp-idf-v4.4.3}
 TARGET_CHIP=${3:-esp32}
 FLASHBAUD=${4:-2000000}
 rm -r ../unit_tests/build

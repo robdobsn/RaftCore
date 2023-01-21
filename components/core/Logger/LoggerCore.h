@@ -18,7 +18,7 @@ class LoggerCore
 public:
     LoggerCore();
     ~LoggerCore();
-    void IRAM_ATTR log(esp_log_level_t level, const char *tag, const char* msg);
+    void LOGGING_FUNCTION_DECORATOR log(esp_log_level_t level, const char *tag, const char* msg);
     void clearLoggers();
     void addLogger(LoggerBase* pLogger);
 

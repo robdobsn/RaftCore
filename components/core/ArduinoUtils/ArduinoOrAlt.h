@@ -6,6 +6,7 @@
 #ifdef ARDUINO
 #include <Arduino.h>
 #else
+#include <stdio.h>
 #include <ArduinoGPIO.h>
 #include <ArduinoTime.h>
 #include <ArduinoWString.h>

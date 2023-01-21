@@ -24,15 +24,6 @@ static const char* MODULE_PREFIX = "Utils";
 // Timeouts
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool Raft::isTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
-{
-    if (curTime >= lastTime)
-    {
-        return (curTime > lastTime + maxDuration);
-    }
-    return (ULONG_MAX - (lastTime - curTime) > maxDuration);
-}
-
 bool Raft::isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 {
     if (curTime >= lastTime)
@@ -43,27 +34,8 @@ bool Raft::isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Time before time-out occurs
+// Time before time-out occurs - handling counter wrapping
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Time to timeout handling counter wrapping
-unsigned long Raft::timeToTimeout(unsigned long curTime, unsigned long lastTime, unsigned long maxDuration)
-{
-    if (curTime >= lastTime)
-    {
-        if (curTime > lastTime + maxDuration)
-        {
-            return 0;
-        }
-        return maxDuration - (curTime - lastTime);
-    }
-    unsigned long wrapTime = ULONG_MAX - (lastTime - curTime);
-    if (wrapTime > maxDuration)
-    {
-        return 0;
-    }
-    return maxDuration - wrapTime;
-}
 
 uint64_t Raft::timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 {
@@ -85,13 +57,6 @@ uint64_t Raft::timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDu
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Elapsed time handling counter wrapping
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// unsigned long Raft::timeElapsed(unsigned long curTime, unsigned long lastTime)
-// {
-//     if (curTime >= lastTime)
-//         return curTime - lastTime;
-//     return (ULONG_MAX - lastTime) + 1 + curTime;
-// }
 
 uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
 {
@@ -411,7 +376,7 @@ void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& ou
     for (uint32_t i = 0; i < bufLen; i++)
     {
         char tmpStr[20];
-        snprintf(tmpStr, sizeof(tmpStr), "%08x", pBuf[i]);
+        snprintf(tmpStr, sizeof(tmpStr), "%08lx", (unsigned long) pBuf[i]);
         outStr += tmpStr;
         if (i != bufLen-1)
             outStr += separator;

@@ -57,7 +57,6 @@ void DebounceButton::setup(int pin, bool pullup, bool activeLevel,
     // Setup the input pin
     if (_buttonPin >= 0)
     {
-        gpio_pad_select_gpio((gpio_num_t)_buttonPin);
         gpio_set_direction((gpio_num_t)_buttonPin, GPIO_MODE_INPUT);
         if (pullup)
             gpio_set_pull_mode((gpio_num_t)_buttonPin, GPIO_PULLUP_ONLY);

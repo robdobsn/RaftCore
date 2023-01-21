@@ -106,7 +106,7 @@ void te_free_parameters(te_expr *n) {
 	case TE_FUNCTION4: case TE_CLOSURE4: te_free(n->parameters[3]); __attribute__((fallthrough));
 	case TE_FUNCTION3: case TE_CLOSURE3: te_free(n->parameters[2]); __attribute__((fallthrough));
 	case TE_FUNCTION2: case TE_CLOSURE2: te_free(n->parameters[1]); __attribute__((fallthrough));
-	case TE_FUNCTION1: case TE_CLOSURE1: te_free(n->parameters[0]); __attribute__((fallthrough));
+	case TE_FUNCTION1: case TE_CLOSURE1: te_free(n->parameters[0]);
 	}
 }
 

@@ -12,7 +12,8 @@
 
 #include <cstdint>
 #include <ArduinoOrAlt.h>
-#include "esp_system.h"
+#include <esp_system.h>
+#include <esp_mac.h>
 
 #ifndef ARDUINO
 

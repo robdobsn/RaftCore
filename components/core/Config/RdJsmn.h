@@ -45,6 +45,7 @@ extern "C" {
 #define JSMN_API extern
 #endif
 
+#undef JSMN_PARENT_LINKS
 #define JSMN_PARENT_LINKS 1
 #define JSMN_STRICT 1
 

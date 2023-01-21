@@ -11,11 +11,14 @@
 #include "esp_log.h"
 #include "esp_attr.h"
 
+#define LOGGING_FUNCTION_DECORATOR
+// #define LOGGING_FUNCTION_DECORATOR IRAM_ATTR
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern IRAM_ATTR void loggerLog(esp_log_level_t level, const char *tag, const char *format, ...);
+extern LOGGING_FUNCTION_DECORATOR void loggerLog(esp_log_level_t level, const char *tag, const char *format, ...);
 
 #ifdef __cplusplus
 }
