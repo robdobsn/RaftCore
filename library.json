@@ -30,20 +30,27 @@
     "flags": [
       "-DJSMN_PARENT_LINKS", 
       "-DJSMN_STRICT",
-      "-Icomponents/core/ArduinoUtils",
-      "-Icomponents/core/Config",
-      "-Icomponents/core/Logger",
-      "-Icomponents/core/Utils",
       "-Icomponents/core/APICommon",
+      "-Icomponents/core/ArduinoUtils",
+      "-Icomponents/core/ArPreferences",
+      "-Icomponents/core/CommsCoreIF",
+      "-Icomponents/core/Config",
       "-Icomponents/core/ConfigPinMap",
       "-Icomponents/core/DebounceButton",
       "-Icomponents/core/ExpressionEval",
       "-Icomponents/core/libb64",
+      "-Icomponents/core/Logger",
       "-Icomponents/core/MiniHDLC",
+      "-Icomponents/core/NetCoreIF",
       "-Icomponents/core/NumericalFilters",
+      "-Icomponents/core/RestAPIEndpoints",
       "-Icomponents/core/RingBuffer",
       "-Icomponents/core/SupervisorStats",
-      "-Icomponents/core/ThreadSafeQueue"
+      "-Icomponents/core/SysManager",
+      "-Icomponents/core/SysMod",
+      "-Icomponents/core/SysTypes",
+      "-Icomponents/core/ThreadSafeQueue",
+      "-Icomponents/core/Utils"
     ]
   }
 }
