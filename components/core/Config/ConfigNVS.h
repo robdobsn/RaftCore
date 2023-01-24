@@ -61,19 +61,22 @@ public:
     virtual void registerChangeCallback(ConfigChangeCallbackType configChangeCallback) override final;
 
     // Get string
-    virtual String getString(const char *dataPath, const char *defaultValue) const override final;
+    virtual String getString(const char *dataPath, const char *defaultValue, const char* pPrefix = nullptr) const override final;
 
     // Get long
-    virtual long getLong(const char *dataPath, long defaultValue) const override final;
+    virtual long getLong(const char *dataPath, long defaultValue, const char* pPrefix = nullptr) const override final;
+
+    // Get bool
+    virtual bool getBool(const char *dataPath, bool defaultValue, const char* pPrefix = nullptr) const override final;
 
     // Get double
-    virtual double getDouble(const char *dataPath, double defaultValue) const override final;
+    virtual double getDouble(const char *dataPath, double defaultValue, const char* pPrefix = nullptr) const override final;
 
     // Get array elems
-    virtual bool getArrayElems(const char *dataPath, std::vector<String>& strList) const override final;
+    virtual bool getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix = nullptr) const override final;
 
     // Check if config contains key
-    virtual bool contains(const char *dataPath) const override final;
+    virtual bool contains(const char *dataPath, const char* pPrefix = nullptr) const override final;
 
 private:
     // Namespace used for ArPreferences lib

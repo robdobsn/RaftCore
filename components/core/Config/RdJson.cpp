@@ -256,6 +256,39 @@ long RdJson::getLong(const char *dataPath, long defaultValue, const char *pSourc
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getBool
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * getBool
+ * 
+ * @param  {char*} dataPath    : path of element to return
+ * @param  {bool} defaultValue : default value
+ * @param  {bool&} isValid     : [out] true if valid
+ * @param  {char*} pSourceStr  : json string to search
+ * @return {bool}              : returned value or default
+ */
+bool RdJson::getBool(const char *dataPath,
+                     bool defaultValue, bool &isValid,
+                     const char *pSourceStr)
+{
+    return RdJson::getLong(dataPath, defaultValue, isValid, pSourceStr) != 0;
+}
+
+/**
+ * getBool
+ * 
+ * @param  {char*} dataPath    : path of element to return
+ * @param  {bool} defaultValue : default value
+ * @param  {char*} pSourceStr  : json string to search
+ * @return {bool}              : returned value or default
+ */
+bool RdJson::getBool(const char *dataPath, bool defaultValue, const char *pSourceStr)
+{
+    return RdJson::getLong(dataPath, defaultValue, pSourceStr) != 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getLong
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

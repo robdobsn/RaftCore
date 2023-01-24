@@ -81,17 +81,17 @@ public:
      * Calls ConfigBase::getElement() to interpret `dataPath`.
      *
      * @param dataPath     path of element to return
-     * @param defaultValue default value to use if `dataPath` does not refer to
-     *                     a value
+     * @param defaultValue default value to use if `dataPath` does not refer to a value
+     * @param pPrefix      prefix to prepend to `dataPath` (can be NULL to indicate no prefix)
      *
      * @return retrieved value or default
      */
-    virtual String getString(const char *dataPath, const char *defaultValue) const;
+    virtual String getString(const char *dataPath, const char *defaultValue, const char* pPrefix = nullptr) const;
 
     /**
      * @overload String ConfigBase::getString(const char *dataPath, const char *defaultValue)
      */
-    virtual String getString(const char *dataPath, const String& defaultValue) const;
+    virtual String getString(const char *dataPath, const String& defaultValue, const char* pPrefix = nullptr) const;
 
     /**
      * @brief Retrieve an integer value.
@@ -99,13 +99,27 @@ public:
      * Calls ConfigBase::getElement() to interpret `dataPath`.
      *
      * @param dataPath     path of element to return
-     * @param defaultValue default value to use if `dataPath` does not refer to
-     *                     a value
+     * @param defaultValue default value to use if `dataPath` does not refer to a value
+     * @param pPrefix      prefix to prepend to `dataPath` (can be NULL to indicate no prefix)
      * @return `defaultValue` if `dataPath` does not refer to a value, zero if
      *         that value cannot be interpreted by strtol(), and the retrieved
      *         integer otherwise.
      */
-    virtual long getLong(const char *dataPath, long defaultValue) const;
+    virtual long getLong(const char *dataPath, long defaultValue, const char* pPrefix = nullptr) const;
+
+    /**
+     * @brief Retrieve an bool value.
+     *
+     * Calls ConfigBase::getElement() to interpret `dataPath`.
+     *
+     * @param dataPath     path of element to return
+     * @param defaultValue default value to use if `dataPath` does not refer to a value
+     * @param pPrefix      prefix to prepend to `dataPath` (can be NULL to indicate no prefix)
+     * @return `defaultValue` if `dataPath` does not refer to a value, zero if
+     *         that value cannot be interpreted by strtol(), and the retrieved
+     *         integer otherwise.
+     */
+    virtual bool getBool(const char *dataPath, bool defaultValue, const char* pPrefix = nullptr) const;
 
     /**
      * @brief Retrieve a decimal value.
@@ -113,13 +127,13 @@ public:
      * Calls ConfigBase::getElement() to interpret `dataPath`.
      *
      * @param dataPath     path of element to return
-     * @param defaultValue default value to use if `dataPath` does not refer to
-     *                     a value
+     * @param defaultValue default value to use if `dataPath` does not refer to a value
+     * @param pPrefix      prefix to prepend to `dataPath` (can be NULL to indicate no prefix)
      * @return `defaultValue` if `dataPath` does not refer to a value, zero if
      *         that value cannot be interpreted by strtod(), and the retrieved
      *         number otherwise.
      */
-    virtual double getDouble(const char *dataPath, double defaultValue) const;
+    virtual double getDouble(const char *dataPath, double defaultValue, const char* pPrefix = nullptr) const;
 
     /**
      * @brief Retrieve elements of a JSON array if `dataPath` refers to one.
@@ -128,10 +142,11 @@ public:
      *
      * @param[in]  dataPath   path of element to return
      * @param[out] arrayElems elems of array to return
+     * @param pPrefix      prefix to prepend to `dataPath` (can be NULL to indicate no prefix)
      *
      * @return `true` if a JSON array was found at `dataPath`
      */
-    virtual bool getArrayElems(const char *dataPath, std::vector<String>& strList) const;
+    virtual bool getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix = nullptr) const;
 
     /**
      * @brief Check if `dataPath` refers to a value in this config.
@@ -139,9 +154,10 @@ public:
      * Calls ConfigBase::getElement() to interpret `dataPath`.
      *
      * @param[in] dataPath path of element to check
+     * @param pPrefix      prefix to prepend to `dataPath` (can be NULL to indicate no prefix)
      * @return `true` if this config has a value for `dataPath`
      */
-    virtual bool contains(const char *dataPath) const;
+    virtual bool contains(const char *dataPath, const char* pPrefix = nullptr) const;
 
     /**
      * @brief Retrieve keys of a JSON object if `dataPath` refers to one.
@@ -150,10 +166,11 @@ public:
      *
      * @param[in]  dataPath   path of element to return
      * @param[out] keysVector elems of array to return
+     * @param pPrefix      prefix to prepend to `dataPath` (can be NULL to indicate no prefix)
      *
      * @return `true` if a JSON object was found at `dataPath`
      */
-    virtual bool getKeys(const char *dataPath, std::vector<String>& keysVector) const;
+    virtual bool getKeys(const char *dataPath, std::vector<String>& keysVector, const char* pPrefix = nullptr) const;
 
     // Set hardware revision
     static void setHwRevision(int hwRevision)
@@ -185,7 +202,7 @@ protected:
      *         switch array or this array is valid and contains a value for the
      *         current HW revision (even if only the default value).
      */
-    static bool _helperGetElement(const char *dataPath, String& elementStr, rd_jsmntype_t& elementType, const char* pConfigStr);
+    static bool _helperGetElement(const char *dataPath, String& elementStr, rd_jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix);
 
     // Set the configuration data directly
     virtual void _setConfigData(const char* configJSONStr);
@@ -195,12 +212,13 @@ protected:
     {
         return _dataStrJSON.c_str();
     }
-    static String _helperGetString(const char *dataPath, const char *defaultValue, const char* sourceStr);
-    static long _helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr);
-    static double _helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr);
-    static bool _helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr);
-    static bool _helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr);
-    static bool _helperContains(const char *dataPath, const char* pSourceStr);
+    static String _helperGetString(const char *dataPath, const char *defaultValue, const char* sourceStr, const char* pPrefix);
+    static long _helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr, const char* pPrefix);
+    static bool _helperGetBool(const char *dataPath, bool defaultValue, const char* pSourceStr, const char* pPrefix);
+    static double _helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr, const char* pPrefix);
+    static bool _helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr, const char* pPrefix);
+    static bool _helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr, const char* pPrefix);
+    static bool _helperContains(const char *dataPath, const char* pSourceStr, const char* pPrefix);
 
     // Data is stored in a single string as JSON
     String _dataStrJSON;

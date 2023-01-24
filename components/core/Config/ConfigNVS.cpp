@@ -207,13 +207,13 @@ String ConfigNVS::getNVConfigStr() const
 // getString
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String ConfigNVS::getString(const char *dataPath, const char *defaultValue) const
+String ConfigNVS::getString(const char *dataPath, const char *defaultValue, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str()))
-        return ConfigBase::getString(dataPath, defaultValue);
+    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+        return ConfigBase::getString(dataPath, defaultValue, pPrefix);
     if (_pStaticConfig)
-        return _helperGetString(dataPath, defaultValue, _pStaticConfig);
+        return _helperGetString(dataPath, defaultValue, _pStaticConfig, pPrefix);
     return defaultValue;
 }
 
@@ -221,12 +221,12 @@ String ConfigNVS::getString(const char *dataPath, const char *defaultValue) cons
 // getString
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-long ConfigNVS::getLong(const char *dataPath, long defaultValue) const
+long ConfigNVS::getLong(const char *dataPath, long defaultValue, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str()))
+    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
     {
-        long retVal = ConfigBase::getLong(dataPath, defaultValue);
+        long retVal = ConfigBase::getLong(dataPath, defaultValue, pPrefix);
 #ifdef DEBUG_NVS_CONFIG_DETAIL
         LOG_I(MODULE_PREFIX, "getLong nvs contains %s retVal %ld", dataPath, retVal);
 #endif
@@ -234,7 +234,7 @@ long ConfigNVS::getLong(const char *dataPath, long defaultValue) const
     }
     if (_pStaticConfig)
     {
-        long retVal = _helperGetLong(dataPath, defaultValue, _pStaticConfig);
+        long retVal = _helperGetLong(dataPath, defaultValue, _pStaticConfig, pPrefix);
 #ifdef DEBUG_NVS_CONFIG_DETAIL
         LOG_I(MODULE_PREFIX, "getLong not in nvs .. from static %s retVal %ld", dataPath, retVal);
 #endif
@@ -246,33 +246,46 @@ long ConfigNVS::getLong(const char *dataPath, long defaultValue) const
     return defaultValue;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getBool
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool ConfigNVS::getBool(const char *dataPath, bool defaultValue, const char* pPrefix) const
+{
+    // Use getLong
+    return getLong(dataPath, defaultValue, pPrefix) != 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get double
-double ConfigNVS::getDouble(const char *dataPath, double defaultValue) const
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+double ConfigNVS::getDouble(const char *dataPath, double defaultValue, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str()))
-        return ConfigBase::getDouble(dataPath, defaultValue);
+    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+        return ConfigBase::getDouble(dataPath, defaultValue, pPrefix);
     if (_pStaticConfig)
-        return _helperGetDouble(dataPath, defaultValue, _pStaticConfig);
+        return _helperGetDouble(dataPath, defaultValue, _pStaticConfig, pPrefix);
     return defaultValue;
 }
 
-bool ConfigNVS::getArrayElems(const char *dataPath, std::vector<String>& strList) const
+bool ConfigNVS::getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str()))
-        return ConfigBase::getArrayElems(dataPath, strList);
+    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+        return ConfigBase::getArrayElems(dataPath, strList, pPrefix);
     if (_pStaticConfig)
-        return _helperGetArrayElems(dataPath, strList, _pStaticConfig);
+        return _helperGetArrayElems(dataPath, strList, _pStaticConfig, pPrefix);
     return false;
 }
 
-bool ConfigNVS::contains(const char *dataPath) const
+bool ConfigNVS::contains(const char *dataPath, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str()))
+    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
         return true;
     if (_pStaticConfig)
-        return _helperContains(dataPath, _pStaticConfig);
+        return _helperContains(dataPath, _pStaticConfig, pPrefix);
     return false;
 }

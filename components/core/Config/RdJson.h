@@ -57,6 +57,12 @@ public:
 
     static long getLong(const char* dataPath, long defaultValue, const char* pSourceStr);
 
+    static bool getBool(const char* dataPath,
+                        bool defaultValue, bool& isValid,
+                        const char* pSourceStr);
+
+    static bool getBool(const char* dataPath, bool defaultValue, const char* pSourceStr);
+
     static const char* getElemTypeStr(rd_jsmntype_t type);
 
     static rd_jsmntype_t getType(int& arrayLen, const char* pSourceStr);

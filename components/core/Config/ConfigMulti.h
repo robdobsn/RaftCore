@@ -49,10 +49,12 @@ public:
     virtual bool writeConfig(const String& configJSONStr) override final;
 
     // Get functions
-    virtual String getString(const char *dataPath, const char *defaultValue) const override final;
-    virtual long getLong(const char *dataPath, long defaultValue) const override final;
-    virtual double getDouble(const char *dataPath, double defaultValue) const override final;
-    virtual bool getArrayElems(const char *dataPath, std::vector<String>& strList) const override final;
+    virtual String getString(const char *dataPath, const char *defaultValue, const char* pPrefix = nullptr) const override final;
+    virtual long getLong(const char *dataPath, long defaultValue, const char* pPrefix = nullptr) const override final;
+    virtual bool getBool(const char *dataPath, bool defaultValue, const char* pPrefix = nullptr) const override final;
+    virtual double getDouble(const char *dataPath, double defaultValue, const char* pPrefix = nullptr) const override final;
+    virtual bool getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix = nullptr) const override final;
+    virtual bool contains(const char *dataPath, const char* pPrefix = nullptr) const override final;
 
     // Register change callback
     virtual void registerChangeCallback(ConfigChangeCallbackType configChangeCallback) override final;

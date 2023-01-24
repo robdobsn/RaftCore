@@ -27,59 +27,68 @@ int ConfigBase::_hwRevision = DEFAULT_HARDWARE_REVISION_NUMBER;
 // If overriding getString then override the one with const char*
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String ConfigBase::getString(const char *dataPath, const char *defaultValue) const
+String ConfigBase::getString(const char *dataPath, const char *defaultValue, const char* pPrefix) const
 {
-    return _helperGetString(dataPath, defaultValue, _getConfigCStr());
+    return _helperGetString(dataPath, defaultValue, _getConfigCStr(), pPrefix);
 }
 
-String ConfigBase::getString(const char *dataPath, const String& defaultValue) const
+String ConfigBase::getString(const char *dataPath, const String& defaultValue, const char* pPrefix) const
 {
-    return getString(dataPath, defaultValue.c_str());
+    return getString(dataPath, defaultValue.c_str(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getLong
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-long ConfigBase::getLong(const char *dataPath, long defaultValue) const
+long ConfigBase::getLong(const char *dataPath, long defaultValue, const char* pPrefix) const
 {
-    return _helperGetLong(dataPath, defaultValue, _getConfigCStr());
+    return _helperGetLong(dataPath, defaultValue, _getConfigCStr(), pPrefix);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getBool
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool ConfigBase::getBool(const char *dataPath, bool defaultValue, const char* pPrefix) const
+{
+    return _helperGetLong(dataPath, defaultValue, _getConfigCStr(), pPrefix) != 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getDouble
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-double ConfigBase::getDouble(const char *dataPath, double defaultValue) const
+double ConfigBase::getDouble(const char *dataPath, double defaultValue, const char* pPrefix) const
 {
-    return _helperGetDouble(dataPath, defaultValue, _getConfigCStr());
+    return _helperGetDouble(dataPath, defaultValue, _getConfigCStr(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getArrayElems
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::getArrayElems(const char *dataPath, std::vector<String>& strList) const
+bool ConfigBase::getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix) const
 {
-    return _helperGetArrayElems(dataPath, strList, _getConfigCStr());
+    return _helperGetArrayElems(dataPath, strList, _getConfigCStr(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // contains
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::contains(const char *dataPath) const
+bool ConfigBase::contains(const char *dataPath, const char* pPrefix) const
 {
-    return _helperContains(dataPath, _getConfigCStr());
+    return _helperContains(dataPath, _getConfigCStr(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getKeys
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::getKeys(const char *dataPath, std::vector<String>& keysVector) const
+bool ConfigBase::getKeys(const char *dataPath, std::vector<String>& keysVector, const char* pPrefix) const
 {
-    return _helperGetKeys(dataPath, keysVector, _getConfigCStr());
+    return _helperGetKeys(dataPath, keysVector, _getConfigCStr(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -98,14 +107,14 @@ void ConfigBase::_setConfigData(const char* configJSONStr)
 // _helperGetString
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String ConfigBase::_helperGetString(const char *dataPath, const char *defaultValue, const char* pSourceStr)
+String ConfigBase::_helperGetString(const char *dataPath, const char *defaultValue, const char* pSourceStr, const char* pPrefix)
 {
     String element;
     rd_jsmntype_t type = RD_JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
+    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    String rdJsonResult = RdJson::getString(dataPath, defaultValue, pSourceStr);
+    String rdJsonResult = RdJson::getString(dataPath, defaultValue, pSourceStr, pPrefix);
     if (!exists && !rdJsonResult.equals(defaultValue))
     {
         // We are returning defaultValue when we should not
@@ -141,11 +150,11 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
 // _helperGetLong
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr)
+long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr, const char* pPrefix)
 {
     String element;
     rd_jsmntype_t type = RD_JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
+    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
     long result = defaultValue;
     if (exists)
     {
@@ -159,7 +168,7 @@ long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const c
     }
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    long rdJsonResult = RdJson::getLong(dataPath, defaultValue, pSourceStr);
+    long rdJsonResult = RdJson::getLong(dataPath, defaultValue, pSourceStr, pPrefix);
     if (rdJsonResult != result)
     {
         LOG_W(MODULE_PREFIX, "getLong(\"%s\", %ld) returned %ld != %ld",
@@ -174,11 +183,11 @@ long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const c
 // getDouble
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr)
+double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr, const char* pPrefix)
 {
     String element;
     rd_jsmntype_t type = RD_JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
+    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
     double result = defaultValue;
     if (exists)
     {
@@ -207,15 +216,15 @@ double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, c
 // _helperGetArrayElems
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr)
+bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr, const char* pPrefix)
 {
     String element;
     rd_jsmntype_t type = RD_JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
+    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
     std::vector<String> rdJsonResult;
-    double rdJsonExists = RdJson::getArrayElems(dataPath, rdJsonResult, pSourceStr);
+    double rdJsonExists = RdJson::getArrayElems(dataPath, rdJsonResult, pSourceStr, pPrefix);
     if (!exists && rdJsonExists)
     {
         LOG_W(MODULE_PREFIX, "getArrayElems(\"%s\") - _helperGetElement() failed", dataPath);
@@ -256,15 +265,15 @@ bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>&
 // _helperGetKeys
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr)
+bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr, const char* pPrefix)
 {
     String element;
     rd_jsmntype_t type = RD_JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr);
+    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
     std::vector<String> rdJsonResult;
-    double rdJsonExists = RdJson::getKeys(dataPath, rdJsonResult, pSourceStr);
+    double rdJsonExists = RdJson::getKeys(dataPath, rdJsonResult, pSourceStr, pPrefix);
     if (!exists && rdJsonExists)
     {
         LOG_W(MODULE_PREFIX, "getKeys(\"%s\") - _helperGetElement() failed", dataPath);
@@ -305,27 +314,38 @@ bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysV
 // _helperContains
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperContains(const char *dataPath, const char* pSourceStr)
+bool ConfigBase::_helperContains(const char *dataPath, const char* pSourceStr, const char* pPrefix)
 {
     String element;
     rd_jsmntype_t type = RD_JSMN_UNDEFINED;
-    return _helperGetElement(dataPath, element, type, pSourceStr);
+    return _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // _helperGetElement
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_jsmntype_t& elementType, const char* pConfigStr)
+bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix)
 {
+    // Combine the prefix and the data path
+    String dataPathStr;
+    if (pPrefix && pPrefix[0] != '\0')
+    {
+        dataPathStr = pPrefix;
+        dataPathStr += "/";
+    }
+    if (dataPath != NULL && dataPath[0] != '\0')
+        dataPathStr += dataPath;
+
 #ifdef DEBUG_CONFIG_BASE
-    LOG_I(MODULE_PREFIX, "Looking for element '%s'", dataPath);
+    LOG_I(MODULE_PREFIX, "Looking for element '%s'", dataPathStr.c_str());
 #endif
 
+    // Find the element
     int startPos = -1;
     int strLen = -1;
     int size = -1;
-    bool found = RdJson::getElement(dataPath, startPos, strLen, elementType, size, pConfigStr);
+    bool found = RdJson::getElement(dataPathStr.c_str(), startPos, strLen, elementType, size, pConfigStr);
 #ifdef DEBUG_CONFIG_BASE
     {
         String debugOutStr;
@@ -336,12 +356,12 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
     }
 #endif
 #ifdef DEBUG_CONFIG_BASE_SPECIFIC_PATH
-    if (strcasecmp(dataPath, DEBUG_CONFIG_BASE_SPECIFIC_PATH) == 0)
+    if (strcasecmp(dataPathStr.c_str(), DEBUG_CONFIG_BASE_SPECIFIC_PATH) == 0)
     {
         String debugOutStr;
         Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
         LOG_I(MODULE_PREFIX, "path %s found=%d, start=%d, len=%d, type=%s, size=%d, elemSubstr='%s'",
-            dataPath, (int)found, startPos, strLen, RdJson::getElemTypeStr(elementType), size,
+            dataPathStr.c_str(), (int)found, startPos, strLen, RdJson::getElemTypeStr(elementType), size,
             (startPos < 0 || strLen < 0 || startPos > strnlen(pConfigStr, startPos+1)) ? "" : debugOutStr.c_str());
     }
 #endif
