@@ -161,7 +161,7 @@ void SysManager::setup()
             if (_pRestAPIEndpointManager)
                 pSysMod->addRestAPIEndpoints(*_pRestAPIEndpointManager);
             if (_pCommsCore)
-                pSysMod->addCommsChannels(_pCommsCore);
+                pSysMod->addCommsChannels(*_pCommsCore);
         }            
     }
 

@@ -38,7 +38,8 @@ typedef std::function<void(const char* stateName, std::vector<uint8_t>& stateHas
 class SysModBase
 {
 public:
-    SysModBase(const char *pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig, const char* pGlobalConfigPrefix = NULL);
+    SysModBase(const char *pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig, 
+            const char* pGlobalConfigPrefix = NULL, bool mutableConfigIsGlobal = false);
     virtual ~SysModBase();
 
     // Setup
@@ -52,7 +53,7 @@ public:
     }
 
     // Add comms channels
-    virtual void addCommsChannels(CommsCoreIF* pCommsCore)
+    virtual void addCommsChannels(CommsCoreIF& commsCore)
     {
     }
 
@@ -90,6 +91,7 @@ public:
 
     // Config access
     virtual long configGetLong(const char *dataPath, long defaultValue);
+    virtual bool configGetBool(const char *dataPath, bool defaultValue);
     virtual String configGetString(const char *dataPath, const char* defaultValue);
     virtual String configGetString(const char *dataPath, const String& defaultValue);
     virtual bool configGetArrayElems(const char *dataPath, std::vector<String>& strList) const;

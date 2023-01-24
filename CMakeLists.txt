@@ -8,6 +8,7 @@ idf_component_register(
       "components/core/ArduinoUtils/ArduinoWString.cpp"
       "components/core/ArduinoUtils/ArduinoStdlibNonISO.c"
       "components/core/ArPreferences/ArPreferences.cpp"
+      "components/core/CommsChannelMsg/CommsChannelMsg.cpp"
       "components/core/Config/ConfigBase.cpp"
       "components/core/Config/ConfigMulti.cpp"
       "components/core/Config/ConfigNVS.cpp"
@@ -18,9 +19,13 @@ idf_component_register(
       "components/core/ExpressionEval/ExpressionEval.cpp"
       "components/core/ExpressionEval/ExpressionContext.cpp"
       "components/core/ExpressionEval/tinyexpr.c"
+      "components/core/FileSystem/FileSystem.cpp"
+      "components/core/FileSystem/FileSystemChunker.cpp"
       "components/core/libb64/cencode.cpp"
       "components/core/Logger/LoggerCore.cpp"
       "components/core/MiniHDLC/MiniHDLC.cpp"
+      "components/core/NetworkSystem/NetworkSystem.cpp"
+      "components/core/NetworkSystem/WiFiScanner.cpp"
       "components/core/RestAPIEndpoints/RestAPIEndpointManager.cpp"
       "components/core/SupervisorStats/SupervisorStats.cpp"
       "components/core/SysMod/SysModBase.cpp"
@@ -32,15 +37,18 @@ idf_component_register(
       "components/core/APICommon"
       "components/core/ArduinoUtils"
       "components/core/ArPreferences"
+      "components/core/CommsChannelMsg"
       "components/core/CommsCoreIF"
       "components/core/Config"
       "components/core/ConfigPinMap"
       "components/core/DebounceButton"
       "components/core/ExpressionEval"
+      "components/core/FileSystem"
       "components/core/libb64"
       "components/core/Logger"
       "components/core/MiniHDLC"
       "components/core/NetCoreIF"
+      "components/core/NetworkSystem"
       "components/core/NumericalFilters"
       "components/core/RestAPIEndpoints"
       "components/core/RingBuffer"
@@ -52,5 +60,7 @@ idf_component_register(
       "components/core/Utils"
     REQUIRES
       nvs_flash
+      spiffs
+      fatfs
       driver
     )

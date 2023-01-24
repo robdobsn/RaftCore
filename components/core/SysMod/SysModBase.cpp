@@ -20,8 +20,8 @@ SysManager* SysModBase::_pSysManager = NULL;
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SysModBase::SysModBase(const char *pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, 
-            ConfigBase* pMutableConfig, const char* pGlobalConfigPrefix)
+SysModBase::SysModBase(const char *pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig, 
+            const char* pGlobalConfigPrefix, bool mutableConfigIsGlobal)
 {
     // Set sysmod name
     if (pModuleName)
@@ -34,7 +34,7 @@ SysModBase::SysModBase(const char *pModuleName, ConfigBase& defaultConfig, Confi
         moduleConfigPrefix = pGlobalConfigPrefix;
     _combinedConfig.addConfig(&defaultConfig, moduleConfigPrefix.c_str(), false);
     _combinedConfig.addConfig(pGlobalConfig, moduleConfigPrefix.c_str(), false);
-    _combinedConfig.addConfig(pMutableConfig, "", true);
+    _combinedConfig.addConfig(pMutableConfig, mutableConfigIsGlobal ? moduleConfigPrefix.c_str() : "", true);
 
     // Set log level for module if specified
     String logLevel = configGetString("logLevel", "");
@@ -91,6 +91,11 @@ CommsCoreIF* SysModBase::getCommsCore()
 long SysModBase::configGetLong(const char *dataPath, long defaultValue)
 {
     return _combinedConfig.getLong(dataPath, defaultValue);
+}
+
+bool SysModBase::configGetBool(const char *dataPath, bool defaultValue)
+{
+    return _combinedConfig.getBool(dataPath, defaultValue);
 }
 
 String SysModBase::configGetString(const char *dataPath, const char* defaultValue)
