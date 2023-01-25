@@ -454,7 +454,8 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
             case WIFI_EVENT_AP_STACONNECTED:
             {
                 wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
-                LOG_I(MODULE_PREFIX, "WiFi AP client join MAC " MACSTR " aid %d", MAC2STR(event->mac), event->aid);
+                String macStr = Raft::formatMACAddr(event->mac, ":");
+                LOG_I(MODULE_PREFIX, "WiFi AP client join MAC %s aid %d", macStr.c_str(), event->aid);
 #ifdef ETHERNET_IS_SUPPORTED
                 if (_wifiAPClientCount == 0)
                 {
@@ -472,7 +473,8 @@ void NetworkSystem::wifiEventHandler(void *arg, esp_event_base_t event_base,
             case WIFI_EVENT_AP_STADISCONNECTED:
             {
                 wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
-                LOG_I(MODULE_PREFIX, "WiFi AP client leave MAC " MACSTR " aid %d", MAC2STR(event->mac), event->aid);
+                String macStr = Raft::formatMACAddr(event->mac, ":");
+                LOG_I(MODULE_PREFIX, "WiFi AP client leave MAC %s aid %d", macStr.c_str(), event->aid);
                 _wifiAPClientCount--;
 #ifdef ETHERNET_IS_SUPPORTED                
                 if (_wifiAPClientCount == 0)
@@ -678,11 +680,20 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
             // Populate configuration for WiFi
             wifi_config_t wifiSTAConfig = {
             .sta = {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+                .ssid = "",
+                .password = "",
+#else
                 {.ssid = ""},
                 {.password = ""},
+#endif
                 .scan_method = WIFI_FAST_SCAN,
                 .bssid_set = 0,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+                .bssid = "",
+#else
                 {.bssid = ""},
+#endif
                 .channel = 0,
                 .listen_interval = 0,
                 .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
@@ -692,10 +703,24 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
                 .rm_enabled = 1,
                 .btm_enabled = 0,
                 .mbo_enabled  = 0,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+                .ft_enabled = 0,
+                .owe_enabled = 0,
+                .transition_disable = 0,
+                .aid = 0,
+                .phymode = 0,
+#endif
                 .reserved = 0,
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 3)
                 .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+                .failure_retry_cnt = 0,
+                .he_dcm_set = 0,
+                .he_dcm_max_constellation_tx = 0,
+                .he_dcm_max_constellation_rx = 0,
+                .he_mcs9_enabled = 0,
 #endif
                 }};
             strlcpy((char *)wifiSTAConfig.sta.ssid, ssid.c_str(), 32);
@@ -725,8 +750,13 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
         // Populate configuration for AP
         wifi_config_t wifiAPConfig = {
             .ap = {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+                .ssid = "",
+                .password = "",
+#else
                 {.ssid = ""},
                 {.password = ""},
+#endif
                 .ssid_len = 0,
                 .channel = 1,
                 .authmode = WIFI_AUTH_WPA_WPA2_PSK,
@@ -734,7 +764,12 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
                 .max_connection = 10,
                 .beacon_interval = 100,
                 .pairwise_cipher = WIFI_CIPHER_TYPE_CCMP,
-                .ftm_responder = 0}};
+                .ftm_responder = 0,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+                .pmf_cfg = {.capable = 0, .required = 0},
+#endif
+            }
+        };
         strlcpy((char *)wifiAPConfig.ap.ssid, apSsid.c_str(), 32);
         strlcpy((char *)wifiAPConfig.ap.password, apPassword.c_str(), 64);
 

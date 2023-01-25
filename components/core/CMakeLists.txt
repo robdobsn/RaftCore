@@ -24,6 +24,8 @@ idf_component_register(
       "libb64/cencode.cpp"
       "Logger/LoggerCore.cpp"
       "MiniHDLC/MiniHDLC.cpp"
+      "NetworkSystem/NetworkSystem.cpp"
+      "NetworkSystem/WiFiScanner.cpp"
       "RestAPIEndpoints/RestAPIEndpointManager.cpp"
       "SupervisorStats/SupervisorStats.cpp"
       "SysMod/SysModBase.cpp"
@@ -46,6 +48,7 @@ idf_component_register(
       "Logger"
       "MiniHDLC"
       "NetCoreIF"
+      "NetworkSystem"
       "NumericalFilters"
       "RestAPIEndpoints"
       "RingBuffer"
@@ -62,4 +65,6 @@ idf_component_register(
       spiffs
       fatfs
       sdmmc
+      esp_wifi
+      esp_eth
     )

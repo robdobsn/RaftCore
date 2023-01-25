@@ -18,6 +18,9 @@
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <nvs_flash.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#include <esp_eth_driver.h>
+#endif
 
 // #define PRIVATE_EVENT_LOOP
 

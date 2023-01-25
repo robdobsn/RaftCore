@@ -65,4 +65,6 @@ idf_component_register(
       spiffs
       fatfs
       sdmmc
+      esp_wifi
+      esp_eth      
     )
