@@ -19,6 +19,8 @@ idf_component_register(
       "ExpressionEval/ExpressionEval.cpp"
       "ExpressionEval/ExpressionContext.cpp"
       "ExpressionEval/tinyexpr.c"
+      "FileSystem/FileSystem.cpp"
+      "FileSystem/FileSystemChunker.cpp"
       "libb64/cencode.cpp"
       "Logger/LoggerCore.cpp"
       "MiniHDLC/MiniHDLC.cpp"
@@ -39,6 +41,7 @@ idf_component_register(
       "ConfigPinMap"
       "DebounceButton"
       "ExpressionEval"
+      "FileSystem"
       "libb64"
       "Logger"
       "MiniHDLC"
@@ -55,4 +58,8 @@ idf_component_register(
     REQUIRES
       nvs_flash
       driver
+      vfs
+      spiffs
+      fatfs
+      sdmmc
     )
