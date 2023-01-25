@@ -1030,26 +1030,64 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
         return false;
     }
 
-    // Setup SD
-    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-    sdspi_slot_config_t slot_config = SDSPI_SLOT_CONFIG_DEFAULT();
-    slot_config.gpio_miso = (gpio_num_t)sdMISOPin;
-    slot_config.gpio_mosi = (gpio_num_t)sdMOSIPin;
-    slot_config.gpio_sck  = (gpio_num_t)sdCLKPin;
-    slot_config.gpio_cs   = (gpio_num_t)sdCSPin;
     // Options for mounting the filesystem.
     // If format_if_mount_failed is set to true, SD card will be partitioned and formatted
     // in case when mounting fails.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+// #pragma GCC diagnostic push
+// #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = false,
-        .max_files = 5
+        .max_files = 5,
+        .allocation_unit_size = 16 * 1024,
+        .disk_status_check_enable = false
     };
-#pragma GCC diagnostic pop
+// #pragma GCC diagnostic pop
 
-    sdmmc_card_t* pCard;
-    esp_err_t ret = esp_vfs_fat_sdmmc_mount(SD_FILE_SYSTEM_BASE_PATH, &host, &slot_config, &mount_config, &pCard);
+    // Setup SD using SPI (single bit data)
+    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+    sdmmc_card_t* pCard = nullptr;
+
+    // Handle differences in ESP IDF versions
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    // Bus config
+    spi_bus_config_t bus_cfg = {
+        .mosi_io_num = (gpio_num_t)sdMOSIPin,
+        .miso_io_num = (gpio_num_t)sdMISOPin,
+        .sclk_io_num = (gpio_num_t)sdCLKPin,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .data4_io_num = -1,
+        .data5_io_num = -1,
+        .data6_io_num = -1,
+        .data7_io_num = -1,
+        .max_transfer_sz = 4000,
+        .flags = 0,
+        .intr_flags = 0
+    };
+    esp_err_t ret = spi_bus_initialize((spi_host_device_t)host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
+    if (ret != ESP_OK) {
+        LOG_W(MODULE_PREFIX, "sdFileSystemSetup failed to init SPI");
+        return false;
+    }
+
+    // Device config
+    sdspi_device_config_t dev_config = SDSPI_DEVICE_CONFIG_DEFAULT();
+    dev_config.gpio_cs = (gpio_num_t)sdCSPin;
+    dev_config.host_id = (spi_host_device_t)host.slot;
+
+    // Mount SD card
+    ret = esp_vfs_fat_sdspi_mount(SD_FILE_SYSTEM_BASE_PATH, &host, &dev_config, &mount_config, &pCard);
+#else
+    sdspi_slot_config_t dev_config = SDSPI_SLOT_CONFIG_DEFAULT();
+    dev_config.gpio_miso = (gpio_num_t)sdMISOPin;
+    dev_config.gpio_mosi = (gpio_num_t)sdMOSIPin;
+    dev_config.gpio_sck  = (gpio_num_t)sdCLKPin;
+    dev_config.gpio_cs   = (gpio_num_t)sdCSPin;
+
+    esp_err_t ret = esp_vfs_fat_sdmmc_mount(SD_FILE_SYSTEM_BASE_PATH, &host, &dev_config, &mount_config, &pCard);
+#endif
+
+    // Check file system mounted ok
     if (ret != ESP_OK) 
     {
         if (ret == ESP_FAIL) 
@@ -1063,8 +1101,9 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
         return false;
     }
 
+    // Save card info
     _pSDCard = pCard;
-    LOG_I(MODULE_PREFIX, "sdFileSystemSetup ok");
+    LOG_I(MODULE_PREFIX, "sdFileSystemSetup mounted ok");
 
     // SD ok
     _sdFsCache.isUsed = true;
@@ -1230,7 +1269,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
     String fsName = cachedFs.fsName.c_str();
     if (fsName == LOCAL_FILE_SYSTEM_NAME)
     {
-        uint32_t sizeBytes = 0, usedBytes = 0;
+        size_t sizeBytes = 0, usedBytes = 0;
         esp_err_t ret = ESP_FAIL;
 #ifdef ESP_LITTLEFS_SUPPORT
         if (_localFSIsLittleFS)
