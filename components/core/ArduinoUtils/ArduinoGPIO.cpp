@@ -31,50 +31,77 @@ extern "C" {
 
 extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
 {
-    if (pin >= 0)
-    {
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
-        // Check the PIN is not used by SPIRAM
-        if (esp_spiram_is_initialized())
-        {
-            if (pin == 16 || pin == 17 || pin == 7 || pin == 10)
-            {
-                return;
-            }
-        }
-#endif
+    // Check pin valid
+    if (pin < 0)
+        return;
 
-        // Configure the GPIO
-        switch(mode)
+#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#ifdef IDF_TARGET STREQUAL "esp32" 
+    // Check the PIN is not used by SPIRAM
+    if (esp_spiram_is_initialized())
+    {
+        if (pin == 16 || pin == 17 || pin == 7 || pin == 10)
         {
-            case INPUT:
-            case INPUT_PULLUP:
-            case INPUT_PULLDOWN:
-                gpio_set_direction((gpio_num_t)pin, GPIO_MODE_INPUT);
-                if (mode == INPUT_PULLUP)
-                    gpio_set_pull_mode((gpio_num_t)pin, GPIO_PULLUP_ONLY);
-                else if (mode == INPUT_PULLDOWN)
-                    gpio_set_pull_mode((gpio_num_t)pin, GPIO_PULLDOWN_ONLY);
-                else
-                    gpio_set_pull_mode((gpio_num_t)pin, GPIO_FLOATING);
-#ifdef DEBUG_PINMODE
-                LOG_I("pinmode", "pinMode pin %d INPUT", pin);
-#endif
-                break;
-            case OUTPUT:
-                gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT);
-#ifdef DEBUG_PINMODE
-                LOG_I("pinmode", "pinMode pin %d OUTPUT", pin);
-#endif
-                break;
-            case OUTPUT_OPEN_DRAIN:
-                gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT_OD);
-#ifdef DEBUG_PINMODE
-                LOG_I("pinmode", "pinMode pin %d OUTPUT_OPEN_DRAIN", pin);
-#endif
-                break;
+            return;
         }
     }
+#endif
+#endif
+
+    // Base config
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = (1ULL << pin);
+    io_conf.pull_down_en = 0;
+    io_conf.pull_up_en = 0;
+
+    // Configure the GPIO
+    switch(mode)
+    {
+        case INPUT:
+        case INPUT_PULLUP:
+        case INPUT_PULLDOWN:
+            io_conf.mode = GPIO_MODE_INPUT;
+            if (mode == INPUT_PULLUP)
+                io_conf.pull_up_en = 1;
+            else if (mode == INPUT_PULLDOWN)
+                io_conf.pull_down_en = 1;
+#ifdef DEBUG_PINMODE
+            LOG_I("pinmode", "pinMode pin %d INPUT%s", 
+                    pin, (mode == INPUT_PULLUP) ? " PULLUP" :
+                        (mode == INPUT_PULLDOWN) ? " PULLDOWN" : "");
+#endif
+            break;
+        case OUTPUT:
+#ifdef DEBUG_PINMODE
+            LOG_I("pinmode", "pinMode pin %d OUTPUT", pin);
+#endif
+            break;
+        case OUTPUT_OPEN_DRAIN:
+            io_conf.mode = GPIO_MODE_OUTPUT_OD;
+#ifdef DEBUG_PINMODE
+            LOG_I("pinmode", "pinMode pin %d OUTPUT_OPEN_DRAIN", pin);
+#endif
+            break;
+        case INPUT_OUTPUT_OPEN_DRAIN:
+            io_conf.mode = GPIO_MODE_INPUT_OUTPUT_OD;
+#ifdef DEBUG_PINMODE
+            LOG_I("pinmode", "pinMode pin %d INPUT_OUTPUT_OPEN_DRAIN", pin);
+#endif
+            break;
+        case INPUT_OUTPUT:
+            io_conf.mode = GPIO_MODE_INPUT_OUTPUT;
+#ifdef DEBUG_PINMODE
+            LOG_I("pinmode", "pinMode pin %d INPUT_OUTPUT", pin);
+#endif
+            break;
+        default:
+            return;
+    }
+
+    // Perform the config
+    gpio_config(&io_conf);
 }
 
 extern "C" void IRAM_ATTR __digitalWrite(uint8_t pin, uint8_t val)

@@ -33,7 +33,7 @@ DebounceButton::~DebounceButton()
 {
     if (_buttonPin >= 0)
     {
-        gpio_set_pull_mode((gpio_num_t)_buttonPin, GPIO_FLOATING);
+        gpio_reset_pin((gpio_num_t)_buttonPin);
     }
 }
 
@@ -57,9 +57,14 @@ void DebounceButton::setup(int pin, bool pullup, bool activeLevel,
     // Setup the input pin
     if (_buttonPin >= 0)
     {
-        gpio_set_direction((gpio_num_t)_buttonPin, GPIO_MODE_INPUT);
-        if (pullup)
-            gpio_set_pull_mode((gpio_num_t)_buttonPin, GPIO_PULLUP_ONLY);
+        // GPIO config
+        gpio_config_t io_conf;
+        io_conf.intr_type = GPIO_INTR_DISABLE;
+        io_conf.mode = GPIO_MODE_INPUT;
+        io_conf.pin_bit_mask = (1ULL << _buttonPin);
+        io_conf.pull_down_en = 0;
+        io_conf.pull_up_en = pullup ? 1 : 0;
+        gpio_config(&io_conf);
     }
 }
 
