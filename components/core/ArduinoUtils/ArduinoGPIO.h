@@ -18,12 +18,14 @@ extern "C" {
 //GPIO FUNCTIONS
 #define INPUT             0x01
 #define OUTPUT            0x02
+#define INPUT_OUTPUT      0x03
 #define PULLUP            0x04
 #define INPUT_PULLUP      0x05
 #define PULLDOWN          0x08
 #define INPUT_PULLDOWN    0x09
 #define OPEN_DRAIN        0x10
 #define OUTPUT_OPEN_DRAIN 0x12
+#define INPUT_OUTPUT_OPEN_DRAIN 0x13
 #define SPECIAL           0xF0
 #define FUNCTION_1        0x00
 #define FUNCTION_2        0x20
