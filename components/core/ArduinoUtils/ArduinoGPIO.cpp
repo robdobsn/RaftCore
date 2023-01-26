@@ -53,8 +53,8 @@ extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = (1ULL << pin);
-    io_conf.pull_down_en = 0;
-    io_conf.pull_up_en = 0;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
 
     // Configure the GPIO
     switch(mode)
@@ -64,9 +64,9 @@ extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
         case INPUT_PULLDOWN:
             io_conf.mode = GPIO_MODE_INPUT;
             if (mode == INPUT_PULLUP)
-                io_conf.pull_up_en = 1;
+                io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
             else if (mode == INPUT_PULLDOWN)
-                io_conf.pull_down_en = 1;
+                io_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
 #ifdef DEBUG_PINMODE
             LOG_I("pinmode", "pinMode pin %d INPUT%s", 
                     pin, (mode == INPUT_PULLUP) ? " PULLUP" :
