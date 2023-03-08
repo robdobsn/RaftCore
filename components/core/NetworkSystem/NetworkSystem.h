@@ -43,9 +43,45 @@ class NetworkSystem
 public:
     NetworkSystem();
 
+    // Ethernet types
+    enum EthLanChip
+    {
+        ETH_CHIP_TYPE_NONE,
+        ETH_CHIP_TYPE_LAN87XX
+    };
+
+    // Ethernet config
+    class EthSettings
+    {
+    public:
+        EthSettings(const char* pEthLanChip, int powerPin, int smiMDCPin, int smiMDIOPin, int phyAddr, int phyRstPin)
+            :   _ethLanChip(getChipEnum(pEthLanChip)), _powerPin(powerPin), _smiMDCPin(smiMDCPin), 
+                _smiMDIOPin(smiMDIOPin), _phyAddr(phyAddr), _phyRstPin(phyRstPin)
+        {
+        }
+        EthSettings(EthLanChip ethLanChip, int powerPin, int smiMDCPin, int smiMDIOPin, int phyAddr, int phyRstPin)
+            :   _ethLanChip(ethLanChip), _powerPin(powerPin), _smiMDCPin(smiMDCPin), 
+                _smiMDIOPin(smiMDIOPin), _phyAddr(phyAddr), _phyRstPin(phyRstPin)
+        {
+        }
+        EthLanChip _ethLanChip = ETH_CHIP_TYPE_NONE;
+        int _powerPin = -1;
+        int _smiMDCPin = -1;
+        int _smiMDIOPin = -1;
+        int _phyAddr = 0;
+        int _phyRstPin = -1;
+    private:
+        EthLanChip getChipEnum(const char* pEthLanChip)
+        {
+            if (strcmp(pEthLanChip, "LAN87XX") == 0)
+                return ETH_CHIP_TYPE_LAN87XX;
+            return ETH_CHIP_TYPE_NONE;
+        }
+    };
+
     // Setup 
     void setup(bool enableWiFi, bool enableEthernet, const char* hostname, 
-                    bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge);
+                    bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge, EthSettings* pEthSettings=nullptr);
 
     // Service
     void service();
@@ -53,6 +89,10 @@ public:
     bool isWiFiEnabled()
     {
         return _isWiFiEnabled;
+    }
+    bool isEthEnabled()
+    {
+        return _isEthEnabled;
     }
     // Station mode connected / eth connected
     bool isWiFiStaConnectedWithIP();

@@ -20,6 +20,7 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "esp_private/wifi.h"
+#include "sdkconfig.h"
 
 static const char* MODULE_PREFIX = "NetworkSystem";
 
@@ -51,12 +52,7 @@ bool NetworkSystem::_isPaused = false;
 
 #ifdef ETHERNET_HARDWARE_OLIMEX
 #define ETHERNET_IS_SUPPORTED
-#define	ETH_PIN_PHY_POWER	12
-#define	ETH_PIN_SMI_MDC		23
-#define	ETH_PIN_SMI_MDIO	18
 #define ETH_PHY_LAN87XX
-#define ETH_PHY_ADDR 0
-#define ETH_PHY_RST_GPIO -1
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +90,7 @@ NetworkSystem::NetworkSystem()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defaultHostname, 
-        bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge)
+        bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge, EthSettings* pEthSettings)
 {
     _defaultHostname = defaultHostname;
     // Start netif if not done already
@@ -110,7 +106,6 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
         _netifStarted = true;
 #endif
     }
-    _isEthEnabled = enableEthernet;
     _isWiFiEnabled = enableWiFi;
     _enWifiSTAMode = enWifiSTAMode && enableWiFi;
     _enWifiAPMode = enWiFiAPMode && enableWiFi;
@@ -158,7 +153,8 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
     }
 
 #ifdef ETHERNET_HARDWARE_OLIMEX
-    if (_netifStarted && _isEthEnabled)
+    if (_netifStarted && enableEthernet && pEthSettings && 
+        (pEthSettings->_ethLanChip != ETH_CHIP_TYPE_NONE) && (pEthSettings->_powerPin != -1))
     {
         // Create ethernet event loop that running in background
         esp_netif_t *pEthNetif = nullptr;
@@ -171,17 +167,33 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
         eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
         eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
 
-        phy_config.phy_addr = ETH_PHY_ADDR;
-        phy_config.reset_gpio_num = ETH_PHY_RST_GPIO;
-        gpio_pad_select_gpio((gpio_num_t) ETH_PIN_PHY_POWER);
-        gpio_set_direction((gpio_num_t) ETH_PIN_PHY_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level((gpio_num_t) ETH_PIN_PHY_POWER, 1);
+        phy_config.phy_addr = pEthSettings->_phyAddr;
+        phy_config.reset_gpio_num = pEthSettings->_phyRstPin;
+        gpio_config_t powerPinConfig(
+        {
+            .pin_bit_mask = (1ULL << pEthSettings->_powerPin),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE
+        });
+        gpio_config(&powerPinConfig);
+        gpio_set_level((gpio_num_t) pEthSettings->_powerPin, 1);
         vTaskDelay(pdMS_TO_TICKS(10));
 
         // Create Ethernet driver
-        mac_config.smi_mdc_gpio_num = (gpio_num_t) ETH_PIN_SMI_MDC;
-        mac_config.smi_mdio_gpio_num = (gpio_num_t) ETH_PIN_SMI_MDIO;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+        // Init vendor specific MAC config to default
+        eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+        esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) pEthSettings->_smiMDCPin;
+        esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) pEthSettings->_smiMDIOPin;
+        // Create new ESP32 Ethernet MAC instance
+        esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#else
+        mac_config.smi_mdc_gpio_num = (gpio_num_t) pEthSettings->_smiMDCPin;
+        mac_config.smi_mdio_gpio_num = (gpio_num_t) pEthSettings->_smiMDIOPin;
         esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+#endif
 #if defined(ETH_PHY_IP101)
         esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
 #elif defined(ETH_PHY_RTL8201)
@@ -276,12 +288,16 @@ void NetworkSystem::setup(bool enableWiFi, bool enableEthernet, const char* defa
         {
             LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
         }
+        else
+        {
+            _isEthEnabled = true;
+        }
     }
 #endif
 
 #ifdef ETHERNET_IS_SUPPORTED
     // Check for Ethernet to WiFi bridge
-    if (_ethWiFiBridge)
+    if (_isEthEnabled && _ethWiFiBridge)
     {
         initEthWiFiBridgeFlowControl();
     }

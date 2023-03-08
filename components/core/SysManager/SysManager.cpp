@@ -41,6 +41,7 @@ static const char *MODULE_PREFIX = "SysMan";
 // #define DEBUG_LIST_SYSMODS
 // #define DEBUG_SYSMOD_WITH_GLOBAL_VALUE
 // #define DEBUG_SEND_CMD_JSON_PERF
+// #define DEBUG_REGISTER_MSG_GEN_CB
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -485,10 +486,16 @@ void SysManager::sendMsgGenCB(const char* sysModName, const char* msgGenID, SysM
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
+#ifdef DEBUG_REGISTER_MSG_GEN_CB
+            LOG_I(MODULE_PREFIX, "sendMsgGenCB registered %s with the %s sysmod", msgGenID, sysModName);
+#endif
             pSysMod->receiveMsgGenCB(msgGenID, msgGenCB, stateDetectCB);
             return;
         }
     }
+#ifdef DEBUG_REGISTER_MSG_GEN_CB
+    LOG_W(MODULE_PREFIX, "sendMsgGenCB NOT FOUND %s %s", sysModName, msgGenID);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
