@@ -16,6 +16,15 @@ public:
     StatusIndicator();
     virtual ~StatusIndicator();
     void setup(const char *pName, int hwPin, bool onLevel, uint32_t onMs, uint32_t shortOffMs, uint32_t longOffMs);
+
+    // Set status code
+    // The indicator provides a series of pulses with short gaps between them followed by a long gap
+    // The code indicates the number of short gaps
+    // A code of 0 means off
+    // A code of 1 means a single pulse followed by a long gap
+    // A code of 2 means two pulses (short gap between) followed by a long gap
+    // A code of 3 means three pulses (short gaps between) followed by a long gap, etc
+    // The timeout returns to code of 0 after the specified time
     void setStatusCode(int code, uint32_t timeoutMs = 0);
     void service();
 
