@@ -13,4 +13,5 @@ class NetCoreIF
 {
 public:
     virtual void setHostname(const char* pHostname) = 0;
+    virtual String getHostname() = 0;
 };

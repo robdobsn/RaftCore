@@ -791,3 +791,22 @@ int Raft::findInBuf(const uint8_t* pBuf, uint32_t bufLen,
     return -1;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Parse a string into a list of integers
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep)
+{
+    outList.clear();
+    if (!pInStr)
+        return;
+    static const uint32_t MAX_STR_LEN = 1000;
+    char* pStr = strndup(pInStr, MAX_STR_LEN);
+    char* pTok = strtok(pStr, pSep);
+    while (pTok)
+    {
+        outList.push_back(atoi(pTok));
+        pTok = strtok(nullptr, pSep);
+    }
+    free(pStr);
+}

@@ -47,7 +47,10 @@ static const char *MODULE_PREFIX = "SysMan";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig)
+SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
+                ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
+                NetCoreIF* pNetCore, CommsCoreIF* pCommsCore) :
+        _pNetCore(pNetCore), _pCommsCore(pCommsCore)
 {
     // Store mutable config
     _pMutableConfig = pMutableConfig;
@@ -98,10 +101,11 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, Confi
     }
 
     // Debug
-    LOG_I(MODULE_PREFIX, "friendlyName %s, defaultFriendlyName %s (isSet %s)",
+    LOG_I(MODULE_PREFIX, "friendlyName %s defaultFriendlyName %s (isSet %s) hostname %s",
                 _friendlyNameIsSet ? _friendlyNameStored.c_str() : "Not-Set", 
                 _defaultFriendlyName.c_str(),
-                _defaultFriendlyNameIsSet ? "Y" : "N");
+                _defaultFriendlyNameIsSet ? "Y" : "N",
+                _pNetCore ? _pNetCore->getHostname().c_str() : "Not-Set");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

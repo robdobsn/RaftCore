@@ -24,7 +24,6 @@ class CommsCoreIF;
 class CommsChannelMsg;
 class SupervisorStats;
 class FileStreamBlock;
-class CommsCoreIF;
 
 // Status change callback function type
 typedef std::function<void(const String& sourceName, bool changeToOnline)> SysMod_statusChangeCB;

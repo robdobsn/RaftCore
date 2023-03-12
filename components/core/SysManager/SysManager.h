@@ -31,7 +31,9 @@ class SysManager
 {
 public:
     // Constructor
-    SysManager(const char* pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig);
+    SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
+            ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
+            NetCoreIF* pNetCore = nullptr, CommsCoreIF* pCommsCore = nullptr);
 
     // Setup
     void setup();
@@ -201,11 +203,11 @@ private:
     bool _monitorTimerStarted = false;
     std::vector<String> _monitorReportList;
 
-    // Comms core
-    CommsCoreIF* _pCommsCore = nullptr;
-
     // Network core
     NetCoreIF* _pNetCore = nullptr;
+
+    // Comms core
+    CommsCoreIF* _pCommsCore = nullptr;
 
     // Stats available callback
     SysManager_statsCB _statsCB = nullptr;

@@ -154,6 +154,9 @@ namespace Raft
     int findInBuf(const uint8_t* pBuf, uint32_t bufLen, 
                 const uint8_t* pToFind, uint32_t toFindLen);
 
+    // Parse a string into a list of integers
+    void parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep = ",");
+
     // Log a buffer
     void logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro);
 

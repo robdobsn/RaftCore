@@ -11,6 +11,7 @@
 
 #include "WiFiScanner.h"
 #include <ArduinoOrAlt.h>
+#include <NetCoreIF.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
@@ -38,7 +39,7 @@
 #include <tcpip_adapter.h>
 #endif
 
-class NetworkSystem
+class NetworkSystem : public NetCoreIF
 {
 public:
     NetworkSystem();
@@ -114,12 +115,12 @@ public:
         return _ethIPV4Addr;
     }
 
-    String getHostname()
+    virtual String getHostname() override final
     {
         return _hostname;
     }
 
-    void setHostname(const char* hostname);
+    virtual void setHostname(const char* hostname) override final;
 
     String getSSID()
     {
