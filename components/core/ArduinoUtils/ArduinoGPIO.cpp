@@ -9,6 +9,7 @@
 #include <esp_attr.h>
 #include <driver/gpio.h>
 #include "driver/adc.h"
+#include "esp_log.h"
 
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
@@ -46,6 +47,10 @@ extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
         }
     }
 #endif
+#endif
+
+#ifndef DEBUG_PINMODE
+    esp_log_level_set("gpio", ESP_LOG_NONE);
 #endif
 
     // Base config
