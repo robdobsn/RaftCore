@@ -14,8 +14,8 @@
 static const char *MODULE_PREFIX = "StInd";
 
 // Debug
-#define DEBUG_STATUS_INDICATOR_SETUP
-#define DEBUG_STATUS_INDICATOR_CODE
+// #define DEBUG_STATUS_INDICATOR_SETUP
+// #define DEBUG_STATUS_INDICATOR_CODE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
@@ -82,14 +82,14 @@ void StatusIndicator::setup(const char *pName, int hwPin, bool onLevel, uint32_t
 
 void StatusIndicator::setStatusCode(int code, uint32_t timeoutMs)
 {
+    // Ignore if no change or not setup
+    if ((_curCode == code) || (!_isSetup))
+        return;
+
 #ifdef DEBUG_STATUS_INDICATOR_CODE
     LOG_I(MODULE_PREFIX, "setCode %d curCode %d isSetup %d timeoutMs %ld", 
                 code, _curCode, _isSetup, timeoutMs);
 #endif
-
-    // Ignore if no change or not setup
-    if ((_curCode == code) || (!_isSetup))
-        return;
 
     // Set new code
     _curCode = code;
