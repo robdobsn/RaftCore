@@ -243,6 +243,10 @@ private:
     bool _isSystemFileTransferring = false;
     bool _isSystemStreaming = false;
     
+    // System reboot after N hours
+    // If 0 then no reboot
+    uint32_t _rebootAfterNHours = 0;
+
     // Friendly name max len
     static const uint32_t MAX_FRIENDLY_NAME_LENGTH = 60;
 

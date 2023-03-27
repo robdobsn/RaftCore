@@ -88,6 +88,9 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     // System unique string - use BT MAC address
     _systemUniqueString = getSystemMACAddressStr(ESP_MAC_BT, "");
 
+    // Reboot after N hours
+    _rebootAfterNHours = _sysModManConfig.getLong("rebootAfterNHours", 0);
+
     // Get mutable config info
     if (_pMutableConfig)
     {
@@ -101,11 +104,12 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     }
 
     // Debug
-    LOG_I(MODULE_PREFIX, "friendlyName %s defaultFriendlyName %s (isSet %s) hostname %s",
+    LOG_I(MODULE_PREFIX, "friendlyName %s defaultFriendlyName %s (isSet %s) hostname %s rebootAfterNHours %d",
                 _friendlyNameIsSet ? _friendlyNameStored.c_str() : "Not-Set", 
                 _defaultFriendlyName.c_str(),
                 _defaultFriendlyNameIsSet ? "Y" : "N",
-                _pNetCore ? _pNetCore->getHostname().c_str() : "Not-Set");
+                _pNetCore ? _pNetCore->getHostname().c_str() : "Not-Set",
+                _rebootAfterNHours);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,6 +308,14 @@ void SysManager::service()
         {
             _stressTestCurSkipCount++;
         }
+    }
+
+    // Check for reboot after N hours
+    if ((_rebootAfterNHours == 0) || Raft::isTimeout(millis(), 0, _rebootAfterNHours * (uint64_t)3600000))
+    {
+        LOG_I(MODULE_PREFIX, "Rebooting after %d hours", _rebootAfterNHours);
+        delay(500);
+        esp_restart();
     }
 }
 
