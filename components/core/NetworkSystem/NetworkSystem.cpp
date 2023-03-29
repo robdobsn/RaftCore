@@ -752,6 +752,8 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
                 .he_trig_su_bmforming_feedback_disabled = 0,
                 .he_trig_mu_bmforming_partial_feedback_disabled = 0,
                 .he_trig_cqi_feedback_disabled = 0,
+                .he_reserved = 0,
+                .sae_h2e_identifier = {0},
 #endif
                 }};
             strlcpy((char *)wifiSTAConfig.sta.ssid, ssid.c_str(), 32);
