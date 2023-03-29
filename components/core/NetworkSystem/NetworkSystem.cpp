@@ -726,7 +726,7 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
                 .transition_disable = 0,
 #endif
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 1, 0)
                 .aid = 0,
                 .phymode = 0,
 #endif
@@ -734,6 +734,9 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 3)
                 .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+                .sae_pk_mode = WPA3_SAE_PK_MODE_AUTOMATIC,
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
                 .failure_retry_cnt = 0,
@@ -743,6 +746,12 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
                 .he_dcm_max_constellation_tx = 0,
                 .he_dcm_max_constellation_rx = 0,
                 .he_mcs9_enabled = 0,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+                .he_su_beamformee_disabled = 0,
+                .he_trig_su_bmforming_feedback_disabled = 0,
+                .he_trig_mu_bmforming_partial_feedback_disabled = 0,
+                .he_trig_cqi_feedback_disabled = 0,
 #endif
                 }};
             strlcpy((char *)wifiSTAConfig.sta.ssid, ssid.c_str(), 32);
@@ -789,6 +798,9 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
                 .ftm_responder = 0,
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
                 .pmf_cfg = {.capable = 0, .required = 0},
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
+                .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
 #endif
             }
         };

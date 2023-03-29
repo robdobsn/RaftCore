@@ -1061,6 +1061,12 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
         .data7_io_num = -1,
         .max_transfer_sz = 4000,
         .flags = 0,
+#endif
+#if ESP_IDF_VERSION > ESP_IDF_VERSION_VAL(5, 1, 0)
+        .isr_cpu_id = 0,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+
         .intr_flags = 0
     };
     esp_err_t ret = spi_bus_initialize((spi_host_device_t)host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);

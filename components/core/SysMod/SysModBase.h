@@ -90,6 +90,7 @@ public:
 
     // Config access
     virtual long configGetLong(const char *dataPath, long defaultValue);
+    virtual double configGetDouble(const char *dataPath, int defaultValue);
     virtual bool configGetBool(const char *dataPath, bool defaultValue);
     virtual String configGetString(const char *dataPath, const char* defaultValue);
     virtual String configGetString(const char *dataPath, const String& defaultValue);
