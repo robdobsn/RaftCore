@@ -311,7 +311,7 @@ void SysManager::service()
     }
 
     // Check for reboot after N hours
-    if ((_rebootAfterNHours == 0) || Raft::isTimeout(millis(), 0, _rebootAfterNHours * (uint64_t)3600000))
+    if ((_rebootAfterNHours != 0) && Raft::isTimeout(millis(), 0, _rebootAfterNHours * (uint64_t)3600000))
     {
         LOG_I(MODULE_PREFIX, "Rebooting after %d hours", _rebootAfterNHours);
         delay(500);
