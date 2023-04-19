@@ -93,7 +93,7 @@ long SysModBase::configGetLong(const char *dataPath, long defaultValue)
     return _combinedConfig.getLong(dataPath, defaultValue);
 }
 
-double SysModBase::configGetDouble(const char *dataPath, int defaultValue)
+double SysModBase::configGetDouble(const char *dataPath, double defaultValue)
 {
     return _combinedConfig.getDouble(dataPath, defaultValue);
 }
