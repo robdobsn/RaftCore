@@ -98,12 +98,6 @@ def main():
     for fileToFlash in filesToFlash:
         fileToFlash[0] = convert_arg_str(args, fileToFlash[0])
         fileToFlash[1] = convert_offset_str(partitions, fileToFlash[1])
-    #     if fileToFlash[0] and fileToFlash[1]:
-    #         # print(fileToFlash)
-    #         subprocess.run(["esptool.py", "--chip", args.targetChip, "--port", args.port,
-    #                         "--baud", args.baud, "write_flash", "-z", "--flash_mode", "dio",
-    #                         "--flash_freq", "40m", "--flash_size", "detect", fileToFlash[1],
-    #                         str(build_folder / fileToFlash[0])])
 
     # Run esptool using partition info
     esptool_options = ['-p', f'{args.port}']
@@ -120,7 +114,6 @@ def main():
     # Check build folder contains all the files to flash 
     # and partitions table likewise for partitions to flash into
     for fileToFlash in filesToFlash:
-        # print(f"Args convert_arg_str {args} to {fileToFlash}")
         flashFileName = convert_arg_str(args, fileToFlash[0])
         if len(flashFileName) == 0:
             continue
@@ -134,11 +127,11 @@ def main():
         esptool_options += [flashOffset, str(args.build_folder / flashFileName)]
 
     # Form command
-    esptoolPossNames = ['esptool.py.exe','esptool','esptool.py']
+    esptoolPossNames = ['esptool.py.exe','esptool','esptool.py','python.exe -m esptool']
     espToolCmdFound = False
     lastExcp = None
     for espToolName in esptoolPossNames:
-        esptool_command = [espToolName] + esptool_options
+        esptool_command = espToolName.split(' ') + esptool_options
         _log.info("Executing '%s'...", " ".join(esptool_command))
         rslt = None
         try:
