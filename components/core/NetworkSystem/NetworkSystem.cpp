@@ -801,7 +801,7 @@ bool NetworkSystem::configureWiFi(const String& ssid, const String& pw, const St
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
                 .pmf_cfg = {.capable = 0, .required = 0},
 #endif
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0) && ESP_IDF_VERSION <= ESP_IDF_VERSION_VAL(4, 4, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
                 .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
 #endif
             }

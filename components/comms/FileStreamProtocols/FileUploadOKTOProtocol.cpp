@@ -156,12 +156,12 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRES
     {
         // block returns true when an acknowledgement is required - so send that ack
         char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", getOkTo());
+        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 
 #ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK
         LOG_I(MODULE_PREFIX, "handleFileBlock BatchOK Sending OkTo %d rxBlockFilePos %d len %d batchCount %d resp %s", 
-                getOkTo(), filePos, bufferLen, _batchBlockCount, respMsg.c_str());
+                (int)getOkTo(), (int)filePos, (int)bufferLen, (int)_batchBlockCount, respMsg.c_str());
 #endif
     }
     else
@@ -238,7 +238,7 @@ void FileUploadOKTOProtocol::service()
     if (genBatchAck)
     {
         char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", getOkTo());
+        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
         String respMsg;
         Raft::setJsonBoolResult("ufBlock", respMsg, true, ackJson);
 
@@ -338,15 +338,15 @@ void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& 
         LOG_I(MODULE_PREFIX, "handleUploadStartMsg reqStr %s filename %s fileLen %d fileType %s streamID %d errorMsg %s", 
                     _reqStr.c_str(),
                     _fileName.c_str(), 
-                    _fileSize,
+                    (int)_fileSize,
                     fileType.c_str(),
-                    _streamID,
+                    (int)_streamID,
                     errorMsg.c_str());
         LOG_I(MODULE_PREFIX, "handleUploadStartMsg blockSize %d chanBlockMax %d defaultBlockSize %d batchAckSize %d defaultBatchAckSize %d crc16 %s crc16Valid %d",
-                    _blockSize,
-                    chanBlockMax,
+                    (int)_blockSize,
+                    (int)chanBlockMax,
                     FILE_BLOCK_SIZE_DEFAULT,
-                    _batchAckSize,
+                    (int)_batchAckSize,
                     BATCH_ACK_SIZE_DEFAULT,
                     crc16Str.c_str(),
                     crc16Valid);
@@ -356,13 +356,13 @@ void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& 
     {
         LOG_W(MODULE_PREFIX, "handleUploadStartMsg FAIL reqStr %s streamID %d errorMsg %s", 
                     _reqStr.c_str(),
-                    _streamID,
+                    (int)_streamID,
                     errorMsg.c_str());
     }
     // Response
     char extraJson[100];
     snprintf(extraJson, sizeof(extraJson), R"("batchMsgSize":%d,"batchAckSize":%d,"streamID":%d)", 
-                _blockSize, _batchAckSize, _streamID);
+                (int)_blockSize, (int)_batchAckSize, (int)_streamID);
     Raft::setJsonResult(reqStr.c_str(), respMsg, startOk, errorMsg.c_str(), extraJson);
 }
 
@@ -668,10 +668,10 @@ String FileUploadOKTOProtocol::debugStatsStr()
             _isUploading,
             statsFinalMsgRate(), 
             statsFinalDataRate(), 
-            _bytesCount,
-            _blockCount, 
-            _blockSize,
-            _streamID,
+            (int)_bytesCount,
+            (int)_blockCount, 
+            (int)_blockSize,
+            (int)_streamID,
             _fileName.c_str());
     statsEndWindow();
     _debugLastStatsMs = millis();

@@ -57,7 +57,7 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(const String& cmdNa
 {
     // Response
     char extraJson[100];
-    snprintf(extraJson, sizeof(extraJson), R"("streamID":%d)", _streamID);
+    snprintf(extraJson, sizeof(extraJson), R"("streamID":%d)", (int)_streamID);
     Raft::setJsonResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, nullptr, extraJson);
 
     // Debug
@@ -132,7 +132,7 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(RICRESTMsg& ricRES
         {
             // Send a SOKTO to indicate the end received
             char ackJson[100];
-            snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d", streamID, _streamPos);
+            snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d", (int)streamID, (int)_streamPos);
             Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
             LOG_I(MODULE_PREFIX, "handleDataFrame: ENDRX streamID %d, streamPos %d, sokto %d", streamID, _streamPos, _streamPos);
@@ -143,7 +143,8 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(RICRESTMsg& ricRES
     {
         // Send a SOKTO which indicates where the stream was received up to (so we can resend)
         char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d,\"reason\":\"%s\"", streamID, _streamPos,
+        snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d,\"reason\":\"%s\"", 
+                                (int)streamID, (int)_streamPos,
                                 UtilsRetCode::getRetcStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
@@ -156,7 +157,8 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(RICRESTMsg& ricRES
     {
         // Failure of the stream
         char errorMsg[100];
-        snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", streamID, UtilsRetCode::getRetcStr(rslt));
+        snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", 
+                    (int)streamID, UtilsRetCode::getRetcStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
         LOG_I(MODULE_PREFIX, "handleDataFrame: FAIL streamID %d streamPos %d sokto %d retc %s", streamID, _streamPos, _streamPos,
