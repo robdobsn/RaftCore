@@ -34,6 +34,17 @@ idf_component_register(
       "components/core/SysTypes/SysTypeManager.cpp"
       "components/core/Utils/RaftUtils.cpp"
       "components/core/Utils/ESPUtils.cpp"
+      "components/comms/ProtocolRawMsg/ProtocolRawMsg.cpp"
+      "components/comms/ProtocolBase/ProtocolBase.cpp"
+      "components/comms/RICRESTMsg/RICRESTMsg.cpp"
+      "components/comms/ProtocolRICSerial/ProtocolRICSerial.cpp"
+      "components/comms/ProtocolRICFrame/ProtocolRICFrame.cpp"
+      "components/comms/ProtocolRICJSON/ProtocolRICJSON.cpp"
+      "components/comms/ProtocolOverAscii/ProtocolOverAscii.cpp"
+      "components/comms/FileStreamProtocols/FileStreamBase.cpp"
+      "components/comms/FileStreamProtocols/FileUploadOKTOProtocol.cpp"
+      "components/comms/FileStreamProtocols/FileUploadHTTPProtocol.cpp"
+      "components/comms/FileStreamProtocols/StreamDatagramProtocol.cpp"
     INCLUDE_DIRS
       "components/core/APICommon"
       "components/core/ArduinoUtils"
@@ -60,6 +71,14 @@ idf_component_register(
       "components/core/SysTypes"
       "components/core/ThreadSafeQueue"
       "components/core/Utils"
+      "components/comms/ProtocolRawMsg"
+      "components/comms/ProtocolBase"
+      "components/comms/RICRESTMsg"
+      "components/comms/ProtocolRICSerial"
+      "components/comms/ProtocolRICFrame"
+      "components/comms/ProtocolRICJSON"
+      "components/comms/ProtocolOverAscii"
+      "components/comms/FileStreamProtocols"
     REQUIRES
       nvs_flash
       driver

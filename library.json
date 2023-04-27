@@ -1,6 +1,6 @@
 {
   "name": "RaftCore",
-  "version": "0.2.17",
+  "version": "0.3.1",
   "description": "Core elements for the Raft ESP32 framework",
   "keywords": "esp32, esp32s3, framework",
   "repository":
@@ -51,7 +51,15 @@
       "-Icomponents/core/SysMod",
       "-Icomponents/core/SysTypes",
       "-Icomponents/core/ThreadSafeQueue",
-      "-Icomponents/core/Utils"
+      "-Icomponents/core/Utils",
+      "-Icomponents/comms/FileStreamProtocols",
+      "-Icomponents/comms/ProtocolBase",
+      "-Icomponents/comms/ProtocolOverAscii",
+      "-Icomponents/comms/ProtocolRawMsg",
+      "-Icomponents/comms/ProtocolRICFrame",
+      "-Icomponents/comms/ProtocolRICJSON",
+      "-Icomponents/comms/ProtocolRICSerial",
+      "-Icomponents/comms/RICRESTMsg"
     ]
   }
 }
