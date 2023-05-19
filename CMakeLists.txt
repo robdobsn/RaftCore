@@ -87,5 +87,6 @@ idf_component_register(
       fatfs
       sdmmc
       esp_wifi
-      esp_eth      
+      esp_eth
+      esp_timer
     )
