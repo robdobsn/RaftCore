@@ -11,7 +11,7 @@
 #include <Logger.h>
 
 // Warn
-#define WARN_ON_FILE_CHUNKER_START_FAIL
+// #define WARN_ON_FILE_CHUNKER_START_FAIL
 
 // Debug
 // #define DEBUG_FILE_CHUNKER_START_END
