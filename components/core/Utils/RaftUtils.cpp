@@ -323,7 +323,7 @@ uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t max
     };
 
     // Clear initially
-    uint32_t inStrLen = strnlen(inStr, maxOutBufLen+1);
+    uint32_t inStrLen = strnlen(inStr, (maxOutBufLen*2)+1);
     uint32_t numBytes = maxOutBufLen < inStrLen / 2 ? maxOutBufLen : inStrLen / 2;
     uint32_t posIdx = 0;
     for (uint32_t byteIdx = 0; byteIdx < numBytes; byteIdx++)
@@ -347,6 +347,10 @@ void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outS
 
     // Check valid
     if (!pBuf)
+        return;
+
+    // Check length
+    if (bufLen == 0)
         return;
 
     // Size outStr

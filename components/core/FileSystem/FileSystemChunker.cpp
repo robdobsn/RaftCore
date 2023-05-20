@@ -36,14 +36,6 @@ static const char* MODULE_PREFIX = "FileSystemChunker";
 
 FileSystemChunker::FileSystemChunker()
 {
-    _curPos = 0;
-    _chunkMaxLen = 0;
-    _fileLen = 0;
-    _readByLine = false;
-    _isActive = false;
-    _pFile = nullptr;
-    _writing = false;
-    _keepOpen = false; 
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,27 +53,31 @@ FileSystemChunker::~FileSystemChunker()
 // chunkMaxLen may be 0 if writing
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FileSystemChunker::start(const String& filePath, uint32_t chunkMaxLen, bool readByLine, bool writing, bool keepOpen)
+bool FileSystemChunker::start(const String& filePath, uint32_t chunkMaxLen, bool readByLine, 
+            bool writing, bool keepOpen, bool keepOpenEvenIfAtEnd)
 {
-    //Check if already busy
+    // Check if already busy
     if (_isActive)
         return false;
 
-    // Get file details
+    // Check file details
     if (!writing && !fileSystem.getFileInfo("", filePath, _fileLen))
     {
 #ifdef WARN_ON_FILE_CHUNKER_START_FAIL
-        LOG_E(MODULE_PREFIX, "start cannot getFileInfo %s", filePath.c_str());
+        LOG_W(MODULE_PREFIX, "start cannot getFileInfo %s", filePath.c_str());
 #endif
         return false;
     }
 
-    // Store
+    // Store params
     _chunkMaxLen = chunkMaxLen;
     _readByLine = readByLine;
     _filePath = filePath;
     _writing = writing;
     _keepOpen = keepOpen;
+    _keepOpenEvenIfAtEnd = keepOpenEvenIfAtEnd;
+
+    // Now active
     _isActive = true;
     _curPos = 0;
 
@@ -206,9 +202,14 @@ bool FileSystemChunker::nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_
         {
             // Close on final chunk
             finalChunk = true;
-            fileSystem.fileClose(_pFile, "", _filePath, _writing);
-            _pFile = nullptr;
-            _isActive = false;
+
+            // Check for close at end
+            if (!_keepOpenEvenIfAtEnd)
+            {
+                fileSystem.fileClose(_pFile, "", _filePath, _writing);
+                _pFile = nullptr;
+                _isActive = false;
+            }
         }
     }
 
@@ -289,7 +290,7 @@ bool FileSystemChunker::nextWrite(const uint8_t* pBuf, uint32_t bufLen, uint32_t
 #endif
 
 #ifdef DEBUG_FILE_CHUNKER_PERFORMANCE
-    LOG_I(MODULE_PREFIX, "nextWrite elapsed ms %ld file open %d", millis() - startMs, fileOpenMs != 0 ? fileOpenMs - startMs : 0);
+    LOG_I(MODULE_PREFIX, "nextWrite elapsed ms %d file open %d", (int)(millis() - startMs), fileOpenMs != 0 ? fileOpenMs - startMs : 0);
 #endif
 
     return writeOk;
@@ -317,6 +318,40 @@ void FileSystemChunker::relax()
         fileSystem.fileClose(_pFile, "", _filePath, _writing);
         _pFile = nullptr;
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Reset (return to start)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FileSystemChunker::restart()
+{
+    // Rewind file if file already open
+    if (_pFile)
+        fileSystem.fileSeek(_pFile, 0);
+
+    // Active and at start
+    _isActive = true;
+    _curPos = 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Seek
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FileSystemChunker::seek(uint32_t pos)
+{
+    // Check if open
+    if (_isActive && _pFile)
+    {
+        // Seek
+        if (fileSystem.fileSeek(_pFile, pos))
+        {
+            _curPos = pos;
+            return true;
+        }
+    }
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,7 @@
 
 #ifndef USE_FIXED_LENGTH_BUFFER_LEN
 #include <vector>
+#include <SpiramAwareAllocator.h>
 #endif
 
 class SimpleBuffer
@@ -116,7 +117,7 @@ private:
 #ifdef USE_FIXED_LENGTH_BUFFER_LEN
     uint8_t _buffer[USE_FIXED_LENGTH_BUFFER_LEN];
 #else
-    std::vector<uint8_t> _buffer;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _buffer;
 #endif
     unsigned _bufMaxLen;
 };

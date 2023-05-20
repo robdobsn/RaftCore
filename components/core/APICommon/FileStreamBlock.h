@@ -15,20 +15,6 @@
 class FileStreamBlock
 {
 public:
-    FileStreamBlock()
-    {
-        filename = NULL;
-        contentLen = 0;
-        filePos = 0;
-        pBlock = NULL;
-        blockLen = 0;
-        finalBlock = false;
-        crc16 = 0;
-        crc16Valid = false;
-        fileLen = 0;
-        fileLenValid = false;
-        firstBlock = false;
-    }
     FileStreamBlock(const char* filename,
         uint32_t contentLen,
         uint32_t filePos,
@@ -54,15 +40,15 @@ public:
         this->fileLenValid = fileLenValid;
         this->firstBlock = firstBlock;
     }
-    const char* filename;
-    const uint8_t* pBlock;
-    uint32_t contentLen;
-    uint32_t filePos;
-    uint32_t blockLen;
-    uint32_t crc16;
-    uint32_t fileLen;
-    bool finalBlock;
-    bool crc16Valid;
-    bool fileLenValid;
-    bool firstBlock;
+    const char* filename = nullptr;
+    const uint8_t* pBlock = nullptr;
+    uint32_t contentLen = 0;
+    uint32_t filePos = 0;
+    uint32_t blockLen = 0;
+    uint32_t crc16 = 0;
+    uint32_t fileLen = 0;
+    bool finalBlock = false;
+    bool crc16Valid = false;
+    bool fileLenValid = false;
+    bool firstBlock = false;
 };
