@@ -99,6 +99,9 @@ public:
 
     // Get file position
     uint32_t filePos(FILE* pFile);
+
+    // Set file position
+    bool fileSeek(FILE* pFile, uint32_t seekPos);
     
     // Get temporary file name
     String getTempFileName();
