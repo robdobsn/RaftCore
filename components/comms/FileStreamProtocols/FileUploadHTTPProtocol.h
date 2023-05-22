@@ -14,9 +14,11 @@ class FileUploadHTTPProtocol : public FileStreamBase
 {
 public:
     // Constructor
-    FileUploadHTTPProtocol(FileStreamBlockCB fileRxBlockCB, 
-            FileStreamCanceEndCB fileRxCancelCB,
-            CommsCoreIF* pCommsCore,
+    FileUploadHTTPProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
+            FileStreamBlockReadCB fileBlockReadCB,
+            FileStreamGetCRCCB fileGetCRCCB,
+            FileStreamCancelEndCB fileCancelCB,
+            CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType,
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID, 
@@ -27,11 +29,12 @@ public:
     void service() override final;
 
     // Handle command frame
-    virtual UtilsRetCode::RetCode handleCmdFrame(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+    virtual UtilsRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+                const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg) override final;
 
     // Handle received file/stream block
-    virtual UtilsRetCode::RetCode handleDataFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg) override final;
+    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) override final;
 
     // Get debug str
     virtual String getDebugJSON(bool includeBraces) override final;

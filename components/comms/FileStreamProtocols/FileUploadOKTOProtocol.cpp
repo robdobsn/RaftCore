@@ -28,103 +28,69 @@ static const char *MODULE_PREFIX = "FileUpldOKTO";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileUploadOKTOProtocol::FileUploadOKTOProtocol(FileStreamBlockCB fileRxBlockCB, 
-            FileStreamCanceEndCB fileRxCancelEndCB,
+FileUploadOKTOProtocol::FileUploadOKTOProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
+            FileStreamBlockReadCB fileBlockReadCB,
+            FileStreamGetCRCCB fileGetCRCCB,
+            FileStreamCancelEndCB fileCancelEndCB,
             CommsCoreIF* pCommsCore,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID,
             uint32_t fileStreamLength,
             const char* fileStreamName) :
-    FileStreamBase(fileRxBlockCB, fileRxCancelEndCB, pCommsCore, fileStreamContentType, 
-            fileStreamFlowType, streamID, fileStreamLength, fileStreamName)
+    FileStreamBase(fileBlockWriteCB, fileBlockReadCB, fileGetCRCCB, fileCancelEndCB, 
+            pCommsCore, 
+            fileStreamContentType, fileStreamFlowType, 
+            streamID, fileStreamLength, fileStreamName)
 {
-    // File params
-    _fileSize = 0;
-    _commsChannelID = 0;
-    _expCRC16Valid = false;
-    _expCRC16 = 0;
-
-    // Status
-    _isUploading = false;
-
-    // Timing
-    _startMs = 0;
-    _lastMsgMs = 0;
-
-    // Stats
-    _blockCount = 0;
-    _bytesCount = 0;
-    _blocksInWindow = 0;
-    _bytesInWindow = 0;
-    _statsWindowStartMs = millis();
-    _fileUploadStartMs = 0;
-
-    // Debug
-    _debugLastStatsMs = millis();
-    _debugFinalMsgToSend = false;
-
-    // Batch and block size
-    _batchAckSize = BATCH_ACK_SIZE_DEFAULT;
-    _blockSize = FILE_BLOCK_SIZE_DEFAULT;
-
-    // Batch handling
-    _expectedFilePos = 0;
-    _batchBlockCount = 0;
-    _batchBlockAckRetry = 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileUploadOKTOProtocol::handleCmdFrame(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+UtilsRetCode::RetCode FileUploadOKTOProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+                const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
 #ifdef DEBUG_RICREST_HANDLE_CMD_FRAME
-    LOG_I(MODULE_PREFIX, "handleCmdFrame cmdName %s req %s", cmdName.c_str(), ricRESTReqMsg.getReq().c_str());
+    LOG_I(MODULE_PREFIX, "handleCmdFrame req %s", ricRESTReqMsg.getReq().c_str());
 #endif
 
-    // Check file upload related
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
-    if (cmdName.equalsIgnoreCase("ufStart"))
+    // Handle message
+    switch (fsMsgType)
     {
-        handleUploadStartMsg(ricRESTReqMsg.getReq(), respMsg, endpointMsg.getChannelID(), cmdFrame);
-        return UtilsRetCode::OK;
+        case FILE_STREAM_MSG_TYPE_UPLOAD_START:
+            return handleStartMsg(ricRESTReqMsg, respMsg, endpointMsg.getChannelID());
+        case FILE_STREAM_MSG_TYPE_UPLOAD_END:
+            return handleEndMsg(ricRESTReqMsg, respMsg);
+        case FILE_STREAM_MSG_TYPE_UPLOAD_CANCEL:
+            return handleCancelMsg(ricRESTReqMsg, respMsg);
+        default:
+            return UtilsRetCode::INVALID_OPERATION;
     }
-    else if (cmdName.equalsIgnoreCase("ufEnd"))
-    {
-        handleUploadEndMsg(ricRESTReqMsg.getReq(), respMsg, cmdFrame);
-        return UtilsRetCode::OK;
-    } 
-    else if (cmdName.equalsIgnoreCase("ufCancel"))
-    {
-        handleUploadCancelMsg(ricRESTReqMsg.getReq(), respMsg, cmdFrame);
-        return UtilsRetCode::OK;
-    }
-    return UtilsRetCode::INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle data frame (file/stream block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg)
+UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
 #ifdef DEBUG_FILE_STREAM_BLOCK_DETAIL
     LOG_I(MODULE_PREFIX, "handleDataFrame isUploading %d msgLen %d expectedPos %d", 
             _isUploading, ricRESTReqMsg.getBinLen(), _expectedFilePos);
 #endif
 
-    // Check if upload has been cancelled
+    // Check if transfer has been cancelled
     if (!_isUploading)
     {
-        LOG_W(MODULE_PREFIX, "handleFileBlock called when not uploading");
-        uploadCancel("failBlockUnexpected");
-        return UtilsRetCode::NOT_UPLOADING;
+        LOG_W(MODULE_PREFIX, "handleFileBlock called when not transferring");
+        transferCancel("failBlockUnexpected");
+        return UtilsRetCode::NOT_XFERING;
     }
 
-    // Handle the upload block
+    // Handle the block
     uint32_t filePos = ricRESTReqMsg.getBufferPos();
     const uint8_t* pBuffer = ricRESTReqMsg.getBinBuf();
     uint32_t bufferLen = ricRESTReqMsg.getBinLen();
@@ -145,9 +111,7 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRES
 #ifdef DEBUG_RICREST_FILEUPLOAD_FIRST_AND_LAST_BLOCK
     if (isFinalBlock || (_expectedFilePos == 0))
     {
-        String hexStr;
-        Raft::getHexStrFromBytes(ricRESTReqMsg.getBinBuf(), ricRESTReqMsg.getBinLen(), hexStr);
-        LOG_I(MODULE_PREFIX, "handleFileBlock %s", hexStr.c_str());
+        LOG_I(MODULE_PREFIX, "handleFileBlock %s", ricRESTReqMsg.debugMsg(100, true).c_str());
     }
 #endif
 
@@ -156,12 +120,12 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRES
     {
         // block returns true when an acknowledgement is required - so send that ack
         char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
+        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", getOkTo());
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 
 #ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK
-        LOG_I(MODULE_PREFIX, "handleFileBlock BatchOK Sending OkTo %d rxBlockFilePos %d len %d batchCount %d resp %s", 
-                (int)getOkTo(), (int)filePos, (int)bufferLen, (int)_batchBlockCount, respMsg.c_str());
+        LOG_I(MODULE_PREFIX, "handleFileBlock BatchOK Sending OkTo %d rxBlockFilePos %d len %d batchCount %d resp %s type %d", 
+                getOkTo(), filePos, bufferLen, _batchBlockCount, respMsg.c_str(), _fileStreamContentType);
 #endif
     }
     else
@@ -176,7 +140,7 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRES
 
     // Check valid
     UtilsRetCode::RetCode rslt = UtilsRetCode::OK;
-    if (blockValid && _fileStreamRxBlockCB)
+    if (blockValid && _fileStreamBlockWriteCB)
     {
         FileStreamBlock fileStreamBlock(_fileName.c_str(), 
                             _fileSize, 
@@ -192,7 +156,7 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRES
                             );            
 
         // If this is the first block of a firmware update then there will be a long delay
-        rslt = _fileStreamRxBlockCB(fileStreamBlock);
+        rslt = _fileStreamBlockWriteCB(fileStreamBlock);
 
         // Check result
         if (rslt != UtilsRetCode::OK)
@@ -201,14 +165,14 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRES
             {
                 Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, R"("cmdName":"ufStatus","reason":"OTAWriteFailed")");
                 if (isFirstBlock)
-                    uploadCancel("failOTAStart");
+                    transferCancel("failOTAStart");
                 else
-                    uploadCancel("failOTAWrite");
+                    transferCancel("failOTAWrite");
             }
             else
             {
                 Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, R"("cmdName":"ufStatus","reason":"FileWriteFailed")");
-                uploadCancel("failFileWrite");
+                transferCancel("failFileWrite");
             }
         }
     }
@@ -216,7 +180,7 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(RICRESTMsg& ricRES
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service file upload
+// Service file transfer
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FileUploadOKTOProtocol::service()
@@ -228,24 +192,23 @@ void FileUploadOKTOProtocol::service()
         LOG_I(MODULE_PREFIX, "fileUploadStats %s", debugStatsStr().c_str());
     }
 #endif
-    // Check uploading
+    // Check active
     if (!_isUploading)
         return;
     
-    // Handle upload activity
+    // Handle transfer activity
     bool genBatchAck = false;
-    uploadService(genBatchAck);
+    transferService(genBatchAck);
     if (genBatchAck)
     {
         char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
+        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", getOkTo());
         String respMsg;
         Raft::setJsonBoolResult("ufBlock", respMsg, true, ackJson);
 
         // Send the response back
-        RICRESTMsg ricRESTRespMsg;
         CommsChannelMsg endpointMsg;
-        ricRESTRespMsg.encode(respMsg, endpointMsg, RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON);
+        RICRESTMsg::encode(respMsg, endpointMsg, RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON);
         endpointMsg.setAsResponse(_commsChannelID, MSG_PROTOCOL_RICREST, 
                     0, MSG_TYPE_RESPONSE);
 
@@ -273,13 +236,13 @@ String FileUploadOKTOProtocol::getDebugJSON(bool includeBraces)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// File upload start
+// File transfer start
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& respMsg, uint32_t channelID, const JSONParams& cmdFrame)
+UtilsRetCode::RetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg, uint32_t channelID)
 {
     // Get params
-    String ufStartReq = cmdFrame.getString("reqStr", "");
+    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
     uint32_t fileLen = cmdFrame.getLong("fileLen", 0);
     String fileName = cmdFrame.getString("fileName", "");
     String fileType = cmdFrame.getString("fileType", "");
@@ -297,7 +260,7 @@ void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& 
 
     // Validate the start message
     String errorMsg;
-    bool startOk = validateFileStreamStart(ufStartReq, fileName, fileLen,  
+    bool startOk = validateFileStreamStart(fileName, fileLen,  
                 channelID, errorMsg, crc16, crc16Valid);
 
     // Check ok
@@ -318,11 +281,7 @@ void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& 
         if (_pCommsCore)
         {
             chanBlockMax = _pCommsCore->getInboundBlockLen(channelID, FILE_BLOCK_SIZE_DEFAULT);
-            if ((_blockSize > chanBlockMax) && (chanBlockMax > 0))
-            {
-                // Apply factor to block size
-                _blockSize = chanBlockMax * 3 / 2;
-            }
+            _blockSize = Raft::clamp(_blockSize, FILE_BLOCK_SIZE_MIN, chanBlockMax > 0 ? chanBlockMax * 2 / 3 : _blockSize);
         }
 
         // Check maximum total bytes in batch
@@ -335,16 +294,15 @@ void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& 
         }
 
 #ifdef DEBUG_RICREST_HANDLE_CMD_FRAME
-        LOG_I(MODULE_PREFIX, "handleUploadStartMsg reqStr %s filename %s fileLen %d fileType %s streamID %d errorMsg %s", 
-                    _reqStr.c_str(),
+        LOG_I(MODULE_PREFIX, "handleStartMsg filename %s fileLen %d fileType %s streamID %d errorMsg %s", 
                     _fileName.c_str(), 
-                    (int)_fileSize,
+                    _fileSize,
                     fileType.c_str(),
-                    (int)_streamID,
+                    _streamID,
                     errorMsg.c_str());
-        LOG_I(MODULE_PREFIX, "handleUploadStartMsg blockSize %d chanBlockMax %d defaultBlockSize %d batchAckSize %d defaultBatchAckSize %d crc16 %s crc16Valid %d",
-                    (int)_blockSize,
-                    (int)chanBlockMax,
+        LOG_I(MODULE_PREFIX, "handleStartMsg blockSize %d chanBlockMax %d defaultBlockSize %d batchAckSize %d defaultBatchAckSize %d crc16 %s crc16Valid %d",
+                    _blockSize,
+                    chanBlockMax,
                     FILE_BLOCK_SIZE_DEFAULT,
                     (int)_batchAckSize,
                     BATCH_ACK_SIZE_DEFAULT,
@@ -354,8 +312,7 @@ void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& 
     }
     else
     {
-        LOG_W(MODULE_PREFIX, "handleUploadStartMsg FAIL reqStr %s streamID %d errorMsg %s", 
-                    _reqStr.c_str(),
+        LOG_W(MODULE_PREFIX, "handleStartMsg FAIL streamID %d errorMsg %s", 
                     (int)_streamID,
                     errorMsg.c_str());
     }
@@ -363,88 +320,93 @@ void FileUploadOKTOProtocol::handleUploadStartMsg(const String& reqStr, String& 
     char extraJson[100];
     snprintf(extraJson, sizeof(extraJson), R"("batchMsgSize":%d,"batchAckSize":%d,"streamID":%d)", 
                 (int)_blockSize, (int)_batchAckSize, (int)_streamID);
-    Raft::setJsonResult(reqStr.c_str(), respMsg, startOk, errorMsg.c_str(), extraJson);
+    Raft::setJsonResult(ricRESTReqMsg.getReq().c_str(), respMsg, startOk, errorMsg.c_str(), extraJson);
+    return UtilsRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// File upload ended normally
+// File transfer ended normally
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadOKTOProtocol::handleUploadEndMsg(const String& reqStr, String& respMsg, const JSONParams& cmdFrame)
+UtilsRetCode::RetCode  FileUploadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
+    // Extract params
+    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+
     // Handle file end
 #ifdef DEBUG_RICREST_FILEUPLOAD
     uint32_t blocksSent = cmdFrame.getLong("blockCount", 0);
 #endif
 
     // Callback to indicate end of activity
-    if (_fileStreamRxCancelEndCB)
-        _fileStreamRxCancelEndCB(true);
+    if (_fileStreamCancelEndCB)
+        _fileStreamCancelEndCB(true);
 
     // Response
-    Raft::setJsonBoolResult(reqStr.c_str(), respMsg, true);
+    Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
 
     // Debug
 #ifdef DEBUG_RICREST_FILEUPLOAD
     String fileName = cmdFrame.getString("fileName", "");
     String fileType = cmdFrame.getString("fileType", "");
     uint32_t fileLen = cmdFrame.getLong("fileLen", 0);
-    LOG_I(MODULE_PREFIX, "handleUploadEndMsg reqStr %s fileName %s fileType %s fileLen %d blocksSent %d", 
-                _reqStr.c_str(),
+    LOG_I(MODULE_PREFIX, "handleEndMsg fileName %s fileType %s fileLen %d blocksSent %d", 
                 fileName.c_str(), 
                 fileType.c_str(), 
                 fileLen, 
                 blocksSent);
 #endif
 
-    // End upload
-    uploadEnd();
+    // End transfer
+    transferEnd();
+    return UtilsRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Cancel file upload
+// Cancel file transfer
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadOKTOProtocol::handleUploadCancelMsg(const String& reqStr, String& respMsg, const JSONParams& cmdFrame)
+UtilsRetCode::RetCode  FileUploadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Handle file cancel
+    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
     String fileName = cmdFrame.getString("fileName", "");
     String reason = cmdFrame.getString("reason", "");
 
-    // Cancel upload
-    uploadCancel(reason.c_str());
+    // Cancel transfer
+    transferCancel(reason.c_str());
 
     // Response
-    Raft::setJsonBoolResult(reqStr.c_str(), respMsg, true);
+    Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "handleUploadCancelMsg fileName %s", fileName.c_str());
+    LOG_I(MODULE_PREFIX, "handleCancelMsg fileName %s", fileName.c_str());
 
     // Debug
 #ifdef DEBUG_RICREST_FILEUPLOAD
-    LOG_I(MODULE_PREFIX, "handleUploadCancelMsg reqStr %s fileName %s", 
-                _reqStr.c_str(),
+    LOG_I(MODULE_PREFIX, "handleCancelMsg fileName %s", 
                 fileName.c_str());
 #endif
+    
+    return UtilsRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // State machine start
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FileUploadOKTOProtocol::validateFileStreamStart(String& reqStr, String& fileName, uint32_t fileSize, 
+bool FileUploadOKTOProtocol::validateFileStreamStart(const String& fileName, uint32_t fileSize, 
         uint32_t channelID, String& respInfo, uint32_t crc16, bool crc16Valid)
 {
     // Check if already in progress
     if (_isUploading && (_expectedFilePos > 0))
     {
-        respInfo = "uploadInProgress";
+        respInfo = "transferInProgress";
         return false;
     }
     
 
     // File params
-    _reqStr = reqStr;
     _fileName = fileName;
     _fileSize = fileSize;
     _commsChannelID = channelID;
@@ -481,7 +443,7 @@ bool FileUploadOKTOProtocol::validateFileStreamStart(String& reqStr, String& fil
 // State machine service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadOKTOProtocol::uploadService(bool& genAck)
+void FileUploadOKTOProtocol::transferService(bool& genAck)
 {
     unsigned long nowMillis = millis();
     genAck = false;
@@ -492,30 +454,30 @@ void FileUploadOKTOProtocol::uploadService(bool& genAck)
     // At the start of ESP firmware update there is a long delay (3s or so)
     // This occurs after reception of the first block
     // So need to ensure that there is a long enough timeout
-    if (Raft::isTimeout(nowMillis, _lastMsgMs, _blockCount < 2 ? FIRST_MSG_TIMEOUT : BLOCK_MSGS_TIMEOUT))
+    if (Raft::isTimeout(nowMillis, _lastMsgMs, _blockCount < 2 ? FIRST_MSG_TIMEOUT_MS : BLOCK_MSGS_TIMEOUT_MS))
     {
         _batchBlockAckRetry++;
         if (_batchBlockAckRetry < MAX_BATCH_BLOCK_ACK_RETRIES)
         {
-            LOG_W(MODULE_PREFIX, "uploadService blockMsgs timeOut - okto ack needed bytesRx %d lastOkTo %d lastMsgMs %d curMs %ld blkCount %d blkSize %d batchSize %d retryCount %d",
-                        _bytesCount, getOkTo(), _lastMsgMs, nowMillis, _blockCount, _blockSize, _batchAckSize, _batchBlockAckRetry);
+            LOG_W(MODULE_PREFIX, "transferService blockMsgs timeOut - okto ack needed bytesRx %d lastOkTo %d lastMsgMs %d curMs %d blkCount %d blkSize %d batchSize %d retryCount %d",
+                        _bytesCount, getOkTo(), _lastMsgMs, (int)nowMillis, _blockCount, _blockSize, _batchAckSize, _batchBlockAckRetry);
             _lastMsgMs = nowMillis;
             genAck = true;
             return;
         }
         else
         {
-            LOG_W(MODULE_PREFIX, "uploadService blockMsgs ack failed after retries");
-            uploadCancel("failRetries");
+            LOG_W(MODULE_PREFIX, "transferService blockMsgs ack failed after retries");
+            transferCancel("failRetries");
         }
     }
 
     // Check for overall time-out
     if (Raft::isTimeout(nowMillis, _startMs, UPLOAD_FAIL_TIMEOUT_MS))
     {
-        LOG_W(MODULE_PREFIX, "uploadService overall time-out startMs %d nowMs %ld maxMs %d",
-                    _startMs, nowMillis, UPLOAD_FAIL_TIMEOUT_MS);
-        uploadCancel("failTimeout");
+        LOG_W(MODULE_PREFIX, "transferService overall time-out startMs %d nowMs %d maxMs %d",
+                    _startMs, (int)nowMillis, UPLOAD_FAIL_TIMEOUT_MS);
+        transferCancel("failTimeout");
     }
 }
 
@@ -526,7 +488,7 @@ void FileUploadOKTOProtocol::uploadService(bool& genAck)
 void FileUploadOKTOProtocol::validateRxBlock(uint32_t filePos, uint32_t blockLen, bool& blockValid, 
             bool& isFirstBlock, bool& isFinalBlock, bool& genAck)
 {
-    // Check uploading
+    // Check active
     if (!_isUploading)
         return;
 
@@ -577,17 +539,17 @@ void FileUploadOKTOProtocol::validateRxBlock(uint32_t filePos, uint32_t blockLen
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// State machine upload cancel
+// State machine transfer cancel
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadOKTOProtocol::uploadCancel(const char* reasonStr)
+void FileUploadOKTOProtocol::transferCancel(const char* reasonStr)
 {
-    // End upload state machine
-    uploadEnd();
+    // End transfer state machine
+    transferEnd();
 
     // Callback to indicate cancellation
-    if (_fileStreamRxCancelEndCB)
-        _fileStreamRxCancelEndCB(false);
+    if (_fileStreamCancelEndCB)
+        _fileStreamCancelEndCB(false);
 
     // Check if we need to send back a reason
     if (reasonStr != nullptr)
@@ -599,15 +561,14 @@ void FileUploadOKTOProtocol::uploadCancel(const char* reasonStr)
         Raft::setJsonBoolResult("", cancelMsg, true, tmpStr);
 
         // Send status message
-        RICRESTMsg ricRESTRespMsg;
         CommsChannelMsg endpointMsg;
-        ricRESTRespMsg.encode(cancelMsg, endpointMsg, RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON);
+        RICRESTMsg::encode(cancelMsg, endpointMsg, RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON);
         endpointMsg.setAsResponse(_commsChannelID, MSG_PROTOCOL_RICREST, 
                     0, MSG_TYPE_RESPONSE);
 
         // Debug
 #ifdef DEBUG_RICREST_FILEUPLOAD
-        LOG_W(MODULE_PREFIX, "uploadCancel ufCancel reason %s", reasonStr);
+        LOG_W(MODULE_PREFIX, "transferCancel ufCancel reason %s", reasonStr);
 #endif
 
         // Send message on the appropriate channel
@@ -620,7 +581,7 @@ void FileUploadOKTOProtocol::uploadCancel(const char* reasonStr)
 // Upload end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadOKTOProtocol::uploadEnd()
+void FileUploadOKTOProtocol::transferEnd()
 {
     _isUploading = false;
     _debugFinalMsgToSend = true;

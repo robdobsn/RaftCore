@@ -16,16 +16,20 @@ static const char *MODULE_PREFIX = "FileUpHTTP";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileUploadHTTPProtocol::FileUploadHTTPProtocol(FileStreamBlockCB fileRxBlockCB, 
-            FileStreamCanceEndCB fileRxCancelEndCB,
-            CommsCoreIF* pCommsCore,
+FileUploadHTTPProtocol::FileUploadHTTPProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
+            FileStreamBlockReadCB fileBlockReadCB,
+            FileStreamGetCRCCB fileGetCRCCB,
+            FileStreamCancelEndCB fileCancelEndCB,
+            CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID, 
             uint32_t fileStreamLength,
             const char* fileStreamName) :
-    FileStreamBase(fileRxBlockCB, fileRxCancelEndCB, pCommsCore, fileStreamContentType, 
-            fileStreamFlowType, streamID, fileStreamLength, fileStreamName)
+    FileStreamBase(fileBlockWriteCB, fileBlockReadCB, fileGetCRCCB, fileCancelEndCB, 
+            pCommsCoreIF, 
+            fileStreamContentType, fileStreamFlowType, 
+            streamID, fileStreamLength, fileStreamName)
 {
 }
 
@@ -42,12 +46,12 @@ void FileUploadHTTPProtocol::service()
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileUploadHTTPProtocol::handleCmdFrame(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+UtilsRetCode::RetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+                const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
-    LOG_I(MODULE_PREFIX, "handleCmdFrame cmdName %s req %s", cmdName.c_str(), ricRESTReqMsg.getReq().c_str());
-
-    // TODO 2021
+    // Unexpected message
+    LOG_W(MODULE_PREFIX, "handleCmdFrame UNEXPECTED req %s", ricRESTReqMsg.getReq().c_str());
 
     return UtilsRetCode::INVALID_OPERATION;
 }
@@ -56,14 +60,13 @@ UtilsRetCode::RetCode FileUploadHTTPProtocol::handleCmdFrame(const String& cmdNa
 // Handle data frame (file/stream block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileUploadHTTPProtocol::handleDataFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg)
+UtilsRetCode::RetCode FileUploadHTTPProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
 #ifdef DEBUG_FILE_STREAM_BLOCK_DETAIL
     LOG_I(MODULE_PREFIX, "handleDataFrame isUploading %d msgLen %d expectedPos %d", 
             _isUploading, ricRESTReqMsg.getBinLen(), _expectedFilePos);
 #endif
-
-    // TODO 2022
+    // HTTP protocol handles the file upload in the HTTP POST body
     return UtilsRetCode::INVALID_OPERATION;
 }
 

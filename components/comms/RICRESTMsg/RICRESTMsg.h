@@ -11,6 +11,8 @@
 
 #include <Logger.h>
 #include <ArduinoOrAlt.h>
+#include <SpiramAwareAllocator.h>
+#include <vector>
 
 static const uint32_t RICREST_ELEM_CODE_POS = 0;
 static const uint32_t RICREST_HEADER_PAYLOAD_POS = 1;
@@ -19,7 +21,9 @@ static const uint32_t RICREST_BODY_BUFFER_POS = 1;
 static const uint32_t RICREST_BODY_TOTAL_POS = 5;
 static const uint32_t RICREST_BODY_PAYLOAD_POS = 9;
 static const uint32_t RICREST_COMMAND_FRAME_PAYLOAD_POS = 1;
-static const uint32_t RICREST_FILEBLOCK_FILE_POS = 1;
+static const uint32_t RICREST_FILEBLOCK_CHANNEL_POS = 0;
+static const uint32_t RICREST_FILEBLOCK_FILEPOS_POS = 1;
+static const uint32_t RICREST_FILEBLOCK_FILEPOS_POS_BYTES = 4;
 static const uint32_t RICREST_FILEBLOCK_PAYLOAD_POS = 5;
 
 // TODO - ensure this is long enough for all needs
@@ -52,18 +56,12 @@ public:
         }
     }
     static const uint32_t MAX_REST_BODY_SIZE = 5000;
-    RICRESTMsg()
-    {
-        _RICRESTElemCode = RICREST_ELEM_CODE_URL;
-        _bufferPos = 0;
-        _streamID = 0;
-        _binaryLen = 0;
-        _pBinaryData = NULL;
-        _totalBytes = 0;
-    }
+    RICRESTMsg();
     bool decode(const uint8_t* pBuf, uint32_t len);
     static void encode(const String& payload, CommsChannelMsg& endpointMsg, RICRESTElemCode elemCode);
     static void encode(const uint8_t* pBuf, uint32_t len, CommsChannelMsg& endpointMsg, RICRESTElemCode elemCode);
+    static void encodeFileBlock(uint32_t filePos, const uint8_t* pBuf, uint32_t len, 
+                CommsChannelMsg& endpointMsg);
 
     const String& getReq() const
     {
@@ -75,11 +73,11 @@ public:
     }
     const uint8_t* getBinBuf() const
     {
-        return _pBinaryData;
+        return _binaryData.data();
     }
     uint32_t getBinLen() const
     {
-        return _binaryLen;
+        return _binaryData.size();
     }
     uint32_t getBufferPos() const
     {
@@ -102,30 +100,22 @@ public:
         _RICRESTElemCode = elemCode;
     }
 
+    // Debug
+    String debugMsg(uint32_t maxBytesLen, bool includePayload);
+    static String debugResp(const CommsChannelMsg& resp, uint32_t maxBytesLen, bool includePayload);
+
 private:
-    // Get string
-    void getStringFromBuf(String& destStr, const uint8_t* pBuf, uint32_t offset, uint32_t len, uint32_t maxLen)
-    {    
-        // Ensure length is ok
-        uint32_t lenToCopy = len-offset+1;
-        if (lenToCopy > maxLen)
-            lenToCopy = maxLen;
-        destStr = "";
-        if (lenToCopy < 1)
-            return;
-        // Set into string without allocating additional buffer space
-        destStr.concat((const char*)(pBuf+offset), lenToCopy-1);
-    }
+    // Debug binary
+    String debugBinaryMsg(uint32_t maxBytesLen, bool includePayload);
 
     // RICRESTElemCode
-    RICRESTElemCode _RICRESTElemCode;
+    RICRESTElemCode _RICRESTElemCode = RICREST_ELEM_CODE_URL;
 
     // Parameters
     String _req;
     String _payloadJson;
     uint32_t _bufferPos;
-    uint32_t _binaryLen;
-    uint32_t _totalBytes;
-    uint32_t _streamID;
-    const uint8_t* _pBinaryData;
+    uint32_t _totalBytes = 0;
+    uint32_t _streamID = 0;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _binaryData;
 };

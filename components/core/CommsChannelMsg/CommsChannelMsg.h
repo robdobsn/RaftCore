@@ -9,6 +9,7 @@
 #pragma once
 
 #include <ArduinoOrAlt.h>
+#include <SpiramAwareAllocator.h>
 #include <vector>
 #include <RdJson.h>
 #include <stdint.h>
@@ -123,7 +124,7 @@ public:
         return _msgProtocol;
     }
 
-    CommsMsgTypeCode getMsgTypeCode()
+    CommsMsgTypeCode getMsgTypeCode() const
     {
         return _msgTypeCode;
     }
@@ -155,7 +156,8 @@ public:
             case MSG_PROTOCOL_ROSSERIAL: return "ROSSerial";
             case MSG_PROTOCOL_RESERVED_1: return "Reserved1";
             case MSG_PROTOCOL_RICREST: return "RICREST";
-            default: return "None";
+            case MSG_PROTOCOL_RAWCMDFRAME: return "RawCmdFrame";
+            default: return "UNKNOWN_PROTOCOL";
         }
     }
 
@@ -204,15 +206,15 @@ public:
 #endif
 
     // Access to command vector
-    const uint8_t* getBuf()
+    const uint8_t* getBuf() const
     {
         return _cmdVector.data();
     }
-    uint32_t getBufLen()
+    uint32_t getBufLen() const
     {
         return _cmdVector.size();
     }
-    std::vector<uint8_t>& getCmdVector()
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& getCmdVector()
     {
         return _cmdVector;
     }
@@ -222,7 +224,7 @@ private:
     CommsMsgProtocol _msgProtocol;
     uint32_t _msgNum;
     CommsMsgTypeCode _msgTypeCode;
-    std::vector<uint8_t> _cmdVector;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _cmdVector;
 #ifdef IMPLEMENT_COMMS_MSG_JSON
     String _cmdJSON;
 #endif

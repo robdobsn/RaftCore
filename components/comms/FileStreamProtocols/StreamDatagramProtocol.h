@@ -14,9 +14,11 @@ class StreamDatagramProtocol : public FileStreamBase
 {
 public:
     // Constructor
-    StreamDatagramProtocol(FileStreamBlockCB fileRxBlockCB, 
-            FileStreamCanceEndCB fileRxCancelCB,
-            CommsCoreIF* pCommsCore,
+    StreamDatagramProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
+            FileStreamBlockReadCB fileBlockReadCB,
+            FileStreamGetCRCCB fileGetCRCCB,
+            FileStreamCancelEndCB fileCancelEndCB,
+            CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID,
@@ -26,12 +28,15 @@ public:
     // Service
     void service() override final;
 
+    void resetCounters(uint32_t fileStreamLength);
+
     // Handle command frame
-    virtual UtilsRetCode::RetCode handleCmdFrame(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+    virtual UtilsRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+                const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg) override final;
 
     // Handle received file/stream block
-    virtual UtilsRetCode::RetCode handleDataFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg) override final;
+    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) override final;
 
     // Get debug str
     virtual String getDebugJSON(bool includeBraces) override final;
@@ -40,8 +45,16 @@ public:
     // Is active
     virtual bool isActive() override final;
 
+    // Check if message is a file download message
+    static FileStreamBase::FileStreamMsgType getFileStreamMsgType(const RICRESTMsg& ricRESTReqMsg,
+                const String& cmdName)
+    {
+        return FILE_STREAM_MSG_TYPE_NONE;
+    }
+
 private:
     // Stream position
     uint32_t _streamPos;
+    bool _continuingStream = false;
 
 };

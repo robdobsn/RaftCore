@@ -16,9 +16,11 @@
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileStreamBase::FileStreamBase(FileStreamBlockCB fileRxBlockCB, 
-        FileStreamCanceEndCB fileRxCancelEndCB,
-        CommsCoreIF* pCommsCore,
+FileStreamBase::FileStreamBase(FileStreamBlockWriteCB fileBlockWriteCB, 
+        FileStreamBlockReadCB fileBlockReadCB,
+        FileStreamGetCRCCB fileGetCRCCB,
+        FileStreamCancelEndCB fileCancelEndCB,
+        CommsCoreIF* pCommsCoreIF,
         FileStreamBase::FileStreamContentType fileStreamContentType,
         FileStreamBase::FileStreamFlowType fileStreamFlowType,
         uint32_t streamID,
@@ -26,9 +28,11 @@ FileStreamBase::FileStreamBase(FileStreamBlockCB fileRxBlockCB,
         const char* fileStreamName)
 {
     // Vars
-    _fileStreamRxBlockCB = fileRxBlockCB;
-    _fileStreamRxCancelEndCB = fileRxCancelEndCB;
-    _pCommsCore = pCommsCore;
+    _fileStreamBlockWriteCB = fileBlockWriteCB;
+    _fileStreamBlockReadCB = fileBlockReadCB;
+    _fileStreamGetCRCCB = fileGetCRCCB;
+    _fileStreamCancelEndCB = fileCancelEndCB;
+    _pCommsCore = pCommsCoreIF;
     _fileStreamContentType = fileStreamContentType;
     _fileStreamFlowType = fileStreamFlowType;
     _streamID = streamID;
@@ -44,28 +48,11 @@ FileStreamBase::~FileStreamBase()
 // Get information from file stream start message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileStreamBase::FileStreamMsgType FileStreamBase::getFileStreamMsgInfo(const RICRESTMsg& ricRESTReqMsg,
-                String& cmdName, String& fileStreamName, 
+void FileStreamBase::getFileStreamMsgInfo(const JSONParams& cmdFrame,
+                String& fileStreamName, 
                 FileStreamContentType& fileStreamContentType, uint32_t& streamID,
                 String& restAPIEndpointName, uint32_t& fileStreamLength)
 {
-    // Handle command frames
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
-    cmdName = cmdFrame.getString("cmdName", "");
-
-    // Check msg type
-    FileStreamMsgType fileStreamMsgType = FILE_STREAM_MSG_TYPE_NONE;
-    if (cmdName.equalsIgnoreCase("ufStart"))
-        fileStreamMsgType = FILE_STREAM_MSG_TYPE_START;
-    if (cmdName.equalsIgnoreCase("ufEnd"))
-        fileStreamMsgType = FILE_STREAM_MSG_TYPE_END;
-    if (cmdName.equalsIgnoreCase("ufCancel"))
-        fileStreamMsgType = FILE_STREAM_MSG_TYPE_CANCEL;
-
-    // Return none if not a file/stream protocol message
-    if (fileStreamMsgType == FILE_STREAM_MSG_TYPE_NONE)
-        return fileStreamMsgType;
-
     // Extract info
     fileStreamName = cmdFrame.getString("fileName", "");
     String fileStreamTypeStr = cmdFrame.getString("fileType", "");
@@ -73,7 +60,6 @@ FileStreamBase::FileStreamMsgType FileStreamBase::getFileStreamMsgInfo(const RIC
     fileStreamContentType = getFileStreamContentType(fileStreamTypeStr);
     restAPIEndpointName = cmdFrame.getString("endpoint", "");
     fileStreamLength = cmdFrame.getLong("fileLen", 0);
-    return fileStreamMsgType;
 }
 
 

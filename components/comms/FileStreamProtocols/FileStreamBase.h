@@ -17,10 +17,15 @@ class CommsChannelMsg;
 class CommsCoreIF;
 class SysModBase;
 class FileStreamBlock;
+class FileStreamBlockOwned;
+class APISourceInfo;
+class JSONParams;
 
 // File/stream callback function types
-typedef std::function<UtilsRetCode::RetCode(FileStreamBlock& fileBlock)> FileStreamBlockCB;
-typedef std::function<void(bool isNormalEnd)> FileStreamCanceEndCB;
+typedef std::function<UtilsRetCode::RetCode(FileStreamBlock& fileBlock)> FileStreamBlockWriteCB;
+typedef std::function<UtilsRetCode::RetCode(FileStreamBlockOwned& fileBlock, uint32_t filePos, uint32_t maxLen)> FileStreamBlockReadCB;
+typedef std::function<UtilsRetCode::RetCode(uint32_t& fileCRC, uint32_t& fileLen)> FileStreamGetCRCCB;
+typedef std::function<void(bool isNormalEnd)> FileStreamCancelEndCB;
 
 class FileStreamBase
 {
@@ -38,21 +43,29 @@ public:
     enum FileStreamMsgType
     {
         FILE_STREAM_MSG_TYPE_NONE,
-        FILE_STREAM_MSG_TYPE_START,
-        FILE_STREAM_MSG_TYPE_END,
-        FILE_STREAM_MSG_TYPE_CANCEL
+        FILE_STREAM_MSG_TYPE_UPLOAD_START,
+        FILE_STREAM_MSG_TYPE_UPLOAD_END,
+        FILE_STREAM_MSG_TYPE_UPLOAD_CANCEL,
+        FILE_STREAM_MSG_TYPE_UPLOAD_ACK,
+        FILE_STREAM_MSG_TYPE_DOWNLOAD_START,
+        FILE_STREAM_MSG_TYPE_DOWNLOAD_END,
+        FILE_STREAM_MSG_TYPE_DOWNLOAD_CANCEL,
+        FILE_STREAM_MSG_TYPE_DOWNLOAD_ACK
     };
 
     // File/Stream Flow Type
     enum FileStreamFlowType
     {
         FILE_STREAM_FLOW_TYPE_HTTP_UPLOAD,
-        FILE_STREAM_FLOW_TYPE_COMMS_CHANNEL
+        FILE_STREAM_FLOW_TYPE_RICREST_UPLOAD,
+        FILE_STREAM_FLOW_TYPE_RICREST_DOWNLOAD
     };
 
     // Constructor
-    FileStreamBase(FileStreamBlockCB fileRxBlockCB, 
-            FileStreamCanceEndCB fileRxCancelEndCB,
+    FileStreamBase(FileStreamBlockWriteCB fileBlockWriteCB, 
+            FileStreamBlockReadCB fileBlockReadCB,
+            FileStreamGetCRCCB fileGetCRCCB,
+            FileStreamCancelEndCB fileCancelEndCB,
             CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType,
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
@@ -66,19 +79,22 @@ public:
     // Service file/stream
     virtual void service() = 0;
 
+    virtual void resetCounters(uint32_t fileStreamLength){};
+
     // Handle command frame
-    virtual UtilsRetCode::RetCode handleCmdFrame(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+    virtual UtilsRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+                const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg) = 0;
 
     // Handle data frame (file/stream block)
-    virtual UtilsRetCode::RetCode handleDataFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg) = 0;
+    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) = 0;
 
     // Get debug str
     virtual String getDebugJSON(bool includeBraces) = 0;
 
     // Get file/stream message information from header
-    static FileStreamMsgType getFileStreamMsgInfo(const RICRESTMsg& ricRESTReqMsg,
-                String& cmdName, String& fileStreamName, 
+    static void getFileStreamMsgInfo(const JSONParams& cmdFrame,
+                String& fileStreamName, 
                 FileStreamContentType& fileStreamContentType, uint32_t& streamID,
                 String& restAPIEndpointName, uint32_t& fileStreamLength);
 
@@ -87,9 +103,12 @@ public:
     {
         switch (msgType)
         {
-            case FILE_STREAM_MSG_TYPE_START: return "ufStart";
-            case FILE_STREAM_MSG_TYPE_END: return "ufEnd";
-            case FILE_STREAM_MSG_TYPE_CANCEL: return "ufCancel";
+            case FILE_STREAM_MSG_TYPE_UPLOAD_START: return "ufStart";
+            case FILE_STREAM_MSG_TYPE_UPLOAD_END: return "ufEnd";
+            case FILE_STREAM_MSG_TYPE_UPLOAD_CANCEL: return "ufCancel";
+            case FILE_STREAM_MSG_TYPE_DOWNLOAD_START: return "dfStart";
+            case FILE_STREAM_MSG_TYPE_DOWNLOAD_END: return "dfEnd";
+            case FILE_STREAM_MSG_TYPE_DOWNLOAD_CANCEL: return "dfCancel";
             default: return "unknown";
         }
     }
@@ -115,9 +134,17 @@ public:
         switch (fileStreamFlowType)
         {
         case FILE_STREAM_FLOW_TYPE_HTTP_UPLOAD: return "httpUpload";
-        case FILE_STREAM_FLOW_TYPE_COMMS_CHANNEL: return "commsChannel";
+        case FILE_STREAM_FLOW_TYPE_RICREST_UPLOAD: return "ricRestUpload";
+        case FILE_STREAM_FLOW_TYPE_RICREST_DOWNLOAD: return "ricRestDownload";
         default: return "unknown";
         }
+    }
+
+    // Check if flow type is upload
+    static bool isUploadFlowType(FileStreamFlowType fileStreamFlowType)
+    {
+        return (fileStreamFlowType == FILE_STREAM_FLOW_TYPE_HTTP_UPLOAD) ||
+                (fileStreamFlowType == FILE_STREAM_FLOW_TYPE_RICREST_UPLOAD);
     }
 
     // StreamID values
@@ -136,8 +163,10 @@ public:
 
 protected:
     // Callbacks
-    FileStreamBlockCB _fileStreamRxBlockCB;
-    FileStreamCanceEndCB _fileStreamRxCancelEndCB;
+    FileStreamBlockWriteCB _fileStreamBlockWriteCB;
+    FileStreamBlockReadCB _fileStreamBlockReadCB;
+    FileStreamGetCRCCB _fileStreamGetCRCCB;
+    FileStreamCancelEndCB _fileStreamCancelEndCB;
 
     // Comms core
     CommsCoreIF* _pCommsCore;

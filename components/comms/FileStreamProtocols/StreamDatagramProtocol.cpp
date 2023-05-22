@@ -25,16 +25,20 @@ static const char *MODULE_PREFIX = "StreamDatagram";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-StreamDatagramProtocol::StreamDatagramProtocol(FileStreamBlockCB fileRxBlockCB, 
-            FileStreamCanceEndCB fileRxCancelEndCB,
-            CommsCoreIF* pCommsCore,
+StreamDatagramProtocol::StreamDatagramProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
+            FileStreamBlockReadCB fileBlockReadCB,
+            FileStreamGetCRCCB fileGetCRCCB,
+            FileStreamCancelEndCB fileCancelEndCB,
+            CommsCoreIF *pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID,
             uint32_t fileStreamLength,
             const char* fileStreamName) :
-    FileStreamBase(fileRxBlockCB, fileRxCancelEndCB, pCommsCore, fileStreamContentType, 
-            fileStreamFlowType, streamID, fileStreamLength, fileStreamName)
+    FileStreamBase(fileBlockWriteCB, fileBlockReadCB, fileGetCRCCB, fileCancelEndCB, 
+            pCommsCoreIF,
+            fileStreamContentType, fileStreamFlowType, 
+            streamID, fileStreamLength, fileStreamName)
 {
     _streamPos = 0;
 }
@@ -48,11 +52,18 @@ void StreamDatagramProtocol::service()
     // Nothing to do
 }
 
+void StreamDatagramProtocol::resetCounters(uint32_t fileStreamLength){
+    _fileStreamLength = fileStreamLength;
+    _streamPos = 0;
+    _continuingStream = true;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+UtilsRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+                const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
     // Response
@@ -62,7 +73,7 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(const String& cmdNa
 
     // Debug
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
-    LOG_I(MODULE_PREFIX, "handleCmdFrame %s resp %s", cmdName.c_str(), respMsg.c_str());
+    LOG_I(MODULE_PREFIX, "handleCmdFrame req %s resp %s", ricRESTReqMsg.debugMsg().c_str(), respMsg.c_str());
 #endif
     return UtilsRetCode::OK;
 }
@@ -71,10 +82,10 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(const String& cmdNa
 // Handle data frame (file/stream block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg)
+UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Check valid CB
-    if (!_fileStreamRxBlockCB)
+    if (!_fileStreamBlockWriteCB)
         return UtilsRetCode::INVALID_OBJECT;
 
     // Handle the upload block
@@ -89,17 +100,15 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(RICRESTMsg& ricRES
             bufferLen, filePos, _streamPos, streamID);
 #endif
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL_DETAIL
-    String debugStr;
-    Raft::getHexStrFromBytes(pBuffer, 
-                bufferLen  < MAX_DEBUG_BIN_HEX_LEN ? bufferLen : MAX_DEBUG_BIN_HEX_LEN, debugStr);
-    LOG_I(MODULE_PREFIX, "handleDataFrame %s%s", debugStr.c_str(),
-                bufferLen < MAX_DEBUG_BIN_HEX_LEN ? "" : "...");
-
+    LOG_I(MODULE_PREFIX, "handleDataFrame %s", ricRESTReqMsg.debugMsg(MAX_DEBUG_BIN_HEX_LEN, true).c_str());
 #endif
 
     // Process the frame
     UtilsRetCode::RetCode rslt = UtilsRetCode::POS_MISMATCH;
     bool isFinalBlock = (_fileStreamLength != 0) && (filePos + bufferLen >= _fileStreamLength);
+
+    bool isFirstBlock = (filePos == 0) && !_continuingStream;
+    _continuingStream = false;
 
     // Check position
     if (_streamPos == filePos)
@@ -114,11 +123,11 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(RICRESTMsg& ricRES
                             false,
                             _fileStreamLength,
                             _fileStreamLength != 0,
-                            filePos == 0
+                            isFirstBlock
                             );
 
         // Call the callback
-        rslt = _fileStreamRxBlockCB(fileStreamBlock);
+        rslt = _fileStreamBlockWriteCB(fileStreamBlock);
     }
 
     // Check ok

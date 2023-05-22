@@ -47,6 +47,7 @@ public:
 
     // Get the optimal comms block size
     virtual uint32_t getInboundBlockLen(uint32_t channelID, uint32_t defaultSize) = 0;
+    virtual uint32_t getOutboundBlockLen(uint32_t channelID, uint32_t defaultSize) = 0;
 
     // Check if we can accept outbound message
     virtual bool canAcceptOutbound(uint32_t channelID, bool &noConn) = 0;

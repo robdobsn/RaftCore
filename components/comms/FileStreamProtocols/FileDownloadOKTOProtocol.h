@@ -1,36 +1,37 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// File Upload Protocol
+// File Download Protocol
 //
-// Rob Dobson 2020
+// Rob Dobson 2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
 
 #include "FileStreamBase.h"
+#include <ArduinoTime.h>
 
 class JSONParams;
 
-class FileUploadOKTOProtocol : public FileStreamBase
+class FileDownloadOKTOProtocol : public FileStreamBase
 {
 public:
     // Consts
-    static const uint32_t FIRST_MSG_TIMEOUT_MS = 5000;
-    static const uint32_t BLOCK_MSGS_TIMEOUT_MS = 1000;
+    static const uint32_t MIN_TIME_BETWEEN_BLOCKS_MS = 100;
+    static const uint32_t BLOCK_MSGS_TIMEOUT_MS = 3000;
     static const uint32_t MAX_BATCH_BLOCK_ACK_RETRIES = 5;
     static const uint32_t FILE_BLOCK_SIZE_MIN = 20;
     static const uint32_t FILE_BLOCK_SIZE_DEFAULT = 5000;
     static const uint32_t BATCH_ACK_SIZE_DEFAULT = 40;
     static const uint32_t MAX_TOTAL_BYTES_IN_BATCH = 50000;
-    // The overall timeout needs to be very big as BLE transfers can take over 30 minutes
-    static const uint32_t UPLOAD_FAIL_TIMEOUT_MS = 2 * 3600 * 1000;
+    // The overall timeout needs to be very big as BLE transfer can take over 30 minutes
+    static const uint32_t DOWNLOAD_FAIL_TIMEOUT_MS = 2 * 3600 * 1000;
 
     // Constructor
-    FileUploadOKTOProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
+    FileDownloadOKTOProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
+            FileStreamBlockReadCB fileBlockReadCB, 
             FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelCB,
+            FileStreamCancelEndCB fileRxCancelCB,
             CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
@@ -44,10 +45,10 @@ public:
     // Handle command frame
     virtual UtilsRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
-                const CommsChannelMsg &endpointMsg);
+                const CommsChannelMsg &endpointMsg) override final;
 
     // Handle received file/stream block
-    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
+    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) override final;
 
     // Get debug str
     virtual String getDebugJSON(bool includeBraces) override final;
@@ -55,23 +56,23 @@ public:
     // Is active
     virtual bool isActive() override final
     {
-        return _isUploading;
+        return _isDownloading;
     }
 
     // Check if message is a file/stream message
     static FileStreamBase::FileStreamMsgType getFileStreamMsgType(const RICRESTMsg& ricRESTReqMsg,
                 const String& cmdName)
     {
-        if (cmdName.startsWith("uf"))
+        if (cmdName.startsWith("df"))
         {
-            if (cmdName.equalsIgnoreCase("ufStart"))
-                return FILE_STREAM_MSG_TYPE_UPLOAD_START;
-            else if (cmdName.equalsIgnoreCase("ufEnd"))
-                return FILE_STREAM_MSG_TYPE_UPLOAD_END;
-            else if (cmdName.equalsIgnoreCase("ufCancel"))
-                return FILE_STREAM_MSG_TYPE_UPLOAD_CANCEL;
-            else if (cmdName.equalsIgnoreCase("ufAck"))
-                return FILE_STREAM_MSG_TYPE_UPLOAD_ACK;
+            if (cmdName.equalsIgnoreCase("dfStart"))
+                return FILE_STREAM_MSG_TYPE_DOWNLOAD_START;
+            else if (cmdName.equalsIgnoreCase("dfEnd"))
+                return FILE_STREAM_MSG_TYPE_DOWNLOAD_END;
+            else if (cmdName.equalsIgnoreCase("dfCancel"))
+                return FILE_STREAM_MSG_TYPE_DOWNLOAD_CANCEL;
+            else if (cmdName.equalsIgnoreCase("dfAck"))
+                return FILE_STREAM_MSG_TYPE_DOWNLOAD_ACK;
         }
         return FILE_STREAM_MSG_TYPE_NONE;
     }
@@ -81,17 +82,17 @@ private:
     UtilsRetCode::RetCode handleStartMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg, uint32_t channelID);
     UtilsRetCode::RetCode handleEndMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
     UtilsRetCode::RetCode handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
+    UtilsRetCode::RetCode handleAckMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
 
-    // Upload state-machine helpers
-    void transferService(bool& genAck);
-    bool validateFileStreamStart(const String& fileName, uint32_t fileSize, 
-            uint32_t channelID, String& respInfo, uint32_t crc16, bool crc16Valid);
-    void validateRxBlock(uint32_t filePos, uint32_t blockLen, 
-                bool& isFirstBlock, bool& blockValid, bool& isFinalBlock, bool& genAck);
+    // State-machine helpers
+    void transferService();
+    bool validateFileStreamStart(const String& fileName,
+                    uint32_t channelID, String& respInfo, uint32_t& crc16, bool& crc16Valid, uint32_t& fileSize);
     void transferCancel(const char* reasonStr = nullptr);
     void transferEnd();
 
     // Helpers
+    void sendBlock(FileStreamBlockOwned& block);
     uint32_t getOkTo();
     double getBlockRate();
     bool checkFinalBlock(uint32_t filePos, uint32_t blockLen);
@@ -106,11 +107,9 @@ private:
     // File info
     uint32_t _fileSize = 0;
     String _fileName;
-    uint32_t _expCRC16 = 0;
-    bool _expCRC16Valid = false;
 
-    // Upload state
-    bool _isUploading = false;
+    // State
+    bool _isDownloading = false;
     uint32_t _startMs = 0;
     uint32_t _lastMsgMs = 0;
     uint32_t _commsChannelID = 0;
@@ -125,15 +124,17 @@ private:
     uint32_t _blocksInWindow = 0;
     uint32_t _bytesInWindow = 0;
     uint32_t _statsWindowStartMs = millis();
-    uint32_t _fileUploadStartMs = 0;
+    uint32_t _fileDownloadStartMs = 0;
 
     // Batch handling
-    uint32_t _expectedFilePos = 0;
-    uint32_t _batchBlockCount = 0;
-    uint32_t _batchBlockAckRetry = 0;
+    uint32_t _oktoFilePos = 0;
+    uint32_t _lastBatchAckRxOrRetryMs = 0;
+    uint32_t _lastSentUptoFilePos = 0;
+    uint32_t _batchBlockSendRetryCount = 0;
 
     // Debug
     uint32_t _debugLastStatsMs = millis();
     static const uint32_t DEBUG_STATS_MS = 10000;
     bool _debugFinalMsgToSend = false;
+    uint32_t _betweenBlocksMs = 0;
 };
