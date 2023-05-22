@@ -120,7 +120,7 @@ UtilsRetCode::RetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& 
     {
         // block returns true when an acknowledgement is required - so send that ack
         char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", getOkTo());
+        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 
 #ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK
@@ -202,7 +202,7 @@ void FileUploadOKTOProtocol::service()
     if (genBatchAck)
     {
         char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", getOkTo());
+        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
         String respMsg;
         Raft::setJsonBoolResult("ufBlock", respMsg, true, ackJson);
 

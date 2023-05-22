@@ -186,12 +186,12 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg&
     // Response
     char extraJson[100];
     snprintf(extraJson, sizeof(extraJson), R"("batchMsgSize":%d,"batchAckSize":%d,"streamID":%d,"fileLen":%d)", 
-                _blockSize, _batchAckSize, _streamID, _fileSize);
+                (int)_blockSize, (int)_batchAckSize, (int)_streamID, (int)_fileSize);
     String extraJsonStr = extraJson;
     if (crc16Valid)
     {
         char extraJsonCRC[20];
-        snprintf(extraJsonCRC, sizeof(extraJsonCRC), R"(,"crc16":"%04x")", crc16);
+        snprintf(extraJsonCRC, sizeof(extraJsonCRC), R"(,"crc16":"%04x")", (int)crc16);
         extraJsonStr += extraJsonCRC;
     }
     Raft::setJsonResult(ricRESTReqMsg.getReq().c_str(), respMsg, startOk, errorMsg.c_str(), extraJsonStr.c_str());
@@ -544,10 +544,10 @@ String FileDownloadOKTOProtocol::debugStatsStr()
             _isDownloading,
             statsFinalMsgRate(), 
             statsFinalDataRate(), 
-            _bytesCount,
-            _blockCount, 
-            _blockSize,
-            _streamID,
+            (int)_bytesCount,
+            (int)_blockCount, 
+            (int)_blockSize,
+            (int)_streamID,
             _fileName.c_str());
     statsEndWindow();
     _debugLastStatsMs = millis();
