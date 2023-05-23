@@ -16,6 +16,8 @@
 // Log prefix
 static const char *MODULE_PREFIX = "FileDnldOKTO";
 
+#define WARN_ON_TRANSFER_CANCEL
+
 // #define DEBUG_SHOW_FILE_DOWNLOAD_PROGRESS
 // #define DEBUG_RICREST_FILEDOWNLOAD
 // #define DEBUG_RICREST_FILEDOWNLOAD_FIRST_AND_LAST_BLOCK
@@ -274,8 +276,13 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& r
     uint32_t oktoFilePos = cmdFrame.getLong("okto", 0);
     if (oktoFilePos != 0)
     {
+        _bytesInWindow += (oktoFilePos - _oktoFilePos);
+        _blocksInWindow += (oktoFilePos - _oktoFilePos) / _blockSize;
         _oktoFilePos = oktoFilePos;
         _lastBatchAckRxOrRetryMs = millis();
+        _blockCount = oktoFilePos / _blockSize;
+        _bytesCount = oktoFilePos;
+        _lastMsgMs = millis();
     }
 
 #ifdef DEBUG_RICREST_FILEDOWNLOAD_BLOCK_ACK
@@ -360,6 +367,9 @@ void FileDownloadOKTOProtocol::transferService()
     // Check if we're finished
     if (_oktoFilePos >= _fileSize)
     {
+#ifdef DEBUG_RICREST_FILEDOWNLOAD
+        LOG_I(MODULE_PREFIX, "transferService finished successfully");
+#endif        
         transferEnd();
         return;
     }
@@ -460,7 +470,7 @@ void FileDownloadOKTOProtocol::transferCancel(const char* reasonStr)
                     0, MSG_TYPE_RESPONSE);
 
         // Debug
-#ifdef DEBUG_RICREST_FILEDOWNLOAD
+#ifdef WARN_ON_TRANSFER_CANCEL
         LOG_W(MODULE_PREFIX, "transferCancel dfCancel reason %s", reasonStr);
 #endif
 

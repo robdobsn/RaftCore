@@ -10,7 +10,7 @@
 #include "ProtocolOverAscii.h"
 #include "string.h"
 
-#define DEBUG_OVERASCII
+// #define DEBUG_OVERASCII
 
 // #ifdef DEBUG_OVERASCII
 // #include <Logger.h>

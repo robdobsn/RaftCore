@@ -9,6 +9,7 @@
 #pragma once
 
 #include <ArduinoOrAlt.h>
+#include <SpiramAwareAllocator.h>
 #include <vector>
 #include <RdJson.h>
 #include <stdint.h>
@@ -58,11 +59,11 @@ public:
     {
         return _cmdVector.size();
     }
-    std::vector<uint8_t>& getCmdVector()
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& getCmdVector()
     {
         return _cmdVector;
     }
 
 private:
-    std::vector<uint8_t> _cmdVector;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _cmdVector;
 };

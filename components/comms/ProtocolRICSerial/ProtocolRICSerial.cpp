@@ -164,7 +164,7 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
         msg.setFromBuffer(ricSerialMsg.data(), ricSerialMsg.size());
 #else
         // Create the message
-        std::vector<uint8_t> ricSerialMsg;
+        std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricSerialMsg;
         ricSerialMsg.reserve(msg.getBufLen()+2);
         ricSerialMsg.push_back(msg.getMsgNumber());
         uint8_t protocolDirnByte = ((msg.getMsgTypeCode() & 0x03) << 6) + (msg.getProtocol() & 0x3f);

@@ -9,7 +9,6 @@
 #include <FileUploadOKTOProtocol.h>
 #include <RICRESTMsg.h>
 #include <FileSystem.h>
-#include <CommsCoreIF.h>
 #include <CommsChannelMsg.h>
 #include <CommsCoreIF.h>
 
