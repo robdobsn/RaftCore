@@ -96,7 +96,7 @@ bool ProtocolRICFrame::decodeParts(const uint8_t* pData, uint32_t dataLen, uint3
 // Encode
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ProtocolRICFrame::encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg)
+void ProtocolRICFrame::encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg)
 {
     // Create the message
     outMsg.reserve(msg.getBufLen()+2);
@@ -123,7 +123,7 @@ void ProtocolRICFrame::encodeTxMsgAndSend(CommsChannelMsg& msg)
     }
 
     // Encode
-    std::vector<uint8_t> ricFrameMsg;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricFrameMsg;
     encode(msg, ricFrameMsg);
     msg.setFromBuffer(ricFrameMsg.data(), ricFrameMsg.size());
 
