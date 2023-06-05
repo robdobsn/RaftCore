@@ -10,6 +10,7 @@
 #include <Logger.h>
 #include "ProtocolExchange.h"
 #include "CommsChannelMsg.h"
+#include <CommsChannelManager.h>
 #include <RestAPIEndpointManager.h>
 #include <ProtocolRICSerial.h>
 #include <ProtocolRICFrame.h>
@@ -17,6 +18,7 @@
 #include <RICRESTMsg.h>
 #include <SysManager.h>
 #include <JSONParams.h>
+#include <CommsBridgeMsg.h>
 
 static const char* MODULE_PREFIX = "ProtExchg";
 
@@ -33,6 +35,7 @@ static const char* MODULE_PREFIX = "ProtExchg";
 // #define DEBUG_RICREST_MESSAGES_DETAIL
 // #define DEBUG_RICREST_MESSAGES_RESPONSE
 // #define DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL
+// #define DEBUG_RICREST_BRIDGE_MESSAGES
 // #define DEBUG_FILE_STREAM_SESSIONS
 // #define DEBUG_RAW_CMD_FRAME
 // #define DEBUG_SLOW_PROC_ENDPOINT_MESSAGE_DETAIL
@@ -173,6 +176,11 @@ bool ProtocolExchange::canProcessEndpointMsg()
 
 bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
 {
+    // Check if message is received on a bridged channel
+    if (getCommsCore())
+        if (getCommsCore()->bridgeHandleOutboundMsg(cmdMsg))
+            return true;
+
     // Handle the command message
     CommsMsgProtocol protocol = cmdMsg.getProtocol();
 
@@ -184,7 +192,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
     String debugStr;
     static const uint32_t MAX_DEBUG_BYTES_LEN = 40;
     uint32_t numBytes = cmdMsg.getBufLen() > MAX_DEBUG_BYTES_LEN ? MAX_DEBUG_BYTES_LEN : cmdMsg.getBufLen();
-    Utils::getHexStrFromBytes(cmdMsg.getBuf(), numBytes, debugStr);
+    Raft::getHexStrFromBytes(cmdMsg.getBuf(), numBytes, debugStr);
     String msgNumStr;
     if (cmdMsg.getMsgNumber() != 0)
         msgNumStr = String(cmdMsg.getMsgNumber());
@@ -289,6 +297,38 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
 #endif
         }
     }
+
+    // Bridge protocol
+    else if (protocol == MSG_PROTOCOL_BRIDGE_RICREST)
+    {
+        // Extract request msg
+        uint32_t bridgeID = CommsBridgeMsg::getBridgeIdx(cmdMsg.getBuf(), cmdMsg.getBufLen());
+
+        // Extract the payload into a new message
+        uint32_t payloadPos = CommsBridgeMsg::getPayloadPos(cmdMsg.getBuf(), cmdMsg.getBufLen());
+        if (cmdMsg.getBufLen() <= payloadPos)
+        {
+            LOG_E(MODULE_PREFIX, "processEndpointMsg bridgeID %d payloadPos %d", bridgeID, payloadPos);
+        }
+        else
+        {
+            // Decode the message
+            CommsChannelMsg bridgeMsg;
+            ProtocolRICSerial::decodeIntoCommsChannelMsg(cmdMsg.getChannelID(), cmdMsg.getBuf()+payloadPos, cmdMsg.getBufLen()-payloadPos, bridgeMsg);
+
+            // Handle the bridged message
+            if (getCommsCore())
+                getCommsCore()->bridgeHandleInboundMsg(bridgeID, bridgeMsg);
+
+#ifdef DEBUG_RICREST_BRIDGE_MESSAGES
+            // Debug
+            LOG_I(MODULE_PREFIX, "processEndpointMsg bridgeID %d", bridgeID);
+#endif
+        }
+        
+    }
+
+    // Raw commands
     else if (protocol == MSG_PROTOCOL_RAWCMDFRAME)
     {
         String cmdMsgStr;

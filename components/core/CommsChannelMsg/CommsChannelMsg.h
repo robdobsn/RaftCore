@@ -23,6 +23,7 @@ enum CommsMsgProtocol
     MSG_PROTOCOL_ROSSERIAL,
     MSG_PROTOCOL_RESERVED_1,
     MSG_PROTOCOL_RICREST,
+    MSG_PROTOCOL_BRIDGE_RICREST,
     MSG_PROTOCOL_RAWCMDFRAME = 0x3e,
     MSG_PROTOCOL_NONE = 0x3f,
 };
@@ -156,6 +157,7 @@ public:
             case MSG_PROTOCOL_ROSSERIAL: return "ROSSerial";
             case MSG_PROTOCOL_RESERVED_1: return "Reserved1";
             case MSG_PROTOCOL_RICREST: return "RICREST";
+            case MSG_PROTOCOL_BRIDGE_RICREST: return "BridgeRICREST";
             case MSG_PROTOCOL_RAWCMDFRAME: return "RawCmdFrame";
             default: return "UNKNOWN_PROTOCOL";
         }

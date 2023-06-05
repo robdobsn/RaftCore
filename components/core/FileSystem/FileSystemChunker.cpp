@@ -102,7 +102,7 @@ bool FileSystemChunker::nextRead(uint8_t* pBuf, uint32_t bufLen, uint32_t& handl
         return false;
 
     // Ensure we don't read beyond buffer
-    uint32_t maxToRead = bufLen < _chunkMaxLen ? bufLen : _chunkMaxLen;
+    uint32_t maxToRead = (bufLen < _chunkMaxLen) || (_chunkMaxLen == 0) ? bufLen : _chunkMaxLen;
     handledBytes = 0;
 
     // Check if keep open
@@ -176,6 +176,10 @@ bool FileSystemChunker::nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_
     uint32_t debugReadTimeMs = 0;
     uint32_t debugCloseTimeMs = 0;
 #endif
+#ifdef DEBUG_FILE_CHUNKER_CHUNKS
+    uint32_t debugBeforeFilePos = 0;
+    uint32_t debugAfterFilePos = 0;
+#endif
 
     // Check if file is open already
     if (!_pFile)
@@ -190,15 +194,30 @@ bool FileSystemChunker::nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_
     // Read if valid
     if (_pFile)
     {
+#ifdef DEBUG_FILE_CHUNKER_CHUNKS
+        // File pos
+        debugBeforeFilePos = fileSystem.filePos(_pFile);
+#endif
+        
+        // Check num to read valid
+        if (numToRead > bufLen)
+            numToRead = bufLen;
+
         // Read
-        handledBytes = fileSystem.fileRead(_pFile, pBuf, bufLen);
+        handledBytes = fileSystem.fileRead(_pFile, pBuf, numToRead);
 
 #ifdef DEBUG_FILE_CHUNKER_READ_THRESH_MS
         debugReadTimeMs = millis() - debugStartMs;
         debugStartMs = millis();
 #endif
 
-        if (handledBytes != bufLen)
+#ifdef DEBUG_FILE_CHUNKER_CHUNKS
+        // File pos
+        debugAfterFilePos = fileSystem.filePos(_pFile);
+#endif
+
+        // Check for close
+        if (handledBytes != numToRead)
         {
             // Close on final chunk
             finalChunk = true;
@@ -224,8 +243,8 @@ bool FileSystemChunker::nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_
 #endif
 #ifdef DEBUG_FILE_CHUNKER_CHUNKS
     // Debug
-    LOG_I(MODULE_PREFIX, "nextReadKeepOpen filename %s readBytes %d busy %s", 
-            _filePath.c_str(), handledBytes, _isActive ? "YES" : "NO");
+    LOG_I(MODULE_PREFIX, "nextReadKeepOpen filename %s filePos: before %d after %d readBytes %d busy %s", 
+            _filePath.c_str(), debugBeforeFilePos, debugAfterFilePos, handledBytes, _isActive ? "YES" : "NO");
 #endif
 #ifdef DEBUG_FILE_CHUNKER_CONTENTS
     String debugStr;

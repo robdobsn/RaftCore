@@ -274,20 +274,27 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& r
     // Handle ack
     JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
     uint32_t oktoFilePos = cmdFrame.getLong("okto", 0);
-    if (oktoFilePos != 0)
+    if ((oktoFilePos != 0) && (oktoFilePos > _oktoFilePos))
     {
-        _bytesInWindow += (oktoFilePos - _oktoFilePos);
-        _blocksInWindow += (oktoFilePos - _oktoFilePos) / _blockSize;
+        uint32_t newBytesReceived = oktoFilePos - _oktoFilePos;
+        _bytesInWindow += newBytesReceived;
+        _blocksInWindow += newBytesReceived / (_blockSize == 0 ? 1 : _blockSize);
         _oktoFilePos = oktoFilePos;
         _lastBatchAckRxOrRetryMs = millis();
-        _blockCount = oktoFilePos / _blockSize;
+        _blockCount = oktoFilePos / (_blockSize == 0 ? 1 : _blockSize);
         _bytesCount = oktoFilePos;
         _lastMsgMs = millis();
-    }
 
 #ifdef DEBUG_RICREST_FILEDOWNLOAD_BLOCK_ACK
-    LOG_I(MODULE_PREFIX, "handleAckMsg okto %d", oktoFilePos);
+        LOG_I(MODULE_PREFIX, "handleAckMsg okto %d", oktoFilePos);
 #endif
+    }
+    else
+    {
+        LOG_I(MODULE_PREFIX, "handleAckMsg no progress: okto %d prevOkto %d", 
+                    oktoFilePos, _oktoFilePos);
+    }
+
     return UtilsRetCode::OK;
 }
 

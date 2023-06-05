@@ -47,6 +47,8 @@ public:
         return "RICSerial";
     }
 
+    static bool decodeIntoCommsChannelMsg(uint32_t channelID, const uint8_t* pFrame, int frameLen, CommsChannelMsg& msg);
+
 private:
     // HDLC
     MiniHDLC* _pHDLC;

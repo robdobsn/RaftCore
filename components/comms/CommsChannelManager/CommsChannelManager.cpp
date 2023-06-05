@@ -7,10 +7,11 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "CommsChannelManager.h"
 #include <Logger.h>
-#include <ArduinoOrAlt.h>
+#include "CommsChannelManager.h"
 #include <CommsChannelMsg.h>
+#include <ArduinoOrAlt.h>
+#include <RaftUtils.h>
 
 static const char* MODULE_PREFIX = "CommsMan";
 
@@ -110,6 +111,9 @@ void CommsChannelManager::service()
                 break;
         }
     }
+
+    // Service bridges
+    bridgeService();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -543,4 +547,162 @@ String CommsChannelManager::getInfoJSON()
         outStr += pChannel->getInfoJSON();
     }
     return "[" + outStr + "]";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Register a comms bridge
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32_t CommsChannelManager::bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, uint32_t otherChannelID)
+{
+    // Check if bridge already exists between required channels
+    for (auto it = _bridgeList.begin(); it != _bridgeList.end(); ++it)
+    {
+        if ((it->establishmentChannelID == establishmentChannelID) && (it->otherChannelID == otherChannelID))
+        {
+            // Debug
+            LOG_I(MODULE_PREFIX, "bridgeRegister bridgeName %s bridgeID %d estChanID %d otherChanID %d already exists", bridgeName, (int)it->bridgeID, 
+                        (int)establishmentChannelID, (int)otherChannelID);
+
+            // Return bridge ID
+            return it->bridgeID;
+        }
+    }
+
+    // Bridge ID
+    uint32_t bridgeID = _bridgeIDCounter++;
+
+    // Create a bridge
+    CommsChannelBridge bridge(bridgeName, bridgeID, establishmentChannelID, otherChannelID);
+    _bridgeList.push_back(bridge);
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "registerBridge bridgeName %s bridgeID %d estChanID %d otherChanID %d", bridgeName, (int)bridgeID, 
+                (int)establishmentChannelID, (int)otherChannelID);
+
+    // Return bridge ID
+    return bridgeID;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Unregister a comms bridge
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void CommsChannelManager::bridgeUnregister(uint32_t bridgeID, bool forceClose)
+{
+    // Find the bridge
+    for (auto it = _bridgeList.begin(); it != _bridgeList.end(); ++it)
+    {
+        if (it->bridgeID == bridgeID)
+        {
+            // Check if closure is forced
+            if (forceClose)
+            {
+                // Debug
+                LOG_I(MODULE_PREFIX, "unregisterBridge bridgeID %d force close", bridgeID);
+
+                // Close the bridge
+                _bridgeList.erase(it);
+                return;
+            }
+
+            // Debug
+            LOG_I(MODULE_PREFIX, "unregisterBridge bridgeID %d will be removed at later time", bridgeID);
+
+            // Set last message time to current time
+            it->lastMsgTimeMs = millis();
+            return;
+        }
+    }
+
+    // Debug
+    LOG_W(MODULE_PREFIX, "unregisterBridge bridgeID %d NOT FOUND", bridgeID);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Handle bridged inbound message
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void CommsChannelManager::bridgeHandleInboundMsg(uint32_t bridgeID, CommsChannelMsg& msg)
+{
+    // Find the bridge
+    for (auto it = _bridgeList.begin(); it != _bridgeList.end(); ++it)
+    {
+        if (it->bridgeID == bridgeID)
+        {
+            // Debug
+            LOG_I(MODULE_PREFIX, "bridgeHandleInboundMsg bridgeID %d estChanID %d otherChanID %d len %d", (int)it->bridgeID, 
+                        (int)it->establishmentChannelID, (int)it->otherChannelID, (int)msg.getBufLen());
+
+            // Switch channel
+            msg.setChannelID(it->otherChannelID);
+
+            // Send the message
+            handleOutboundMessageOnChannel(msg, it->otherChannelID);
+
+            // Set last message time to current time
+            it->lastMsgTimeMs = millis();
+            return;
+        }
+    }
+
+    // Debug
+    LOG_W(MODULE_PREFIX, "bridgeHandleInboundMsg bridgeID %d NOT FOUND", bridgeID);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Handle bridged outbound message
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool CommsChannelManager::bridgeHandleOutboundMsg(CommsChannelMsg& msg)
+{
+    // Find the bridge which has corresponding other channel
+    for (auto it = _bridgeList.begin(); it != _bridgeList.end(); ++it)
+    {
+        if (it->otherChannelID == msg.getChannelID())
+        {
+            // Debug
+            LOG_I(MODULE_PREFIX, "bridgeHandleOutboundMsg bridgeID %d msgChanID %d estChanID %d otherChanID %d len %d", (int)it->bridgeID, 
+                        (int)msg.getChannelID(), (int)it->establishmentChannelID, (int)it->otherChannelID, (int)msg.getBufLen());
+
+            // Switch channel
+            msg.setChannelID(it->establishmentChannelID);
+
+            // Send the message
+            handleOutboundMessageOnChannel(msg, it->establishmentChannelID);
+
+            // Set last message time to current time
+            it->lastMsgTimeMs = millis();
+            return true;
+        }
+    }
+
+    // Debug
+    LOG_W(MODULE_PREFIX, "bridgeHandleOutboundMsg channelID %d NOT FOUND", msg.getChannelID());
+
+    // Bridge not found
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Service bridges - handle closure of bridges
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void CommsChannelManager::bridgeService()
+{
+    // Find the bridge
+    for (auto it = _bridgeList.begin(); it != _bridgeList.end(); ++it)
+    {
+        // Check if bridge is not used for a while
+        if (Raft::isTimeout(millis(), it->lastMsgTimeMs, BRIDGE_CLOSE_TIMEOUT_MS))
+        {
+            // Debug
+            LOG_I(MODULE_PREFIX, "bridgeService idle bridgeID %d estChanID %d otherChanID %d will be removed", (int)it->bridgeID, 
+                        (int)it->establishmentChannelID, (int)it->otherChannelID);
+
+            // Close the bridge
+            _bridgeList.erase(it);
+            return;
+        }
+    }
 }

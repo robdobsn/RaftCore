@@ -8,11 +8,11 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "ProtocolRICSerial.h"
-#include <ArduinoOrAlt.h>
-#include <RaftUtils.h>
 #include <CommsChannelMsg.h>
 #include <ConfigBase.h>
 #include <MiniHDLC.h>
+#include <ArduinoOrAlt.h>
+#include <RaftUtils.h>
 
 // Logging
 static const char* MODULE_PREFIX = "RICSerial";
@@ -50,8 +50,8 @@ ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, con
             _maxTxMsgLen, _maxRxMsgLen);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "constructor maxRxMsgLen %d maxTxMsgLen %d frameBoundary %02x controlEscape %02x", 
-                _maxRxMsgLen, _maxTxMsgLen, frameBoundary, controlEscape);
+    LOG_I(MODULE_PREFIX, "constructor channelID %d maxRxMsgLen %d maxTxMsgLen %d frameBoundary %02x controlEscape %02x", 
+            (int)_channelID, (int)_maxRxMsgLen, (int)_maxTxMsgLen, frameBoundary, controlEscape);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -108,6 +108,10 @@ void ProtocolRICSerial::addRxData(const uint8_t* pData, uint32_t dataLen)
 
 void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 {
+#ifdef DEBUG_PROTOCOL_RIC_SERIAL_ENCODE
+    LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend msgNum %d msgType %d protocol %d bufLen %d", 
+                msg.getMsgNumber(), msg.getMsgTypeCode(), msg.getProtocol(), msg.getBufLen());
+#endif
     // Add to HDLC
     if (_pHDLC)
     {
@@ -193,7 +197,7 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Helpers
+// Handle a frame received from HDLC
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void ProtocolRICSerial::hdlcFrameRxCB(const uint8_t* pFrame, int frameLen)
@@ -201,9 +205,25 @@ void ProtocolRICSerial::hdlcFrameRxCB(const uint8_t* pFrame, int frameLen)
     // Check callback is valid
     if (!_msgRxCB)
         return;
+
+    // Convert to CommsChannelMsg
+    CommsChannelMsg endpointMsg;
+    if (!decodeIntoCommsChannelMsg(_channelID, pFrame, frameLen, endpointMsg))
+        return;
+
+    // Send to callback
+    _msgRxCB(endpointMsg);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Decode a frame into a CommsChannelMsg
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool ProtocolRICSerial::decodeIntoCommsChannelMsg(uint32_t channelID, const uint8_t* pFrame, int frameLen, CommsChannelMsg& msg)
+{
     // Check validity of frame length
     if (frameLen < 2)
-        return;
+        return false;
 
     // Extract message type
     uint32_t msgNumber = pFrame[0];
@@ -212,8 +232,8 @@ void ProtocolRICSerial::hdlcFrameRxCB(const uint8_t* pFrame, int frameLen)
 
     // Debug
 #ifdef DEBUG_PROTOCOL_RIC_SERIAL_DECODE_FRAME
-    LOG_I(MODULE_PREFIX, "hdlcFrameRxCB len %d msgNum %d protocolCode %d msgTypeCode %d", 
-                    frameLen, msgNumber, msgProtocolCode, msgTypeCode);
+    LOG_I(MODULE_PREFIX, "hdlcFrameRxCB chanID %d len %d msgNum %d protocolCode %d msgTypeCode %d", 
+                    (int)channelID, frameLen, (int)msgNumber, (int)msgProtocolCode, (int)msgTypeCode);
 #endif
 #ifdef DEBUG_PROTOCOL_RIC_SERIAL_DECODE_FRAME_DETAIL
     String dataStr;
@@ -222,7 +242,6 @@ void ProtocolRICSerial::hdlcFrameRxCB(const uint8_t* pFrame, int frameLen)
 #endif
 
     // Convert to CommsChannelMsg
-    CommsChannelMsg endpointMsg;
-    endpointMsg.setFromBuffer(_channelID, (CommsMsgProtocol)msgProtocolCode, msgNumber, (CommsMsgTypeCode)msgTypeCode, pFrame+2, frameLen-2);
-    _msgRxCB(endpointMsg);
+    msg.setFromBuffer(channelID, (CommsMsgProtocol)msgProtocolCode, msgNumber, (CommsMsgTypeCode)msgTypeCode, pFrame+2, frameLen-2);
+    return true;
 }

@@ -67,6 +67,7 @@ idf_component_register(
       "components/core/ArduinoUtils"
       "components/core/ArPreferences"
       "components/core/CommsChannelMsg"
+      "components/core/CommsBridgeMsg"
       "components/core/CommsCoreIF"
       "components/core/Config"
       "components/core/ConfigPinMap"

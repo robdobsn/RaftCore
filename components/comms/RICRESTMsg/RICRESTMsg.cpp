@@ -8,9 +8,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RICRESTMsg.h"
-#include <RaftUtils.h>
 #include <CommsChannelMsg.h>
 #include <stdio.h>
+#include <RaftUtils.h>
 
 // #define DEBUG_RICREST_MSG
 

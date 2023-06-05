@@ -42,7 +42,7 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
                 _streamSourceInfo(channelID)
 {
     _pFileStreamProtocolHandler = nullptr;
-    _isActive = true;
+    _isActive = false;
     _sessionLastActiveMs = millis();
     _fileStreamName = filename;
     _channelID = channelID;
@@ -117,6 +117,7 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
             }
             else if (_fileStreamFlowType == FileStreamBase::FILE_STREAM_FLOW_TYPE_RICREST_DOWNLOAD)
             {
+                fileStreamLength = _pFileChunker->getFileLen();
                 _pFileStreamProtocolHandler = new FileDownloadOKTOProtocol(
                             std::bind(&FileStreamSession::fileStreamBlockWrite, this, std::placeholders::_1),
                             std::bind(&FileStreamSession::fileStreamBlockRead, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
@@ -158,20 +159,19 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
                 _pStreamChunkCB = pRestAPIEndpoint->_callbackChunk;
                 _pStreamIsReadyCB = pRestAPIEndpoint->_callbackIsReady;
             }
-            else
-            {
-                // Not found
-                _isActive = false;
-            }
+
             break;
         }
         default:
         {
             // Not supported
-            _isActive = false;
             break;
         }
     }
+    
+    // Check active
+    _isActive = _pFileStreamProtocolHandler != nullptr;
+
 }
 
 FileStreamSession::~FileStreamSession()
@@ -200,7 +200,7 @@ void FileStreamSession::service()
 
 void FileStreamSession::resetCounters(uint32_t fileStreamLength){
     if (!_pFileStreamProtocolHandler) return;
-    _pFileStreamProtocolHandler->resetCounters(fileStreamLength);
+        _pFileStreamProtocolHandler->resetCounters(fileStreamLength);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

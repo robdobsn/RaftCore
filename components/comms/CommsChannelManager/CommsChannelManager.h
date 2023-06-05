@@ -14,6 +14,7 @@
 #include "ProtocolCodecFactoryHelper.h"
 #include "CommsChannel.h"
 #include "SysModBase.h"
+#include "CommsChannelBridge.h"
 #include <CommsCoreIF.h>
 
 class CommsChannelManager : public SysModBase, public CommsCoreIF
@@ -63,6 +64,12 @@ public:
     // Get info
     String getInfoJSON();
 
+    // Register and unregister a bridge between two different interfaces
+    virtual uint32_t bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, uint32_t otherChannelID) override final;
+    virtual void bridgeUnregister(uint32_t bridgeID, bool forceClose) override final;
+    virtual void bridgeHandleInboundMsg(uint32_t bridgeID, CommsChannelMsg& msg) override final;
+    virtual bool bridgeHandleOutboundMsg(CommsChannelMsg& msg) override final;
+
 protected:
     // Service - called frequently
     virtual void service() override final;
@@ -75,12 +82,22 @@ private:
     // List of protocol translations
     std::list<ProtocolCodecFactoryHelper> _protocolCodecFactoryList;
 
+    // Bridge ID counter
+    uint32_t _bridgeIDCounter = 1;
+
+    // List of bridges
+    std::list<CommsChannelBridge> _bridgeList;
+
+    // Bridge close timeout (after last message or weak close)
+    static const uint32_t BRIDGE_CLOSE_TIMEOUT_MS = 30000;
+
     // Callbacks
     bool frameSendCB(CommsChannelMsg& msg);
 
     // Helpers
     void ensureProtocolCodecExists(uint32_t channelID);
     void handleOutboundMessageOnChannel(CommsChannelMsg& msg, uint32_t channelID);
+    void bridgeService();
 
     // Consts
     static const int MAX_INBOUND_MSGS_IN_LOOP = 1;

@@ -496,7 +496,7 @@ String FileSystem::getFilePath(const String& nameOfFS, const String& filename) c
     // Check if filename already contains file system
     if ((filename.indexOf(LOCAL_FILE_SYSTEM_PATH_ELEMENT) >= 0) || (filename.indexOf(SD_FILE_SYSTEM_PATH_ELEMENT) >= 0))
         return (filename.startsWith("/") ? filename : ("/" + filename));
-    return (filename.startsWith("/") ? "/" + nameOfFS + filename : ("/" + nameOfFS + "/" + filename));
+    return (filename.startsWith("/") ? filename : ("/" + nameOfFS + "/" + filename));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
