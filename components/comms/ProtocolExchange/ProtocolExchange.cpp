@@ -530,7 +530,7 @@ UtilsRetCode::RetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICR
         UtilsRetCode::RetCode rslt = UtilsRetCode::INVALID_DATA;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"length\":%d,\"reason\":\"%s\"", 
-                            ricRESTReqMsg.getBinLen(), UtilsRetCode::getRetcStr(rslt));
+                            (int)ricRESTReqMsg.getBinLen(), UtilsRetCode::getRetcStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
         return rslt;
     }
@@ -546,7 +546,7 @@ UtilsRetCode::RetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICR
         UtilsRetCode::RetCode rslt = UtilsRetCode::SESSION_NOT_FOUND;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", 
-                            streamID, UtilsRetCode::getRetcStr(rslt));
+                            (int)streamID, UtilsRetCode::getRetcStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
         return rslt;
     }
