@@ -2,7 +2,9 @@
 cmake_minimum_required(VERSION 3.11)
 
 # Include the components directory of the main application:
-set(EXTRA_COMPONENT_DIRS "../components/core")
+set(EXTRA_COMPONENT_DIRS "../" "../")
+
+add_compile_definitions(FEATURE_NETWORK_FUNCTIONALITY)
 
 # Set the components to include the tests for.
 # This can be overriden from CMake cache:
