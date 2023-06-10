@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.11)
 
 # Include the components directory of the main application:
-set(EXTRA_COMPONENT_DIRS "../" "../")
+set(EXTRA_COMPONENT_DIRS "../")
 
 add_compile_definitions(FEATURE_NETWORK_FUNCTIONALITY)
 

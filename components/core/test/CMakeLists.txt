@@ -6,6 +6,7 @@ idf_component_register(
                   "./ConfigBase_test.cpp"
                   "./exprCtx_unit_test.cpp"
                   "./expressions_unit_test.cpp"
+                  "./ProtocolOverAscii_test.cpp"
                 INCLUDE_DIRS
                   "."
                 REQUIRES
