@@ -1,6 +1,6 @@
 {
   "name": "RaftCore",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "Core elements for the Raft ESP32 framework",
   "keywords": "esp32, esp32s3, framework",
   "repository":

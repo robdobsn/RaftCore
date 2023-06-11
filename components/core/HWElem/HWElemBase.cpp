@@ -253,7 +253,7 @@ void HWElemBase::cmdResultCallback(BusRequestResult &reqResult)
 // Cmd result callback
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-virtual String HWElemBase::getInfoJSON(bool includeStatus, bool includedOuterBraces, HWElemStatusLevel_t dataLevel)
+String HWElemBase::getInfoJSON(bool includeStatus, bool includedOuterBraces, HWElemStatusLevel_t dataLevel)
 {
     String jsonStr;
     if (includeStatus)
