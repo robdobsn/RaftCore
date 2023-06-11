@@ -249,3 +249,37 @@ void HWElemBase::cmdResultCallback(BusRequestResult &reqResult)
         _pCommsCore->handleOutboundMessage(endpointMsg);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Cmd result callback
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+virtual String HWElemBase::getInfoJSON(bool includeStatus, bool includedOuterBraces, HWElemStatusLevel_t dataLevel)
+{
+    String jsonStr;
+    if (includeStatus)
+    {
+        char jsonInfoStr[400];
+        bool isValid = false;
+        bool isOnline = isElemResponding(&isValid);
+        snprintf(jsonInfoStr, sizeof(jsonInfoStr),
+                R"("name":"%s","type":"%s","busName":"%s","addr":"0x%02x","addrValid":%d,"IDNo":%d,)"
+                R"("whoAmI":"%s","whoAmITypeCode":"%08lx","SN":"%s","versionStr":"%s","commsOk":"%c")",
+                _name.c_str(), _type.c_str(), _busName.c_str(), _address, _addressIsSet,
+                (int)_IDNo, _whoAmIStr.c_str(), (long unsigned)_whoAmITypeCode, _serialNo.c_str(), _versionStr.c_str(),
+                isValid ? (isOnline ? 'Y' : 'N') : 'X');
+        jsonStr += jsonInfoStr;
+    }
+    if (dataLevel != ELEM_STATUS_LEVEL_NONE)
+    {
+        String dataJson = getDataJSON(dataLevel);
+        if (dataJson.length() > 0)
+        {
+            if (jsonStr.length() > 0)
+                jsonStr += ",";
+            jsonStr += dataJson;
+        }
+    }
+    if (includedOuterBraces)
+        return "{" + jsonStr + "}";
+    return jsonStr;
+}
