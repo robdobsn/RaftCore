@@ -1,15 +1,13 @@
 {
   "name": "RaftCore",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "description": "Core elements for the Raft ESP32 framework",
   "keywords": "esp32, esp32s3, framework",
-  "repository":
-  {
+  "repository": {
     "type": "git",
     "url": "https://github.com/robdobsn/RaftCore"
   },
-  "authors":
-  [
+  "authors": [
     {
       "name": "Rob Dobson",
       "email": "rob@dobson.com",
@@ -19,8 +17,13 @@
   ],
   "license": "MIT",
   "homepage": "https://github.com/robdobsn/RaftCore",
-  "frameworks": ["arduino", "espidf"],
-  "platforms": ["espressif32"],
+  "frameworks": [
+    "arduino",
+    "espidf"
+  ],
+  "platforms": [
+    "espressif32"
+  ],
   "build": {
     "srcDir": "components/core",
     "includeDir": "components/core",
@@ -28,7 +31,7 @@
     "libArchive": false,
     "extraScript": "lib_script.py",
     "flags": [
-      "-DJSMN_PARENT_LINKS", 
+      "-DJSMN_PARENT_LINKS",
       "-DJSMN_STRICT",
       "-Icomponents/core/APICommon",
       "-Icomponents/core/ArduinoUtils",
@@ -43,6 +46,8 @@
       "-Icomponents/core/DebounceButton",
       "-Icomponents/core/ExpressionEval",
       "-Icomponents/core/FileStreamProtocols",
+      "-Icomponents/core/FileSystem",
+      "-Icomponents/core/HWElem",
       "-Icomponents/core/libb64",
       "-Icomponents/core/Logger",
       "-Icomponents/core/MiniHDLC",
@@ -50,7 +55,6 @@
       "-Icomponents/core/NetCoreIF",
       "-Icomponents/core/NetworkSystem",
       "-Icomponents/core/NumericalFilters",
-      "-Icomponents/core/RestAPIEndpoints",
       "-Icomponents/core/ProtocolBase",
       "-Icomponents/core/ProtocolExchange",
       "-Icomponents/core/ProtocolOverAscii",
@@ -58,6 +62,7 @@
       "-Icomponents/core/ProtocolRICFrame",
       "-Icomponents/core/ProtocolRICJSON",
       "-Icomponents/core/ProtocolRICSerial",
+      "-Icomponents/core/RestAPIEndpoints",
       "-Icomponents/core/RICRESTMsg",
       "-Icomponents/core/RingBuffer",
       "-Icomponents/core/StatusIndicator",

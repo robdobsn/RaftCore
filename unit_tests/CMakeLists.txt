@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.11)
 
 # Include the components directory of the main application:
-set(EXTRA_COMPONENT_DIRS "../")
+set(EXTRA_COMPONENT_DIRS "../components")
 
 add_compile_definitions(FEATURE_NETWORK_FUNCTIONALITY)
 
@@ -11,7 +11,6 @@ add_compile_definitions(FEATURE_NETWORK_FUNCTIONALITY)
 # - when invoking CMake directly: cmake -D TEST_COMPONENTS="xxxxx" ..
 # - when using idf.py: idf.py -T xxxxx build
 set(TEST_COMPONENTS "core" CACHE STRING "Components to test")
-
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(unittests)
 
