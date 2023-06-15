@@ -153,9 +153,9 @@ extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
     return adc1_get_raw(analogChan);
 }
 
-extern void IRAM_ATTR pinMode(int pin, uint8_t mode) __attribute__ ((weak, alias("__pinMode")));
-extern void IRAM_ATTR digitalWrite(uint8_t pin, uint8_t val) __attribute__ ((weak, alias("__digitalWrite")));
-extern int IRAM_ATTR digitalRead(uint8_t pin) __attribute__ ((weak, alias("__digitalRead")));
-extern uint16_t IRAM_ATTR analogRead(uint8_t pin) __attribute__ ((weak, alias("__analogRead")));
+extern void pinMode(int pin, uint8_t mode) __attribute__ ((weak, alias("__pinMode")));
+extern void digitalWrite(uint8_t pin, uint8_t val) __attribute__ ((weak, alias("__digitalWrite")));
+extern int digitalRead(uint8_t pin) __attribute__ ((weak, alias("__digitalRead")));
+extern uint16_t analogRead(uint8_t pin) __attribute__ ((weak, alias("__analogRead")));
 
 #endif // ARDUINO
