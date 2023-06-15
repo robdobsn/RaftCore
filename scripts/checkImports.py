@@ -125,6 +125,17 @@ print(f'-----------\nAll files in all places: {all_files}')
 
 print(f'====================== CHECKS ==========================')
 
+# Check that all sub-folders exist
+folders_to_remove = []
+for folder in all_sub_folders:
+    full_path_folder = os.path.join(component_folder, folder)
+    if not os.path.isdir(full_path_folder):
+        print(f'Sub-folder {folder} does not exist')
+        folders_to_remove.append(folder)
+        fix_required = True
+for folder in folders_to_remove:
+    all_sub_folders.remove(folder)
+
 # Check that all sub-folders are included in the JSON file
 fix_required = False
 for folder in all_sub_folders:
