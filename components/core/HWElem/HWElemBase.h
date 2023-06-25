@@ -235,7 +235,7 @@ public:
     // Send a binary-encoded command - format specific to hardware
     virtual RaftRetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
     {
-        return RaftRetCode::INVALID_OPERATION;
+        return RaftRetCode::RAFT_RET_INVALID_OPERATION;
     }
 
     // Send a binary-encoded command - format specific to hardware

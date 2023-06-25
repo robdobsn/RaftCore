@@ -446,7 +446,7 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
 
     // Handle non-file-stream messages
     if (fileStreamMsgType == FileStreamBase::FILE_STREAM_MSG_TYPE_NONE)
-        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, endpointMsg) ? RaftRetCode::OK : RaftRetCode::INVALID_OBJECT;
+        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, endpointMsg) ? RaftRetCode::RAFT_RET_OK : RaftRetCode::RAFT_RET_INVALID_OBJECT;
 
     // ChannelID
     uint32_t channelID = endpointMsg.getChannelID();
@@ -508,7 +508,7 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
         LOG_W(MODULE_PREFIX, "processRICRESTCmdFrame session not found msgType %s streamName %s streamID %d", 
                 FileStreamBase::getFileStreamMsgTypeStr(fileStreamMsgType), fileStreamName.c_str(), streamID);
 #endif
-        return RaftRetCode::SESSION_NOT_FOUND;
+        return RaftRetCode::RAFT_RET_SESSION_NOT_FOUND;
     }
 
     // Session is valid so send message to it
@@ -528,7 +528,7 @@ RaftRetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICRESTMsg& ri
 #ifdef WARN_ON_FILE_STREAM_BLOCK_LENGTH_ZERO
         LOG_W(MODULE_PREFIX, "processRICRESTFileStreamBlock invalid length %d", ricRESTReqMsg.getBinLen());
 #endif
-        RaftRetCode rslt = RaftRetCode::INVALID_DATA;
+        RaftRetCode rslt = RaftRetCode::RAFT_RET_INVALID_DATA;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"length\":%d,\"reason\":\"%s\"", 
                             (int)ricRESTReqMsg.getBinLen(), Raft::getRetcStr(rslt));
@@ -544,7 +544,7 @@ RaftRetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICRESTMsg& ri
     if (!pSession)
     {
         LOG_W(MODULE_PREFIX, "processRICRESTFileStreamBlock session not found for streamID %d", streamID);
-        RaftRetCode rslt = RaftRetCode::SESSION_NOT_FOUND;
+        RaftRetCode rslt = RaftRetCode::RAFT_RET_SESSION_NOT_FOUND;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", 
                             (int)streamID, Raft::getRetcStr(rslt));
@@ -713,14 +713,14 @@ RaftRetCode ProtocolExchange::handleFileUploadBlock(const String& req, FileStrea
                         sourceInfo.channelID, fileStreamContentType, restAPIEndpointName,
                         FileStreamBase::FILE_STREAM_FLOW_TYPE_HTTP_UPLOAD,
                         fileStreamBlock.fileLenValid ? fileStreamBlock.fileLen : fileStreamBlock.contentLen))
-            return RaftRetCode::INSUFFICIENT_RESOURCE;
+            return RaftRetCode::RAFT_RET_INSUFFICIENT_RESOURCE;
     }
 
     // Get the session
     FileStreamSession* pSession = getFileStreamExistingSession(fileStreamBlock.filename, sourceInfo.channelID, 
                     FileStreamBase::FILE_STREAM_ID_ANY);
     if (!pSession)
-        return RaftRetCode::SESSION_NOT_FOUND;
+        return RaftRetCode::RAFT_RET_SESSION_NOT_FOUND;
     
     // Handle the block
     return pSession->fileStreamBlockWrite(fileStreamBlock);

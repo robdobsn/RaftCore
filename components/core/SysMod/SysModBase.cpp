@@ -147,7 +147,7 @@ RaftRetCode SysModBase::sysModSendCmdJSON(const char* sysModName, const char* js
 {
     if (_pSysManager)
         return _pSysManager->sendCmdJSON(sysModName, jsonCmd);
-    return RaftRetCode::INVALID_OPERATION;
+    return RaftRetCode::RAFT_RET_INVALID_OPERATION;
 }
 
 // SysMod get named value

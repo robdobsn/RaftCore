@@ -111,7 +111,7 @@ public:
     // Receive JSON command
     virtual RaftRetCode receiveCmdJSON(const char* cmdJSON)
     {
-        return RaftRetCode::INVALID_OPERATION;
+        return RaftRetCode::RAFT_RET_INVALID_OPERATION;
     }
 
     // Receive msg generator callback function
@@ -155,7 +155,7 @@ public:
     }
     virtual RaftRetCode fileStreamDataBlock(FileStreamBlock& fileStreamBlock)
     {
-        return RaftRetCode::INVALID_OPERATION;
+        return RaftRetCode::RAFT_RET_INVALID_OPERATION;
     }
     virtual bool fileStreamCancelEnd(bool isNormalEnd)
     {

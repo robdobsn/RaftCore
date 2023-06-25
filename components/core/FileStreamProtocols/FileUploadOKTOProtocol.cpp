@@ -66,7 +66,7 @@ RaftRetCode FileUploadOKTOProtocol::handleCmdFrame(FileStreamBase::FileStreamMsg
         case FILE_STREAM_MSG_TYPE_UPLOAD_CANCEL:
             return handleCancelMsg(ricRESTReqMsg, respMsg);
         default:
-            return RaftRetCode::INVALID_OPERATION;
+            return RaftRetCode::RAFT_RET_INVALID_OPERATION;
     }
 }
 
@@ -86,7 +86,7 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
     {
         LOG_W(MODULE_PREFIX, "handleFileBlock called when not transferring");
         transferCancel("failBlockUnexpected");
-        return RaftRetCode::NOT_XFERING;
+        return RaftRetCode::RAFT_RET_NOT_XFERING;
     }
 
     // Handle the block
@@ -138,7 +138,7 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
     }
 
     // Check valid
-    RaftRetCode rslt = RaftRetCode::OK;
+    RaftRetCode rslt = RaftRetCode::RAFT_RET_OK;
     if (blockValid && _fileStreamBlockWriteCB)
     {
         FileStreamBlock fileStreamBlock(_fileName.c_str(), 
@@ -158,7 +158,7 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
         rslt = _fileStreamBlockWriteCB(fileStreamBlock);
 
         // Check result
-        if (rslt != RaftRetCode::OK)
+        if (rslt != RaftRetCode::RAFT_RET_OK)
         {
             if (_fileStreamContentType == FileUploadOKTOProtocol::FILE_STREAM_CONTENT_TYPE_FIRMWARE)
             {
@@ -320,7 +320,7 @@ RaftRetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqM
     snprintf(extraJson, sizeof(extraJson), R"("batchMsgSize":%d,"batchAckSize":%d,"streamID":%d)", 
                 (int)_blockSize, (int)_batchAckSize, (int)_streamID);
     Raft::setJsonResult(ricRESTReqMsg.getReq().c_str(), respMsg, startOk, errorMsg.c_str(), extraJson);
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -358,7 +358,7 @@ RaftRetCode  FileUploadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMs
 
     // End transfer
     transferEnd();
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -387,7 +387,7 @@ RaftRetCode  FileUploadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTRe
                 fileName.c_str());
 #endif
     
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -53,7 +53,7 @@ RaftRetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsg
     // Unexpected message
     LOG_W(MODULE_PREFIX, "handleCmdFrame UNEXPECTED req %s", ricRESTReqMsg.getReq().c_str());
 
-    return RaftRetCode::INVALID_OPERATION;
+    return RaftRetCode::RAFT_RET_INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +67,7 @@ RaftRetCode FileUploadHTTPProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
             _isUploading, ricRESTReqMsg.getBinLen(), _expectedFilePos);
 #endif
     // HTTP protocol handles the file upload in the HTTP POST body
-    return RaftRetCode::INVALID_OPERATION;
+    return RaftRetCode::RAFT_RET_INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

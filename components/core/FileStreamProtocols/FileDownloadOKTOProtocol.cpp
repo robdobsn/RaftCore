@@ -71,7 +71,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleCmdFrame(FileStreamBase::FileStreamM
         case FILE_STREAM_MSG_TYPE_DOWNLOAD_ACK:
             return handleAckMsg(ricRESTReqMsg, respMsg);
         default:
-            return RaftRetCode::INVALID_OPERATION;
+            return RaftRetCode::RAFT_RET_INVALID_OPERATION;
     }
 }
 
@@ -83,7 +83,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTR
 {
     // Shouldn't be receiving file blocks
     LOG_W(MODULE_PREFIX, "handleDataFrame unexpected");
-    return RaftRetCode::INVALID_OPERATION;
+    return RaftRetCode::RAFT_RET_INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -197,7 +197,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTRe
         extraJsonStr += extraJsonCRC;
     }
     Raft::setJsonResult(ricRESTReqMsg.getReq().c_str(), respMsg, startOk, errorMsg.c_str(), extraJsonStr.c_str());
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -233,7 +233,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqM
 
     // End
     transferEnd();
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -262,7 +262,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTR
                 fileName.c_str());
 #endif
     
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -295,7 +295,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& ricRESTReqM
                     oktoFilePos, _oktoFilePos);
     }
 
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -321,7 +321,7 @@ bool FileDownloadOKTOProtocol::validateFileStreamStart(const String& fileName,
     if (_fileStreamGetCRCCB)
     {
         RaftRetCode retc = _fileStreamGetCRCCB(crc16, fileSize);
-        if (retc == RaftRetCode::OK)
+        if (retc == RaftRetCode::RAFT_RET_OK)
             crc16Valid = true;
     }
 
@@ -432,7 +432,7 @@ void FileDownloadOKTOProtocol::transferService()
     // Send a block
     FileStreamBlockOwned block;
     RaftRetCode retc = _fileStreamBlockReadCB(block, _lastSentUptoFilePos, _blockSize);
-    if (retc == RaftRetCode::OK)
+    if (retc == RaftRetCode::RAFT_RET_OK)
     {
         // Send block
         sendBlock(block);

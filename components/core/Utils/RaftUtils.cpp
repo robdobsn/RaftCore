@@ -80,7 +80,7 @@ RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, c
         resp += "\"ok\"}";
     else
         resp += "\"fail\"}";
-    return rslt ? RaftRetCode::OK : RaftRetCode::OTHER_FAILURE;
+    return rslt ? RaftRetCode::RAFT_RET_OK : RaftRetCode::RAFT_RET_OTHER_FAILURE;
 }
 
 // Set a result error
@@ -94,7 +94,7 @@ RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char*
     if (errorMsg)
         errorMsgStr = errorMsg;
     resp = "{\"req\":\"" + String(pReq) + "\"," + additionalJson + "\"rslt\":\"fail\",\"error\":\"" + errorMsgStr + "\"}";
-    return RaftRetCode::OTHER_FAILURE;
+    return RaftRetCode::RAFT_RET_OTHER_FAILURE;
 }
 
 // Set result
@@ -104,7 +104,7 @@ RaftRetCode Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const
         setJsonBoolResult(pReq, resp, rslt, otherJson);
     else
         setJsonErrorResult(pReq, resp, errorMsg, otherJson);
-    return rslt ? RaftRetCode::OK : RaftRetCode::OTHER_FAILURE;
+    return rslt ? RaftRetCode::RAFT_RET_OK : RaftRetCode::RAFT_RET_OTHER_FAILURE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -826,19 +826,19 @@ const char* Raft::getRetcStr(RaftRetCode retc)
 {
     switch(retc)
     {
-        case OK: return "OK";
-        case BUSY: return "BUSY";
-        case POS_MISMATCH: return "POS_MISMATCH";
-        case NOT_XFERING: return "NOT_XFERING";
-        case NOT_STREAMING: return "NOT_STREAMING";
-        case SESSION_NOT_FOUND: return "SESSION_NOT_FOUND";
-        case CANNOT_START: return "CANNOT_START";
-        case INVALID_DATA: return "INVALID_DATA";
-        case INVALID_OBJECT: return "INVALID_OBJECT";
-        case INVALID_OPERATION: return "INVALID_OPERATION";
-        case INSUFFICIENT_RESOURCE: return "INSUFFICIENT_RESOURCE";
-        case OTHER_FAILURE: return "OTHER_FAILURE";
-        case NOT_IMPLEMENTED: return "NOT_IMPLEMENTED";
+        case RAFT_RET_OK: return "OK";
+        case RAFT_RET_BUSY: return "BUSY";
+        case RAFT_RET_POS_MISMATCH: return "POS_MISMATCH";
+        case RAFT_RET_NOT_XFERING: return "NOT_XFERING";
+        case RAFT_RET_NOT_STREAMING: return "NOT_STREAMING";
+        case RAFT_RET_SESSION_NOT_FOUND: return "SESSION_NOT_FOUND";
+        case RAFT_RET_CANNOT_START: return "CANNOT_START";
+        case RAFT_RET_INVALID_DATA: return "INVALID_DATA";
+        case RAFT_RET_INVALID_OBJECT: return "INVALID_OBJECT";
+        case RAFT_RET_INVALID_OPERATION: return "INVALID_OPERATION";
+        case RAFT_RET_INSUFFICIENT_RESOURCE: return "INSUFFICIENT_RESOURCE";
+        case RAFT_RET_OTHER_FAILURE: return "OTHER_FAILURE";
+        case RAFT_RET_NOT_IMPLEMENTED: return "NOT_IMPLEMENTED";
         default: return "UNKNOWN";
     }
 };
