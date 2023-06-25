@@ -143,7 +143,7 @@ String SysModBase::sysModGetStatusJSON(const char* sysModName)
 }
 
 // Post JSON command to another SysMod
-RaftRetCode::RetCode SysModBase::sysModSendCmdJSON(const char* sysModName, const char* jsonCmd)
+RaftRetCode SysModBase::sysModSendCmdJSON(const char* sysModName, const char* jsonCmd)
 {
     if (_pSysManager)
         return _pSysManager->sendCmdJSON(sysModName, jsonCmd);

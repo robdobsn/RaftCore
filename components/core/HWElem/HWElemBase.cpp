@@ -149,7 +149,7 @@ bool HWElemBase::queuedBusReqStart(BusRequestCallbackType callback, void* callba
 // Handle JSON command
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
+RaftRetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
 {
     // Extract command from JSON
     ConfigBase jsonInfo(cmdJSON);
@@ -201,7 +201,7 @@ RaftRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
         uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeBytes, MAX_RAW_WRITE_BYTES);
 
         // Make request
-        RaftRetCode::RetCode retc = sendCmdBinary(formatCode, writeBytes, writeBytesLen);
+        RaftRetCode retc = sendCmdBinary(formatCode, writeBytes, writeBytesLen);
 
         // Debug
 #ifdef DEBUG_CMD_JSON

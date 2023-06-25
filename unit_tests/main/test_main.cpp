@@ -43,12 +43,12 @@ extern "C" void app_main(void)
     // UNITY_END();
 
     // Disable the watchdog timer on the idle task of both cores
-    TaskHandle_t idleTaskOnMainTaskCore = xTaskGetIdleTaskHandleForCPU(MAIN_TASK_PROCESSOR_CORE);
-    if (idleTaskOnMainTaskCore)
-        esp_task_wdt_delete(idleTaskOnMainTaskCore);
-    TaskHandle_t idleTaskOnProCore = xTaskGetIdleTaskHandleForCPU(PRO_TASK_PROCESSOR_CORE);
-    if (idleTaskOnProCore)
-        esp_task_wdt_delete(idleTaskOnProCore);
+    // TaskHandle_t idleTaskOnMainTaskCore = xTaskGetIdleTaskHandleForCPU(MAIN_TASK_PROCESSOR_CORE);
+    // if (idleTaskOnMainTaskCore)
+    //     esp_task_wdt_delete(idleTaskOnMainTaskCore);
+    // TaskHandle_t idleTaskOnProCore = xTaskGetIdleTaskHandleForCPU(PRO_TASK_PROCESSOR_CORE);
+    // if (idleTaskOnProCore)
+    //     esp_task_wdt_delete(idleTaskOnProCore);
 
     // // Setup UART buffered IO with event queue
     // const int uart_buffer_size = (1024 * 2);

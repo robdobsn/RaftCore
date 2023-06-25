@@ -75,17 +75,17 @@ public:
                 const String& cmdName);
 
     // Handle command frame
-    RaftRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+    RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg);
 
     // Handle file/stream block message
-    RaftRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
+    RaftRetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
 
     // Handle file read/write and cancel
-    RaftRetCode::RetCode fileStreamBlockWrite(FileStreamBlock& fileStreamBlock);
-    RaftRetCode::RetCode fileStreamBlockRead(FileStreamBlockOwned& fileStreamBlock, uint32_t filePos, uint32_t maxLen);
-    RaftRetCode::RetCode fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen);
+    RaftRetCode fileStreamBlockWrite(FileStreamBlock& fileStreamBlock);
+    RaftRetCode fileStreamBlockRead(FileStreamBlockOwned& fileStreamBlock, uint32_t filePos, uint32_t maxLen);
+    RaftRetCode fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen);
     void fileStreamCancelEnd(bool isNormalEnd);
 
     // Debug
@@ -139,7 +139,7 @@ private:
     uint32_t _totalChunks;
 
     // Helpers
-    RaftRetCode::RetCode writeFirmwareBlock(FileStreamBlock& fileStreamBlock);
-    RaftRetCode::RetCode writeFileBlock(FileStreamBlock& fileStreamBlock);
-    RaftRetCode::RetCode writeRealTimeStreamBlock(FileStreamBlock& fileStreamBlock);
+    RaftRetCode writeFirmwareBlock(FileStreamBlock& fileStreamBlock);
+    RaftRetCode writeFileBlock(FileStreamBlock& fileStreamBlock);
+    RaftRetCode writeRealTimeStreamBlock(FileStreamBlock& fileStreamBlock);
 };

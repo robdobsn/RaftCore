@@ -207,7 +207,7 @@ void FileStreamSession::resetCounters(uint32_t fileStreamLength){
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+RaftRetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
@@ -216,7 +216,7 @@ RaftRetCode::RetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStrea
         return RaftRetCode::INVALID_OBJECT;
 
     // Send to handler
-    RaftRetCode::RetCode rslt = 
+    RaftRetCode rslt = 
             _pFileStreamProtocolHandler->handleCmdFrame(fsMsgType, ricRESTReqMsg, respMsg, endpointMsg);
 
     // Session may now be finished
@@ -232,13 +232,13 @@ RaftRetCode::RetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStrea
 // Handle file/stream block message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode FileStreamSession::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     if (!_pFileStreamProtocolHandler)
     {
-        RaftRetCode::RetCode rslt = RaftRetCode::INVALID_OBJECT;
+        RaftRetCode rslt = RaftRetCode::INVALID_OBJECT;
         char errorMsg[100];
-        snprintf(errorMsg, sizeof(errorMsg), "\"reason\":\"%s\"", RaftRetCode::getRetcStr(rslt));
+        snprintf(errorMsg, sizeof(errorMsg), "\"reason\":\"%s\"", Raft::getRetcStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
         return rslt;
     }
@@ -261,7 +261,7 @@ String FileStreamSession::getDebugJSON()
 // File/stream get CRC
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen)
+RaftRetCode FileStreamSession::fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen)
 {
     // Check that a file chunker is available and active
     if (!_pFileChunker || !_pFileChunker->isActive())
@@ -307,7 +307,7 @@ RaftRetCode::RetCode FileStreamSession::fileStreamGetCRC(uint32_t& crc, uint32_t
 // File/stream block read
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStreamBlock,
+RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStreamBlock,
             uint32_t filePos, uint32_t maxLen)
 {
     // Check chunker is active
@@ -356,7 +356,7 @@ RaftRetCode::RetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned
 // File/stream block write
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamBlock)
+RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamBlock)
 {
 #ifdef DEBUG_FILE_STREAM_BLOCK
     {
@@ -377,7 +377,7 @@ RaftRetCode::RetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fi
     _sessionLastActiveMs = millis();
 
     // Handle file/stream types
-    RaftRetCode::RetCode handledOk = RaftRetCode::INVALID_DATA;
+    RaftRetCode handledOk = RaftRetCode::INVALID_DATA;
     switch(_fileStreamContentType)
     {
         case FileStreamBase::FILE_STREAM_CONTENT_TYPE_FIRMWARE:
@@ -423,7 +423,7 @@ RaftRetCode::RetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fi
 // Write firmware block
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& fileStreamBlock)
+RaftRetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& fileStreamBlock)
 {
     // Firmware updater valid?
     if (!_pFirmwareUpdater)
@@ -445,7 +445,7 @@ RaftRetCode::RetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& file
         }
     }
     uint64_t startUs = micros();
-    RaftRetCode::RetCode fwRslt = _pFirmwareUpdater->fileStreamDataBlock(fileStreamBlock);
+    RaftRetCode fwRslt = _pFirmwareUpdater->fileStreamDataBlock(fileStreamBlock);
     _totalBytes += fileStreamBlock.blockLen;
     _totalWriteTimeUs += micros() - startUs;
     return fwRslt;
@@ -455,7 +455,7 @@ RaftRetCode::RetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& file
 // Write file block
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
+RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
 {
     // Write using the chunker
     if (!_pFileChunker)
@@ -474,7 +474,7 @@ RaftRetCode::RetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStre
 // Write file block
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileStreamSession::writeRealTimeStreamBlock(FileStreamBlock& fileStreamBlock)
+RaftRetCode FileStreamSession::writeRealTimeStreamBlock(FileStreamBlock& fileStreamBlock)
 {
     // Check valid
     if (!_pStreamChunkCB)

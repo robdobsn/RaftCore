@@ -69,7 +69,7 @@ uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
 // Set results for JSON communications
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
+RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
 {
     String additionalJson = "";
     if ((otherJson) && (otherJson[0] != '\0'))
@@ -80,10 +80,11 @@ void Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const ch
         resp += "\"ok\"}";
     else
         resp += "\"fail\"}";
+    return rslt ? RaftRetCode::OK : RaftRetCode::OTHER_FAILURE;
 }
 
 // Set a result error
-void Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson)
+RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson)
 {
     String additionalJson = "";
     if ((otherJson) && (otherJson[0] != 0))
@@ -93,15 +94,17 @@ void Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorM
     if (errorMsg)
         errorMsgStr = errorMsg;
     resp = "{\"req\":\"" + String(pReq) + "\"," + additionalJson + "\"rslt\":\"fail\",\"error\":\"" + errorMsgStr + "\"}";
+    return RaftRetCode::OTHER_FAILURE;
 }
 
 // Set result
-void Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg, const char* otherJson)
+RaftRetCode Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg, const char* otherJson)
 {
     if (rslt)
         setJsonBoolResult(pReq, resp, rslt, otherJson);
     else
         setJsonErrorResult(pReq, resp, errorMsg, otherJson);
+    return rslt ? RaftRetCode::OK : RaftRetCode::OTHER_FAILURE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -814,3 +817,28 @@ void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const cha
     }
     free(pStr);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get string for RaftRetCode
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const char* Raft::getRetcStr(RaftRetCode retc)
+{
+    switch(retc)
+    {
+        case OK: return "OK";
+        case BUSY: return "BUSY";
+        case POS_MISMATCH: return "POS_MISMATCH";
+        case NOT_XFERING: return "NOT_XFERING";
+        case NOT_STREAMING: return "NOT_STREAMING";
+        case SESSION_NOT_FOUND: return "SESSION_NOT_FOUND";
+        case CANNOT_START: return "CANNOT_START";
+        case INVALID_DATA: return "INVALID_DATA";
+        case INVALID_OBJECT: return "INVALID_OBJECT";
+        case INVALID_OPERATION: return "INVALID_OPERATION";
+        case INSUFFICIENT_RESOURCE: return "INSUFFICIENT_RESOURCE";
+        case OTHER_FAILURE: return "OTHER_FAILURE";
+        case NOT_IMPLEMENTED: return "NOT_IMPLEMENTED";
+        default: return "UNKNOWN";
+    }
+};

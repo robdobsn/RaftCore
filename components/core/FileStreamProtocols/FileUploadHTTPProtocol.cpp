@@ -46,7 +46,7 @@ void FileUploadHTTPProtocol::service()
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+RaftRetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
@@ -60,7 +60,7 @@ RaftRetCode::RetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::File
 // Handle data frame (file/stream block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode FileUploadHTTPProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode FileUploadHTTPProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
 #ifdef DEBUG_FILE_STREAM_BLOCK_DETAIL
     LOG_I(MODULE_PREFIX, "handleDataFrame isUploading %d msgLen %d expectedPos %d", 

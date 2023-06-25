@@ -445,7 +445,7 @@ String SysManager::getDebugJSON(const char* sysModName)
 // Send command to SysMod
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
+RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 {
     // See if the sysmod is in the list
 #ifdef DEBUG_SEND_CMD_JSON_PERF
@@ -459,7 +459,7 @@ RaftRetCode::RetCode SysManager::sendCmdJSON(const char* sysModName, const char*
             uint64_t foundSysModUs = micros();
 #endif
 
-            RaftRetCode::RetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
+            RaftRetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
 
 #ifdef DEBUG_SEND_CMD_JSON_PERF
             LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %lldus exec time %lldus", 
@@ -519,17 +519,17 @@ void SysManager::sendMsgGenCB(const char* sysModName, const char* msgGenID, SysM
 // API endpoints
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Register that a restart is required but don't restart immediately
     // as the acknowledgement would not get through
     systemRestart();
 
     // Result
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
 }
 
-void SysManager::apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     char versionJson[225];
     snprintf(versionJson, sizeof(versionJson),
@@ -541,28 +541,30 @@ void SysManager::apiGetVersion(const String &reqStr, String& respStr, const APIS
              _ricSerialNoStoredStr.c_str(),
              _systemUniqueString.c_str());
     respStr = versionJson;
+    return RaftRetCode::OK;
 }
 
-void SysManager::apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get name of SysMod
     String sysModName = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
     respStr = getStatusJSON(sysModName.c_str());
+    return RaftRetCode::OK;
 }
 
-void SysManager::apiGetSysModDebug(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiGetSysModDebug(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get name of SysMod
     String sysModName = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
     String debugStr = "\"debug\":" + getDebugJSON(sysModName.c_str());
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, debugStr.c_str());
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, debugStr.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Friendly name
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::apiFriendlyName(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Check if we're setting
     if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 1)
@@ -574,7 +576,7 @@ void SysManager::apiFriendlyName(const String &reqStr, String& respStr, const AP
         if (!rslt)
         {
             Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
-            return;
+            return RaftRetCode::INVALID_DATA;
         }
     }
 
@@ -586,14 +588,14 @@ void SysManager::apiFriendlyName(const String &reqStr, String& respStr, const AP
     char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 70];
     snprintf(JsonOut, sizeof(JsonOut), R"("friendlyName":"%s","friendlyNameIsSet":%d)", 
                 friendlyName.c_str(), _friendlyNameIsSet);
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Serial number
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Check if we're setting
     if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 1)
@@ -604,7 +606,7 @@ void SysManager::apiSerialNumber(const String &reqStr, String& respStr, const AP
         if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, RIC_SERIAL_NUMBER_BYTES) != RIC_SERIAL_NUMBER_BYTES)
         {
             Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
-            return;
+            return RaftRetCode::INVALID_DATA;
         }
 
         // Validate magic string
@@ -615,7 +617,7 @@ void SysManager::apiSerialNumber(const String &reqStr, String& respStr, const AP
             if (!magicString.equals(RIC_SERIAL_SET_MAGIC_STR))
             {
                 Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
-                return;
+                return RaftRetCode::INVALID_DATA;
             }
         }
 
@@ -633,14 +635,14 @@ void SysManager::apiSerialNumber(const String &reqStr, String& respStr, const AP
     // Create response JSON
     char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 70];
     snprintf(JsonOut, sizeof(JsonOut), R"("SerialNo":"%s")", _ricSerialNoStoredStr.c_str());
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Test function to set loop delay
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::apiTestSetLoopDelay(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiTestSetLoopDelay(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Extract params
     std::vector<String> params;
@@ -657,14 +659,14 @@ void SysManager::apiTestSetLoopDelay(const String &reqStr, String& respStr, cons
     LOG_I(MODULE_PREFIX, "apiTestSetLoopDelay delay %dms skip %d loops", _stressTestLoopDelayMs, _stressTestLoopSkipCount);
 
     // Create response JSON
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup SysMan diagnostics
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::apiSysManSettings(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Extract params
     std::vector<String> params;
@@ -726,7 +728,7 @@ void SysManager::apiSysManSettings(const String &reqStr, String& respStr, const 
     // Create response JSON
     String reqStrWithoutQuotes = reqStr;
     reqStrWithoutQuotes.replace("\"","");
-    Raft::setJsonBoolResult(reqStrWithoutQuotes.c_str(), respStr, true);
+    return Raft::setJsonBoolResult(reqStrWithoutQuotes.c_str(), respStr, true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

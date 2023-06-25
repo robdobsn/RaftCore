@@ -233,13 +233,13 @@ public:
     }
 
     // Send a binary-encoded command - format specific to hardware
-    virtual RaftRetCode::RetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
+    virtual RaftRetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
     {
         return RaftRetCode::INVALID_OPERATION;
     }
 
     // Send a binary-encoded command - format specific to hardware
-    virtual RaftRetCode::RetCode sendCmdBinary(HWElemMsg& msg)
+    virtual RaftRetCode sendCmdBinary(HWElemMsg& msg)
     {
         return sendCmdBinary(msg._formatCode, msg._data.data(), msg._data.size());
     }
@@ -251,7 +251,7 @@ public:
     }
 
     // Send JSON command
-    virtual RaftRetCode::RetCode sendCmdJSON(const char* jsonCmd);
+    virtual RaftRetCode sendCmdJSON(const char* jsonCmd);
 
     // Set callback on events
     virtual bool setEventCallback(const char* eventParamsJSON, HWElemEventCB callback)

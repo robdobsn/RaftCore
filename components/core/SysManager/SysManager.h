@@ -83,7 +83,7 @@ public:
     String getDebugJSON(const char* sysModName);
 
     // Send command to SysMod
-    RaftRetCode::RetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
+    RaftRetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
 
     // Send message-generator callback to SysMod
     void sendMsgGenCB(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
@@ -254,26 +254,26 @@ private:
     RestAPIEndpointManager* _pRestAPIEndpointManager = nullptr;
 
     // API to reset system
-    void apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // Get system version
-    void apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // Friendly name get/set
-    void apiFriendlyName(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiFriendlyName(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // Serial no
-    void apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // SysMod info and debug
-    void apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
-    void apiGetSysModDebug(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiGetSysModDebug(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // Test function to set loop delay
-    void apiTestSetLoopDelay(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiTestSetLoopDelay(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // Setup SysMan diagnostics
-    void apiSysManSettings(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiSysManSettings(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // Clear status change callbacks
     void clearAllStatusChangeCBs();

@@ -109,7 +109,7 @@ public:
     }
 
     // Receive JSON command
-    virtual RaftRetCode::RetCode receiveCmdJSON(const char* cmdJSON)
+    virtual RaftRetCode receiveCmdJSON(const char* cmdJSON)
     {
         return RaftRetCode::INVALID_OPERATION;
     }
@@ -153,7 +153,7 @@ public:
     {
         return false;
     }
-    virtual RaftRetCode::RetCode fileStreamDataBlock(FileStreamBlock& fileStreamBlock)
+    virtual RaftRetCode fileStreamDataBlock(FileStreamBlock& fileStreamBlock)
     {
         return RaftRetCode::INVALID_OPERATION;
     }
@@ -187,7 +187,7 @@ public:
     String sysModGetStatusJSON(const char* sysModName);
 
     // Send JSON command to another SysMod
-    RaftRetCode::RetCode sysModSendCmdJSON(const char* sysModName, const char* jsonCmd);
+    RaftRetCode sysModSendCmdJSON(const char* sysModName, const char* jsonCmd);
 
     // SysMod get named value
     double sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid);

@@ -33,7 +33,7 @@ public:
     }
 
     // File Upload Block - only used for HTTP file uploads
-    RaftRetCode::RetCode handleFileUploadBlock(const String& req, FileStreamBlock& fileStreamBlock, 
+    RaftRetCode handleFileUploadBlock(const String& req, FileStreamBlock& fileStreamBlock, 
             const APISourceInfo& sourceInfo, FileStreamBase::FileStreamContentType fileStreamContentType,
             const char* restAPIEndpointName);
 
@@ -71,9 +71,9 @@ private:
     bool processRICRESTBody(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo);
     bool processRICRESTCmdRespJSON(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const APISourceInfo& sourceInfo);
-    RaftRetCode::RetCode processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+    RaftRetCode processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                         const CommsChannelMsg &endpointMsg);
-    RaftRetCode::RetCode processRICRESTFileStreamBlock(const RICRESTMsg& ricRESTReqMsg, String& respMsg, CommsChannelMsg &cmdMsg);
+    RaftRetCode processRICRESTFileStreamBlock(const RICRESTMsg& ricRESTReqMsg, String& respMsg, CommsChannelMsg &cmdMsg);
     bool processRICRESTNonFileStream(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg);
 

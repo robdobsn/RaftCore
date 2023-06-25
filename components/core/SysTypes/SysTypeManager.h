@@ -62,13 +62,13 @@ private:
     std::function<void()> _systemRestartCallback = nullptr;
 
     // API System type
-    void apiGetSysTypes(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
-    void apiGetSysTypeConfig(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiGetSysTypes(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiGetSysTypeConfig(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
 
     // API System settings
-    void apiSysTypeGetSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
-    void apiSysTypePostSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
-    void apiSysTypePostSettingsBody(const String& reqStr, const uint8_t *pData, size_t len, 
+    RaftRetCode apiSysTypeGetSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiSysTypePostSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiSysTypePostSettingsBody(const String& reqStr, const uint8_t *pData, size_t len, 
                         size_t index, size_t total, const APISourceInfo& sourceInfo);
-    void apiSysTypeClearSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiSysTypeClearSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
 };

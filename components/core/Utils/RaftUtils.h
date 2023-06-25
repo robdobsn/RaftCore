@@ -12,6 +12,7 @@
 #include <vector>
 #include <Logger.h>
 #include <stdio.h>
+#include <RaftRetCode.h>
 
 namespace Raft
 {
@@ -30,13 +31,13 @@ namespace Raft
     uint64_t timeElapsed(uint64_t curTime, uint64_t lastTime);
 
     // Setup a result string
-    void setJsonBoolResult(const char* req, String& resp, bool rslt, const char* otherJson = nullptr);
+    RaftRetCode setJsonBoolResult(const char* req, String& resp, bool rslt, const char* otherJson = nullptr);
 
     // Set a result error
-    void setJsonErrorResult(const char* req, String& resp, const char* errorMsg, const char* otherJson = nullptr);
+    RaftRetCode setJsonErrorResult(const char* req, String& resp, const char* errorMsg, const char* otherJson = nullptr);
 
     // Set a JSON result
-    void setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg = nullptr, const char* otherJson = nullptr);
+    RaftRetCode setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg = nullptr, const char* otherJson = nullptr);
 
     // Following code from Unix sources
     unsigned long convIPStrToAddr(String &inStr);
@@ -162,6 +163,9 @@ namespace Raft
 
     // Format MAC address
     String formatMACAddr(const uint8_t* pMacAddr, const char* separator);
+
+    // Get string for RaftRetCode
+    const char* getRetcStr(RaftRetCode retc);
 };
 
 // Name value pair double

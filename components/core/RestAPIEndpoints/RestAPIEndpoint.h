@@ -15,10 +15,10 @@
 #include "APISourceInfo.h"
 
 // Callback function for any endpoint
-typedef std::function<void(String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RestAPIFunction;
-typedef std::function<void(String &reqStr, const uint8_t *pData, size_t len, size_t index, 
+typedef std::function<RaftRetCode(String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RestAPIFunction;
+typedef std::function<RaftRetCode(String &reqStr, const uint8_t *pData, size_t len, size_t index, 
             size_t total, const APISourceInfo& sourceInfo)> RestAPIFnBody;
-typedef std::function<RaftRetCode::RetCode(String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RestAPIFnChunk;
+typedef std::function<RaftRetCode(String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RestAPIFnChunk;
 typedef std::function<bool(const APISourceInfo& sourceInfo)> RestAPIFnIsReady;
 
 class RestAPIEndpoint
@@ -93,23 +93,26 @@ public:
         return _endpointStr.c_str();
     }
 
-    void callbackMain(String &req, String &resp, const APISourceInfo& sourceInfo)
+    RaftRetCode callbackMain(String &req, String &resp, const APISourceInfo& sourceInfo)
     {
         if (_callbackMain)
-            _callbackMain(req, resp, sourceInfo);
+            return _callbackMain(req, resp, sourceInfo);
+        return RaftRetCode::NOT_IMPLEMENTED;
     }
 
-    void callbackBody(String&req, const uint8_t *pData, size_t len, size_t bufferPos, 
+    RaftRetCode callbackBody(String&req, const uint8_t *pData, size_t len, size_t bufferPos, 
                         size_t total, const APISourceInfo& sourceInfo)
     {
         if (_callbackBody)
-            _callbackBody(req, pData, len, bufferPos, total, sourceInfo);
+            return _callbackBody(req, pData, len, bufferPos, total, sourceInfo);
+        return RaftRetCode::NOT_IMPLEMENTED;
     }
 
-    void callbackChunk(String&req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
+    RaftRetCode callbackChunk(String&req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
     {
         if (_callbackChunk)
-            _callbackChunk(req, fileStreamBlock, sourceInfo);
+            return _callbackChunk(req, fileStreamBlock, sourceInfo);
+        return RaftRetCode::NOT_IMPLEMENTED;
     }
 
     bool callbackIsReady(const APISourceInfo& sourceInfo)

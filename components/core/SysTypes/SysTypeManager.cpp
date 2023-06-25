@@ -226,16 +226,16 @@ void SysTypeManager::addRestAPIEndpoints(RestAPIEndpointManager& endpointManager
                             "Clear settings for system /clearsettings");
 }
 
-void SysTypeManager::apiGetSysTypes(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysTypeManager::apiGetSysTypes(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
     LOG_I(MODULE_PREFIX, "GetSysTypes");
     String sysTypesJson;
     getSysTypesListJSON(sysTypesJson);
     // Response
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, ("\"sysTypes\":" + sysTypesJson).c_str());
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, ("\"sysTypes\":" + sysTypesJson).c_str());
 }
 
-void SysTypeManager::apiGetSysTypeConfig(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysTypeManager::apiGetSysTypeConfig(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
 #ifdef DEBUG_GET_POST_SETTINGS
     LOG_I(MODULE_PREFIX, "apiGetSysTypeConfig");
@@ -243,10 +243,10 @@ void SysTypeManager::apiGetSysTypeConfig(const String &reqStr, String &respStr, 
     String sysTypeName = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
     String sysTypeJson;
     bool gotOk = getSysTypeConfig(sysTypeName, sysTypeJson);
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, gotOk, ("\"sysType\":" + sysTypeJson).c_str());
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, gotOk, ("\"sysType\":" + sysTypeJson).c_str());
 }
 
-void SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
     String filterSettings = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
     String settingsResp = "\"sysType\":\"" + _curSysTypeName + "\"";
@@ -265,10 +265,10 @@ void SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &respStr
     {
         settingsResp += ",\"base\":" + _sysTypeConfig.getStaticConfig();
     }
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, settingsResp.c_str());
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, settingsResp.c_str());
 }
 
-void SysTypeManager::apiSysTypePostSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysTypeManager::apiSysTypePostSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
 #ifdef DEBUG_GET_POST_SETTINGS
     LOG_I(MODULE_PREFIX, "PostSettings request %s", reqStr.c_str());
@@ -284,9 +284,10 @@ void SysTypeManager::apiSysTypePostSettings(const String &reqStr, String &respSt
     // Result
     Raft::setJsonBoolResult(reqStr.c_str(), respStr, _lastPostResultOk);
     _lastPostResultOk = false;
+    return RaftRetCode::OK;
 }
 
-void SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, const uint8_t *pData, size_t len, 
+RaftRetCode SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, const uint8_t *pData, size_t len, 
                 size_t index, size_t total, const APISourceInfo& sourceInfo)
 {
     if (len == total)
@@ -295,7 +296,7 @@ void SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, const uint
         _lastPostResultOk = setSysSettings(pData, len);
         LOG_I(MODULE_PREFIX, "apiSysTypePostSettingsBody oneblock rslt %s len %d index %d total %d curBufLen %d", 
                     _lastPostResultOk ? "OK" : "FAIL", len, index, total, _postResultBuf.size());
-        return;
+        return RaftRetCode::OK;
     }
 
     // Check if first block
@@ -319,12 +320,13 @@ void SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, const uint
         LOG_I(MODULE_PREFIX, "apiSysTypePostSettingsBody partial len %d index %d total %d curBufLen %d", 
             len, index, total, _postResultBuf.size());
     }
+    return RaftRetCode::OK;
 }
 
-void SysTypeManager::apiSysTypeClearSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysTypeManager::apiSysTypeClearSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
     LOG_I(MODULE_PREFIX, "ClearSettings");
     String emptyObj = "{}";
     bool clearOk = setSysSettings((uint8_t*)emptyObj.c_str(), emptyObj.length());
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, clearOk);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, clearOk);
 }
