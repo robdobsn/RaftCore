@@ -75,6 +75,15 @@ public:
     // Name value pair
     struct NameValuePair
     {
+    public:
+        NameValuePair()
+        {
+        }
+        NameValuePair(const String& name, const String& value)
+        {
+            this->name = name;
+            this->value = value;
+        }
         String name;
         String value;
     };

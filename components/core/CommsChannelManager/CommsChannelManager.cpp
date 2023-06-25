@@ -677,9 +677,6 @@ bool CommsChannelManager::bridgeHandleOutboundMsg(CommsChannelMsg& msg)
         }
     }
 
-    // Debug
-    LOG_W(MODULE_PREFIX, "bridgeHandleOutboundMsg channelID %d NOT FOUND", msg.getChannelID());
-
     // Bridge not found
     return false;
 }

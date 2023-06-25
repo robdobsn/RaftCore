@@ -176,10 +176,13 @@ bool ProtocolExchange::canProcessEndpointMsg()
 
 bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
 {
+    // Check configured
+    if (!getCommsCore())
+        return false;
+
     // Check if message is received on a bridged channel
-    if (getCommsCore())
-        if (getCommsCore()->bridgeHandleOutboundMsg(cmdMsg))
-            return true;
+    if (getCommsCore()->bridgeHandleOutboundMsg(cmdMsg))
+        return true;
 
     // Handle the command message
     CommsMsgProtocol protocol = cmdMsg.getProtocol();
@@ -282,8 +285,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
             endpointMsg.setAsResponse(cmdMsg);
 
             // Send message on the appropriate channel
-            if (getCommsCore())
-                getCommsCore()->handleOutboundMessage(endpointMsg);
+            getCommsCore()->handleOutboundMessage(endpointMsg);
 
 #ifdef DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL
             // Debug
@@ -317,8 +319,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
             ProtocolRICSerial::decodeIntoCommsChannelMsg(cmdMsg.getChannelID(), cmdMsg.getBuf()+payloadPos, cmdMsg.getBufLen()-payloadPos, bridgeMsg);
 
             // Handle the bridged message
-            if (getCommsCore())
-                getCommsCore()->bridgeHandleInboundMsg(bridgeID, bridgeMsg);
+            getCommsCore()->bridgeHandleInboundMsg(bridgeID, bridgeMsg);
 
 #ifdef DEBUG_RICREST_BRIDGE_MESSAGES
             // Debug

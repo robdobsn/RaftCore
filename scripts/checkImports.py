@@ -2,7 +2,9 @@ import argparse
 import json
 import os.path
 
-def parseCMakeLists(cmake_file_name, component_folder):
+def parseCMakeLists(cmake_file_name):
+
+    print(f'-----------\nParsing {cmake_file_name}')
     # Process CMakeLists.txt
     with open(cmake_file_name, 'r') as f:
         cmakelists_lines = f.readlines()
@@ -29,28 +31,40 @@ def parseCMakeLists(cmake_file_name, component_folder):
             continue
         if in_srcs_section:
             src_file_name = line.strip().replace('"', "")
-            if src_file_name.startswith(component_folder):
-                src_file_name = src_file_name[len(component_folder) + 1:]
-            elif src_file_name.startswith('component/'):
-                print(f'Another component folder is not included in source file name: {src_file_name} is not in {component_folder}')
-                exit(2)
             files.append(src_file_name)
         elif in_include_section:
             include_path = line.strip().replace('"', "")
-            if include_path.startswith(component_folder):
-                include_path = include_path[len(component_folder) + 1:]
-            elif include_path.startswith('component/'):
-                print(f'Another component folder is not included in include path: {include_path} is not in {component_folder}')
-                exit(2)
             includes.append(include_path)
         elif in_require_section:
             requires.append(line.strip())
 
-    print(f'-----------\nFiles in {cmake_file_name}:', files)
-    print(f'-----------\nIncludes in {cmake_file_name}:', includes)
-    print(f'-----------\nRequires in {cmake_file_name}:', requires)
+    # Discover the component folder
+    component_folder = ''
+    potential_base_component_folders = []
+    if len(files) > 0:
+        test_name = files[0]
+        while True:
+            base_path = os.path.split(test_name)[0]
+            if base_path == '':
+                break
+            potential_base_component_folders.append(base_path)
+            test_name = base_path
+    for potential_base_component_folder in potential_base_component_folders:
+        if all([x.startswith(potential_base_component_folder) for x in files]):
+            component_folder = potential_base_component_folder
+            break
 
-    return files, includes, requires
+    # Remove component folder from file names and include paths
+    if component_folder != '':
+        files = [x[len(component_folder) + 1:] for x in files]
+        includes = [x[len(component_folder) + 1:] if len(x) > len(component_folder) else '.' for x in includes]
+
+    print(f"Component folder from : {component_folder}")
+    print(f'Files:', files)
+    print(f'Includes:', includes)
+    print(f'Requires:', requires)
+
+    return files, includes, requires, component_folder
 
 def createCMakeLists(cmake_file_name, comp_folder, new_sub_folders, new_files, new_root_requires):
     # Check if we should create a CMakeLists.txt
@@ -72,9 +86,6 @@ parser.add_argument('-l', '--lib', type=str, help='path to library.json', defaul
 parser.add_argument('-c', '--cmake', type=str, help='path to CMakeLists.txt', default='CMakeLists.txt')
 args = parser.parse_args()
 
-# Name of component folder
-component_folder = ''
-
 # Extract include flags from library.json
 with open(args.lib, 'r') as f:
     library_json = json.load(f)
@@ -82,25 +93,21 @@ with open(args.lib, 'r') as f:
 build_flags = library_json['build']['flags']
 lib_included_folders = [x[2:] for x in build_flags if x.startswith('-I')]
 
-# Extract component folder
-component_folder = os.path.split(lib_included_folders[0])[0] if len(lib_included_folders) > 0 else ''
-print(f'-----------\nComponent folder: {component_folder}')
+# Extract sections from root CMakeLists.txt
+root_files, root_includes, root_requires, component_folder = parseCMakeLists(args.cmake)
 
-# Check that all included folders are in the same component folder
+# Check that all included folders in library.json are in the same component folder
 for folder in lib_included_folders:
     if not folder.startswith(component_folder):
         print(f'-----------\nlibrary.json included folders are not all in the same component folder: {folder} is not in {component_folder}')
         exit(1)
 
 # Extract sub-folder names
-lib_sub_folders = [os.path.split(x)[1] for x in lib_included_folders]
+lib_sub_folders = [x[len(component_folder) + 1:] if len(x) > len(component_folder) else '.' for x in lib_included_folders]
 print(f'-----------\nSub-folders in library.json: {lib_sub_folders}')
 
-# Extract sections from root CMakeLists.txt
-root_files, root_includes, root_requires = parseCMakeLists(args.cmake, component_folder)
-
 # Create sets of all sub folders
-all_sub_folders = set([os.path.split(x)[0] for x in root_files])
+all_sub_folders = set([os.path.split(x)[0] for x in root_files if len(os.path.split(x)[0]) > 0])
 all_sub_folders.update([x for x in root_includes])
 all_sub_folders.update(lib_sub_folders)
 
@@ -109,13 +116,15 @@ all_files = set(root_files)
 
 # Check if there is a CMakelists.txt in the component folder
 component_cmake_file_name = os.path.join(component_folder, 'CMakeLists.txt')
+component_files = []
+component_includes = []
 if os.path.isfile(component_cmake_file_name):
 
     # Extract sections from the component CMakeLists.txt
-    component_files, component_includes, component_requires = parseCMakeLists(component_cmake_file_name, component_folder)
+    component_files, component_includes, _, _ = parseCMakeLists(component_cmake_file_name)
 
     # Add to the set of folders and files
-    all_sub_folders.update([os.path.split(x)[0] for x in component_files])
+    all_sub_folders.update([os.path.split(x)[0] for x in component_files if len(os.path.split(x)[0]) > 0])
     all_sub_folders.update([x for x in component_includes])
     all_files.update(component_files)
 
@@ -145,7 +154,7 @@ for folder in all_sub_folders:
         full_path_folder = os.path.join(component_folder, folder)
         fixed_library_json['build']['flags'].append(f'-I{full_path_folder}')
 
-# Check that all files are included in the 
+# Check that all files are included in the various CMakeLists.txt
 for folder in all_sub_folders:
     if folder not in root_includes:
         print(f'File {folder} is not included in root CMakeLists.txt')
@@ -153,6 +162,9 @@ for folder in all_sub_folders:
 for file in all_files:
     if file not in root_files:
         print(f'File {file} is not included in root CMakeLists.txt')
+        fix_required = True
+    if file not in component_files:
+        print(f'File {file} is not included in component CMakeLists.txt')
         fix_required = True
 
 print(f'==================== END CHECKS ========================')
