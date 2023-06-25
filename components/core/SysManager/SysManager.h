@@ -83,7 +83,7 @@ public:
     String getDebugJSON(const char* sysModName);
 
     // Send command to SysMod
-    UtilsRetCode::RetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
+    RaftRetCode::RetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
 
     // Send message-generator callback to SysMod
     void sendMsgGenCB(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);

@@ -42,12 +42,12 @@ public:
     void service();
 
     // Handle command frame
-    virtual UtilsRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+    virtual RaftRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg);
 
     // Handle received file/stream block
-    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
+    virtual RaftRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
 
     // Get debug str
     virtual String getDebugJSON(bool includeBraces) override final;
@@ -78,9 +78,9 @@ public:
 
 private:
     // Message helpers
-    UtilsRetCode::RetCode handleStartMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg, uint32_t channelID);
-    UtilsRetCode::RetCode handleEndMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
-    UtilsRetCode::RetCode handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
+    RaftRetCode::RetCode handleStartMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg, uint32_t channelID);
+    RaftRetCode::RetCode handleEndMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
+    RaftRetCode::RetCode handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg);
 
     // Upload state-machine helpers
     void transferService(bool& genAck);

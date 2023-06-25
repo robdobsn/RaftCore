@@ -46,28 +46,28 @@ void FileUploadHTTPProtocol::service()
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+RaftRetCode::RetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
     // Unexpected message
     LOG_W(MODULE_PREFIX, "handleCmdFrame UNEXPECTED req %s", ricRESTReqMsg.getReq().c_str());
 
-    return UtilsRetCode::INVALID_OPERATION;
+    return RaftRetCode::INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle data frame (file/stream block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileUploadHTTPProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode::RetCode FileUploadHTTPProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
 #ifdef DEBUG_FILE_STREAM_BLOCK_DETAIL
     LOG_I(MODULE_PREFIX, "handleDataFrame isUploading %d msgLen %d expectedPos %d", 
             _isUploading, ricRESTReqMsg.getBinLen(), _expectedFilePos);
 #endif
     // HTTP protocol handles the file upload in the HTTP POST body
-    return UtilsRetCode::INVALID_OPERATION;
+    return RaftRetCode::INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -149,7 +149,7 @@ bool HWElemBase::queuedBusReqStart(BusRequestCallbackType callback, void* callba
 // Handle JSON command
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
+RaftRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
 {
     // Extract command from JSON
     ConfigBase jsonInfo(cmdJSON);
@@ -178,7 +178,7 @@ UtilsRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
         {
             LOG_W(MODULE_PREFIX, "sendCmdJSON failed send raw command");
 
-            // TODO 2022 should we return UtilsRetCode::BUSY here?
+            // TODO 2022 should we return RaftRetCode::BUSY here?
         }
 
         // Store the msg key for response
@@ -188,7 +188,7 @@ UtilsRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
 #ifdef DEBUG_CMD_JSON
         LOG_I(MODULE_PREFIX, "sendCmdJson hexWriteData %s numToRead %d", hexWriteData.c_str(), numBytesToRead);
 #endif
-        return UtilsRetCode::OK;
+        return RaftRetCode::OK;
     }
     else if (cmd.equals("bin"))
     {
@@ -201,7 +201,7 @@ UtilsRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
         uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeBytes, MAX_RAW_WRITE_BYTES);
 
         // Make request
-        UtilsRetCode::RetCode retc = sendCmdBinary(formatCode, writeBytes, writeBytesLen);
+        RaftRetCode::RetCode retc = sendCmdBinary(formatCode, writeBytes, writeBytesLen);
 
         // Debug
 #ifdef DEBUG_CMD_JSON
@@ -210,7 +210,7 @@ UtilsRetCode::RetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
 #endif
         return retc;
     }
-    return UtilsRetCode::INVALID_OPERATION;
+    return RaftRetCode::INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

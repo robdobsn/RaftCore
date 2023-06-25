@@ -16,7 +16,7 @@
 #include <HWElemConsts.h>
 #include <ConfigBase.h>
 #include <list>
-#include <UtilsRetCode.h>
+#include <RaftRetCode.h>
 
 class HWElemReq;
 
@@ -233,13 +233,13 @@ public:
     }
 
     // Send a binary-encoded command - format specific to hardware
-    virtual UtilsRetCode::RetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
+    virtual RaftRetCode::RetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
     {
-        return UtilsRetCode::INVALID_OPERATION;
+        return RaftRetCode::INVALID_OPERATION;
     }
 
     // Send a binary-encoded command - format specific to hardware
-    virtual UtilsRetCode::RetCode sendCmdBinary(HWElemMsg& msg)
+    virtual RaftRetCode::RetCode sendCmdBinary(HWElemMsg& msg)
     {
         return sendCmdBinary(msg._formatCode, msg._data.data(), msg._data.size());
     }
@@ -251,7 +251,7 @@ public:
     }
 
     // Send JSON command
-    virtual UtilsRetCode::RetCode sendCmdJSON(const char* jsonCmd);
+    virtual RaftRetCode::RetCode sendCmdJSON(const char* jsonCmd);
 
     // Set callback on events
     virtual bool setEventCallback(const char* eventParamsJSON, HWElemEventCB callback)

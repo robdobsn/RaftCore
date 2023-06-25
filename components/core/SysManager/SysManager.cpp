@@ -444,7 +444,7 @@ String SysManager::getDebugJSON(const char* sysModName)
 // Send command to SysMod
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
+RaftRetCode::RetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 {
     // See if the sysmod is in the list
 #ifdef DEBUG_SEND_CMD_JSON_PERF
@@ -458,7 +458,7 @@ UtilsRetCode::RetCode SysManager::sendCmdJSON(const char* sysModName, const char
             uint64_t foundSysModUs = micros();
 #endif
 
-            UtilsRetCode::RetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
+            RaftRetCode::RetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
 
 #ifdef DEBUG_SEND_CMD_JSON_PERF
             LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %lldus exec time %lldus", 
@@ -470,7 +470,7 @@ UtilsRetCode::RetCode SysManager::sendCmdJSON(const char* sysModName, const char
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     LOG_I(MODULE_PREFIX, "getHWElemByName %s NOT found in %lldus", sysModName, micros() - startUs);
 #endif
-    return UtilsRetCode::INVALID_OPERATION;
+    return RaftRetCode::INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

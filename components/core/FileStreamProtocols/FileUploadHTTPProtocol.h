@@ -29,12 +29,12 @@ public:
     void service() override final;
 
     // Handle command frame
-    virtual UtilsRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+    virtual RaftRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg) override final;
 
     // Handle received file/stream block
-    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) override final;
+    virtual RaftRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) override final;
 
     // Get debug str
     virtual String getDebugJSON(bool includeBraces) override final;

@@ -15,7 +15,7 @@
 #include <ConfigMulti.h>
 #include <list>
 #include <Logger.h>
-#include <UtilsRetCode.h>
+#include <RaftRetCode.h>
 
 // Forward declarations
 class SysManager;
@@ -109,9 +109,9 @@ public:
     }
 
     // Receive JSON command
-    virtual UtilsRetCode::RetCode receiveCmdJSON(const char* cmdJSON)
+    virtual RaftRetCode::RetCode receiveCmdJSON(const char* cmdJSON)
     {
-        return UtilsRetCode::INVALID_OPERATION;
+        return RaftRetCode::INVALID_OPERATION;
     }
 
     // Receive msg generator callback function
@@ -153,9 +153,9 @@ public:
     {
         return false;
     }
-    virtual UtilsRetCode::RetCode fileStreamDataBlock(FileStreamBlock& fileStreamBlock)
+    virtual RaftRetCode::RetCode fileStreamDataBlock(FileStreamBlock& fileStreamBlock)
     {
-        return UtilsRetCode::INVALID_OPERATION;
+        return RaftRetCode::INVALID_OPERATION;
     }
     virtual bool fileStreamCancelEnd(bool isNormalEnd)
     {
@@ -187,7 +187,7 @@ public:
     String sysModGetStatusJSON(const char* sysModName);
 
     // Send JSON command to another SysMod
-    UtilsRetCode::RetCode sysModSendCmdJSON(const char* sysModName, const char* jsonCmd);
+    RaftRetCode::RetCode sysModSendCmdJSON(const char* sysModName, const char* jsonCmd);
 
     // SysMod get named value
     double sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid);

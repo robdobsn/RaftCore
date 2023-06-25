@@ -62,7 +62,7 @@ void StreamDatagramProtocol::resetCounters(uint32_t fileStreamLength){
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+RaftRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
@@ -75,18 +75,18 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::Fil
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
     LOG_I(MODULE_PREFIX, "handleCmdFrame req %s resp %s", ricRESTReqMsg.debugMsg().c_str(), respMsg.c_str());
 #endif
-    return UtilsRetCode::OK;
+    return RaftRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle data frame (file/stream block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode::RetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Check valid CB
     if (!_fileStreamBlockWriteCB)
-        return UtilsRetCode::INVALID_OBJECT;
+        return RaftRetCode::INVALID_OBJECT;
 
     // Handle the upload block
     uint32_t filePos = ricRESTReqMsg.getBufferPos();
@@ -104,7 +104,7 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& 
 #endif
 
     // Process the frame
-    UtilsRetCode::RetCode rslt = UtilsRetCode::POS_MISMATCH;
+    RaftRetCode::RetCode rslt = RaftRetCode::POS_MISMATCH;
     bool isFinalBlock = (_fileStreamLength != 0) && (filePos + bufferLen >= _fileStreamLength);
 
     bool isFirstBlock = (filePos == 0) && !_continuingStream;
@@ -131,7 +131,7 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& 
     }
 
     // Check ok
-    if (rslt == UtilsRetCode::OK)
+    if (rslt == RaftRetCode::OK)
     {
         // Update stream position
         _streamPos = filePos + bufferLen;
@@ -148,18 +148,18 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& 
 #endif
         }
     }
-    else if ((rslt == UtilsRetCode::BUSY) || (rslt == UtilsRetCode::POS_MISMATCH))
+    else if ((rslt == RaftRetCode::BUSY) || (rslt == RaftRetCode::POS_MISMATCH))
     {
         // Send a SOKTO which indicates where the stream was received up to (so we can resend)
         char ackJson[100];
         snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d,\"reason\":\"%s\"", 
                                 (int)streamID, (int)_streamPos,
-                                UtilsRetCode::getRetcStr(rslt));
+                                RaftRetCode::getRetcStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
         LOG_I(MODULE_PREFIX, "handleDataFrame: %s streamID %d streamPos %d sokto %d retc %s", 
-                    rslt == UtilsRetCode::BUSY ? "BUSY" : "POS_MISMATCH", streamID, _streamPos, _streamPos,
-                    UtilsRetCode::getRetcStr(rslt));
+                    rslt == RaftRetCode::BUSY ? "BUSY" : "POS_MISMATCH", streamID, _streamPos, _streamPos,
+                    RaftRetCode::getRetcStr(rslt));
 #endif
     }
     else
@@ -167,11 +167,11 @@ UtilsRetCode::RetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& 
         // Failure of the stream
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", 
-                    (int)streamID, UtilsRetCode::getRetcStr(rslt));
+                    (int)streamID, RaftRetCode::getRetcStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
         LOG_I(MODULE_PREFIX, "handleDataFrame: FAIL streamID %d streamPos %d sokto %d retc %s", streamID, _streamPos, _streamPos,
-                                UtilsRetCode::getRetcStr(rslt));
+                                RaftRetCode::getRetcStr(rslt));
 #endif
     }
 

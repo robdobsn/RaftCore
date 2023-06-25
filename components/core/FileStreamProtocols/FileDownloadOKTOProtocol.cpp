@@ -52,7 +52,7 @@ FileDownloadOKTOProtocol::FileDownloadOKTOProtocol(FileStreamBlockWriteCB fileBl
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+RaftRetCode::RetCode FileDownloadOKTOProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
@@ -71,7 +71,7 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleCmdFrame(FileStreamBase::F
         case FILE_STREAM_MSG_TYPE_DOWNLOAD_ACK:
             return handleAckMsg(ricRESTReqMsg, respMsg);
         default:
-            return UtilsRetCode::INVALID_OPERATION;
+            return RaftRetCode::INVALID_OPERATION;
     }
 }
 
@@ -79,11 +79,11 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleCmdFrame(FileStreamBase::F
 // Handle data frame (file/stream block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode::RetCode FileDownloadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Shouldn't be receiving file blocks
     LOG_W(MODULE_PREFIX, "handleDataFrame unexpected");
-    return UtilsRetCode::INVALID_OPERATION;
+    return RaftRetCode::INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +122,7 @@ String FileDownloadOKTOProtocol::getDebugJSON(bool includeBraces)
 // File transfer start
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+RaftRetCode::RetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
             uint32_t channelID)
 {
     // Get params
@@ -197,14 +197,14 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg&
         extraJsonStr += extraJsonCRC;
     }
     Raft::setJsonResult(ricRESTReqMsg.getReq().c_str(), respMsg, startOk, errorMsg.c_str(), extraJsonStr.c_str());
-    return UtilsRetCode::OK;
+    return RaftRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // File transfer ended normally
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode::RetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Handle file end
 #ifdef DEBUG_RICREST_FILEDOWNLOAD
@@ -233,14 +233,14 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& r
 
     // End
     transferEnd();
-    return UtilsRetCode::OK;
+    return RaftRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Cancel file transfer
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode::RetCode FileDownloadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Handle file cancel
     JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
@@ -262,14 +262,14 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleCancelMsg(const RICRESTMsg
                 fileName.c_str());
 #endif
     
-    return UtilsRetCode::OK;
+    return RaftRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle ack message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
+RaftRetCode::RetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Handle ack
     JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
@@ -295,7 +295,7 @@ UtilsRetCode::RetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& r
                     oktoFilePos, _oktoFilePos);
     }
 
-    return UtilsRetCode::OK;
+    return RaftRetCode::OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -320,8 +320,8 @@ bool FileDownloadOKTOProtocol::validateFileStreamStart(const String& fileName,
     crc16Valid = false;
     if (_fileStreamGetCRCCB)
     {
-        UtilsRetCode::RetCode retc = _fileStreamGetCRCCB(crc16, fileSize);
-        if (retc == UtilsRetCode::OK)
+        RaftRetCode::RetCode retc = _fileStreamGetCRCCB(crc16, fileSize);
+        if (retc == RaftRetCode::OK)
             crc16Valid = true;
     }
 
@@ -431,8 +431,8 @@ void FileDownloadOKTOProtocol::transferService()
 
     // Send a block
     FileStreamBlockOwned block;
-    UtilsRetCode::RetCode retc = _fileStreamBlockReadCB(block, _lastSentUptoFilePos, _blockSize);
-    if (retc == UtilsRetCode::OK)
+    RaftRetCode::RetCode retc = _fileStreamBlockReadCB(block, _lastSentUptoFilePos, _blockSize);
+    if (retc == RaftRetCode::OK)
     {
         // Send block
         sendBlock(block);

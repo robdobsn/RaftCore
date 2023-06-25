@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Utils Return Codes
+// Raft Return Codes
 //
 // Rob Dobson 2022
 //
@@ -8,7 +8,7 @@
 
 #pragma once
 
-class UtilsRetCode
+class RaftRetCode
 {
 public:
     enum RetCode

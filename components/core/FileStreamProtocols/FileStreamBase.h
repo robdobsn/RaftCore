@@ -10,7 +10,7 @@
 
 #include <functional>
 #include <ArduinoOrAlt.h>
-#include <UtilsRetCode.h>
+#include <RaftRetCode.h>
 
 class RICRESTMsg;
 class CommsChannelMsg;
@@ -22,9 +22,9 @@ class APISourceInfo;
 class JSONParams;
 
 // File/stream callback function types
-typedef std::function<UtilsRetCode::RetCode(FileStreamBlock& fileBlock)> FileStreamBlockWriteCB;
-typedef std::function<UtilsRetCode::RetCode(FileStreamBlockOwned& fileBlock, uint32_t filePos, uint32_t maxLen)> FileStreamBlockReadCB;
-typedef std::function<UtilsRetCode::RetCode(uint32_t& fileCRC, uint32_t& fileLen)> FileStreamGetCRCCB;
+typedef std::function<RaftRetCode::RetCode(FileStreamBlock& fileBlock)> FileStreamBlockWriteCB;
+typedef std::function<RaftRetCode::RetCode(FileStreamBlockOwned& fileBlock, uint32_t filePos, uint32_t maxLen)> FileStreamBlockReadCB;
+typedef std::function<RaftRetCode::RetCode(uint32_t& fileCRC, uint32_t& fileLen)> FileStreamGetCRCCB;
 typedef std::function<void(bool isNormalEnd)> FileStreamCancelEndCB;
 
 class FileStreamBase
@@ -82,12 +82,12 @@ public:
     virtual void resetCounters(uint32_t fileStreamLength){};
 
     // Handle command frame
-    virtual UtilsRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+    virtual RaftRetCode::RetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg) = 0;
 
     // Handle data frame (file/stream block)
-    virtual UtilsRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) = 0;
+    virtual RaftRetCode::RetCode handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg) = 0;
 
     // Get debug str
     virtual String getDebugJSON(bool includeBraces) = 0;

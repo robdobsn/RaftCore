@@ -10,7 +10,7 @@
 #pragma once
 #include <functional>
 #include <ArduinoOrAlt.h>
-#include <UtilsRetCode.h>
+#include <RaftRetCode.h>
 #include "FileStreamBlock.h"
 #include "APISourceInfo.h"
 
@@ -18,7 +18,7 @@
 typedef std::function<void(String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RestAPIFunction;
 typedef std::function<void(String &reqStr, const uint8_t *pData, size_t len, size_t index, 
             size_t total, const APISourceInfo& sourceInfo)> RestAPIFnBody;
-typedef std::function<UtilsRetCode::RetCode(String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RestAPIFnChunk;
+typedef std::function<RaftRetCode::RetCode(String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RestAPIFnChunk;
 typedef std::function<bool(const APISourceInfo& sourceInfo)> RestAPIFnIsReady;
 
 class RestAPIEndpoint
