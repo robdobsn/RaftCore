@@ -61,13 +61,13 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     // Module name
     _moduleName = pModuleName;
 
-    // Slow SysMod threshold
-    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
-
     // Extract info from config
     _sysModManConfig = pGlobalConfig ? 
                 pGlobalConfig->getString(_moduleName.c_str(), "{}") :
                 defaultConfig.getString(_moduleName.c_str(), "{}");
+
+    // Slow SysMod threshold
+    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
 
     // Extract system name from config
     _systemName = defaultConfig.getString("SystemName", "Raft");
@@ -104,12 +104,13 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     }
 
     // Debug
-    LOG_I(MODULE_PREFIX, "friendlyName %s defaultFriendlyName %s (isSet %s) hostname %s rebootAfterNHours %d",
+    LOG_I(MODULE_PREFIX, "friendlyName %s defaultFriendlyName %s (isSet %s) hostname %s rebootAfterNHours %d slowSysModUs %d",
                 _friendlyNameIsSet ? _friendlyNameStored.c_str() : "Not-Set", 
                 _defaultFriendlyName.c_str(),
                 _defaultFriendlyNameIsSet ? "Y" : "N",
                 _pNetCore ? _pNetCore->getHostname().c_str() : "Not-Set",
-                _rebootAfterNHours);
+                _rebootAfterNHours,
+                _slowSysModThresholdUs);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
