@@ -165,7 +165,10 @@ namespace Raft
     String formatMACAddr(const uint8_t* pMacAddr, const char* separator);
 
     // Get string for RaftRetCode
-    const char* getRetcStr(RaftRetCode retc);
+    const char* getRetCodeStr(RaftRetCode retc);
+
+    // Get string from part of buffer with optional hex and ascii
+    String getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHex, bool includeAscii);
 };
 
 // Name value pair double

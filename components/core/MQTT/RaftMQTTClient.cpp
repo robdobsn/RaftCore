@@ -17,9 +17,11 @@
 #include <vector>
 
 // Debug
+// #define DEBUG_MQTT_GENERAL
 // #define DEBUG_MQTT_CONNECTION
 // #define DEBUG_SEND_DATA
 // #define DEBUG_MQTT_CLIENT_RX
+// #define DEBUG_MQTT_TOPIC_DETAIL
 
 // Log prefix
 static const char *MODULE_PREFIX = "MQTTClient";
@@ -83,7 +85,9 @@ void RaftMQTTClient::addTopic(const char* topicName, bool isInbound, const char*
     // Create record
     TopicInfo topicInfo = {topicName, isInbound, topicFilter, qos};
     _topicList.push_back(topicInfo);
+#ifdef DEBUG_MQTT_GENERAL
     LOG_I(MODULE_PREFIX, "addTopic name %s isInbound %s path %s qos %d", topicName, isInbound ? "Y" : "N", topicFilter, qos);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +211,11 @@ void RaftMQTTClient::service()
         if (isError)
         {
             close(_clientHandle);
-            LOG_W(MODULE_PREFIX, "service ERROR connId %d CLOSED", _clientHandle);
+            if (Raft::isTimeout(millis(), _internalClosedErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+            {
+                _internalClosedErrorLastTime = millis();
+                LOG_W(MODULE_PREFIX, "service ERROR connId %d CLOSED", _clientHandle);
+            }
         }
         // Conn closed so we'll need to retry sometime later
         _connState = MQTT_STATE_DISCONNECTED;
@@ -304,7 +312,11 @@ void RaftMQTTClient::socketConnect()
     int err = getaddrinfo(_brokerHostname.c_str(), portStr.c_str(), &addrInfo, &pFoundAddrs);
     if (err != 0)
     {
-        LOG_I(MODULE_PREFIX, "socketConnect broker lookup failed %s error %d", _brokerHostname.c_str(), err);
+        if (Raft::isTimeout(millis(), _internalAddrLookupErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        {
+            _internalAddrLookupErrorLastTime = millis();
+            LOG_W(MODULE_PREFIX, "socketConnect broker lookup failed %s error %d", _brokerHostname.c_str(), err);
+        }
         return;
     }
     for(struct addrinfo *pAddr = pFoundAddrs; pAddr != nullptr; pAddr = pAddr->ai_next)
@@ -313,24 +325,51 @@ void RaftMQTTClient::socketConnect()
         if (_clientHandle == -1)
         {
             err = errno;
-            LOG_I(MODULE_PREFIX, "socketConnect sock failed %s error %d", _brokerHostname.c_str(), err);
-            break;
+            if (Raft::isTimeout(millis(), _internalSocketCreateErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+            {
+                _internalSocketCreateErrorLastTime = millis();
+                LOG_W(MODULE_PREFIX, "socketConnect socket failed %s error %d", _brokerHostname.c_str(), err);
+            }
+            continue;
         }
 
-        int connRslt = connect(_clientHandle, pAddr->ai_addr, pAddr->ai_addrlen);
-        if (connRslt < 0)
+        // Set non-blocking
+        int flags = fcntl(_clientHandle, F_SETFL, fcntl(_clientHandle, F_GETFL, 0) | O_NONBLOCK);
+        if (flags == -1)
         {
-            String hexStr;
-            Raft::getHexStrFromBytes((const uint8_t*)(pAddr->ai_addr), pAddr->ai_addrlen, hexStr);
-            LOG_I(MODULE_PREFIX, "socketConnect conn failed %s port %s errno %d socktype %d protocol %d addrInfo %s", 
-                        _brokerHostname.c_str(), portStr.c_str(), errno, pAddr->ai_socktype, pAddr->ai_protocol, hexStr.c_str());
+            err = errno;
+            if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+            {
+                _internalSocketFcntlErrorLastTime = millis();
+                LOG_W(MODULE_PREFIX, "socketConnect fcntl failed %s error %d socketFlags %04x", 
+                    _brokerHostname.c_str(), err, fcntl(_clientHandle, F_GETFL, 0));
+            }
         }
 
+        // Connect
+        int connRslt = connect(_clientHandle, pAddr->ai_addr, pAddr->ai_addrlen);
+        if ((connRslt < 0) && (errno != EINPROGRESS))
+        {
+            if (Raft::isTimeout(millis(), _internalSocketConnErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+            {
+                _internalSocketConnErrorLastTime = millis();
+                String hexStr;
+                Raft::getHexStrFromBytes((const uint8_t*)(pAddr->ai_addr), pAddr->ai_addrlen, hexStr);
+                LOG_I(MODULE_PREFIX, "socketConnect conn failed %s port %s connRslt %d errno %d socktype %d protocol %d socketFlags %04x EINPROGRESS %d addrInfo %s", 
+                            _brokerHostname.c_str(), portStr.c_str(), connRslt, errno, pAddr->ai_socktype, pAddr->ai_protocol, 
+                            fcntl(_clientHandle, F_GETFL, 0), EINPROGRESS,
+                            hexStr.c_str());
+            }
+        }
+
+        // Check valid connection
         if (connRslt == 0)
         {
+#ifdef DEBUG_MQTT_GENERAL
             LOG_I(MODULE_PREFIX, "socketConnect conn ok connId %d on %s", 
                     _clientHandle,
                     _brokerHostname.c_str());
+#endif
             _connState = MQTT_STATE_SOCK_CONN_REQD;
             break;
         }
@@ -356,7 +395,11 @@ bool RaftMQTTClient::getRxData(std::vector<uint8_t>& rxData, bool& isError, bool
     uint8_t* pBuf = new uint8_t[_rxFrameMaxLen];
     if (!pBuf)
     {
-        LOG_E(MODULE_PREFIX, "getRxData failed alloc");
+        if (Raft::isTimeout(millis(), _internalRxDataAllocErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        {
+            _internalRxDataAllocErrorLastTime = millis();
+            LOG_E(MODULE_PREFIX, "getRxData failed alloc");
+        }
         return false;
     }
 
@@ -372,7 +415,11 @@ bool RaftMQTTClient::getRxData(std::vector<uint8_t>& rxData, bool& isError, bool
                 bufLen = 0;
                 break;
             default:
-                LOG_W(MODULE_PREFIX, "getRxData read error %d", errno);
+                if (Raft::isTimeout(millis(), _internalRxDataReadErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+                {
+                    _internalRxDataReadErrorLastTime = millis();
+                    LOG_W(MODULE_PREFIX, "getRxData read error %d", errno);
+                }
                 isError = true;
                 break;
         }
@@ -383,7 +430,11 @@ bool RaftMQTTClient::getRxData(std::vector<uint8_t>& rxData, bool& isError, bool
     // Handle connection closed
     if (bufLen == 0)
     {
-        LOG_W(MODULE_PREFIX, "getRxData conn closed %d", errno);
+        if (Raft::isTimeout(millis(), _internalRxDataConnClosedLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        {
+            _internalRxDataConnClosedLastTime = millis();
+            LOG_W(MODULE_PREFIX, "getRxData conn closed %d", errno);
+        }
         connClosed = true;
         delete [] pBuf;
         return false;
@@ -406,13 +457,21 @@ bool RaftMQTTClient::sendTxData(std::vector<uint8_t>& txData, bool& isError, boo
     isError = false;
     if (rslt < 0)
     {
-        LOG_W(MODULE_PREFIX, "sendTxData send error %d", errno);
+        if (Raft::isTimeout(millis(), _internalTxDataSendErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        {
+            _internalTxDataSendErrorLastTime = millis();
+            LOG_W(MODULE_PREFIX, "sendTxData send error %d", errno);
+        }
         isError = true;
         return false;
     }
     else if (rslt != txData.size())
     {
-        LOG_W(MODULE_PREFIX, "sendTxData sent length %d != frame length %d", rslt, txData.size());
+        if (Raft::isTimeout(millis(), _internalTxDataSendLenLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        {
+            _internalTxDataSendLenLastTime = millis();
+            LOG_W(MODULE_PREFIX, "sendTxData sent length %d != frame length %d", rslt, txData.size());
+        }
         return true;
     }
 
@@ -420,7 +479,7 @@ bool RaftMQTTClient::sendTxData(std::vector<uint8_t>& txData, bool& isError, boo
     // Debug
     String txDataStr;
     Raft::getHexStrFromBytes(txData.data(), txData.size(), txDataStr);
-    LOG_I(MODULE_PREFIX, "sendTxData %s", txDataStr.c_str());
+    LOG_I(MODULE_PREFIX, "sendTxData %s %s", rslt == txData.size() ? "OK" : "FAIL", txDataStr.c_str());
 #endif
 
     return true;
@@ -432,13 +491,17 @@ bool RaftMQTTClient::sendTxData(std::vector<uint8_t>& txData, bool& isError, boo
 
 void RaftMQTTClient::subscribeToTopics()
 {
+#ifdef DEBUG_MQTT_GENERAL
     LOG_I(MODULE_PREFIX, "subscribeToTopics topics %d", _topicList.size());
+#endif
 
     // Iterate list and subscribe to inbound topics
     for (TopicInfo& topicInfo : _topicList)
     {
+#ifdef DEBUG_MQTT_TOPIC_DETAIL
         LOG_I(MODULE_PREFIX, "subscribeToTopics topic isInbound %d filter %s QoS %d", 
                 topicInfo.isInbound, topicInfo.topicFilter.c_str(), topicInfo.qos);
+#endif
 
         if (topicInfo.isInbound)
         {

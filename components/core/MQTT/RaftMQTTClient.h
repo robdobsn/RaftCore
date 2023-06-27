@@ -71,6 +71,19 @@ private:
     };
     std::list<TopicInfo> _topicList;
 
+    // Error reporting
+    uint32_t _internalClosedErrorLastTime = 0;
+    uint32_t _internalAddrLookupErrorLastTime = 0;
+    uint32_t _internalSocketCreateErrorLastTime = 0;
+    uint32_t _internalSocketFcntlErrorLastTime = 0;
+    uint32_t _internalSocketConnErrorLastTime = 0;
+    uint32_t _internalRxDataAllocErrorLastTime = 0;
+    uint32_t _internalRxDataReadErrorLastTime = 0;
+    uint32_t _internalRxDataConnClosedLastTime = 0;
+    uint32_t _internalTxDataSendErrorLastTime = 0;
+    uint32_t _internalTxDataSendLenLastTime = 0;
+    static const uint32_t INTERNAL_ERROR_LOG_MIN_GAP_MS = 10000;
+
     // Helpers
     void disconnect();
     void putDataCB(const uint8_t *pBuf, unsigned bufLen);

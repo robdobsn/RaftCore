@@ -9,6 +9,7 @@
 #include <Logger.h>
 #include <RaftUtils.h>
 #include <limits.h>
+#include <MiniHDLC.h>
 
 #ifndef INADDR_NONE
 #define INADDR_NONE         ((uint32_t)0xffffffffUL)
@@ -822,7 +823,7 @@ void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const cha
 // Get string for RaftRetCode
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const char* Raft::getRetcStr(RaftRetCode retc)
+const char* Raft::getRetCodeStr(RaftRetCode retc)
 {
     switch(retc)
     {
@@ -842,3 +843,26 @@ const char* Raft::getRetcStr(RaftRetCode retc)
         default: return "UNKNOWN";
     }
 };
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get string from part of buffer with optional hex and ascii
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String Raft::getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHex, bool includeAscii)
+{
+    String outStr;
+    if (includeHex)
+    {
+        getHexStrFromBytes((const uint8_t*)pBuf, bufLen, outStr);
+    }
+    if (includeAscii)
+    {
+        if (outStr.length() > 0)
+            outStr += " ";
+        String asciiBuf = String((const char*)pBuf, bufLen);
+        asciiBuf.replace("\n", "<LF>");
+        asciiBuf.replace("\r", "<CR>");
+        outStr += asciiBuf;
+    }
+    return outStr;
+}

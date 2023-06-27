@@ -10,7 +10,7 @@ import sys
 import os
 import logging
 import serial
-from serial.serialutil import SerialException
+from serial.serialutil import SerialException, SerialTimeoutException
 import argparse
 import KeyboardUtils
 
@@ -49,10 +49,14 @@ class SerialIO:
         self._isTestMode = False
         self._logHelper = logHelper
         self._serial = None
+        self._attempt_upgrade_from_time = None
+        self._upgraded = False
+        self._serial_port_upgrade_time = 5.0
 
-    def open(self, serialPort, serialBaud, testMode):
+    def open(self, serialPort, serialBaud, updateRate, testMode):
         self._serialPort = serialPort
         self._serialBaud = serialBaud
+        self._updateRate = updateRate
         self._isTestMode = testMode
         if self._isTestMode:
             self._serialThreadStart(self._testLoop)
@@ -71,7 +75,10 @@ class SerialIO:
         else:
             asciiOut = (toSend + '\n').encode("ascii")
             # print(asciiOut)
-            self._serial.write(asciiOut)
+            try:
+                self._serial.write(asciiOut)
+            except SerialTimeoutException as excp:
+                pass
 
     def _serialThreadStart(self, threadFn):
         if self._running:
@@ -93,12 +100,36 @@ class SerialIO:
         while self._running:
             try:
                 if self._serial is not None:
+
+                    # Check if serial port open for a few seconds
+                    if (not self._upgraded) and (self._attempt_upgrade_from_time is not None) and \
+                            (self._updateRate is not None):
+                        if time.time() - self._attempt_upgrade_from_time > self._serial_port_upgrade_time:
+                            # Send command to set update rate
+                            self.send(f"console/settings?baud={self._updateRate}")
+                            self._attempt_upgrade_from_time = time.time()
+
+                    # Handle incoming data
                     numWaiting = self._serial.in_waiting
                     if numWaiting < 1:
                         time.sleep(0.001)
                         continue
                     rxBytes = self._serial.read(numWaiting)
                     self._dataCallback(rxBytes)
+
+                    # Check for response to update rate change
+                    if not self._upgraded and self._updateRate is not None:
+                        if rxBytes.find(b"console/settings?baud=") != -1:
+                            self._serial.flushInput()
+                            self._serial.flushOutput()
+                            self._serial.baudrate = self._updateRate
+
+                            # Set flag
+                            self._upgraded = True
+                            print()
+                            print("++++++++++++++ Serial port upgraded to", self._updateRate, "bps ++++++++++++++")
+                            print()
+
                 else:
                     # Try to reopen port
                     self._openSerial()
@@ -117,6 +148,8 @@ class SerialIO:
 
     def _openSerial(self):
         # Open the serial connection
+        self._upgraded = False
+        self._attempt_upgrade_from_time = None
         nowTime = time.time()
         errStr = ""
         if self._serial is not None:
@@ -129,7 +162,8 @@ class SerialIO:
                     baudrate=self._serialBaud,
                     parity=serial.PARITY_NONE,
                     stopbits=serial.STOPBITS_ONE,
-                    bytesize=serial.EIGHTBITS
+                    bytesize=serial.EIGHTBITS,
+                    write_timeout=0.01
                 )
                 break
             except Exception as excp:
@@ -145,6 +179,8 @@ class SerialIO:
         except Exception:
             print("Failed to set serial buffer size")
 
+        # Now open
+        self._attempt_upgrade_from_time = time.time()
         print(f"SerialMonitor port {self._serialPort} baudrate {self._serialBaud}")
 
         if not self._running:
@@ -357,6 +393,8 @@ argparser.add_argument('-g', action='store_true', dest='logToFile',
                 help='log to a file in ./logs folder with date-time based name')
 argparser.add_argument('-c', action='store_true', dest='retainColors',
                 help='retain colours in terminal output (log is always stripped of colours)')
+argparser.add_argument('-u', action='store', dest='updaterate',
+                       help='update rate in bits-per-second (default 1Mbps)')
 args = argparser.parse_args()
 # Logging
 logHelper = LogHelper(args.logToFile, "logs")
@@ -365,7 +403,7 @@ terminal = Terminal(logHelper, not args.retainColors)
 # Serial
 serialIO = SerialIO(terminal.handleSerialData, logHelper)
 terminal.setOutput(serialIO)
-serialIO.open(args.serialPort, args.serialbaud, False)
+serialIO.open(args.serialPort, args.serialbaud, args.updaterate, False)
 try:
     while terminal.isOpen():
         pass

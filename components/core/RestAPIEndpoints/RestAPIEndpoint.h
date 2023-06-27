@@ -15,10 +15,10 @@
 #include "APISourceInfo.h"
 
 // Callback function for any endpoint
-typedef std::function<RaftRetCode(String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RestAPIFunction;
-typedef std::function<RaftRetCode(String &reqStr, const uint8_t *pData, size_t len, size_t index, 
+typedef std::function<RaftRetCode(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RestAPIFunction;
+typedef std::function<RaftRetCode(const String &reqStr, const uint8_t *pData, size_t len, size_t index, 
             size_t total, const APISourceInfo& sourceInfo)> RestAPIFnBody;
-typedef std::function<RaftRetCode(String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RestAPIFnChunk;
+typedef std::function<RaftRetCode(const String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RestAPIFnChunk;
 typedef std::function<bool(const APISourceInfo& sourceInfo)> RestAPIFnIsReady;
 
 class RestAPIEndpoint

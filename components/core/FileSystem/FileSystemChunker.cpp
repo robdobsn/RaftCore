@@ -98,7 +98,7 @@ bool FileSystemChunker::nextRead(uint8_t* pBuf, uint32_t bufLen, uint32_t& handl
 {
     // Check valid
     finalChunk = false;
-    if (!_isActive)
+    if (!_isActive || !pBuf || _writing)
         return false;
 
     // Ensure we don't read beyond buffer
@@ -192,7 +192,7 @@ bool FileSystemChunker::nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_
     }
 
     // Read if valid
-    if (_pFile)
+    if (_pFile && pBuf)
     {
 #ifdef DEBUG_FILE_CHUNKER_CHUNKS
         // File pos
@@ -286,7 +286,8 @@ bool FileSystemChunker::nextWrite(const uint8_t* pBuf, uint32_t bufLen, uint32_t
     if (_pFile)
     {
         // Write
-        handledBytes = fileSystem.fileWrite(_pFile, pBuf, bufLen);
+        if (pBuf && bufLen > 0)
+            handledBytes = fileSystem.fileWrite(_pFile, pBuf, bufLen);
         writeOk = handledBytes == bufLen;
 
         // Check if we should keep open

@@ -577,6 +577,8 @@ void MiniHDLC::putCharToFrame(uint8_t ch)
 
 unsigned MiniHDLC::computeCRC16(const uint8_t* pData, unsigned len)
 {
+    if (!pData || (len == 0))
+        return 0;
     unsigned crc = CRC16_CCITT_INIT_VAL;
     for (unsigned i = 0; i < len; i++)
     {

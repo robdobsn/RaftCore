@@ -154,12 +154,12 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
         char ackJson[100];
         snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d,\"reason\":\"%s\"", 
                                 (int)streamID, (int)_streamPos,
-                                Raft::getRetcStr(rslt));
+                                Raft::getRetCodeStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
         LOG_I(MODULE_PREFIX, "handleDataFrame: %s streamID %d streamPos %d sokto %d retc %s", 
                     rslt == RaftRetCode::RAFT_RET_BUSY ? "BUSY" : "POS_MISMATCH", streamID, _streamPos, _streamPos,
-                    Raft::getRetcStr(rslt));
+                    Raft::getRetCodeStr(rslt));
 #endif
     }
     else
@@ -167,11 +167,11 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
         // Failure of the stream
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", 
-                    (int)streamID, Raft::getRetcStr(rslt));
+                    (int)streamID, Raft::getRetCodeStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
         LOG_I(MODULE_PREFIX, "handleDataFrame: FAIL streamID %d streamPos %d sokto %d retc %s", streamID, _streamPos, _streamPos,
-                                Raft::getRetcStr(rslt));
+                                Raft::getRetCodeStr(rslt));
 #endif
     }
 

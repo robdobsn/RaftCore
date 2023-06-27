@@ -27,6 +27,7 @@ static const char* MODULE_PREFIX = "CommsMan";
 // #define DEBUG_OUTBOUND_MSG_ALL_CHANNELS
 // #define DEBUG_INBOUND_BLOCK_MAX
 // #define DEBUG_OUTBOUND_BLOCK_MAX
+// #define DEBUG_COMMS_MAN_ADD_PROTOCOL
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -159,7 +160,9 @@ uint32_t CommsChannelManager::registerChannel(const char* protocolName,
 
 void CommsChannelManager::addProtocol(ProtocolCodecFactoryHelper& codecFactoryHelper)
 {
-    LOG_D(MODULE_PREFIX, "Adding protocol for %s", codecFactoryHelper.protocolName.c_str());
+#ifdef DEBUG_COMMS_MAN_ADD_PROTOCOL
+    LOG_I(MODULE_PREFIX, "Adding protocol for %s", codecFactoryHelper.protocolName.c_str());
+#endif
     _protocolCodecFactoryList.push_back(codecFactoryHelper);
 }
 

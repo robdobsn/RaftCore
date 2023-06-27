@@ -133,7 +133,6 @@ String ProtocolExchange::getDebugJSON()
 void ProtocolExchange::addCommsChannels(CommsCoreIF& commsCore)
 {
     // Add support for RICSerial
-    LOG_I(MODULE_PREFIX, "addCommsChannels - adding RICSerial");
     ProtocolCodecFactoryHelper ricSerialProtocolDef = { ProtocolRICSerial::getProtocolNameStatic(), 
                         ProtocolRICSerial::createInstance,
                         configGetConfig(), "RICSerial",
@@ -142,7 +141,6 @@ void ProtocolExchange::addCommsChannels(CommsCoreIF& commsCore)
     commsCore.addProtocol(ricSerialProtocolDef);
 
     // Add support for RICFrame
-    LOG_I(MODULE_PREFIX, "addCommsChannels - adding RICFrame");
     ProtocolCodecFactoryHelper ricFrameProtocolDef = { ProtocolRICFrame::getProtocolNameStatic(), 
                         ProtocolRICFrame::createInstance, 
                         configGetConfig(), "RICFrame",
@@ -151,7 +149,6 @@ void ProtocolExchange::addCommsChannels(CommsCoreIF& commsCore)
     commsCore.addProtocol(ricFrameProtocolDef);
 
     // Add support for RICJSON
-    LOG_I(MODULE_PREFIX, "addCommsChannels - adding RICJSON");
     ProtocolCodecFactoryHelper ricJSONProtocolDef = { ProtocolRICJSON::getProtocolNameStatic(), 
                         ProtocolRICJSON::createInstance, 
                         configGetConfig(), "RICJSON",
@@ -531,7 +528,7 @@ RaftRetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICRESTMsg& ri
         RaftRetCode rslt = RaftRetCode::RAFT_RET_INVALID_DATA;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"length\":%d,\"reason\":\"%s\"", 
-                            (int)ricRESTReqMsg.getBinLen(), Raft::getRetcStr(rslt));
+                            (int)ricRESTReqMsg.getBinLen(), Raft::getRetCodeStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
         return rslt;
     }
@@ -547,7 +544,7 @@ RaftRetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICRESTMsg& ri
         RaftRetCode rslt = RaftRetCode::RAFT_RET_SESSION_NOT_FOUND;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", 
-                            (int)streamID, Raft::getRetcStr(rslt));
+                            (int)streamID, Raft::getRetCodeStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
         return rslt;
     }

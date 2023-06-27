@@ -238,7 +238,7 @@ RaftRetCode FileStreamSession::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, 
     {
         RaftRetCode rslt = RaftRetCode::RAFT_RET_INVALID_OBJECT;
         char errorMsg[100];
-        snprintf(errorMsg, sizeof(errorMsg), "\"reason\":\"%s\"", Raft::getRetcStr(rslt));
+        snprintf(errorMsg, sizeof(errorMsg), "\"reason\":\"%s\"", Raft::getRetCodeStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
         return rslt;
     }
