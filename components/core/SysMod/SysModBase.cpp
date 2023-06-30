@@ -1,10 +1,9 @@
-// RBotFirmware
-// Rob Dobson 2019
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
+// RaftCore SysModBase
 // Base class for SysMods (System Modules)
 // For more info see SysManager
+// Rob Dobson 2013-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -57,14 +56,15 @@ String SysModBase::getSystemName()
 {
     if (_pSysManager)
         return _pSysManager->getSystemName();
-    return "RIC";
+    return "";
 }
 
-String SysModBase::getFriendlyName()
+String SysModBase::getFriendlyName(bool& isSet)
 {
     if (_pSysManager)
-        return _pSysManager->getFriendlyName();
-    return "RIC";
+        return _pSysManager->getFriendlyName(isSet);
+    isSet = false;
+    return "";
 }
 
 RestAPIEndpointManager* SysModBase::getRestAPIEndpointManager()

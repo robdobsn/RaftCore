@@ -49,6 +49,7 @@ static const char *MODULE_PREFIX = "SysMan";
 
 SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
                 ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
+                const char* pDefaultFriendlyName,
                 NetCoreIF* pNetCore, CommsCoreIF* pCommsCore) :
         _pNetCore(pNetCore), _pCommsCore(pCommsCore)
 {
@@ -82,8 +83,7 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     _systemRestartMs = millis();
 
     // System friendly name
-    _defaultFriendlyName = defaultConfig.getString("DefaultName", "");
-    _defaultFriendlyNameIsSet = defaultConfig.getLong("DefaultNameIsSet", 0);
+    _defaultFriendlyName = defaultConfig.getString("DefaultName", pDefaultFriendlyName);
 
     // System unique string - use BT MAC address
     _systemUniqueString = getSystemMACAddressStr(ESP_MAC_BT, "");
@@ -91,26 +91,25 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     // Reboot after N hours
     _rebootAfterNHours = _sysModManConfig.getLong("rebootAfterNHours", 0);
 
-    // Get mutable config info
+    // Prime the mutable config info
     if (_pMutableConfig)
     {
-        _friendlyNameStored = _pMutableConfig->getString("friendlyName", "");
-        _friendlyNameIsSet = _pMutableConfig->getLong("nameSet", 0);
-        _ricSerialNoStoredStr = _pMutableConfig->getString("serialNo", "");
-
-        // Setup network system hostname
-        if (_friendlyNameIsSet && _pNetCore)
-            _pNetCore->setHostname(_friendlyNameStored.c_str());
+        _mutableConfigCache.friendlyName = _pMutableConfig->getString("friendlyName", "");
+        _mutableConfigCache.friendlyNameIsSet = _pMutableConfig->getLong("nameSet", 0);
+        _mutableConfigCache.serialNo = _pMutableConfig->getString("serialNo", "");
     }
 
+    // Get friendly name
+    bool friendlyNameIsSet = false;
+    String friendlyName = getFriendlyName(friendlyNameIsSet);
+
     // Debug
-    LOG_I(MODULE_PREFIX, "friendlyName %s defaultFriendlyName %s (isSet %s) hostname %s rebootAfterNHours %d slowSysModUs %d",
-                _friendlyNameIsSet ? _friendlyNameStored.c_str() : "Not-Set", 
-                _defaultFriendlyName.c_str(),
-                _defaultFriendlyNameIsSet ? "Y" : "N",
-                _pNetCore ? _pNetCore->getHostname().c_str() : "Not-Set",
+    LOG_I(MODULE_PREFIX, "friendlyName %s rebootAfterNHours %d slowSysModUs %d serialNo %s (defaultFriendlyName %s)",
+                (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
                 _rebootAfterNHours,
-                _slowSysModThresholdUs);
+                _slowSysModThresholdUs,
+                _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
+                _defaultFriendlyName.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -531,6 +530,10 @@ RaftRetCode SysManager::apiReset(const String &reqStr, String& respStr, const AP
 
 RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
+    // Get serial number
+    String serialNo;
+    if (_pMutableConfig)
+        serialNo = _pMutableConfig->getString("serialNo", "");
     char versionJson[225];
     snprintf(versionJson, sizeof(versionJson),
              R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
@@ -538,7 +541,7 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
              reqStr.c_str(), 
              _systemName.c_str(), 
              _systemVersion.c_str(), 
-             _ricSerialNoStoredStr.c_str(),
+             serialNo.c_str(),
              _systemUniqueString.c_str());
     respStr = versionJson;
     return RaftRetCode::RAFT_RET_OK;
@@ -580,14 +583,16 @@ RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, c
         }
     }
 
-    // Get current 
-    String friendlyName = getFriendlyName();
-    LOG_I(MODULE_PREFIX, "apiFriendlyName -> %s, nameIsSet %s", friendlyName.c_str(), _friendlyNameIsSet ? "Y" : "N");
+    // Get current
+    bool friendlyNameIsSet = false;
+    String friendlyName = getFriendlyName(friendlyNameIsSet);
+    LOG_I(MODULE_PREFIX, "apiFriendlyName -> %s, friendlyNameIsSet %s", 
+                friendlyName.c_str(), friendlyNameIsSet ? "Y" : "N");
 
     // Create response JSON
     char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 70];
     snprintf(JsonOut, sizeof(JsonOut), R"("friendlyName":"%s","friendlyNameIsSet":%d)", 
-                friendlyName.c_str(), _friendlyNameIsSet);
+                friendlyName.c_str(), friendlyNameIsSet);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
 }
 
@@ -602,8 +607,8 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
     {
         // Get serial number to set
         String serialNoHexStr = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
-        uint8_t serialNumBuf[RIC_SERIAL_NUMBER_BYTES];
-        if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, RIC_SERIAL_NUMBER_BYTES) != RIC_SERIAL_NUMBER_BYTES)
+        uint8_t serialNumBuf[SERIAL_NUMBER_BYTES];
+        if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, SERIAL_NUMBER_BYTES) != SERIAL_NUMBER_BYTES)
         {
             Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
             return RaftRetCode::RAFT_RET_INVALID_DATA;
@@ -614,7 +619,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
         {
             magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
-            if (!magicString.equals(RIC_SERIAL_SET_MAGIC_STR))
+            if (!magicString.equals(SERIAL_SET_MAGIC_STR))
             {
                 Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
                 return RaftRetCode::RAFT_RET_INVALID_DATA;
@@ -622,7 +627,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         }
 
         // Get formatted serial no
-        Raft::getHexStrFromBytes(serialNumBuf, RIC_SERIAL_NUMBER_BYTES, _ricSerialNoStoredStr);
+        Raft::getHexStrFromBytes(serialNumBuf, SERIAL_NUMBER_BYTES, _mutableConfigCache.serialNo);
 
         // Store the serial no
         String jsonConfig = getMutableConfigJson();
@@ -632,9 +637,14 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         }
     }
 
+    // Get serial number from mutable config
+    String serialNo;
+    if (_pMutableConfig)
+        serialNo = _pMutableConfig->getString("serialNo", "");
+
     // Create response JSON
     char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 70];
-    snprintf(JsonOut, sizeof(JsonOut), R"("SerialNo":"%s")", _ricSerialNoStoredStr.c_str());
+    snprintf(JsonOut, sizeof(JsonOut), R"("SerialNo":"%s")", serialNo.c_str());
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
 }
 
@@ -737,10 +747,12 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
 
 String SysManager::getMutableConfigJson()
 {
-    char jsonConfig[MAX_FRIENDLY_NAME_LENGTH + RIC_SERIAL_NUMBER_BYTES*2 + 40];
+    char jsonConfig[MAX_FRIENDLY_NAME_LENGTH + SERIAL_NUMBER_BYTES*2 + 40];
     snprintf(jsonConfig, sizeof(jsonConfig), 
             R"({"friendlyName":"%s","nameSet":%d,"serialNo":"%s"})", 
-                _friendlyNameStored.c_str(), _friendlyNameIsSet, _ricSerialNoStoredStr.c_str());
+                _mutableConfigCache.friendlyName.c_str(), 
+                _mutableConfigCache.friendlyNameIsSet, 
+                _mutableConfigCache.serialNo.c_str());
     return jsonConfig;
 }
 
@@ -781,11 +793,16 @@ void SysManager::statsShow()
 // Friendly name helpers
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String SysManager::getFriendlyName()
+String SysManager::getFriendlyName(bool& isSet)
 {
+    // Check if set
+    isSet = getFriendlyNameIsSet();
+
     // Handle default naming
-    String friendlyName = _friendlyNameStored;
-    if (friendlyName.length() == 0)
+    String friendlyName;
+    if (_pMutableConfig)
+        friendlyName = _pMutableConfig->getString("friendlyName", "");
+    if (!isSet || friendlyName.isEmpty())
     {
         friendlyName = _defaultFriendlyName;
         LOG_I(MODULE_PREFIX, "getFriendlyName default %s uniqueStr %s", _defaultFriendlyName.c_str(), _systemUniqueString.c_str());
@@ -804,29 +821,23 @@ bool SysManager::getFriendlyNameIsSet()
 
 bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, String& errorStr)
 {
-    String tmpName = friendlyName;
-    tmpName.trim();
-    if (tmpName.length() > MAX_FRIENDLY_NAME_LENGTH)
+    // Update cached name
+    _mutableConfigCache.friendlyName = friendlyName;
+    _mutableConfigCache.friendlyName.trim();
+    _mutableConfigCache.friendlyName = _mutableConfigCache.friendlyName.substring(0, MAX_FRIENDLY_NAME_LENGTH);
+    _mutableConfigCache.friendlyNameIsSet = !friendlyName.isEmpty();
+    if (_mutableConfigCache.friendlyNameIsSet)
     {
-        errorStr = "nameTooLong";
-        return false;
-    }
-    else if (tmpName.length() == 0)
-    {
-        // Return to default friendly name
-        LOG_I(MODULE_PREFIX, "apiFriendlyName set friendlyName blank -> default");
-        _friendlyNameIsSet = false;
+        LOG_I(MODULE_PREFIX, "setFriendlyName %s", _mutableConfigCache.friendlyName.c_str());
     }
     else
     {
-        LOG_I(MODULE_PREFIX, "apiFriendlyName set friendlyName %s", tmpName.c_str());
-        _friendlyNameIsSet = true;
+        LOG_I(MODULE_PREFIX, "setFriendlyName blank");
     }
-    _friendlyNameStored = tmpName;
 
-    // // Setup network system hostname
-    if (_friendlyNameIsSet && setHostname && _pNetCore)
-        _pNetCore->setHostname(_friendlyNameStored.c_str());
+    // Setup network system hostname
+    if (_mutableConfigCache.friendlyNameIsSet && setHostname && _pNetCore)
+        _pNetCore->setHostname(_mutableConfigCache.friendlyName.c_str());
 
     // Store the new name (even if it is blank)
     String jsonConfig = getMutableConfigJson();
@@ -836,4 +847,3 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
     }
     return true;
 }
-

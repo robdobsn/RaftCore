@@ -33,6 +33,7 @@ public:
     // Constructor
     SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
             ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
+            const char* pDefaultFriendlyName,
             NetCoreIF* pNetCore = nullptr, CommsCoreIF* pCommsCore = nullptr);
 
     // Setup
@@ -57,7 +58,7 @@ public:
     }
 
     // Get friendly name
-    String getFriendlyName();
+    String getFriendlyName(bool& isSet);
     bool getFriendlyNameIsSet();
     bool setFriendlyName(const String& friendlyName, bool setHostname, String& respStr);
 
@@ -168,8 +169,8 @@ private:
     String _moduleName;
 
     // Consts
-    static const uint32_t RIC_SERIAL_NUMBER_BYTES = 16;
-    static constexpr const char* RIC_SERIAL_SET_MAGIC_STR = "RoboticalMagic";
+    static const uint32_t SERIAL_NUMBER_BYTES = 16;
+    static constexpr const char* SERIAL_SET_MAGIC_STR = "RaftMagic";
 
     // Service loop supervisor
     void supervisorSetup();
@@ -229,11 +230,15 @@ private:
 
     // Mutable config
     ConfigBase* _pMutableConfig = nullptr;
+    struct
+    {
+        String friendlyName;
+        bool friendlyNameIsSet = false;
+        String serialNo;
+    } _mutableConfigCache;
+
+    // Default friendly name
     String _defaultFriendlyName;
-    bool _defaultFriendlyNameIsSet = false;
-    String _friendlyNameStored;
-    bool _friendlyNameIsSet = false;
-    String _ricSerialNoStoredStr;
 
     // Unique string for this system
     String _systemUniqueString;

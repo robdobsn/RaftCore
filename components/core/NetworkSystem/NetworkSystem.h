@@ -3,12 +3,13 @@
 // NetworkSystem 
 // Handles WiFi / Ethernet and IP
 //
-// Rob Dobson 2018-2020
+// Rob Dobson 2018-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
 
+#include "NetworkSettings.h"
 #include "WiFiScanner.h"
 #include <ArduinoOrAlt.h>
 #include <NetCoreIF.h>
@@ -22,8 +23,6 @@
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 #include <esp_eth_driver.h>
 #endif
-
-// #define PRIVATE_EVENT_LOOP
 
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
@@ -44,66 +43,21 @@ class NetworkSystem : public NetCoreIF
 public:
     NetworkSystem();
 
-    // Ethernet types
-    enum EthLanChip
-    {
-        ETH_CHIP_TYPE_NONE,
-        ETH_CHIP_TYPE_LAN87XX
-    };
-
-    // Ethernet config
-    class EthSettings
-    {
-    public:
-        EthSettings(const char* pEthLanChip, int powerPin, int smiMDCPin, int smiMDIOPin, int phyAddr, int phyRstPin)
-            :   _ethLanChip(getChipEnum(pEthLanChip)), _powerPin(powerPin), _smiMDCPin(smiMDCPin), 
-                _smiMDIOPin(smiMDIOPin), _phyAddr(phyAddr), _phyRstPin(phyRstPin)
-        {
-        }
-        EthSettings(EthLanChip ethLanChip, int powerPin, int smiMDCPin, int smiMDIOPin, int phyAddr, int phyRstPin)
-            :   _ethLanChip(ethLanChip), _powerPin(powerPin), _smiMDCPin(smiMDCPin), 
-                _smiMDIOPin(smiMDIOPin), _phyAddr(phyAddr), _phyRstPin(phyRstPin)
-        {
-        }
-        EthLanChip _ethLanChip = ETH_CHIP_TYPE_NONE;
-        int _powerPin = -1;
-        int _smiMDCPin = -1;
-        int _smiMDIOPin = -1;
-        int _phyAddr = 0;
-        int _phyRstPin = -1;
-    private:
-        EthLanChip getChipEnum(const char* pEthLanChip)
-        {
-            if (strcmp(pEthLanChip, "LAN87XX") == 0)
-                return ETH_CHIP_TYPE_LAN87XX;
-            return ETH_CHIP_TYPE_NONE;
-        }
-    };
-
     // Setup 
-    void setup(bool enableWiFi, bool enableEthernet, const char* hostname, 
-                    bool enWifiSTAMode, bool enWiFiAPMode, bool ethWiFiBridge, EthSettings* pEthSettings=nullptr);
+    bool setup(const NetworkSettings& networkSettings);
 
     // Service
     void service();
 
-    bool isWiFiEnabled()
-    {
-        return _isWiFiEnabled;
-    }
-    bool isEthEnabled()
-    {
-        return _isEthEnabled;
-    }
-    // Station mode connected / eth connected
-    bool isWiFiStaConnectedWithIP();
-    bool isEthConnectedWithIP()
-    {
-        return _ethConnected;
-    }
-
-    // Is IP connected
+    // Connected indicators
+    bool isWifiStaConnectedWithIP();
+    bool isWifiAPConnectedWithIP();
+    bool isEthConnectedWithIP();
     bool isIPConnected();
+
+    // Get JSON info
+    String getSettingsJSON(bool includeBraces);
+    String getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo);
 
     // Connection info
     String getWiFiIPV4AddrStr()
@@ -124,22 +78,12 @@ public:
 
     String getSSID()
     {
-        return _staSSID;
+        return _wifiStaSSID;
     }
 
-    bool configureWiFi(const String& ssid, const String& pw, const String& hostname, const String& apSsid, const String& apPassword);
-
-    // Connection codes
-    enum ConnStateCode
-    {
-        CONN_STATE_NONE,
-        CONN_STATE_WIFI_BUT_NO_IP,
-        CONN_STATE_WIFI_AND_IP
-    };
-    static String getConnStateCodeStr(ConnStateCode connStateCode);
-
-    // Get conn state code
-    ConnStateCode getConnState();
+    // Configuration
+    bool configWifiSTA(const String& ssid, const String& pw);
+    bool configWifiAP(const String& apSsid, const String& apPassword);
 
     // Clear credentials
     esp_err_t clearCredentials();
@@ -161,99 +105,76 @@ public:
     // Get RSSI
     int getRSSI(bool& isValid)
     {
-        isValid = _rssi != 0;
-        return _rssi;
+        isValid = _wifiRSSI != 0;
+        return _wifiRSSI;
     }
 
+    // Set log level
+    void setLogLevel(esp_log_level_t logLevel);
+
 private:
+    // Is setup
+    bool _isSetup = false;
 
-    // Enabled
-    bool _isWiFiEnabled = false;
-    bool _isEthEnabled = false;
-    static bool _isPaused;
+    // Settings
+    NetworkSettings _networkSettings;
 
-    // Wifi modes
-    bool _enWifiSTAMode = false;
-    bool _enWifiAPMode = false;
-
-    // Started flags
-    bool _netifStarted = false;
-    bool _wifiSTAStarted = false;
-    bool _wifiAPStarted = false;
+    // Flags
+    bool _isPaused = false;
 
     // WiFi connection details
-    static String _staSSID;
-    static String _wifiIPV4Addr;
+    String _wifiStaSSID;
+    String _wifiIPV4Addr;
     String _hostname;
-    String _defaultHostname;
 
-    // WiFi AP client count
-    static uint8_t _wifiAPClientCount;
-
-    // Ethernet - WiFi bridge
-    static bool _ethWiFiBridge;
-    static const uint32_t FLOW_CONTROL_QUEUE_TIMEOUT_MS = 100;
-    static const uint32_t FLOW_CONTROL_WIFI_SEND_TIMEOUT_MS  = 100;
-    static const uint32_t FLOW_CONTROL_QUEUE_LENGTH = 100;
-    static QueueHandle_t _ethWiFiBridgeFlowControlQueue;
-
-    // Flow control message
-    typedef struct {
-        void *packet;
-        uint16_t length;
-    } flow_control_msg_t;
+    // WiFi AP
+    String _wifiAPSSID;
+    uint8_t _wifiAPClientCount = 0;
 
     // RSSI
-    int8_t _rssi = 0;
-    uint32_t _rssiLastMs = 0;
+    int8_t _wifiRSSI = 0;
+    uint32_t _wifiRSSILastMs = 0;
 
     // RSSI check interval
-    static const uint32_t RSSI_CHECK_MS = 2000;
+    static const uint32_t WIFI_RSSI_CHECK_MS = 2000;
 
     // Connect retries
-    static int _numConnectRetries; 
+    int _numWifiConnectRetries = 0; 
+    uint32_t _lastReconnAttemptMs = 0;
 
     // Retry max, -1 means try forever
     static const int WIFI_CONNECT_MAX_RETRY = -1;
 
     // Ethernet
-    static bool _ethConnected;
-    static esp_eth_handle_t _ethernetHandle;
-    static String _ethIPV4Addr;
-
-#ifdef PRIVATE_EVENT_LOOP
-    // Event loop for WiFi connection
-    esp_event_loop_handle_t _wifiEventLoopHandle;
-    static const int CONFIG_WIFI_PRIVATE_EVENT_LOOP_CORE = 1;
-#endif
+    esp_eth_handle_t _ethernetHandle = nullptr;
+    String _ethIPV4Addr;
+    String _ethMACAddress;
 
     // FreeRTOS event group to signal when we are connected
     // Code here is based on https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
-    static EventGroupHandle_t _wifiRTOSEventGroup;
+    EventGroupHandle_t _networkRTOSEventGroup = nullptr;
 
     // The event group allows multiple bits for each event
-    static const uint32_t WIFI_CONNECTED_BIT = BIT0;
-    static const uint32_t IP_CONNECTED_BIT = BIT1;
-    static const uint32_t WIFI_FAIL_BIT = BIT2;
+    static const uint32_t WIFI_STA_CONNECTED_BIT = BIT0;
+    static const uint32_t WIFI_STA_IP_CONNECTED_BIT = BIT1;
+    static const uint32_t WIFI_STA_FAIL_BIT = BIT2;
+    static const uint32_t ETH_CONNECTED_BIT = BIT3;
+    static const uint32_t ETH_IP_CONNECTED_BIT = BIT4;
 
     // WiFi Scanner
     WiFiScanner _wifiScanner;
 
     // Helpers
     bool startWifi();
-    static void wifiEventHandler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data);
-    static void ethEventHandler(void *arg, esp_event_base_t event_base,
-                                int32_t event_id, void *event_data);
-    static void ethGotIPEvent(void *arg, esp_event_base_t event_base,
-                                 int32_t event_id, void *event_data);
-    
-    // WiFi - Ethernet bridge helpers
-    static esp_err_t initEthWiFiBridgeFlowControl(void);
-    static void ethWiFiFlowCtrlTask(void *args);
-    static esp_err_t wifiRxPacketCallback(void *buffer, uint16_t len, void *eb);
-    static esp_err_t ethRxPacketCallback(esp_eth_handle_t eth_handle, uint8_t *buffer, uint32_t len, void *priv);
-
+    bool startEthernet();
+    static void networkEventHandler(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* pEventData);
+    void wifiEventHandler(void* arg, int32_t event_id, void* pEventData);
+    void ethEventHandler(void* arg, int32_t event_id, void* pEventData);
+    void ipEventHandler(void* arg, int32_t event_id, void* pEventData);
+    void handleWiFiStaDisconnectEvent();
+    void warnOnWiFiDisconnectIfEthNotConnected();
 };
 
+// Access to single instance
 extern NetworkSystem networkSystem;

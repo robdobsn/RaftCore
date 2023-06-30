@@ -1,10 +1,9 @@
-// RBotFirmware
-// Rob Dobson 2019
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
+// RaftCore SysModBase
 // Base class for SysMods (System Modules)
 // For more info see SysManager
+// Rob Dobson 2013-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +85,7 @@ public:
     virtual String getSystemName();
 
     // Friendly name
-    virtual String getFriendlyName();
+    virtual String getFriendlyName(bool& isSet);
 
     // Config access
     virtual long configGetLong(const char *dataPath, long defaultValue);
@@ -244,5 +243,4 @@ private:
 
     // Status change callbacks
     std::list<SysMod_statusChangeCB> _statusChangeCBs;
-
 };
