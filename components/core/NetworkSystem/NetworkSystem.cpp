@@ -241,7 +241,7 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
             jsonStr += R"(,)";
         jsonStr += R"("wifiAP":{"en":)" + String(_networkSettings.enableWifiAPMode);
         if (_networkSettings.enableWifiAPMode)
-            jsonStr += R"(,"BSSID":")" + _wifiAPSSID +
+            jsonStr += R"(,"SSID":")" + _wifiAPSSID +
                         R"(","clients":)" + String(_wifiAPClientCount);
         jsonStr += R"(})";
     }
@@ -337,36 +337,26 @@ bool NetworkSystem::startWifi()
     if (enWifiSTAMode)
     {
         // Get the config from NVS if present
-        wifi_config_t configFromNVS;
-        esp_err_t err = esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &configFromNVS);
-        if (err == ESP_OK)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+        wifi_config_t currentWifiConfig = {0};
+#pragma GCC diagnostic pop
+        esp_err_t err = esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
+        if ((err != ESP_OK) || 
+            (currentWifiConfig.sta.threshold.authmode != _networkSettings.wifiSTAScanThreshold))
         {
-            esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &configFromNVS);
-            String ssid = String((char*)configFromNVS.sta.ssid, sizeof(configFromNVS.sta.ssid));
-            LOG_I(MODULE_PREFIX, "setup from NV connecting to ssid %s", ssid.c_str());
-        }
-        else
-        {
-            // Setting new config
-            // static const char* WIFI_H2E_IDENTIFIER = "";
-            // wifi_config_t wifi_config = {
-            //         .sta = {
-            //             // Authmode threshold resets to WPA2 as default if password matches WPA2 standards (pasword len => 8).
-            //             // If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-            //             // to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-            //             // WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-            //             .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
-            //             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH
-            //         },
-            //     };
+            // Amend config as required
+            LOG_I(MODULE_PREFIX, "startWifi threshold %d set to %d", 
+                        currentWifiConfig.sta.threshold.authmode,
+                        _networkSettings.wifiSTAScanThreshold);
 
-            // // Set config
-            // err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-            if (err != ESP_OK)
-            {
-                LOG_E(MODULE_PREFIX, "startWifi failed to set config err %s (%d)", esp_err_to_name(err), err);
-                // return false;
-            }
+            // Set new settings
+            currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
+            esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
+
+            // Debug
+            String ssid = String((char*)currentWifiConfig.sta.ssid, sizeof(currentWifiConfig.sta.ssid));
+            LOG_I(MODULE_PREFIX, "setup connecting to ssid %s", ssid.c_str());
         }
     }
 
@@ -377,15 +367,6 @@ bool NetworkSystem::startWifi()
         LOG_E(MODULE_PREFIX, "startWifi failed to start WiFi err %s (%d)", esp_err_to_name(err), err);
         return false;
     }
-
-    // wifi_config_t wifi_config = {};
-    // strlcpy((char *)wifi_config.sta.ssid, "rdint01", 32);
-    // strlcpy((char *)wifi_config.sta.password, "", 64);
-    // wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-
-    // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    // ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    // ESP_ERROR_CHECK(esp_wifi_start() );
 
     LOG_I(MODULE_PREFIX, "startWifi init complete");
     return true;
@@ -411,75 +392,24 @@ bool NetworkSystem::configWifiSTA(const String& ssid, const String& pw)
 
 
     // Populate configuration for WiFi
-    wifi_config_t wifiSTAConfig = {};
-    // TODO
-//             .sta = {
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-//                 .ssid = "",
-//                 .password = "",
-// #else
-//                 {.ssid = ""},
-//                 {.password = ""},
-// #endif
-//                 .scan_method = WIFI_FAST_SCAN,
-//                 .bssid_set = 0,
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-//                 .bssid = "",
-// #else
-//                 {.bssid = ""},
-// #endif
-//                 .channel = 0,
-//                 .listen_interval = 0,
-//                 .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
-//                 .threshold = {.rssi = 0, .authmode = WIFI_AUTH_OPEN},
-//                 .pmf_cfg = {.capable = 0, .required = 0},
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
-//                 .rm_enabled = 1,
-//                 .btm_enabled = 0,
-//                 .mbo_enabled  = 0,
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-//                 .ft_enabled = 0,
-//                 .owe_enabled = 0,
-// #endif
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
-//                 .transition_disable = 0,
-// #endif
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 2)
-//                 .aid = 0,
-//                 .phymode = 0,
-// #endif
-//                 .reserved = 0,
-// #endif
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 3)
-//                 .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
-// #endif
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
-//                 .sae_pk_mode = WPA3_SAE_PK_MODE_AUTOMATIC,
-// #endif
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 4)
-//                 .failure_retry_cnt = 0,
-// #endif
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
-//                 .he_dcm_set = 0,
-//                 .he_dcm_max_constellation_tx = 0,
-//                 .he_dcm_max_constellation_rx = 0,
-//                 .he_mcs9_enabled = 0,
-//                 .he_su_beamformee_disabled = 0,
-//                 .he_trig_su_bmforming_feedback_disabled = 0,
-//                 .he_trig_mu_bmforming_partial_feedback_disabled = 0,
-//                 .he_trig_cqi_feedback_disabled = 0,
-//                 .he_reserved = 0,
-//                 .sae_h2e_identifier = {0},
-// #endif
-//                 }};
-    strlcpy((char *)wifiSTAConfig.sta.ssid, ssid.c_str(), 32);
-    strlcpy((char *)wifiSTAConfig.sta.password, pw.c_str(), 64);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    wifi_config_t currentWifiConfig = {};
+#pragma GCC diagnostic pop
+    esp_err_t err = esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
+    if (err != ESP_OK)
+    {
+        LOG_E(MODULE_PREFIX, "configWifiSTA failed to get config err %s (%d)", esp_err_to_name(err), err);
+        return false;
+    }
 
-    // TODO
-    wifiSTAConfig.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    // Setup config
+    strlcpy((char *)currentWifiConfig.sta.ssid, ssid.c_str(), 32);
+    strlcpy((char *)currentWifiConfig.sta.password, pw.c_str(), 64);
+    currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
 
     // Set configuration
-    esp_err_t err = esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &wifiSTAConfig);
+    err = esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
     if (err != ESP_OK)
     {
         LOG_E(MODULE_PREFIX, "configWifiSTA FAILED err %s (%d) ***", esp_err_to_name(err), err);
@@ -498,40 +428,23 @@ bool NetworkSystem::configWifiSTA(const String& ssid, const String& pw)
 // Configure Wifi AP
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool NetworkSystem::configWifiAP(const String& apSsid, const String& apPassword)
+bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
 {
     // Handle AP mode config
     if (!_networkSettings.enableWifiAPMode)
         return false;
 
     // Populate configuration for AP
-    wifi_config_t wifiAPConfig = {};
-    // TODO
-//             .ap = {
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-//                 .ssid = "",
-//                 .password = "",
-// #else
-//                 {.ssid = ""},
-//                 {.password = ""},
-// #endif
-//                 .ssid_len = 0,
-//                 .channel = 1,
-//                 .authmode = WIFI_AUTH_WPA_WPA2_PSK,
-//                 .ssid_hidden = 0,
-//                 .max_connection = 10,
-//                 .beacon_interval = 100,
-//                 .pairwise_cipher = WIFI_CIPHER_TYPE_CCMP,
-//                 .ftm_responder = 0,
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-//                 .pmf_cfg = {.capable = 0, .required = 0},
-// #endif
-// #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
-//                 .sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED,
-// #endif
-//             };
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    wifi_config_t wifiAPConfig = {0};
+#pragma GCC diagnostic pop
 
-    strlcpy((char *)wifiAPConfig.ap.ssid, apSsid.c_str(), 32);
+    // Settings
+    wifiAPConfig.ap.channel = _networkSettings.wifiAPChannel;
+    wifiAPConfig.ap.max_connection = _networkSettings.wifiAPMaxConn;
+    wifiAPConfig.ap.authmode = _networkSettings.wifiAPAuthMode;
+    strlcpy((char *)wifiAPConfig.ap.ssid, apSSID.c_str(), 32);
     strlcpy((char *)wifiAPConfig.ap.password, apPassword.c_str(), 64);
 
     // Set configuration
@@ -543,8 +456,8 @@ bool NetworkSystem::configWifiAP(const String& apSsid, const String& apPassword)
     }
 
     // Debug
-    LOG_I(MODULE_PREFIX, "configWifiAP OK BSSID %s", apSsid);
-    _wifiAPSSID = apSsid;
+    LOG_I(MODULE_PREFIX, "configWifiAP OK SSID %s", apSSID);
+    _wifiAPSSID = apSSID;
     return true;
 }
 
