@@ -173,6 +173,9 @@ bool ProtocolExchange::canProcessEndpointMsg()
 
 bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
 {
+    // Result
+    bool rslt = false;
+
     // Check configured
     if (!getCommsCore())
         return false;
@@ -248,27 +251,31 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
         {
             case RICRESTMsg::RICREST_ELEM_CODE_URL:
             {
-                processRICRESTURL(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
+                rslt = processRICRESTURL(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
+                if (!rslt && respMsg.isEmpty())
+                {
+                    Raft::setJsonErrorResult(ricRESTReqMsg.getReq().c_str(), respMsg, "API not found");
+                }
                 break;
             }
             case RICRESTMsg::RICREST_ELEM_CODE_BODY:
             {
-                processRICRESTBody(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
+                rslt = processRICRESTBody(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
                 break;
             }
             case RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON:
             {
-                processRICRESTCmdRespJSON(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
+                rslt = processRICRESTCmdRespJSON(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
                 break;
             }
             case RICRESTMsg::RICREST_ELEM_CODE_COMMAND_FRAME:
             {
-                processRICRESTCmdFrame(ricRESTReqMsg, respMsg, cmdMsg);
+                rslt = processRICRESTCmdFrame(ricRESTReqMsg, respMsg, cmdMsg) == RAFT_RET_OK;
                 break;
             }
             case RICRESTMsg::RICREST_ELEM_CODE_FILEBLOCK:
             {
-                processRICRESTFileStreamBlock(ricRESTReqMsg, respMsg, cmdMsg);
+                rslt = processRICRESTFileStreamBlock(ricRESTReqMsg, respMsg, cmdMsg) == RAFT_RET_OK;;
                 break;
             }
         }
@@ -287,11 +294,11 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
 #ifdef DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL
             // Debug
             static const uint32_t MAX_DEBUG_BYTES_LEN = 80;
-            LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST resp %s", 
+            LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST %s", 
                         RICRESTMsg::debugResp(endpointMsg, MAX_DEBUG_BYTES_LEN, true).c_str());
 #elif defined(DEBUG_RICREST_MESSAGES_RESPONSE)
             static const uint32_t MAX_DEBUG_BYTES_LEN = 10;
-            LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST resp %s", 
+            LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST %s", 
                         RICRESTMsg::debugResp(endpointMsg, MAX_DEBUG_BYTES_LEN, false).c_str());
 #endif
         }
@@ -308,22 +315,24 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
         if (cmdMsg.getBufLen() <= payloadPos)
         {
             LOG_E(MODULE_PREFIX, "processEndpointMsg bridgeID %d payloadPos %d", bridgeID, payloadPos);
+            rslt = false;
         }
         else
         {
             // Decode the message
             CommsChannelMsg bridgeMsg;
-            ProtocolRICSerial::decodeIntoCommsChannelMsg(cmdMsg.getChannelID(), cmdMsg.getBuf()+payloadPos, cmdMsg.getBufLen()-payloadPos, bridgeMsg);
+            rslt = ProtocolRICSerial::decodeIntoCommsChannelMsg(cmdMsg.getChannelID(), cmdMsg.getBuf()+payloadPos, 
+                            cmdMsg.getBufLen()-payloadPos, bridgeMsg);
 
             // Handle the bridged message
-            getCommsCore()->bridgeHandleInboundMsg(bridgeID, bridgeMsg);
+            if (rslt)
+                getCommsCore()->bridgeHandleInboundMsg(bridgeID, bridgeMsg);
 
 #ifdef DEBUG_RICREST_BRIDGE_MESSAGES
             // Debug
             LOG_I(MODULE_PREFIX, "processEndpointMsg bridgeID %d", bridgeID);
 #endif
         }
-        
     }
 
     // Raw commands
@@ -344,7 +353,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
         // Handle via standard REST API
         String respMsg;
         if (getRestAPIEndpointManager())
-            getRestAPIEndpointManager()->handleApiRequest(reqStr.c_str(), 
+            rslt = getRestAPIEndpointManager()->handleApiRequest(reqStr.c_str(), 
                         respMsg, APISourceInfo(cmdMsg.getChannelID()));
     }
 
@@ -367,7 +376,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
                 );
     }
 #endif
-    return false;
+    return rslt;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

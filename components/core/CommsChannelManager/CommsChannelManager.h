@@ -54,7 +54,7 @@ public:
     virtual bool canAcceptOutbound(uint32_t channelID, bool &noConn) override final;
     
     // Handle outbound message
-    virtual void handleOutboundMessage(CommsChannelMsg& msg) override final;
+    virtual CommsCoreRetCode handleOutboundMessage(CommsChannelMsg& msg) override final;
 
     // Get the optimal comms block size
     virtual uint32_t getInboundBlockLen(uint32_t channelID, uint32_t defaultSize) override final;
@@ -96,7 +96,7 @@ private:
 
     // Helpers
     void ensureProtocolCodecExists(uint32_t channelID);
-    void handleOutboundMessageOnChannel(CommsChannelMsg& msg, uint32_t channelID);
+    CommsCoreRetCode handleOutboundMessageOnChannel(CommsChannelMsg& msg, uint32_t channelID);
     void bridgeService();
 
     // Consts

@@ -18,6 +18,7 @@ static const char* MODULE_PREFIX = "CommsMan";
 // #define WARN_ON_NO_CHANNEL_MATCH
 // #define DEBUG_OUTBOUND_NON_PUBLISH
 // #define DEBUG_OUTBOUND_PUBLISH
+// #define DEBUG_OUTBOUND_MSG
 // #define DEBUG_INBOUND_MESSAGE
 // #define DEBUG_COMMS_MANAGER_SERVICE
 // #define DEBUG_CHANNEL_ID
@@ -90,18 +91,26 @@ void CommsChannelManager::service()
 
                 // Debug
 #ifdef DEBUG_COMMS_MANAGER_SERVICE
-                    LOG_I(MODULE_PREFIX, "service, got msg channelID %d, msgType %s msgNum %d, len %d",
+                    LOG_I(MODULE_PREFIX, "service, MSGSENT chanID %d, msgType %s msgNum %d, len %d",
                         msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
 #endif
                     // Handle the message
                     pChannel->addTxMsgToProtocolCodec(msg);
+                }
+                else
+                {
+#ifdef DEBUG_COMMS_MANAGER_SERVICE
+                    LOG_I(MODULE_PREFIX, "service, NOCONNDISCARD chanID %d, msgType %s msgNum %d, len %d",
+                        msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
+#endif                    
                 }
             }
         }
         else
         {
 #ifdef DEBUG_COMMS_MANAGER_SERVICE
-            LOG_I(MODULE_PREFIX, "service, channelID %d, can't accept", channelID);
+            LOG_I(MODULE_PREFIX, "service MSGNOTSENT chanID %d canAccept %d noConn %d", 
+                        channelID, canAccept, noConn);
 #endif
         }
 
@@ -324,35 +333,47 @@ bool CommsChannelManager::canAcceptOutbound(uint32_t channelID, bool& noConn)
 // Handle outbound message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void CommsChannelManager::handleOutboundMessage(CommsChannelMsg& msg)
+CommsCoreRetCode CommsChannelManager::handleOutboundMessage(CommsChannelMsg& msg)
 {
+    // Ret code
+    CommsCoreRetCode retcode = COMMS_CORE_RET_FAIL;
+
     // Get the channel
     uint32_t channelID = msg.getChannelID();
     if (channelID < _commsChannelVec.size())
     {
         // Send to one channel
-        handleOutboundMessageOnChannel(msg, channelID);
+        retcode = handleOutboundMessageOnChannel(msg, channelID);
+#ifdef DEBUG_OUTBOUND_MSG
+        {
+            CommsChannel* pChannel = _commsChannelVec[channelID];
+            LOG_I(MODULE_PREFIX, "handleOutboundMessage chanId %d chanName %s msgLen %d retc %d", 
+                        channelID, pChannel ? pChannel->getInterfaceName().c_str() : "UNKNONW", msg.getBufLen(), retcode)
+        }
+#endif
     }
     else if (channelID == MSG_CHANNEL_ID_ALL)
     {
         // Send on all open channels with an appropriate protocol
         std::vector<uint32_t> channelIDs;
         getChannelIDs(channelIDs);
+        retcode = COMMS_CORE_RET_OK;
         for (uint32_t specificChannelID : channelIDs)
         {
             msg.setChannelID(specificChannelID);
             handleOutboundMessageOnChannel(msg, specificChannelID);
 #ifdef DEBUG_OUTBOUND_MSG_ALL_CHANNELS
             CommsChannel* pChannel = _commsChannelVec[specificChannelID];
-            LOG_W(MODULE_PREFIX, "handleOutboundMessage, all chanId %u channelName %s msglen %d", 
+            LOG_W(MODULE_PREFIX, "handleOutboundMessage, all chanId %u chanName %s msglen %d", 
                             specificChannelID, pChannel ? pChannel->getInterfaceName().c_str() : "UNKNONW", msg.getBufLen());
 #endif            
         }
     }
     else
     {
-        LOG_W(MODULE_PREFIX, "handleOutboundMessage, channelID INVALID channel Id %u msglen %d", channelID, msg.getBufLen());
+        LOG_W(MODULE_PREFIX, "handleOutboundMessage, channelID INVALID chanId %u msglen %d", channelID, msg.getBufLen());
     }
+    return retcode;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -401,29 +422,30 @@ uint32_t CommsChannelManager::getOutboundBlockLen(uint32_t channelID, uint32_t d
 // Handle outbound message on a specific channel
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void CommsChannelManager::handleOutboundMessageOnChannel(CommsChannelMsg& msg, uint32_t channelID)
+CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChannelMsg& msg, uint32_t channelID)
 {
     // Check valid
     if (channelID >= _commsChannelVec.size())
-        return;
+        return COMMS_CORE_RET_NO_CONN;
 
     // Check if channel is used
     CommsChannel* pChannel = _commsChannelVec[channelID];
     if (!pChannel)
-        return;
+        return COMMS_CORE_RET_NO_CONN;
 
     // Check for message type code, this controls whether a publish message or response
     // response messages are placed in a regular queue
     // publish messages are handled such that only the latest one of any address is sent
     if (msg.getMsgTypeCode() != MSG_TYPE_PUBLISH)
     {
+        pChannel->addToOutboundQueue(msg);
 #ifdef DEBUG_OUTBOUND_NON_PUBLISH
         // Debug
-        LOG_I(MODULE_PREFIX, "handleOutboundMessage queued channel Id %d channel name %s, msglen %d, msgType %s msgNum %d", channelID, 
+        LOG_I(MODULE_PREFIX, "handleOutboundMessage queued channel Id %d channel name %s, msglen %d, msgType %s msgNum %d numQueued %d", 
+                    channelID, 
                     pChannel->getInterfaceName().c_str(), msg.getBufLen(), msg.getMsgTypeAsString(msg.getMsgTypeCode()),
-                    msg.getMsgNumber());
+                    msg.getMsgNumber(), pChannel->getOutboundQueuedCount());
 #endif
-        pChannel->addToOutboundQueue(msg);
     }
     else
     {
@@ -445,6 +467,9 @@ void CommsChannelManager::handleOutboundMessageOnChannel(CommsChannelMsg& msg, u
             if (pChannel->canAcceptOutbound(channelID, noConn))
                 pChannel->addTxMsgToProtocolCodec(msg);
     }
+
+    // Return ok
+    return COMMS_CORE_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

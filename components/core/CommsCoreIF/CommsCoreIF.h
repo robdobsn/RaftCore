@@ -16,6 +16,14 @@ class CommsChannelMsg;
 class ProtocolCodecFactoryHelper;
 class CommsChannelSettings;
 
+// Return type for CommsCore messages
+enum CommsCoreRetCode
+{
+    COMMS_CORE_RET_OK,
+    COMMS_CORE_RET_FAIL,
+    COMMS_CORE_RET_NO_CONN
+};
+
 // Message callback function type
 typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelMsgCB;
 // Ready to receive callback function type
@@ -53,7 +61,7 @@ public:
     virtual bool canAcceptOutbound(uint32_t channelID, bool &noConn) = 0;
 
     // Handle outbound message
-    virtual void handleOutboundMessage(CommsChannelMsg& msg) = 0;
+    virtual CommsCoreRetCode handleOutboundMessage(CommsChannelMsg& msg) = 0;
 
     // Get channel IDs
     virtual int32_t getChannelIDByName(const String& channelName, const String& protocolName) = 0;

@@ -83,6 +83,10 @@ private:
     {
         return _settings.outboundBlockLen;
     }
+    uint32_t getOutboundQueuedCount()
+    {
+        return _outboundQueue.count();
+    }
 
     // Call protocol handler with a message
     void addTxMsgToProtocolCodec(CommsChannelMsg& msg);
@@ -92,7 +96,8 @@ private:
     {
         if (_channelReadyCB)
             return _channelReadyCB(channelID, noConn);
-        return false;
+        noConn = false;
+        return true;
     }
 
     // Send the message on the channel

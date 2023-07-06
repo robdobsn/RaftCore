@@ -42,6 +42,7 @@ static const char *MODULE_PREFIX = "SysMan";
 // #define DEBUG_SYSMOD_WITH_GLOBAL_VALUE
 // #define DEBUG_SEND_CMD_JSON_PERF
 // #define DEBUG_REGISTER_MSG_GEN_CB
+// #define DEBUG_API_ENDPOINTS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -544,6 +545,11 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
              serialNo.c_str(),
              _systemUniqueString.c_str());
     respStr = versionJson;
+
+#ifdef DEBUG_API_ENDPOINTS
+    LOG_I(MODULE_PREFIX, "apiGetVersion %s", respStr.c_str());
+#endif
+
     return RaftRetCode::RAFT_RET_OK;
 }
 

@@ -131,14 +131,14 @@ public:
         return 0;
     }
 
-    uint32_t maxLen()
+    uint32_t maxLen() const
     {
         return _maxLen;
     }
 
     bool canAcceptData()
     {
-        return _queue.size() < _maxLen;
+        return count() < _maxLen;
     }
 
     void setMaxMsToWait(uint32_t maxMsToWait)
