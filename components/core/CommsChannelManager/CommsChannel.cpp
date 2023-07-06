@@ -44,7 +44,7 @@ CommsChannel::CommsChannel(const char* pSourceProtocolName,
     _msgSendCallback = msgSendCallback;
     _interfaceName = interfaceName;
     _channelName = channelName;
-    _channelReadyCB = outboundChannelReadyCB;
+    _canSendOutboundCB = outboundChannelReadyCB;
     _pProtocolCodec = NULL;
     _outboundQPeak = 0;
     _inboundQPeak = 0;

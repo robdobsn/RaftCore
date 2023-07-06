@@ -19,6 +19,7 @@ static const char* MODULE_PREFIX = "RICSerial";
 
 // Warn
 #define WARN_ON_NO_HDLC_HANDLER
+#define WARN_ON_ENCODED_MSG_LEN_MISMATCH
 
 // Debug
 // #define DEBUG_PROTOCOL_RIC_SERIAL_DECODE_IN
@@ -104,7 +105,7 @@ void ProtocolRICSerial::addRxData(const uint8_t* pData, uint32_t dataLen)
 // addRxData
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #define USE_OPTIMIZED_ENCODE_CAUSES_HEAP_FAULT
+// #define USE_HDLC_BYTEWISE_SEND
 
 void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 {
@@ -115,58 +116,8 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
     // Add to HDLC
     if (_pHDLC)
     {
-#ifdef USE_OPTIMIZED_ENCODE_CAUSES_HEAP_FAULT
-        // Create the message header
-        uint8_t msgHeader[2];
-        msgHeader[0] = msg.getMsgNumber();
-        uint8_t protocolDirnByte = ((msg.getMsgTypeCode() & 0x03) << 6) + (msg.getProtocol() & 0x3f);
-        msgHeader[1] = protocolDirnByte;
-
-        // Calculate encoded length of full message
-        uint32_t encFrameLen = _pHDLC->calcEncodedPayloadLen(msgHeader, 2);
-        encFrameLen += _pHDLC->calcEncodedPayloadLen(msg.getBuf(), msg.getBufLen());
-        encFrameLen += _pHDLC->maxEncodedLen(0);
-
-        // Check length is ok
-        if (encFrameLen > _maxTxMsgLen)
-        {
-            LOG_E(MODULE_PREFIX, "encodeTxMsgAndSend encodedLen %d > max %d", encFrameLen, _maxTxMsgLen);
-            return;
-        }
-
-        // Allocate buffer for the frame
-        std::vector<uint8_t> ricSerialMsg;
-        ricSerialMsg.resize(encFrameLen);
-
-        // Encode start
-        uint16_t fcs = 0;
-        uint32_t curPos = _pHDLC->encodeFrameStart(ricSerialMsg.data(), ricSerialMsg.size(), fcs);
-
-        // Encode header
-        curPos = _pHDLC->encodeFrameAddPayload(ricSerialMsg.data(), ricSerialMsg.size(), fcs, curPos, msgHeader, sizeof(msgHeader));
-
-        // Encode payload
-        curPos = _pHDLC->encodeFrameAddPayload(ricSerialMsg.data(), ricSerialMsg.size(), fcs, curPos, msg.getBuf(), msg.getBufLen());
-
-        // Complete encoding
-        curPos = _pHDLC->encodeFrameEnd(ricSerialMsg.data(), ricSerialMsg.size(), fcs, curPos);
-
-        if (curPos == 0)
-        {
-            LOG_E(MODULE_PREFIX, "encodeTxMsgAndSend unexpected encFrameLen %d > max %d", encFrameLen, _maxTxMsgLen);
-            return;
-        }
-        else if (curPos != encFrameLen)
-        {
-            LOG_W(MODULE_PREFIX, "encodeTxMsgAndSend length %d != expectedLen %d", curPos, encFrameLen);
-        }
-
-        // Debug
-        // LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend, origLen %d encoded len %d", msg.getBufLen(), encFrameLen);
-
-        // Set message into buffer
-        msg.setFromBuffer(ricSerialMsg.data(), ricSerialMsg.size());
-#else
+#ifdef USE_HDLC_BYTEWISE_SEND
+        CommsChannelMsg& encodedMsg = msg;
         // Create the message
         std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricSerialMsg;
         ricSerialMsg.reserve(msg.getBufLen()+2);
@@ -177,22 +128,57 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
         _pHDLC->sendFrame(ricSerialMsg.data(), ricSerialMsg.size());
         msg.setFromBuffer(_pHDLC->getFrameTxBuf(), _pHDLC->getFrameTxLen());
         _pHDLC->clearTxBuf();
+#else
+        // Form the header
+        uint8_t protocolByte = ((msg.getMsgTypeCode() & 0x03) << 6) + (msg.getProtocol() & 0x3f); 
+        uint8_t ricSerialRec[] = {
+            (uint8_t) msg.getMsgNumber(),
+            protocolByte
+        };
+
+        // Get the exact size of encoded payload
+        uint32_t encodedTotalLen = _pHDLC->calcEncodedPayloadLen(ricSerialRec, sizeof(ricSerialRec));
+        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend encodedTotalLen %d", encodedTotalLen);
+        encodedTotalLen += _pHDLC->calcEncodedPayloadLen(msg.getBuf(), msg.getBufLen());
+        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend encodedTotalLen %d bufLen %d", encodedTotalLen, msg.getBufLen());
+        encodedTotalLen += MiniHDLC::HDLC_OVERHEAD_BYTES;
+        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend maxEncodedLen %d bufLen %d", encodedTotalLen, msg.getBufLen());
+
+        // Create encoded message obtaining channel, etc from original message
+        CommsChannelMsg encodedMsg(msg.getChannelID(), msg.getProtocol(), 
+                        msg.getMsgNumber(), msg.getMsgTypeCode());
+        encodedMsg.setBufferSize(encodedTotalLen);
+
+        // Build the encoded message in parts
+        uint8_t* pEncBuf = encodedMsg.getCmdVector().data();
+        uint16_t fcs = 0;
+        uint32_t curPos = _pHDLC->encodeFrameStart(pEncBuf, encodedMsg.getBufLen(), fcs);
+        curPos = _pHDLC->encodeFrameAddPayload(pEncBuf, encodedMsg.getBufLen(), fcs, curPos, ricSerialRec, sizeof(ricSerialRec));
+        curPos = _pHDLC->encodeFrameAddPayload(pEncBuf, encodedMsg.getBufLen(), fcs, curPos, msg.getBuf(), msg.getBufLen());
+        curPos = _pHDLC->encodeFrameEnd(pEncBuf, encodedMsg.getBufLen(), fcs, curPos);
+        // Check correct length
+#ifdef WARN_ON_ENCODED_MSG_LEN_MISMATCH
+        if (curPos != encodedTotalLen)
+        {
+            LOG_W(MODULE_PREFIX, "encodeTxMsgAndSend len mismatch %d != %d", curPos, encodedTotalLen);
+        }
+#endif
 #endif
 
         // Debug
 #ifdef DEBUG_PROTOCOL_RIC_SERIAL_ENCODE
-        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend, encoded len %d", msg.getBufLen());
+        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend encoded len %d", encodedMsg.getBufLen());
 #endif
 #ifdef DEBUG_PROTOCOL_RIC_SERIAL_ENCODE_DETAIL
         {
         String outStr;
-        Raft::getHexStrFromBytes(msg.getBuf(), msg.getBufLen(), outStr);
+        Raft::getHexStrFromBytes(encodedMsg.getBuf(), encodedMsg.getBufLen(), outStr);
         LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend %s", outStr.c_str());
         }
 #endif
 
         // Send
-        _msgTxCB(msg);
+        _msgTxCB(encodedMsg);
     }
 }
 

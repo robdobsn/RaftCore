@@ -447,6 +447,15 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
                     msg.getMsgNumber(), pChannel->getOutboundQueuedCount());
 #endif
     }
+
+    // Skip publishing if there is another message in the queue
+    else if (pChannel->getOutboundQueuedCount() > 0)
+    {
+#ifdef DEBUG_OUTBOUND_PUBLISH
+            // Debug
+            LOG_I(MODULE_PREFIX, "handleOutboundMessage PUBLISH IGNORED while other msg waiting");
+#endif
+    }
     else
     {
             // TODO - maybe on callback thread here so make sure this is ok!!!!
@@ -536,7 +545,7 @@ bool CommsChannelManager::frameSendCB(CommsChannelMsg& msg)
     uint32_t channelID = msg.getChannelID();
     if (channelID >= _commsChannelVec.size())
     {
-        LOG_W(MODULE_PREFIX, "frameSendCB, channelID INVALID channel Id %d msglen %d", channelID, msg.getBufLen());
+        LOG_W(MODULE_PREFIX, "frameSendCB channelID INVALID channel Id %d msglen %d", channelID, msg.getBufLen());
         return false;
     }
 
@@ -547,7 +556,7 @@ bool CommsChannelManager::frameSendCB(CommsChannelMsg& msg)
 
 #ifdef DEBUG_FRAME_SEND
     // Debug
-    LOG_I(MODULE_PREFIX, "frameSendCB, channel Id %d channel name %s, msglen %d", channelID, 
+    LOG_I(MODULE_PREFIX, "frameSendCB channel Id %d channel name %s msglen %d", channelID, 
                 pChannel->getInterfaceName().c_str(), msg.getBufLen());
 #endif
 

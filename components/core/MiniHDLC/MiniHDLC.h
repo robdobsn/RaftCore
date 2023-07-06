@@ -96,12 +96,15 @@ public:
     // Set frame rx max length
     void setFrameRxMaxLen(uint32_t rxMaxLen);
 
+    // Overhead bytes
+    static constexpr uint32_t HDLC_OVERHEAD_BYTES = 4;
+
     // Max encoded length
     uint32_t maxEncodedLen(uint32_t payloadLen)
     {
         // Worst case length is 2 * payloadLen (if every byte is escaped)
         // + 2 * BORDER + 2 * FCS
-        return payloadLen * 2 + 4;
+        return payloadLen * 2 + HDLC_OVERHEAD_BYTES;
     }
 
     // Get frame rx max len

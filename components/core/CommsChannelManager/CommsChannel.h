@@ -94,8 +94,8 @@ private:
     // Check channel is ready
     bool canAcceptOutbound(uint32_t channelID, bool& noConn)
     {
-        if (_channelReadyCB)
-            return _channelReadyCB(channelID, noConn);
+        if (_canSendOutboundCB)
+            return _canSendOutboundCB(channelID, noConn);
         noConn = false;
         return true;
     }
@@ -126,7 +126,7 @@ private:
     ProtocolBase* _pProtocolCodec;
 
     // Channel ready callback
-    ChannelReadyToSendCB _channelReadyCB;
+    ChannelReadyToSendCB _canSendOutboundCB;
 
     // Comms settings
     CommsChannelSettings _settings;
