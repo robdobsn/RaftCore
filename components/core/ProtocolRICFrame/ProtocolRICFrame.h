@@ -17,22 +17,17 @@
 class ProtocolRICFrame : public ProtocolBase
 {
 public:
-    ProtocolRICFrame(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, CommsChannelMsgCB msgTxCB, 
-                            CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB);
+    ProtocolRICFrame(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+                            CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, 
+                            CommsChannelReadyToRxCB readyToRxCB);
     virtual ~ProtocolRICFrame();
     
     // Create instance
     static ProtocolBase* createInstance(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                CommsChannelMsgCB msgTxCB, CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
+                CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
     {
         return new ProtocolRICFrame(channelID, config, pConfigPrefix, msgTxCB, msgRxCB, readyToRxCB);
     }
-
-    // // Set message complete callback
-    // virtual void setMsgCompleteCB(CommsChannelMsgCB msgCB)
-    // {
-    //     _msgCB = msgCB;
-    // }
 
     virtual void addRxData(const uint8_t* pData, uint32_t dataLen) override final;
     static bool decodeParts(const uint8_t* pData, uint32_t dataLen, uint32_t& msgNumber, 

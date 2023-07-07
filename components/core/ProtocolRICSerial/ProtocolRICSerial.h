@@ -17,22 +17,17 @@ class MiniHDLC;
 class ProtocolRICSerial : public ProtocolBase
 {
 public:
-    ProtocolRICSerial(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, CommsChannelMsgCB msgTxCB, 
-                        CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB);
+    ProtocolRICSerial(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+                        CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, 
+                        CommsChannelReadyToRxCB readyToRxCB);
     virtual ~ProtocolRICSerial();
     
     // Create instance
     static ProtocolBase* createInstance(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                        CommsChannelMsgCB msgTxCB, CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
+                        CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
     {
         return new ProtocolRICSerial(channelID, config, pConfigPrefix, msgTxCB, msgRxCB, readyToRxCB);
     }
-
-    // // Set message complete callback
-    // virtual void setMsgCompleteCB(CommsChannelMsgCB msgCB)
-    // {
-    //     _msgCB = msgCB;
-    // }
 
     virtual void addRxData(const uint8_t* pData, uint32_t dataLen) override final;
     virtual void encodeTxMsgAndSend(CommsChannelMsg& msg) override final;

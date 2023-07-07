@@ -22,13 +22,15 @@ typedef std::function<void(uint8_t ch)> ProtocolBasePutByteCBType;
 // Received frame callback function type
 typedef std::function<void(const uint8_t *framebuffer, int framelength)> ProtocolBaseFrameCBType;
 // Create protocol instance
-typedef std::function<ProtocolBase* (uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, CommsChannelMsgCB msgTxCB, 
-                CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)> ProtocolCreateFnType;
+typedef std::function<ProtocolBase* (uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+                CommsChannelSendMsgCB msgTxCB, 
+                CommsChannelReceiveMsgCB msgRxCB, 
+                CommsChannelReadyToRxCB readyToRxCB)> ProtocolCreateFnType;
 
 class ProtocolBase
 {
 public:
-    ProtocolBase(uint32_t channelID, CommsChannelMsgCB msgTxCB, CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
+    ProtocolBase(uint32_t channelID, CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
             : _channelID(channelID), _msgTxCB(msgTxCB), _msgRxCB(msgRxCB), _readyToRxCB(readyToRxCB)
     {
     }
@@ -67,7 +69,7 @@ protected:
     uint32_t _channelID;
 
     // Callbacks
-    CommsChannelMsgCB _msgTxCB;
-    CommsChannelMsgCB _msgRxCB;
+    CommsChannelSendMsgCB _msgTxCB;
+    CommsChannelReceiveMsgCB _msgRxCB;
     CommsChannelReadyToRxCB _readyToRxCB;
 };

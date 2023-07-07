@@ -24,8 +24,10 @@ enum CommsCoreRetCode
     COMMS_CORE_RET_NO_CONN
 };
 
+// Send message function type
+typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelSendMsgCB;
 // Message callback function type
-typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelMsgCB;
+typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelReceiveMsgCB;
 // Ready to receive callback function type
 typedef std::function<bool()> CommsChannelReadyToRxCB;
 // Channel ready function type
@@ -40,7 +42,7 @@ public:
     virtual uint32_t registerChannel(const char* protocolName, 
                 const char* interfaceName,
                 const char* channelName, 
-                CommsChannelMsgCB msgCB, 
+                CommsChannelSendMsgCB outboundChannelSendCB, 
                 ChannelReadyToSendCB outboundChannelReadyCB,
                 const CommsChannelSettings* pSettings = nullptr) = 0;
 

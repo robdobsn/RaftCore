@@ -28,7 +28,7 @@ public:
     CommsChannel(const char* pSourceProtocolName, 
                 const char* interfaceName, 
                 const char* channelName,
-                CommsChannelMsgCB msgSendCallback, 
+                CommsChannelSendMsgCB msgSendCallback, 
                 ChannelReadyToSendCB outboundChannelReadyCB,
                 const CommsChannelSettings* pSettings = nullptr);
 
@@ -116,7 +116,7 @@ private:
     String _channelProtocolName;
 
     // Callback to send message on channel
-    CommsChannelMsgCB _msgSendCallback;
+    CommsChannelSendMsgCB _msgSendCallback;
 
     // Name of interface and channel
     String _interfaceName;

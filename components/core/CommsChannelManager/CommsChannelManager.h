@@ -29,12 +29,9 @@ public:
     virtual uint32_t registerChannel(const char* protocolName, 
                 const char* interfaceName,
                 const char* channelName, 
-                CommsChannelMsgCB msgCB, 
+                CommsChannelSendMsgCB outboundChannelSendCB, 
                 ChannelReadyToSendCB outboundChannelReadyCB,
                 const CommsChannelSettings* pSettings = nullptr) override final;
-
-    // Register as an internal message sink
-    uint32_t registerSink(CommsChannelMsgCB msgCB);
 
     // Add protocol handler
     virtual void addProtocol(ProtocolCodecFactoryHelper& protocolDef) override final;

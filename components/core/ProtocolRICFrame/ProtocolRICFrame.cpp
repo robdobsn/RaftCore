@@ -25,7 +25,7 @@ static const char* MODULE_PREFIX = "RICFrame";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ProtocolRICFrame::ProtocolRICFrame(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                CommsChannelMsgCB msgTxCB, CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB) :
+                CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB) :
     ProtocolBase(channelID, msgTxCB, msgRxCB, readyToRxCB)
 {
 }

@@ -20,6 +20,6 @@ public:
     ProtocolCreateFnType createFn;
     ConfigBase& config;
     const char* pConfigPrefix;
-    CommsChannelMsgCB frameRxCB;
+    CommsChannelReceiveMsgCB frameRxCB;
     CommsChannelReadyToRxCB readyToRxCB;
 };

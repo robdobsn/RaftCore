@@ -30,7 +30,7 @@ static const char* MODULE_PREFIX = "CommsChan";
 CommsChannel::CommsChannel(const char* pSourceProtocolName, 
             const char* interfaceName, 
             const char* channelName,
-            CommsChannelMsgCB msgSendCallback, 
+            CommsChannelSendMsgCB msgSendCallback, 
             ChannelReadyToSendCB outboundChannelReadyCB,
             const CommsChannelSettings* pSettings)
             :

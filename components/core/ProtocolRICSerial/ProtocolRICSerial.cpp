@@ -34,7 +34,7 @@ static const char* MODULE_PREFIX = "RICSerial";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                    CommsChannelMsgCB msgTxCB, CommsChannelMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB) :
+                    CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB) :
     ProtocolBase(channelID, msgTxCB, msgRxCB, readyToRxCB)
 {
     // Extract configuration
@@ -138,11 +138,8 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 
         // Get the exact size of encoded payload
         uint32_t encodedTotalLen = _pHDLC->calcEncodedPayloadLen(ricSerialRec, sizeof(ricSerialRec));
-        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend encodedTotalLen %d", encodedTotalLen);
         encodedTotalLen += _pHDLC->calcEncodedPayloadLen(msg.getBuf(), msg.getBufLen());
-        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend encodedTotalLen %d bufLen %d", encodedTotalLen, msg.getBufLen());
         encodedTotalLen += MiniHDLC::HDLC_OVERHEAD_BYTES;
-        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend maxEncodedLen %d bufLen %d", encodedTotalLen, msg.getBufLen());
 
         // Create encoded message obtaining channel, etc from original message
         CommsChannelMsg encodedMsg(msg.getChannelID(), msg.getProtocol(), 

@@ -134,12 +134,13 @@ void CommsChannelManager::service()
 
 uint32_t CommsChannelManager::registerChannel(const char* protocolName, 
                     const char* interfaceName, const char* channelName,
-                    CommsChannelMsgCB msgCB, 
+                    CommsChannelSendMsgCB outboundChannelSendCB, 
                     ChannelReadyToSendCB outboundChannelReadyCB,
                     const CommsChannelSettings* pSettings)
 {
     // Create new command definition and add
-    CommsChannel* pCommsChannel = new CommsChannel(protocolName, interfaceName, channelName, msgCB, outboundChannelReadyCB, pSettings);
+    CommsChannel* pCommsChannel = new CommsChannel(protocolName, interfaceName, channelName, 
+                    outboundChannelSendCB, outboundChannelReadyCB, pSettings);
     if (pCommsChannel)
     {
         // Add to vector
