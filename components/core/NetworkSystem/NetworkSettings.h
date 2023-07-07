@@ -50,6 +50,10 @@ public:
         smiMDIOPin = config.getLong("ethMDIOPin", config.getLong("EthMDIOPin", -1, pPrefix), pPrefix);
         phyAddr = config.getLong("ethPhyAddr", config.getLong("EthPhyAddr", -1, pPrefix), pPrefix);
         phyRstPin = config.getLong("ethPhyRstPin", config.getLong("EthPhyRstPin", -1, pPrefix), pPrefix);
+
+        // NTP settings
+        ntpServer = config.getString("NTPServer", "pool.ntp.org");
+        timezone = config.getString("timezone", 0);
     }
 
     // Enables
@@ -75,6 +79,10 @@ public:
     int smiMDIOPin = -1;
     int phyAddr = 0;
     int phyRstPin = -1;
+
+    // NTP
+    String ntpServer;
+    String timezone;
 
 private:
     EthLanChip getChipEnum(const String& ethLanChip)

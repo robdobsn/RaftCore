@@ -48,10 +48,18 @@ bool ROSSerialMsg::decode(const uint8_t* pBuf, uint32_t len, uint32_t& actualMsg
 // Form message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ROSSerialMsg::encode(uint16_t topicId, const uint8_t* pPayload, uint32_t payloadLen)
+void ROSSerialMsg::encode(uint16_t topicId, const uint8_t* pPayload, uint32_t payloadLen, bool append)
 {
     _topicID = topicId;
-    _payload.assign(pPayload, pPayload + payloadLen);
+    if (!append)
+    {
+        _payload.clear();
+        _payload.assign(pPayload, pPayload + payloadLen);
+    }
+    else
+    {
+        _payload.insert(_payload.end(), pPayload, pPayload + payloadLen);
+    }
 
     // Compute checksums
     _headerChecksum = computeHeaderChecksum(_payload.size());

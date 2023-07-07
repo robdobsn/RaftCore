@@ -139,7 +139,7 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
         // Get the exact size of encoded payload
         uint32_t encodedTotalLen = _pHDLC->calcEncodedPayloadLen(ricSerialRec, sizeof(ricSerialRec));
         encodedTotalLen += _pHDLC->calcEncodedPayloadLen(msg.getBuf(), msg.getBufLen());
-        encodedTotalLen += MiniHDLC::HDLC_OVERHEAD_BYTES;
+        encodedTotalLen += MiniHDLC::HDLC_MAX_OVERHEAD_BYTES;
 
         // Create encoded message obtaining channel, etc from original message
         CommsChannelMsg encodedMsg(msg.getChannelID(), msg.getProtocol(), 
@@ -153,9 +153,13 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
         curPos = _pHDLC->encodeFrameAddPayload(pEncBuf, encodedMsg.getBufLen(), fcs, curPos, ricSerialRec, sizeof(ricSerialRec));
         curPos = _pHDLC->encodeFrameAddPayload(pEncBuf, encodedMsg.getBufLen(), fcs, curPos, msg.getBuf(), msg.getBufLen());
         curPos = _pHDLC->encodeFrameEnd(pEncBuf, encodedMsg.getBufLen(), fcs, curPos);
+
+        // Resize to the actual length (encodedTotalLen is the max length assuming both FCS bytes are escaped)
+        encodedMsg.setBufferSize(curPos);
+        
         // Check correct length
 #ifdef WARN_ON_ENCODED_MSG_LEN_MISMATCH
-        if (curPos != encodedTotalLen)
+        if (curPos > encodedTotalLen)
         {
             LOG_W(MODULE_PREFIX, "encodeTxMsgAndSend len mismatch %d != %d", curPos, encodedTotalLen);
         }

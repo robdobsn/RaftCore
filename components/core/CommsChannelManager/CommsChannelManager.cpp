@@ -70,48 +70,53 @@ void CommsChannelManager::service()
         if (!pChannel)
             continue;
 
-        // Outbound messages - check if interface is ready
-        bool noConn = false;
-        bool canAccept = pChannel->canAcceptOutbound(channelID, noConn);
-
-        // When either canAccept or no-connection get any message to be sent
-        // In the case of noConn this is so that the queue doesn't block
-        // when the connection is not present
-        if (canAccept || noConn)
+        // Check if there are any messages to send
+        if (pChannel->getOutboundQueuedCount() > 0)
         {
-            // Check for outbound message
-            CommsChannelMsg msg;
-            if (pChannel->getFromOutboundQueue(msg))
-            {
-                // Check if we can send
-                if (canAccept)
-                {
-                    // Ensure protocol handler exists
-                    ensureProtocolCodecExists(channelID);
 
-                // Debug
-#ifdef DEBUG_COMMS_MANAGER_SERVICE
-                    LOG_I(MODULE_PREFIX, "service, MSGSENT chanID %d, msgType %s msgNum %d, len %d",
-                        msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
-#endif
-                    // Handle the message
-                    pChannel->addTxMsgToProtocolCodec(msg);
-                }
-                else
+            // Outbound messages - check if interface is ready
+            bool noConn = false;
+            bool canAccept = pChannel->canAcceptOutbound(channelID, noConn);
+
+            // When either canAccept or no-connection get any message to be sent
+            // In the case of noConn this is so that the queue doesn't block
+            // when the connection is not present
+            if (canAccept || noConn)
+            {
+                // Check for outbound message
+                CommsChannelMsg msg;
+                if (pChannel->getFromOutboundQueue(msg))
                 {
-#ifdef DEBUG_COMMS_MANAGER_SERVICE
-                    LOG_I(MODULE_PREFIX, "service, NOCONNDISCARD chanID %d, msgType %s msgNum %d, len %d",
-                        msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
-#endif                    
+                    // Check if we can send
+                    if (canAccept)
+                    {
+                        // Ensure protocol handler exists
+                        ensureProtocolCodecExists(channelID);
+
+                    // Debug
+    #ifdef DEBUG_COMMS_MANAGER_SERVICE
+                        LOG_I(MODULE_PREFIX, "service, MSGSENT chanID %d, msgType %s msgNum %d, len %d",
+                            msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
+    #endif
+                        // Handle the message
+                        pChannel->addTxMsgToProtocolCodec(msg);
+                    }
+                    else
+                    {
+    #ifdef DEBUG_COMMS_MANAGER_SERVICE
+                        LOG_I(MODULE_PREFIX, "service, NOCONNDISCARD chanID %d, msgType %s msgNum %d, len %d",
+                            msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
+    #endif                    
+                    }
                 }
             }
-        }
-        else
-        {
-#ifdef DEBUG_COMMS_MANAGER_SERVICE
-            LOG_I(MODULE_PREFIX, "service MSGNOTSENT chanID %d canAccept %d noConn %d", 
-                        channelID, canAccept, noConn);
-#endif
+            else
+            {
+    #ifdef DEBUG_COMMS_MANAGER_SERVICE
+                LOG_I(MODULE_PREFIX, "service MSGNOTSENT chanID %d canAccept %d noConn %d", 
+                            channelID, canAccept, noConn);
+    #endif
+            }
         }
 
         // Inbound messages - possibly multiple messages

@@ -23,6 +23,11 @@
 #include "esp_private/wifi.h"
 #include "sdkconfig.h"
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#include "esp_sntp.h"
+#include "esp_netif_sntp.h"
+#endif
+
 static const char* MODULE_PREFIX = "NetworkSystem";
 
 // Global object
@@ -128,6 +133,23 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
     {
         // Start Ethernet
         startEthernet();
+    }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    // SNTP server
+    if (!_networkSettings.ntpServer.isEmpty())
+    {
+        // Setup server
+        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(_networkSettings.ntpServer.c_str());
+        esp_netif_sntp_init(&config);
+    }
+#endif
+
+    // Timezone
+    if (!_networkSettings.timezone.isEmpty())
+    {
+        setenv("TZ", _networkSettings.timezone.c_str(), 1);
+        tzset();
     }
 
     // Debug
