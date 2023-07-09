@@ -178,7 +178,7 @@ RaftRetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
         {
             LOG_W(MODULE_PREFIX, "sendCmdJSON failed send raw command");
 
-            // TODO 2022 should we return RaftRetCode::RAFT_RET_BUSY here?
+            // TODO 2022 should we return RaftRetCode::RAFT_BUSY here?
         }
 
         // Store the msg key for response
@@ -188,7 +188,7 @@ RaftRetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
 #ifdef DEBUG_CMD_JSON
         LOG_I(MODULE_PREFIX, "sendCmdJson hexWriteData %s numToRead %d", hexWriteData.c_str(), numBytesToRead);
 #endif
-        return RaftRetCode::RAFT_RET_OK;
+        return RaftRetCode::RAFT_OK;
     }
     else if (cmd.equals("bin"))
     {
@@ -210,7 +210,7 @@ RaftRetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
 #endif
         return retc;
     }
-    return RaftRetCode::RAFT_RET_INVALID_OPERATION;
+    return RaftRetCode::RAFT_INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

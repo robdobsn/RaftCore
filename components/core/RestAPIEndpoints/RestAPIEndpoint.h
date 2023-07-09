@@ -97,7 +97,7 @@ public:
     {
         if (_callbackMain)
             return _callbackMain(req, resp, sourceInfo);
-        return RaftRetCode::RAFT_RET_NOT_IMPLEMENTED;
+        return RaftRetCode::RAFT_NOT_IMPLEMENTED;
     }
 
     RaftRetCode callbackBody(String&req, const uint8_t *pData, size_t len, size_t bufferPos, 
@@ -105,14 +105,14 @@ public:
     {
         if (_callbackBody)
             return _callbackBody(req, pData, len, bufferPos, total, sourceInfo);
-        return RaftRetCode::RAFT_RET_NOT_IMPLEMENTED;
+        return RaftRetCode::RAFT_NOT_IMPLEMENTED;
     }
 
     RaftRetCode callbackChunk(String&req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
     {
         if (_callbackChunk)
             return _callbackChunk(req, fileStreamBlock, sourceInfo);
-        return RaftRetCode::RAFT_RET_NOT_IMPLEMENTED;
+        return RaftRetCode::RAFT_NOT_IMPLEMENTED;
     }
 
     bool callbackIsReady(const APISourceInfo& sourceInfo)

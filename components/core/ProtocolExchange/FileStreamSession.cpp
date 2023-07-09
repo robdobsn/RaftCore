@@ -213,7 +213,7 @@ RaftRetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStreamMsgType 
 {
     // Check handler exists
     if (!_pFileStreamProtocolHandler)
-        return RaftRetCode::RAFT_RET_INVALID_OBJECT;
+        return RaftRetCode::RAFT_INVALID_OBJECT;
 
     // Send to handler
     RaftRetCode rslt = 
@@ -236,7 +236,7 @@ RaftRetCode FileStreamSession::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, 
 {
     if (!_pFileStreamProtocolHandler)
     {
-        RaftRetCode rslt = RaftRetCode::RAFT_RET_INVALID_OBJECT;
+        RaftRetCode rslt = RaftRetCode::RAFT_INVALID_OBJECT;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"reason\":\"%s\"", Raft::getRetCodeStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
@@ -265,7 +265,7 @@ RaftRetCode FileStreamSession::fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen
 {
     // Check that a file chunker is available and active
     if (!_pFileChunker || !_pFileChunker->isActive())
-        return RaftRetCode::RAFT_RET_NOT_XFERING;
+        return RaftRetCode::RAFT_NOT_XFERING;
 
     // Get CRC and file length
     fileLen = _pFileChunker->getFileLen();
@@ -300,7 +300,7 @@ RaftRetCode FileStreamSession::fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen
 
     // CRC value
     crc = crcValue;
-    return RaftRetCode::RAFT_RET_OK;
+    return RaftRetCode::RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -312,7 +312,7 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
 {
     // Check chunker is active
     if (!_pFileChunker || !_pFileChunker->isActive())
-        return RaftRetCode::RAFT_RET_NOT_XFERING;
+        return RaftRetCode::RAFT_NOT_XFERING;
 
     // Allocate buffer
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> chunkBuf;
@@ -320,7 +320,7 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
 
     // Check allocation
     if (chunkBuf.size() == 0)
-        return RaftRetCode::RAFT_RET_INSUFFICIENT_RESOURCE;
+        return RaftRetCode::RAFT_INSUFFICIENT_RESOURCE;
 
     // Current file pos
     uint32_t curFilePos = _pFileChunker->getFilePos();
@@ -330,7 +330,7 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
     {
         // Seek to required position
         if (!_pFileChunker->seek(filePos))
-            return RaftRetCode::RAFT_RET_NOT_XFERING;
+            return RaftRetCode::RAFT_NOT_XFERING;
     }
 
     // Get next chunk
@@ -349,7 +349,7 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
             0, false,
             fileLen, true,
             filePos == 0);
-    return readOk ? RaftRetCode::RAFT_RET_OK : RaftRetCode::RAFT_RET_NOT_XFERING;
+    return readOk ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_NOT_XFERING;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -377,7 +377,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
     _sessionLastActiveMs = millis();
 
     // Handle file/stream types
-    RaftRetCode handledOk = RaftRetCode::RAFT_RET_INVALID_DATA;
+    RaftRetCode handledOk = RaftRetCode::RAFT_INVALID_DATA;
     switch(_fileStreamContentType)
     {
         case FileStreamBase::FILE_STREAM_CONTENT_TYPE_FIRMWARE:
@@ -391,14 +391,14 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
             break;
         default:
             _isActive = false;
-            return RaftRetCode::RAFT_RET_INVALID_DATA;
+            return RaftRetCode::RAFT_INVALID_DATA;
     }
 #ifdef DEBUG_FILE_STREAM_BLOCK
-    LOG_I(MODULE_PREFIX, "fileStreamBlockWrite write finished, time %dms, handledOk: %s", (millis() - _sessionLastActiveMs), RaftRetCode::RAFT_RET_getRetcStr(handledOk));
+    LOG_I(MODULE_PREFIX, "fileStreamBlockWrite write finished, time %dms, handledOk: %s", (millis() - _sessionLastActiveMs), RaftRetCode::RAFT_getRetcStr(handledOk));
 #endif
 
     // Check handled ok
-    if (handledOk == RaftRetCode::RAFT_RET_OK)
+    if (handledOk == RaftRetCode::RAFT_OK)
     {
         // Check for first block
         if (fileStreamBlock.firstBlock)
@@ -411,7 +411,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
         // Update stats
         _totalChunks++;
     }
-    else if (handledOk != RaftRetCode::RAFT_RET_BUSY)
+    else if (handledOk != RaftRetCode::RAFT_BUSY)
     {
         // Not handled ok
         _isActive = false;
@@ -427,7 +427,7 @@ RaftRetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& fileStreamBlo
 {
     // Firmware updater valid?
     if (!_pFirmwareUpdater)
-        return RaftRetCode::RAFT_RET_INVALID_OPERATION;
+        return RaftRetCode::RAFT_INVALID_OPERATION;
 
     // Check if this is the first block
     if (fileStreamBlock.firstBlock)
@@ -441,7 +441,7 @@ RaftRetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& fileStreamBlo
             LOG_W(MODULE_PREFIX, "writeFirmwareBlock start FAILED name %s len %d",
                             fileStreamBlock.filename, fileStreamBlock.fileLen);
 #endif
-            return RaftRetCode::RAFT_RET_CANNOT_START;
+            return RaftRetCode::RAFT_CANNOT_START;
         }
     }
     uint64_t startUs = micros();
@@ -459,7 +459,7 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
 {
     // Write using the chunker
     if (!_pFileChunker)
-        return RaftRetCode::RAFT_RET_INVALID_OPERATION;
+        return RaftRetCode::RAFT_INVALID_OPERATION;
 
     uint32_t bytesWritten = 0; 
     uint64_t startUs = micros();
@@ -467,7 +467,7 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
                     bytesWritten, fileStreamBlock.finalBlock);
     _totalBytes += bytesWritten;
     _totalWriteTimeUs += micros() - startUs;
-    return chunkerRslt ? RaftRetCode::RAFT_RET_OK : RaftRetCode::RAFT_RET_OTHER_FAILURE;
+    return chunkerRslt ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_OTHER_FAILURE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -478,7 +478,7 @@ RaftRetCode FileStreamSession::writeRealTimeStreamBlock(FileStreamBlock& fileStr
 {
     // Check valid
     if (!_pStreamChunkCB)
-        return RaftRetCode::RAFT_RET_INVALID_OPERATION;
+        return RaftRetCode::RAFT_INVALID_OPERATION;
 
     // Write to stream
     return _pStreamChunkCB(_streamRequestStr, fileStreamBlock, _streamSourceInfo);

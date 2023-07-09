@@ -22,10 +22,28 @@
 #include "nvs_flash.h"
 #include "esp_private/wifi.h"
 #include "sdkconfig.h"
+#include "time.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#include "esp_sntp.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
+#include "esp_sntp.h"
+
+// This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
+#define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(servers_in_list, list_of_servers)   {   \
+            .smooth_sync = false,                   \
+            .server_from_dhcp = false,              \
+            .wait_for_sync = true,                  \
+            .start = true,                          \
+            .sync_cb = NULL,                        \
+            .renew_servers_after_new_IP = false,    \
+            .ip_event_to_renew = (ip_event_t)0,                 \
+            .index_of_first_server = 0,             \
+            .num_of_servers = (servers_in_list),    \
+            .servers = list_of_servers,             \
+}
+#define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG(server) \
+            HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(1, {server})
+
 #endif
 
 static const char* MODULE_PREFIX = "NetworkSystem";
@@ -140,7 +158,7 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
     if (!_networkSettings.ntpServer.isEmpty())
     {
         // Setup server
-        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(_networkSettings.ntpServer.c_str());
+        esp_sntp_config_t config = HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG(_networkSettings.ntpServer.c_str());
         esp_netif_sntp_init(&config);
     }
 #endif
@@ -865,12 +883,6 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
         break;
     case WIFI_EVENT_AP_WPS_RG_TIMEOUT:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP WPS RG timeout");
-        break;
-    case WIFI_EVENT_AP_WPS_ER_PIN:
-        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP WPS ER pin");
-        break;
-    case WIFI_EVENT_AP_WPS_PBC_OVERLAP:
-        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP WPS PBC overlap");
         break;
 #endif
     default:

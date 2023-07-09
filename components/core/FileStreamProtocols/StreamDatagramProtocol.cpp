@@ -75,7 +75,7 @@ RaftRetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsg
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
     LOG_I(MODULE_PREFIX, "handleCmdFrame req %s resp %s", ricRESTReqMsg.debugMsg().c_str(), respMsg.c_str());
 #endif
-    return RaftRetCode::RAFT_RET_OK;
+    return RaftRetCode::RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +86,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
 {
     // Check valid CB
     if (!_fileStreamBlockWriteCB)
-        return RaftRetCode::RAFT_RET_INVALID_OBJECT;
+        return RaftRetCode::RAFT_INVALID_OBJECT;
 
     // Handle the upload block
     uint32_t filePos = ricRESTReqMsg.getBufferPos();
@@ -104,7 +104,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
 #endif
 
     // Process the frame
-    RaftRetCode rslt = RaftRetCode::RAFT_RET_POS_MISMATCH;
+    RaftRetCode rslt = RaftRetCode::RAFT_POS_MISMATCH;
     bool isFinalBlock = (_fileStreamLength != 0) && (filePos + bufferLen >= _fileStreamLength);
 
     bool isFirstBlock = (filePos == 0) && !_continuingStream;
@@ -131,7 +131,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
     }
 
     // Check ok
-    if (rslt == RaftRetCode::RAFT_RET_OK)
+    if (rslt == RaftRetCode::RAFT_OK)
     {
         // Update stream position
         _streamPos = filePos + bufferLen;
@@ -148,7 +148,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
 #endif
         }
     }
-    else if ((rslt == RaftRetCode::RAFT_RET_BUSY) || (rslt == RaftRetCode::RAFT_RET_POS_MISMATCH))
+    else if ((rslt == RaftRetCode::RAFT_BUSY) || (rslt == RaftRetCode::RAFT_POS_MISMATCH))
     {
         // Send a SOKTO which indicates where the stream was received up to (so we can resend)
         char ackJson[100];
@@ -158,7 +158,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
         LOG_I(MODULE_PREFIX, "handleDataFrame: %s streamID %d streamPos %d sokto %d retc %s", 
-                    rslt == RaftRetCode::RAFT_RET_BUSY ? "BUSY" : "POS_MISMATCH", streamID, _streamPos, _streamPos,
+                    rslt == RaftRetCode::RAFT_BUSY ? "BUSY" : "POS_MISMATCH", streamID, _streamPos, _streamPos,
                     Raft::getRetCodeStr(rslt));
 #endif
     }

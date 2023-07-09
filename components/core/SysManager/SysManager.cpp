@@ -471,7 +471,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     LOG_I(MODULE_PREFIX, "getHWElemByName %s NOT found in %lldus", sysModName, micros() - startUs);
 #endif
-    return RaftRetCode::RAFT_RET_INVALID_OPERATION;
+    return RaftRetCode::RAFT_INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -550,7 +550,7 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
     LOG_I(MODULE_PREFIX, "apiGetVersion %s", respStr.c_str());
 #endif
 
-    return RaftRetCode::RAFT_RET_OK;
+    return RaftRetCode::RAFT_OK;
 }
 
 RaftRetCode SysManager::apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
@@ -558,7 +558,7 @@ RaftRetCode SysManager::apiGetSysModInfo(const String &reqStr, String& respStr, 
     // Get name of SysMod
     String sysModName = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
     respStr = getStatusJSON(sysModName.c_str());
-    return RaftRetCode::RAFT_RET_OK;
+    return RaftRetCode::RAFT_OK;
 }
 
 RaftRetCode SysManager::apiGetSysModDebug(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
@@ -585,7 +585,7 @@ RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, c
         if (!rslt)
         {
             Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
-            return RaftRetCode::RAFT_RET_INVALID_DATA;
+            return RaftRetCode::RAFT_INVALID_DATA;
         }
     }
 
@@ -617,7 +617,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, SERIAL_NUMBER_BYTES) != SERIAL_NUMBER_BYTES)
         {
             Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
-            return RaftRetCode::RAFT_RET_INVALID_DATA;
+            return RaftRetCode::RAFT_INVALID_DATA;
         }
 
         // Validate magic string
@@ -628,7 +628,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
             if (!magicString.equals(SERIAL_SET_MAGIC_STR))
             {
                 Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
-                return RaftRetCode::RAFT_RET_INVALID_DATA;
+                return RaftRetCode::RAFT_INVALID_DATA;
             }
         }
 
