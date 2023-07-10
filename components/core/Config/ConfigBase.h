@@ -40,6 +40,19 @@ public:
         _setConfigData(configStr.c_str());
     }
 
+    ConfigBase(const ConfigBase& other)
+    {
+        _dataStrJSON = other._dataStrJSON;
+        _configMaxDataLen = other._configMaxDataLen;
+    }
+
+    ConfigBase& operator=(const ConfigBase& other)
+    {
+        _dataStrJSON = other._dataStrJSON;
+        _configMaxDataLen = other._configMaxDataLen;
+        return *this;
+    }
+
     virtual ~ConfigBase()
     {
     }

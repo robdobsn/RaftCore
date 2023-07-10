@@ -72,8 +72,8 @@ class SerialIO:
     def send(self, toSend):
         if self._isTestMode:
             print("Test sending", toSend)
-        else:
-            asciiOut = (toSend + '\n').encode("ascii")
+        elif self._serial is not None:
+            asciiOut = (toSend + '\n').encode("ascii", errors='backslashreplace')
             # print(asciiOut)
             try:
                 self._serial.write(asciiOut)
@@ -90,6 +90,8 @@ class SerialIO:
 
     def _serialThreadStop(self):
         self._running = False
+        if self._serialThread is None:
+            return
         try:
             self._serialThread.join()
         except:

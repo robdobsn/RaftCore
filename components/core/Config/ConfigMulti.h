@@ -42,6 +42,8 @@ public:
     };
 
     ConfigMulti();
+    ConfigMulti(const ConfigMulti& other);
+    ConfigMulti& operator=(const ConfigMulti& other);
     virtual ~ConfigMulti();
     void addConfig(ConfigBase* pConfig, const char* prefix, bool isMutable);
 

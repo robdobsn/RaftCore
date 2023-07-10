@@ -74,7 +74,7 @@ bool WiFiScanner::getResultsJSON(String& json)
             if (i > 0)
                 json += ",";
             json += "{";
-            json += "\"ssid\":\"" + results[i].ssid + "\",";
+            json += "\"ssid\":\"" + Raft::escapeString(results[i].ssid) + "\",";
             json += "\"rssi\":" + String(results[i].rssi) + ",";
             json += "\"ch1\":" + String(results[i].primaryChannel) + ",";
             json += "\"ch2\":" + String(results[i].secondaryChannel) + ",";

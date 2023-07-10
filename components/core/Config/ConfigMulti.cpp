@@ -21,6 +21,17 @@ ConfigMulti::ConfigMulti()
 {
 }
 
+ConfigMulti::ConfigMulti(const ConfigMulti& other) : ConfigBase(other)
+{
+    _configsList = other._configsList;
+}
+
+ConfigMulti& ConfigMulti::operator=(const ConfigMulti& other)
+{
+    _configsList = other._configsList;
+    return *this;
+}
+
 ConfigMulti::~ConfigMulti()
 {
 }

@@ -42,8 +42,11 @@ namespace Raft
     // Following code from Unix sources
     unsigned long convIPStrToAddr(String &inStr);
 
-    // Escape a string in JSON
-    String escapeJSON(const String& inStr);
+    // Escape a string
+    String escapeString(const String& inStr);
+
+    // Unescape a string
+    String unescapeString(const String& inStr);
 
     // Convert HTTP query format to JSON
     // JSON only contains name/value pairs and not {}

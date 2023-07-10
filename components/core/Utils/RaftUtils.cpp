@@ -109,10 +109,10 @@ RaftRetCode Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Escape JSON string
+// Escape string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String Raft::escapeJSON(const String& inStr)
+String Raft::escapeString(const String& inStr)
 {
     String outStr;
     // Reserve a bit more than the inStr length
@@ -133,6 +133,65 @@ String Raft::escapeJSON(const String& inStr)
         {
             outStr += (char)c;
         }
+    }
+    return outStr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Unescape string
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String Raft::unescapeString(const String& inStr)
+{
+    String outStr;
+    // Reserve inStr length
+    outStr.reserve(inStr.length());
+    // Replace escapes with chars
+    for (unsigned int i = 0; i < inStr.length(); i++) 
+    {
+        int c = inStr.charAt(i);
+        if (c == '\\') 
+        {
+            i++;
+            if (i >= inStr.length())
+                break;
+            c = inStr.charAt(i);
+            if (c == 'u')
+            {
+                i++;
+                if (i >= inStr.length())
+                    break;
+                String cx = inStr.substring(i, i+4);
+                c = strtol(cx.c_str(), NULL, 16);
+                i += 3;
+            }
+            else if (c == 'x')
+            {
+                i++;
+                if (i >= inStr.length())
+                    break;
+                String cx = inStr.substring(i, i+2);
+                c = strtol(cx.c_str(), NULL, 16);
+                i += 1;
+            }
+            else if (c == 'n')
+                c = '\n';
+            else if (c == 'r')
+                c = '\r';
+            else if (c == 't')
+                c = '\t';
+            else if (c == 'b')
+                c = '\b';
+            else if (c == 'f')
+                c = '\f';
+            else if (c == '"')
+                c = '"';
+            else if (c == '\\')
+                c = '\\';
+            else
+                c = 0;
+        }
+        outStr += (char)c;
     }
     return outStr;
 }

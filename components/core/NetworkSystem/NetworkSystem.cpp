@@ -416,20 +416,24 @@ bool NetworkSystem::startWifi()
 // Configure Wifi STA mode
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool NetworkSystem::configWifiSTA(const String& ssid, const String& pw)
+bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
 {
-    LOG_I(MODULE_PREFIX, "configWifiSTA SSID %s PW %s", 
-                    ssid.isEmpty() ? "<<NONE>>" : ssid.c_str(),
-                    pw.isEmpty() ? "<<NONE>>" : "OK");
+    // Unescape strings
+    String ssidUnescaped = Raft::unescapeString(ssidIn);
+    String pwUnescaped = Raft::unescapeString(pwIn);
+
+    LOG_I(MODULE_PREFIX, "configWifiSTA SSID %s (original %s) PW %s", 
+                    ssidUnescaped.isEmpty() ? "<<NONE>>" : ssidUnescaped.c_str(),
+                    ssidIn.isEmpty() ? "<<NONE>>" : ssidIn.c_str(),
+                    pwUnescaped.isEmpty() ? "<<NONE>>" : "OK");
 
     // Handle STA mode config
     if (!_networkSettings.enableWifiSTAMode)
         return false;
 
     // Check if both SSID and pw have now been set
-    if ((ssid.isEmpty()) || (pw.isEmpty()))
+    if ((ssidUnescaped.isEmpty()) || (pwUnescaped.isEmpty()))
         return false;
-
 
     // Populate configuration for WiFi
 #pragma GCC diagnostic push
@@ -444,8 +448,8 @@ bool NetworkSystem::configWifiSTA(const String& ssid, const String& pw)
     }
 
     // Setup config
-    strlcpy((char *)currentWifiConfig.sta.ssid, ssid.c_str(), 32);
-    strlcpy((char *)currentWifiConfig.sta.password, pw.c_str(), 64);
+    strlcpy((char *)currentWifiConfig.sta.ssid, ssidUnescaped.c_str(), 32);
+    strlcpy((char *)currentWifiConfig.sta.password, pwUnescaped.c_str(), 64);
     currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
 
     // Set configuration
@@ -456,11 +460,20 @@ bool NetworkSystem::configWifiSTA(const String& ssid, const String& pw)
         return false;
     }
 
-    // Debug
-    LOG_I(MODULE_PREFIX, "configWifiSTA OK SSID %s", ssid.c_str());
-
-    // Disconnect to start the connection process again
-    esp_wifi_disconnect();
+    // Check if we need to disconnect
+    uint connBits = xEventGroupClearBits(_networkRTOSEventGroup, 0);
+    if (connBits & WIFI_STA_CONNECTED_BIT)
+    {
+        // Disconnecting will start the connection process again
+        esp_wifi_disconnect();
+        LOG_I(MODULE_PREFIX, "configWifiSTA disconnect requested (will reconnect) SSID %s", ssidUnescaped.c_str());
+    }
+    else
+    {
+        // Connect
+        esp_wifi_connect();
+        LOG_I(MODULE_PREFIX, "configWifiSTA connect requested SSID %s", ssidUnescaped.c_str());
+    }
     return true;
 }
 
@@ -509,8 +522,8 @@ esp_err_t NetworkSystem::clearCredentials()
 {
     // Restore to system defaults
     esp_wifi_disconnect();
-    _wifiStaSSID = "";
-    _wifiIPV4Addr = "";
+    _wifiStaSSID.clear();
+    _wifiIPV4Addr.clear();
     esp_err_t err = esp_wifi_restore();
     if (err == ESP_OK)
     {
@@ -952,7 +965,7 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     case IP_EVENT_STA_LOST_IP:
     {
         if (!_isPaused)
-            _wifiIPV4Addr = "";
+            _wifiIPV4Addr.clear();
         xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station lost IP");
         break;
@@ -1009,7 +1022,8 @@ void NetworkSystem::handleWiFiStaDisconnectEvent()
         {
             xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_FAIL_BIT);
         }
-        _wifiStaSSID = "";
+        _wifiIPV4Addr.clear();
+        _wifiStaSSID.clear();
     }
     // Clear connected bit
     xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_CONNECTED_BIT);
