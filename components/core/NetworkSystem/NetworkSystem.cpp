@@ -259,15 +259,18 @@ String NetworkSystem::getSettingsJSON(bool includeBraces)
 // Get conn state JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo)
+String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue)
 {
     // Get the status JSON
     String jsonStr;
     if (staInfo)
     {
+        bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
+        if (useBeforePauseValue)
+            wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
         jsonStr = R"("wifiSTA":{"en":)" + String(_networkSettings.enableWifiSTAMode);
         if (_networkSettings.enableWifiSTAMode)
-            jsonStr += R"(,"conn":)" + String(isWifiStaConnectedWithIP()) + 
+            jsonStr += R"(,"conn":)" + String(wifiStaConnWithIP) + 
                             R"(,"SSID":")" + _wifiStaSSID +
                             R"(","RSSI":)" + String(_wifiRSSI) + 
                             R"(,"IP":")" + _wifiIPV4Addr + 
@@ -520,6 +523,10 @@ bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
 
 esp_err_t NetworkSystem::clearCredentials()
 {
+    // Check valid
+    if (!_networkSettings.enableWifiSTAMode)
+        return ESP_ERR_INVALID_STATE;
+
     // Restore to system defaults
     esp_wifi_disconnect();
     _wifiStaSSID.clear();
@@ -549,6 +556,9 @@ void NetworkSystem::pauseWiFi(bool pause)
         // Check already paused
         if (_isPaused)
             return;
+
+        // Store current connection state
+        _wifiStaConnWithIPBeforePause = isWifiStaConnectedWithIP();
 
         // Disconnect
         esp_wifi_disconnect();

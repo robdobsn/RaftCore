@@ -102,7 +102,7 @@ void CommsChannel::addToInboundQueue(const uint8_t* pMsg, uint32_t msgLen)
 #if defined(DEBUG_COMMS_CHANNEL) || defined(WARN_ON_INBOUND_QUEUE_FULL)
     bool addedOk = 
 #endif
-    _inboundQueue.put(msg);
+    _inboundQueue.put(msg, 10);
     if (_inboundQPeak < _inboundQueue.count())
         _inboundQPeak = _inboundQueue.count();
 #ifdef DEBUG_COMMS_CHANNEL

@@ -57,7 +57,7 @@ public:
 
     // Get JSON info
     String getSettingsJSON(bool includeBraces);
-    String getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo);
+    String getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue);
 
     // Connection info
     String getWiFiIPV4AddrStr()
@@ -126,6 +126,7 @@ private:
     String _wifiStaSSID;
     String _wifiIPV4Addr;
     String _hostname;
+    bool _wifiStaConnWithIPBeforePause = false;
 
     // WiFi AP
     String _wifiAPSSID;

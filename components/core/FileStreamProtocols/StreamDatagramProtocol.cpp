@@ -55,7 +55,6 @@ void StreamDatagramProtocol::service()
 void StreamDatagramProtocol::resetCounters(uint32_t fileStreamLength){
     _fileStreamLength = fileStreamLength;
     _streamPos = 0;
-    _continuingStream = true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,8 +109,8 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
     bool isFirstBlock = (filePos == 0) && !_continuingStream;
     _continuingStream = false;
 
-    // Check position
-    if (_streamPos == filePos)
+    // Check position - we'll accept any packet that's ahead of the last added packet
+    if (filePos >= _streamPos)
     {
         FileStreamBlock fileStreamBlock(_fileStreamName.c_str(), 
                             _fileStreamLength, 
@@ -128,29 +127,27 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
 
         // Call the callback
         rslt = _fileStreamBlockWriteCB(fileStreamBlock);
-    }
 
-    // Check ok
-    if (rslt == RaftRetCode::RAFT_OK)
-    {
         // Update stream position
         _streamPos = filePos + bufferLen;
-
-        // Check end of stream
-        if (isFinalBlock)
-        {
-            // Send a SOKTO to indicate the end received
-            char ackJson[100];
-            snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d", (int)streamID, (int)_streamPos);
-            Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
-#ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
-            LOG_I(MODULE_PREFIX, "handleDataFrame: ENDRX streamID %d, streamPos %d, sokto %d", streamID, _streamPos, _streamPos);
-#endif
-        }
     }
-    else if ((rslt == RaftRetCode::RAFT_BUSY) || (rslt == RaftRetCode::RAFT_POS_MISMATCH))
+
+    // Check end of stream
+    if (isFinalBlock)
     {
-        // Send a SOKTO which indicates where the stream was received up to (so we can resend)
+        // Send a SOKTO to indicate the end received
+        char ackJson[100];
+        snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d", (int)streamID, (int)_streamPos);
+        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
+#ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
+        LOG_I(MODULE_PREFIX, "handleDataFrame: ENDRX streamID %d, streamPos %d, sokto %d", streamID, _streamPos, _streamPos);
+#endif
+    }
+
+    // This is a better never than late stream where packets may be dropped, but still tell the central of any issues
+    if ((rslt == RaftRetCode::RAFT_BUSY) || (rslt == RaftRetCode::RAFT_POS_MISMATCH))
+    {
+        // Send a SOKTO which indicates where the stream was received up to
         char ackJson[100];
         snprintf(ackJson, sizeof(ackJson), "\"streamID\":%d,\"sokto\":%d,\"reason\":\"%s\"", 
                                 (int)streamID, (int)_streamPos,
@@ -162,7 +159,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
                     Raft::getRetCodeStr(rslt));
 #endif
     }
-    else
+    else if (rslt != RaftRetCode::RAFT_OK)
     {
         // Failure of the stream
         char errorMsg[100];
