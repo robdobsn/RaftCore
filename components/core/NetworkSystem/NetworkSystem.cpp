@@ -275,7 +275,8 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
                             R"(","RSSI":)" + String(_wifiRSSI) + 
                             R"(,"IP":")" + _wifiIPV4Addr + 
                             R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") +
-                            R"(","hostname":")" + _hostname + R"(")";
+                            R"(","paused":)" + String(isPaused() ? 1 : 0) +
+                            R"(,"hostname":")" + _hostname + R"(")";
         jsonStr += R"(})";
     }
     if (apInfo)
@@ -338,15 +339,14 @@ bool NetworkSystem::startWifi()
     // Create the default WiFi elements
     bool enWifiSTAMode = _networkSettings.enableWifiSTAMode;
     bool enWifiAPMode = _networkSettings.enableWifiAPMode;
-    esp_netif_t *pWifiSTA = nullptr;
-    if (enWifiSTAMode)
-        pWifiSTA = esp_netif_create_default_wifi_sta();
-    if (enWifiAPMode)
-        esp_netif_create_default_wifi_ap();
+    if (enWifiSTAMode && !_pWifiStaNetIf)
+        _pWifiStaNetIf = esp_netif_create_default_wifi_sta();
+    if ( enWifiAPMode && !_pWifiApNetIf)
+        _pWifiApNetIf = esp_netif_create_default_wifi_ap();
 
     // Set hostname
-    if (pWifiSTA && !_hostname.isEmpty())
-        esp_netif_set_hostname(pWifiSTA, _hostname.c_str());
+    if (_pWifiStaNetIf && !_hostname.isEmpty())
+        esp_netif_set_hostname(_pWifiStaNetIf, _hostname.c_str());
 
     // Setup a config to initialise the WiFi resources
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -413,6 +413,27 @@ bool NetworkSystem::startWifi()
 
     LOG_I(MODULE_PREFIX, "startWifi init complete");
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Stop WiFi - called when pausing
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::stopWifi()
+{
+    // Stop WiFi
+    esp_wifi_stop();
+
+    // Remove event handlers
+    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, nullptr);
+    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_LOST_IP, nullptr);
+    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, nullptr);
+
+    // Deinit WiFi
+    esp_wifi_deinit();
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "stopWifi complete");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -560,8 +581,8 @@ void NetworkSystem::pauseWiFi(bool pause)
         // Store current connection state
         _wifiStaConnWithIPBeforePause = isWifiStaConnectedWithIP();
 
-        // Disconnect
-        esp_wifi_disconnect();
+        // Stop WiFi
+        stopWifi();
 
         // Debug
         LOG_I(MODULE_PREFIX, "pauseWiFi - WiFi disconnected");
@@ -572,12 +593,15 @@ void NetworkSystem::pauseWiFi(bool pause)
         if (!_isPaused)
             return;
 
-        // Connect
-        esp_wifi_connect();
-        _numWifiConnectRetries = 0;
+        // Start WiFi if enabled
+        if (_networkSettings.enableWifiSTAMode || _networkSettings.enableWifiAPMode)
+        {
+            startWifi();
+            _numWifiConnectRetries = 0;
 
-        // Debug
-        LOG_I(MODULE_PREFIX, "pauseWiFi - WiFi reconnect requested");
+            // Debug
+            LOG_I(MODULE_PREFIX, "pauseWiFi - WiFi reconnect requested");
+        }
     }
     _isPaused = pause;
 }

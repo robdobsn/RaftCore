@@ -165,8 +165,13 @@ private:
     // WiFi Scanner
     WiFiScanner _wifiScanner;
 
+    // ESP netif objects
+    esp_netif_t* _pWifiStaNetIf = nullptr;
+    esp_netif_t* _pWifiApNetIf = nullptr;
+
     // Helpers
     bool startWifi();
+    void stopWifi();
     bool startEthernet();
     static void networkEventHandler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* pEventData);
