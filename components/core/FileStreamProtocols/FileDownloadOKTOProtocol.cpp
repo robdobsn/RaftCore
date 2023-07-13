@@ -158,7 +158,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTRe
         if (_pCommsCore)
         {
             chanBlockMax = _pCommsCore->getOutboundBlockLen(channelID, FILE_BLOCK_SIZE_DEFAULT);
-            _blockSize = Raft::clamp(_blockSize, FILE_BLOCK_SIZE_MIN, chanBlockMax > 0 ? chanBlockMax * 2 / 3 : _blockSize);
+            _blockSize = Raft::clamp(_blockSize, FILE_BLOCK_SIZE_MIN, chanBlockMax > 0 ? chanBlockMax : _blockSize);
             LOG_I(MODULE_PREFIX, "handleStartMsg chanBlockMax %d blockSize %d", chanBlockMax, _blockSize);
         }
 

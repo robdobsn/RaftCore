@@ -172,6 +172,10 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
     // Check active
     _isActive = _pFileStreamProtocolHandler != nullptr;
 
+#ifdef DEBUG_FILE_STREAM_START_END
+    LOG_I(MODULE_PREFIX, "constructor finished filename %s channelID %d streamID %d endpointName %s isActive %d", 
+                _fileStreamName.c_str(), _channelID, streamID, restAPIEndpointName, _isActive);
+#endif
 }
 
 FileStreamSession::~FileStreamSession()
@@ -189,11 +193,25 @@ void FileStreamSession::service()
 {
     // Service file/stream protocol
     if (_pFileStreamProtocolHandler)
+    {
         _pFileStreamProtocolHandler->service();
+        if (!_pFileStreamProtocolHandler->isActive())
+        {
+#ifdef DEBUG_FILE_STREAM_START_END
+            LOG_I(MODULE_PREFIX, "service handler-is-inactive filename %s channelID %d isActive %d", 
+                        _fileStreamName.c_str(), _channelID, _isActive);
+#endif
+            _isActive = false;
+        }
+    }
 
     // Check for timeouts
     if (_isActive && Raft::isTimeout(millis(), _sessionLastActiveMs, MAX_SESSION_IDLE_TIME_MS))
     {
+#ifdef DEBUG_FILE_STREAM_START_END
+        LOG_I(MODULE_PREFIX, "service timeout filename %s channelID %d isActive %d", 
+                    _fileStreamName.c_str(), _channelID, _isActive);
+#endif
         _isActive = false;
     }
 }
@@ -221,7 +239,13 @@ RaftRetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStreamMsgType 
 
     // Session may now be finished
     if (!_pFileStreamProtocolHandler->isActive())
+    {
         _isActive = false;
+#ifdef DEBUG_FILE_STREAM_START_END
+        LOG_I(MODULE_PREFIX, "handleCmdFrame handler inactive filename %s channelID %d isActive %d", 
+                    _fileStreamName.c_str(), _channelID, _isActive);
+#endif
+    }
 
     // Keep session alive while we're receiving
     _sessionLastActiveMs = millis();        
@@ -390,8 +414,13 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
             handledOk = writeRealTimeStreamBlock(fileStreamBlock);
             break;
         default:
+        {
             _isActive = false;
+#ifdef DEBUG_FILE_STREAM_START_END
+            LOG_I(MODULE_PREFIX, "fileStreamBlockWrite invalid type %d isActive %d", _fileStreamContentType, _isActive);
+#endif
             return RaftRetCode::RAFT_INVALID_DATA;
+        }
     }
 #ifdef DEBUG_FILE_STREAM_BLOCK
     LOG_I(MODULE_PREFIX, "fileStreamBlockWrite write finished, time %dms, handledOk: %s", (millis() - _sessionLastActiveMs), RaftRetCode::RAFT_getRetcStr(handledOk));
@@ -406,7 +435,13 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
 
         // Check for final block
         if (fileStreamBlock.finalBlock)
+        {
             _isActive = false;
+#ifdef DEBUG_FILE_STREAM_START_END
+            LOG_I(MODULE_PREFIX, "fileStreamBlockWrite final block received, time %dms, totalBytes %d, totalWriteTimeUs %dus, totalChunks %d isActive %d", 
+                        (millis() - _startTimeMs), _totalBytes, _totalWriteTimeUs, _totalChunks, _isActive);
+#endif
+        }
 
         // Update stats
         _totalChunks++;
@@ -415,6 +450,10 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
     {
         // Not handled ok
         _isActive = false;
+#ifdef DEBUG_FILE_STREAM_START_END
+        LOG_I(MODULE_PREFIX, "fileStreamBlockWrite not handled ok, time %dms, handledOk: %s, isActive %d", 
+                    (millis() - _startTimeMs), Raft::getRetCodeStr(handledOk), _isActive);
+#endif
     }
     return handledOk;
 }
@@ -492,6 +531,11 @@ void FileStreamSession::fileStreamCancelEnd(bool isNormalEnd)
 {
     // Session no longer active
     _isActive = false;
+
+#ifdef DEBUG_FILE_STREAM_START_END
+    LOG_I(MODULE_PREFIX, "fileStreamCancelEnd filename %s channelID %d isActive %d", 
+                _fileStreamName.c_str(), _channelID, _isActive);
+#endif
 
     // Check if we should cancel a firmware update
     if (_pFirmwareUpdater && (_fileStreamContentType == FileStreamBase::FILE_STREAM_CONTENT_TYPE_FIRMWARE))

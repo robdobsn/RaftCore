@@ -629,7 +629,7 @@ FileStreamSession* ProtocolExchange::getFileStreamNewSession(const char* fileStr
     if (pSession)
     {
         // If we find one then ignore this as it is a re-start of an existing session
-        LOG_W(MODULE_PREFIX, "getFileStreamNewSession restart existing - ignored name %s channelID %d flow %s",
+        LOG_W(MODULE_PREFIX, "getFileStreamNewSession restart existing name %s channelID %d flow %s",
                         fileStreamName, channelID, FileStreamBase::getFileStreamFlowTypeStr(flowType));
         pSession->resetCounters(fileStreamLength);
         return pSession;
