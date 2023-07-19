@@ -149,9 +149,9 @@ public:
 private:
     std::queue<ElemT> _queue;
     static const uint16_t DEFAULT_MAX_QUEUE_LEN = 50;
-    uint16_t _maxLen;
+    uint16_t _maxLen = DEFAULT_MAX_QUEUE_LEN;
     static const uint16_t DEFAULT_MAX_MS_TO_WAIT = 1;
-    uint16_t _maxTicksToWaitDefault;
+    uint16_t _maxTicksToWaitDefault = DEFAULT_MAX_MS_TO_WAIT;
     inline uint32_t _getMaxTicksToWait(uint32_t maxMsToWait)
     {
         if (maxMsToWait == 0)
@@ -159,5 +159,5 @@ private:
         return pdMS_TO_TICKS(maxMsToWait);
     }
     // Mutex for queue
-    SemaphoreHandle_t _queueMutex;
+    SemaphoreHandle_t _queueMutex = nullptr;
 };
