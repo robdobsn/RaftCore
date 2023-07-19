@@ -246,7 +246,7 @@ void HWElemBase::cmdResultCallback(BusRequestResult &reqResult)
 
     // Send message on the appropriate channel
     if (_pCommsCore)
-        _pCommsCore->handleOutboundMessage(endpointMsg);
+        _pCommsCore->outboundHandleMsg(endpointMsg);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

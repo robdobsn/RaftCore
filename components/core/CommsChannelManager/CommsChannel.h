@@ -28,8 +28,8 @@ public:
     CommsChannel(const char* pSourceProtocolName, 
                 const char* interfaceName, 
                 const char* channelName,
-                CommsChannelSendMsgCB msgSendCallback, 
-                ChannelReadyToSendCB outboundChannelReadyCB,
+                CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
+                CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
                 const CommsChannelSettings* pSettings = nullptr);
 
 private:
@@ -60,30 +60,31 @@ private:
     void handleRxData(const uint8_t* pMsg, uint32_t msgLen);
 
     // Inbound queue
-    bool canAcceptInbound();
+    bool inboundCanAccept();
 
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-    void addToInboundQueue(const uint8_t* pMsg, uint32_t msgLen);
+    void inboundQueueAdd(const uint8_t* pMsg, uint32_t msgLen);
 #endif
 
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-    bool getFromInboundQueue(ProtocolRawMsg& msg);
+    bool inboundQueueGet(ProtocolRawMsg& msg);
 #endif
 
-    uint32_t getInboundBlockLen()
+    uint32_t inboundMsgBlockMax()
     {
         return _settings.inboundBlockLen;
     }
     bool processInboundQueue();
 
     // Outbound queue
-    void addToOutboundQueue(CommsChannelMsg& msg);
-    bool getFromOutboundQueue(CommsChannelMsg& msg);
-    uint32_t getOutboundBlockLen()
+    void outboundQueueAdd(CommsChannelMsg& msg);
+    bool outboundQueuePeek(CommsChannelMsg& msg);
+    bool outboundQueueGet(CommsChannelMsg& msg);
+    uint32_t outboundMsgBlockMax()
     {
         return _settings.outboundBlockLen;
     }
-    uint32_t getOutboundQueuedCount()
+    uint32_t outboundQueuedCount()
     {
         return _outboundQueue.count();
     }
@@ -92,10 +93,10 @@ private:
     void addTxMsgToProtocolCodec(CommsChannelMsg& msg);
 
     // Check channel is ready
-    bool canAcceptOutbound(uint32_t channelID, bool& noConn)
+    bool outboundCanAccept(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)
     {
-        if (_canSendOutboundCB)
-            return _canSendOutboundCB(channelID, noConn);
+        if (_outboundCanAcceptCB)
+            return _outboundCanAcceptCB(channelID, msgType, noConn);
         noConn = false;
         return true;
     }
@@ -103,8 +104,8 @@ private:
     // Send the message on the channel
     bool sendMsgOnChannel(CommsChannelMsg& msg)
     {
-        if (_msgSendCallback)
-            return _msgSendCallback(msg);
+        if (_outboundHandleMsgCB)
+            return _outboundHandleMsgCB(msg);
         return false;
     }
 
@@ -115,8 +116,11 @@ private:
     // Protocol supported
     String _channelProtocolName;
 
+    // Channel ready callback
+    CommsChannelOutboundCanAcceptFnType _outboundCanAcceptCB;
+    
     // Callback to send message on channel
-    CommsChannelSendMsgCB _msgSendCallback;
+    CommsChannelOutboundHandleMsgFnType _outboundHandleMsgCB;
 
     // Name of interface and channel
     String _interfaceName;
@@ -124,9 +128,6 @@ private:
 
     // Protocol codec
     ProtocolBase* _pProtocolCodec;
-
-    // Channel ready callback
-    ChannelReadyToSendCB _canSendOutboundCB;
 
     // Comms settings
     CommsChannelSettings _settings;

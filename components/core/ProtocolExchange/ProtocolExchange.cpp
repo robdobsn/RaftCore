@@ -289,7 +289,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
             endpointMsg.setAsResponse(cmdMsg);
 
             // Send message on the appropriate channel
-            getCommsCore()->handleOutboundMessage(endpointMsg);
+            getCommsCore()->outboundHandleMsg(endpointMsg);
 
 #ifdef DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL
             // Debug

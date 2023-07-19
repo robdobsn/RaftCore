@@ -219,7 +219,7 @@ void FileUploadOKTOProtocol::service()
 
         // Send message on the appropriate channel
         if (_pCommsCore)
-            _pCommsCore->handleOutboundMessage(endpointMsg);
+            _pCommsCore->outboundHandleMsg(endpointMsg);
     }
 }
 
@@ -279,7 +279,7 @@ RaftRetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqM
         uint32_t chanBlockMax = 0;
         if (_pCommsCore)
         {
-            chanBlockMax = _pCommsCore->getInboundBlockLen(channelID, FILE_BLOCK_SIZE_DEFAULT);
+            chanBlockMax = _pCommsCore->inboundMsgBlockMax(channelID, FILE_BLOCK_SIZE_DEFAULT);
             _blockSize = Raft::clamp(_blockSize, FILE_BLOCK_SIZE_MIN, chanBlockMax > 0 ? chanBlockMax * 2 / 3 : _blockSize);
         }
 
@@ -572,7 +572,7 @@ void FileUploadOKTOProtocol::transferCancel(const char* reasonStr)
 
         // Send message on the appropriate channel
         if (_pCommsCore)
-            _pCommsCore->handleOutboundMessage(endpointMsg);
+            _pCommsCore->outboundHandleMsg(endpointMsg);
     }
 }
 

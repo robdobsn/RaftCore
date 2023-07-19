@@ -29,8 +29,8 @@ public:
     virtual uint32_t registerChannel(const char* protocolName, 
                 const char* interfaceName,
                 const char* channelName, 
-                CommsChannelSendMsgCB outboundChannelSendCB, 
-                ChannelReadyToSendCB outboundChannelReadyCB,
+                CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
+                CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
                 const CommsChannelSettings* pSettings = nullptr) override final;
 
     // Add protocol handler
@@ -42,20 +42,22 @@ public:
     void getChannelIDs(std::vector<uint32_t>& channelIDs);
 
     // Check if we can accept inbound message
-    virtual bool canAcceptInbound(uint32_t channelID) override final;
+    virtual bool inboundCanAccept(uint32_t channelID) override final;
     
     // Handle channel message
-    virtual void handleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen) override final;
+    virtual void inboundHandleMsg(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen) override final;
+
+    // Get max inbound message size
+    virtual uint32_t inboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize) override final;
 
     // Check if we can accept outbound message
-    virtual bool canAcceptOutbound(uint32_t channelID, bool &noConn) override final;
+    virtual bool outboundCanAccept(uint32_t channelID, CommsMsgTypeCode msgType, bool &noConn) override final;
     
     // Handle outbound message
-    virtual CommsCoreRetCode handleOutboundMessage(CommsChannelMsg& msg) override final;
+    virtual CommsCoreRetCode outboundHandleMsg(CommsChannelMsg& msg) override final;
 
-    // Get the optimal comms block size
-    virtual uint32_t getInboundBlockLen(uint32_t channelID, uint32_t defaultSize) override final;
-    virtual uint32_t getOutboundBlockLen(uint32_t channelID, uint32_t defaultSize) override final;
+    // Get the max outbound message size
+    virtual uint32_t outboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize) override final;
 
 
     // Get info

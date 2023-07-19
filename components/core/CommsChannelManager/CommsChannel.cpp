@@ -30,8 +30,8 @@ static const char* MODULE_PREFIX = "CommsChan";
 CommsChannel::CommsChannel(const char* pSourceProtocolName, 
             const char* interfaceName, 
             const char* channelName,
-            CommsChannelSendMsgCB msgSendCallback, 
-            ChannelReadyToSendCB outboundChannelReadyCB,
+            CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
+            CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
             const CommsChannelSettings* pSettings)
             :
             _settings(pSettings ? *pSettings : CommsChannelSettings()),
@@ -41,10 +41,10 @@ CommsChannel::CommsChannel(const char* pSourceProtocolName,
             _outboundQueue(_settings.outboundQueueMaxLen)
 {
     _channelProtocolName = pSourceProtocolName;
-    _msgSendCallback = msgSendCallback;
+    _outboundHandleMsgCB = outboundHandleMsgCB;
     _interfaceName = interfaceName;
     _channelName = channelName;
-    _canSendOutboundCB = outboundChannelReadyCB;
+    _outboundCanAcceptCB = outboundCanAcceptCB;
     _pProtocolCodec = NULL;
     _outboundQPeak = 0;
     _inboundQPeak = 0;
@@ -67,7 +67,7 @@ void CommsChannel::setProtocolCodec(ProtocolBase* pProtocolCodec)
 // Inbound queue
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool CommsChannel::canAcceptInbound()
+bool CommsChannel::inboundCanAccept()
 {
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
     return _inboundQueue.canAcceptData();
@@ -88,7 +88,7 @@ void CommsChannel::handleRxData(const uint8_t* pMsg, uint32_t msgLen)
         (_pProtocolCodec ? "YES" : "NO"));
 #endif
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-    addToInboundQueue(pMsg, msgLen);
+    inboundQueueAdd(pMsg, msgLen);
 #else
 if (_pProtocolCodec)
     _pProtocolCodec->addRxData(pMsg, msgLen);
@@ -96,7 +96,7 @@ if (_pProtocolCodec)
 }
 
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-void CommsChannel::addToInboundQueue(const uint8_t* pMsg, uint32_t msgLen)
+void CommsChannel::inboundQueueAdd(const uint8_t* pMsg, uint32_t msgLen)
 {
     ProtocolRawMsg msg(pMsg, msgLen);
 #if defined(DEBUG_COMMS_CHANNEL) || defined(WARN_ON_INBOUND_QUEUE_FULL)
@@ -106,19 +106,19 @@ void CommsChannel::addToInboundQueue(const uint8_t* pMsg, uint32_t msgLen)
     if (_inboundQPeak < _inboundQueue.count())
         _inboundQPeak = _inboundQueue.count();
 #ifdef DEBUG_COMMS_CHANNEL
-    LOG_I(MODULE_PREFIX, "addToInboundQueue %slen %d peak %d", addedOk ? "" : "FAILED QUEUE IS FULL ", msgLen, _inboundQPeak);
+    LOG_I(MODULE_PREFIX, "inboundQueueAdd %slen %d peak %d", addedOk ? "" : "FAILED QUEUE IS FULL ", msgLen, _inboundQPeak);
 #endif
 #ifdef WARN_ON_INBOUND_QUEUE_FULL
     if (!addedOk)
     {
-        LOG_W(MODULE_PREFIX, "addToInboundQueue QUEUE IS FULL peak %d", _inboundQPeak);
+        LOG_W(MODULE_PREFIX, "inboundQueueAdd QUEUE IS FULL peak %d", _inboundQPeak);
     }
 #endif
 }
 #endif
 
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-bool CommsChannel::getFromInboundQueue(ProtocolRawMsg& msg)
+bool CommsChannel::inboundQueueGet(ProtocolRawMsg& msg)
 {
     return _inboundQueue.get(msg);
 }
@@ -165,26 +165,31 @@ void CommsChannel::addTxMsgToProtocolCodec(CommsChannelMsg& msg)
 // Outbound queue
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void CommsChannel::addToOutboundQueue(CommsChannelMsg& msg)
+void CommsChannel::outboundQueueAdd(CommsChannelMsg& msg)
 {
     _outboundQueue.put(msg);
     if (_outboundQPeak < _outboundQueue.count())
         _outboundQPeak = _outboundQueue.count();
 
 #ifdef DEBUG_OUTBOUND_QUEUE
-    LOG_I(MODULE_PREFIX, "addToOutboundQueue msglen %d cmdVecPtr %p dataPtr %p", 
+    LOG_I(MODULE_PREFIX, "outboundQueueAdd msglen %d cmdVecPtr %p dataPtr %p", 
                 msg.getBufLen(), msg.getCmdVector(), msg.getCmdVector().data());
 #endif
 }
 
-bool CommsChannel::getFromOutboundQueue(CommsChannelMsg& msg)
+bool CommsChannel::outboundQueuePeek(CommsChannelMsg& msg)
+{
+    return _outboundQueue.peek(msg);
+}
+
+bool CommsChannel::outboundQueueGet(CommsChannelMsg& msg)
 {
     bool hasGot = _outboundQueue.get(msg);
 
 #ifdef DEBUG_OUTBOUND_QUEUE
     if (hasGot)
     {
-        LOG_I(MODULE_PREFIX, "getFromOutboundQueue msglen %d cmdVecPtr %p dataPtr %p", 
+        LOG_I(MODULE_PREFIX, "outboundQueueGet msglen %d cmdVecPtr %p dataPtr %p", 
                     msg.getBufLen(), msg.getCmdVector(), msg.getCmdVector().data());    
     }
 #endif

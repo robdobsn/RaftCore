@@ -29,6 +29,7 @@ static const char* MODULE_PREFIX = "CommsMan";
 // #define DEBUG_INBOUND_BLOCK_MAX
 // #define DEBUG_OUTBOUND_BLOCK_MAX
 // #define DEBUG_COMMS_MAN_ADD_PROTOCOL
+// #define DEBUG_COMMS_MANAGER_SERVICE_NOTSENT
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -70,22 +71,21 @@ void CommsChannelManager::service()
         if (!pChannel)
             continue;
 
-        // Check if there are any messages to send
-        if (pChannel->getOutboundQueuedCount() > 0)
+        // Peek message from outbound queue
+        CommsChannelMsg msg;
+        if (pChannel->outboundQueuePeek(msg))
         {
-
             // Outbound messages - check if interface is ready
             bool noConn = false;
-            bool canAccept = pChannel->canAcceptOutbound(channelID, noConn);
+            bool canAccept = pChannel->outboundCanAccept(channelID, msg.getMsgTypeCode(), noConn);
 
             // When either canAccept or no-connection get any message to be sent
             // In the case of noConn this is so that the queue doesn't block
             // when the connection is not present
             if (canAccept || noConn)
             {
-                // Check for outbound message
-                CommsChannelMsg msg;
-                if (pChannel->getFromOutboundQueue(msg))
+                // Get the outbound message
+                if (pChannel->outboundQueueGet(msg))
                 {
                     // Check if we can send
                     if (canAccept)
@@ -112,7 +112,7 @@ void CommsChannelManager::service()
             }
             else
             {
-    #ifdef DEBUG_COMMS_MANAGER_SERVICE
+    #ifdef DEBUG_COMMS_MANAGER_SERVICE_NOTSENT
                 LOG_I(MODULE_PREFIX, "service MSGNOTSENT chanID %d canAccept %d noConn %d", 
                             channelID, canAccept, noConn);
     #endif
@@ -139,13 +139,13 @@ void CommsChannelManager::service()
 
 uint32_t CommsChannelManager::registerChannel(const char* protocolName, 
                     const char* interfaceName, const char* channelName,
-                    CommsChannelSendMsgCB outboundChannelSendCB, 
-                    ChannelReadyToSendCB outboundChannelReadyCB,
+                    CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
+                    CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
                     const CommsChannelSettings* pSettings)
 {
     // Create new command definition and add
     CommsChannel* pCommsChannel = new CommsChannel(protocolName, interfaceName, channelName, 
-                    outboundChannelSendCB, outboundChannelReadyCB, pSettings);
+                    outboundHandleMsgCB, outboundCanAcceptCB, pSettings);
     if (pCommsChannel)
     {
         // Add to vector
@@ -261,7 +261,7 @@ void CommsChannelManager::getChannelIDs(std::vector<uint32_t>& channelIDs)
     // Check if we can accept inbound message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool CommsChannelManager::canAcceptInbound(uint32_t channelID)
+bool CommsChannelManager::inboundCanAccept(uint32_t channelID)
 {
     // Check the channel
     if (channelID >= _commsChannelVec.size())
@@ -276,19 +276,19 @@ bool CommsChannelManager::canAcceptInbound(uint32_t channelID)
     ensureProtocolCodecExists(channelID);
 
     // Check validity
-    return pChannel->canAcceptInbound();
+    return pChannel->inboundCanAccept();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle channel message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void CommsChannelManager::handleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
+void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
 {
     // Check the channel
     if (channelID >= _commsChannelVec.size())
     {
-        LOG_W(MODULE_PREFIX, "handleInboundMessage, channelID channelId %d is INVALID msglen %d", channelID, msgLen);
+        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is INVALID msglen %d", channelID, msgLen);
         return;
     }
 
@@ -296,13 +296,13 @@ void CommsChannelManager::handleInboundMessage(uint32_t channelID, const uint8_t
     CommsChannel* pChannel = _commsChannelVec[channelID];
     if (!pChannel)
     {
-        LOG_W(MODULE_PREFIX, "handleInboundMessage, channelID channelId %d is NULL msglen %d", channelID, msgLen);
+        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is NULL msglen %d", channelID, msgLen);
         return;
     }
 
     // Debug
 #ifdef DEBUG_INBOUND_MESSAGE
-    LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d channel name %s, msglen %d", channelID, 
+    LOG_I(MODULE_PREFIX, "inboundHandleMsg, channel Id %d channel name %s, msglen %d", channelID, 
                 pChannel->getInterfaceName().c_str(), msgLen);
 #endif
 
@@ -317,7 +317,7 @@ void CommsChannelManager::handleInboundMessage(uint32_t channelID, const uint8_t
     // Check if we can accept outbound message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool CommsChannelManager::canAcceptOutbound(uint32_t channelID, bool& noConn)
+bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode msgType, bool &noConn)
 {
     // Check the channel
     if (channelID >= _commsChannelVec.size())
@@ -332,14 +332,14 @@ bool CommsChannelManager::canAcceptOutbound(uint32_t channelID, bool& noConn)
     ensureProtocolCodecExists(channelID);
 
     // Check validity
-    return pChannel->canAcceptOutbound(channelID, noConn);
+    return pChannel->outboundCanAccept(channelID, msgType, noConn);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle outbound message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-CommsCoreRetCode CommsChannelManager::handleOutboundMessage(CommsChannelMsg& msg)
+CommsCoreRetCode CommsChannelManager::outboundHandleMsg(CommsChannelMsg& msg)
 {
     // Ret code
     CommsCoreRetCode retcode = COMMS_CORE_RET_FAIL;
@@ -353,7 +353,7 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessage(CommsChannelMsg& msg
 #ifdef DEBUG_OUTBOUND_MSG
         {
             CommsChannel* pChannel = _commsChannelVec[channelID];
-            LOG_I(MODULE_PREFIX, "handleOutboundMessage chanId %d chanName %s msgLen %d retc %d", 
+            LOG_I(MODULE_PREFIX, "outboundHandleMsg chanId %d chanName %s msgLen %d retc %d", 
                         channelID, pChannel ? pChannel->getInterfaceName().c_str() : "UNKNONW", msg.getBufLen(), retcode)
         }
 #endif
@@ -370,14 +370,14 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessage(CommsChannelMsg& msg
             handleOutboundMessageOnChannel(msg, specificChannelID);
 #ifdef DEBUG_OUTBOUND_MSG_ALL_CHANNELS
             CommsChannel* pChannel = _commsChannelVec[specificChannelID];
-            LOG_W(MODULE_PREFIX, "handleOutboundMessage, all chanId %u chanName %s msglen %d", 
+            LOG_W(MODULE_PREFIX, "outboundHandleMsg, all chanId %u chanName %s msglen %d", 
                             specificChannelID, pChannel ? pChannel->getInterfaceName().c_str() : "UNKNONW", msg.getBufLen());
 #endif            
         }
     }
     else
     {
-        LOG_W(MODULE_PREFIX, "handleOutboundMessage, channelID INVALID chanId %u msglen %d", channelID, msg.getBufLen());
+        LOG_W(MODULE_PREFIX, "outboundHandleMsg, channelID INVALID chanId %u msglen %d", channelID, msg.getBufLen());
     }
     return retcode;
 }
@@ -386,7 +386,7 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessage(CommsChannelMsg& msg
 // Get the inbound comms block size
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t CommsChannelManager::getInboundBlockLen(uint32_t channelID, uint32_t defaultSize)
+uint32_t CommsChannelManager::inboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize)
 {
     // Get the optimal block size
     if (channelID >= _commsChannelVec.size())
@@ -396,9 +396,9 @@ uint32_t CommsChannelManager::getInboundBlockLen(uint32_t channelID, uint32_t de
     ensureProtocolCodecExists(channelID);
 
     // Check validity
-    uint32_t blockMax = _commsChannelVec[channelID]->getInboundBlockLen();
+    uint32_t blockMax = _commsChannelVec[channelID]->inboundMsgBlockMax();
 #ifdef DEBUG_INBOUND_BLOCK_MAX
-    LOG_I(MODULE_PREFIX, "getInboundBlockLen channelID %d %d", channelID, blockMax);
+    LOG_I(MODULE_PREFIX, "inboundMsgBlockMax channelID %d %d", channelID, blockMax);
 #endif
     return blockMax;
 }
@@ -407,7 +407,7 @@ uint32_t CommsChannelManager::getInboundBlockLen(uint32_t channelID, uint32_t de
 // Get the outbound comms block size
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t CommsChannelManager::getOutboundBlockLen(uint32_t channelID, uint32_t defaultSize)
+uint32_t CommsChannelManager::outboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize)
 {
     // Get the optimal block size
     if (channelID >= _commsChannelVec.size())
@@ -417,9 +417,9 @@ uint32_t CommsChannelManager::getOutboundBlockLen(uint32_t channelID, uint32_t d
     ensureProtocolCodecExists(channelID);
 
     // Check validity
-    uint32_t blockMax = _commsChannelVec[channelID]->getOutboundBlockLen();
+    uint32_t blockMax = _commsChannelVec[channelID]->outboundMsgBlockMax();
 #ifdef DEBUG_OUTBOUND_BLOCK_MAX
-    LOG_I(MODULE_PREFIX, "getOutboundBlockLen channelID %d %d", channelID, blockMax);
+    LOG_I(MODULE_PREFIX, "outboundMsgBlockMax channelID %d %d", channelID, blockMax);
 #endif
     return blockMax;
 }
@@ -444,18 +444,18 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
     // publish messages are handled such that only the latest one of any address is sent
     if (msg.getMsgTypeCode() != MSG_TYPE_PUBLISH)
     {
-        pChannel->addToOutboundQueue(msg);
+        pChannel->outboundQueueAdd(msg);
 #ifdef DEBUG_OUTBOUND_NON_PUBLISH
         // Debug
         LOG_I(MODULE_PREFIX, "handleOutboundMessage queued channel Id %d channel name %s, msglen %d, msgType %s msgNum %d numQueued %d", 
                     channelID, 
                     pChannel->getInterfaceName().c_str(), msg.getBufLen(), msg.getMsgTypeAsString(msg.getMsgTypeCode()),
-                    msg.getMsgNumber(), pChannel->getOutboundQueuedCount());
+                    msg.getMsgNumber(), pChannel->outboundQueuedCount());
 #endif
     }
 
     // Skip publishing if there is another message in the queue
-    else if (pChannel->getOutboundQueuedCount() > 0)
+    else if (pChannel->outboundQueuedCount() > 0)
     {
 #ifdef DEBUG_OUTBOUND_PUBLISH
             // Debug
@@ -479,7 +479,7 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
 
             // Check if channel can accept an outbound message and send if so
             bool noConn = false;
-            if (pChannel->canAcceptOutbound(channelID, noConn))
+            if (pChannel->outboundCanAccept(channelID, msg.getMsgTypeCode(), noConn))
                 pChannel->addTxMsgToProtocolCodec(msg);
     }
 

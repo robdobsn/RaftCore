@@ -18,13 +18,16 @@ class ProtocolRICFrame : public ProtocolBase
 {
 public:
     ProtocolRICFrame(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                            CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, 
-                            CommsChannelReadyToRxCB readyToRxCB);
+                            CommsChannelOutboundHandleMsgFnType msgTxCB, 
+                            CommsChannelInboundHandleMsgFnType msgRxCB, 
+                            CommsChannelInboundCanAcceptFnType readyToRxCB);
     virtual ~ProtocolRICFrame();
     
     // Create instance
     static ProtocolBase* createInstance(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
+                CommsChannelOutboundHandleMsgFnType msgTxCB, 
+                CommsChannelInboundHandleMsgFnType msgRxCB, 
+                CommsChannelInboundCanAcceptFnType readyToRxCB)
     {
         return new ProtocolRICFrame(channelID, config, pConfigPrefix, msgTxCB, msgRxCB, readyToRxCB);
     }

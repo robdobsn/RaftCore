@@ -24,7 +24,9 @@ static const char* MODULE_PREFIX = "RICJSON";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ProtocolRICJSON::ProtocolRICJSON(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB) :
+                CommsChannelOutboundHandleMsgFnType msgTxCB, 
+                CommsChannelInboundHandleMsgFnType msgRxCB, 
+                CommsChannelInboundCanAcceptFnType readyToRxCB) :
     ProtocolBase(channelID, msgTxCB, msgRxCB, readyToRxCB)
 {
     // Debug

@@ -11,8 +11,8 @@
 
 #include <functional>
 #include <ArduinoOrAlt.h>
+#include <CommsChannelMsg.h>
 
-class CommsChannelMsg;
 class ProtocolCodecFactoryHelper;
 class CommsChannelSettings;
 
@@ -24,14 +24,14 @@ enum CommsCoreRetCode
     COMMS_CORE_RET_NO_CONN
 };
 
-// Send message function type
-typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelSendMsgCB;
-// Message callback function type
-typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelReceiveMsgCB;
-// Ready to receive callback function type
-typedef std::function<bool()> CommsChannelReadyToRxCB;
-// Channel ready function type
-typedef std::function<bool(uint32_t channelID, bool& noConn)> ChannelReadyToSendCB;
+// Outbound channel ready
+typedef std::function<bool(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)> CommsChannelOutboundCanAcceptFnType;
+// Outbound handle message
+typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelOutboundHandleMsgFnType;
+// Inbound channel ready
+typedef std::function<bool()> CommsChannelInboundCanAcceptFnType;
+// Inbound handle message
+typedef std::function<bool(CommsChannelMsg& msg)> CommsChannelInboundHandleMsgFnType;
 
 class CommsCoreIF
 {
@@ -42,28 +42,30 @@ public:
     virtual uint32_t registerChannel(const char* protocolName, 
                 const char* interfaceName,
                 const char* channelName, 
-                CommsChannelSendMsgCB outboundChannelSendCB, 
-                ChannelReadyToSendCB outboundChannelReadyCB,
+                CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
+                CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
                 const CommsChannelSettings* pSettings = nullptr) = 0;
 
     // Add protocol handler
     virtual void addProtocol(ProtocolCodecFactoryHelper& protocolDef) = 0;
 
     // Check if we can accept inbound message
-    virtual bool canAcceptInbound(uint32_t channelID) = 0;
+    virtual bool inboundCanAccept(uint32_t channelID) = 0;
     
-    // Handle channel message
-    virtual void handleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen) = 0;
+    // Handle inbound message
+    virtual void inboundHandleMsg(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen) = 0;
 
-    // Get the optimal comms block size
-    virtual uint32_t getInboundBlockLen(uint32_t channelID, uint32_t defaultSize) = 0;
-    virtual uint32_t getOutboundBlockLen(uint32_t channelID, uint32_t defaultSize) = 0;
+    // Get max inbound message size
+    virtual uint32_t inboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize) = 0;
 
     // Check if we can accept outbound message
-    virtual bool canAcceptOutbound(uint32_t channelID, bool &noConn) = 0;
+    virtual bool outboundCanAccept(uint32_t channelID, CommsMsgTypeCode msgType, bool &noConn) = 0;
 
     // Handle outbound message
-    virtual CommsCoreRetCode handleOutboundMessage(CommsChannelMsg& msg) = 0;
+    virtual CommsCoreRetCode outboundHandleMsg(CommsChannelMsg& msg) = 0;
+
+    // Get the max outbound message size
+    virtual uint32_t outboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize) = 0;
 
     // Get channel IDs
     virtual int32_t getChannelIDByName(const String& channelName, const String& protocolName) = 0;

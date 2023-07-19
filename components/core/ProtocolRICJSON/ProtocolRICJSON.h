@@ -18,13 +18,16 @@ class ProtocolRICJSON : public ProtocolBase
 {
 public:
     ProtocolRICJSON(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                    CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, 
-                    CommsChannelReadyToRxCB readyToRxCB);
+                    CommsChannelOutboundHandleMsgFnType msgTxCB, 
+                    CommsChannelInboundHandleMsgFnType msgRxCB, 
+                    CommsChannelInboundCanAcceptFnType readyToRxCB);
     virtual ~ProtocolRICJSON();
 
     // Create instance
     static ProtocolBase* createInstance(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
-                    CommsChannelSendMsgCB msgTxCB, CommsChannelReceiveMsgCB msgRxCB, CommsChannelReadyToRxCB readyToRxCB)
+                    CommsChannelOutboundHandleMsgFnType msgTxCB, 
+                    CommsChannelInboundHandleMsgFnType msgRxCB, 
+                    CommsChannelInboundCanAcceptFnType readyToRxCB)
     {
         return new ProtocolRICJSON(channelID, config, pConfigPrefix, msgTxCB, msgRxCB, readyToRxCB);
     }

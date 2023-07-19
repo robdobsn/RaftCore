@@ -157,7 +157,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTRe
         uint32_t chanBlockMax = 0;
         if (_pCommsCore)
         {
-            chanBlockMax = _pCommsCore->getOutboundBlockLen(channelID, FILE_BLOCK_SIZE_DEFAULT);
+            chanBlockMax = _pCommsCore->outboundMsgBlockMax(channelID, FILE_BLOCK_SIZE_DEFAULT);
             _blockSize = Raft::clamp(_blockSize, FILE_BLOCK_SIZE_MIN, chanBlockMax > 0 ? chanBlockMax : _blockSize);
             LOG_I(MODULE_PREFIX, "handleStartMsg chanBlockMax %d blockSize %d", chanBlockMax, _blockSize);
         }
@@ -483,7 +483,7 @@ void FileDownloadOKTOProtocol::transferCancel(const char* reasonStr)
 
         // Send message on the appropriate channel
         if (_pCommsCore)
-            _pCommsCore->handleOutboundMessage(endpointMsg);
+            _pCommsCore->outboundHandleMsg(endpointMsg);
     }
 }
 
@@ -536,7 +536,7 @@ void FileDownloadOKTOProtocol::sendBlock(FileStreamBlockOwned& block)
 
     // Send message
     if (_pCommsCore)
-        _pCommsCore->handleOutboundMessage(endpointMsg);
+        _pCommsCore->outboundHandleMsg(endpointMsg);
 
 #ifdef DEBUG_SEND_FILE_BLOCK
     // Debug
