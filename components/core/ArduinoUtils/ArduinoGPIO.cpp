@@ -11,16 +11,6 @@
 #include "driver/adc.h"
 #include "esp_log.h"
 
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "esp32/spiram.h"
-#ifdef __cplusplus
-}
-#endif
-#endif
-
 // #define DEBUG_PINMODE
 #ifdef DEBUG_PINMODE
 #include <Logger.h>

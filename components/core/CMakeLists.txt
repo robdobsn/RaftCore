@@ -1,5 +1,21 @@
 cmake_minimum_required(VERSION 3.16)
 
+set(RAFT_CORE_REQUIRES 
+  nvs_flash
+  driver
+  vfs
+  spiffs
+  fatfs
+  sdmmc
+  esp_wifi
+  esp_eth
+  esp_timer
+)
+
+if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)
+endif()
+
 idf_component_register(
   SRCS
     "ArduinoUtils/ArduinoGPIO.cpp"
@@ -94,13 +110,5 @@ idf_component_register(
     "ThreadSafeQueue"
     "Utils"
   REQUIRES
-    nvs_flash
-    driver
-    vfs
-    spiffs
-    fatfs
-    sdmmc
-    esp_wifi
-    esp_eth
-    esp_timer
+    ${RAFT_CORE_REQUIRES}
 )

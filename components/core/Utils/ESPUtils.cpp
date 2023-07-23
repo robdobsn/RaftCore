@@ -16,11 +16,16 @@
 #include "esp_task_wdt.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
+
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
 extern "C" {
 #endif
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #include "esp32/spiram.h"
+#else
+#include "esp_psram.h"
+#endif
 #ifdef __cplusplus
 }
 #endif
@@ -96,6 +101,7 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
 uint32_t utilsGetSPIRAMSize()
 {
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     switch (esp_spiram_get_chip_size())
     {
         case ESP_SPIRAM_SIZE_16MBITS:
@@ -107,6 +113,9 @@ uint32_t utilsGetSPIRAMSize()
         default:
             return 0;
     }
+#else
+    return esp_psram_get_size();
+#endif
 #else
     return 0;
 #endif

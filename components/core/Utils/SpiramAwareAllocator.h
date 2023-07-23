@@ -10,12 +10,17 @@
 
 #include "esp_heap_caps.h"
 #include "sdkconfig.h"
+#include "esp_idf_version.h"
 
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
 extern "C" {
 #endif
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #include "esp32/spiram.h"
+#else
+#include "esp_psram.h"
+#endif
 #ifdef __cplusplus
 }
 #endif
@@ -39,8 +44,13 @@ public:
     {
 
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
         if (esp_spiram_get_chip_size() != ESP_SPIRAM_SIZE_INVALID)
             return (T*) (heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+#else
+        if (esp_psram_get_size() != 0)
+            return (T*) (heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+#endif
 #endif
 
         return (T*) (malloc(n * sizeof(T)));
@@ -70,8 +80,13 @@ public:
     static uint32_t max_allocatable()
     {
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
         if (esp_spiram_get_chip_size() != ESP_SPIRAM_SIZE_INVALID)
             return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
+        if (esp_psram_get_size() != 0)
+            return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#endif
 #endif
         return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     }
