@@ -2,7 +2,7 @@
 //
 // RaftUtils
 //
-// Rob Dobson 2012-2022
+// Rob Dobson 2012-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -672,6 +672,19 @@ uint32_t Raft::getBEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
         return 0;
     uint32_t val = ((((uint32_t)(*pVal)) << 24) + (((uint32_t)(*(pVal+1))) << 16) +
                     + (((uint32_t)(*(pVal+2))) << 8) + *(pVal+3));
+    pVal += 4;
+    return val;
+}
+
+// Get a uint32_t little endian value from the uint8_t pointer passed in
+// Increment the pointer (by 4)
+// Also checks endStop pointer value if provided
+uint32_t Raft::getLEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+{
+    if (!pVal || (pEndStop && (pVal + 3 >= pEndStop)))
+        return 0;
+    uint32_t val = ((((uint32_t)(*(pVal+3))) << 24) + (((uint32_t)(*(pVal+2))) << 16) +
+                    + (((uint32_t)(*(pVal+1))) << 8) + *pVal);
     pVal += 4;
     return val;
 }

@@ -463,7 +463,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 
 #ifdef DEBUG_SEND_CMD_JSON_PERF
             LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %lldus exec time %lldus", 
-                    sysModName, HWElemBase::getRetCodeStr(rslt), foundSysModUs - startUs, micros() - foundSysModUs);
+                    sysModName, RaftUtils::getRetCodeStr(rslt), foundSysModUs - startUs, micros() - foundSysModUs);
 #endif
             return rslt;
         }

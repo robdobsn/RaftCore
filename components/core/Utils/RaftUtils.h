@@ -90,6 +90,11 @@ namespace Raft
     // Also checks endStop pointer value if provided
     uint32_t getBEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
 
+    // Get a uint32_t little endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 4)
+    // Also checks endStop pointer value if provided
+    uint32_t getLEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+
     // Get a float32_t big endian value from the uint8_t pointer passed in
     // Increment the pointer (by 4)
     // Also checks endStop pointer value if provided

@@ -14,6 +14,7 @@
 #include <list>
 #include <SpiramAwareAllocator.h>
 #include <functional>
+#include <RaftRetCode.h>
 
 class RestAPIEndpointManager;
 class APISourceInfo;

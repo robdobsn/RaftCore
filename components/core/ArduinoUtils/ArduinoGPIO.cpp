@@ -36,19 +36,6 @@ extern "C" void IRAM_ATTR __pinMode(int pin, uint8_t mode)
     if (pin < 0)
         return;
 
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
-#ifdef IDF_TARGET STREQUAL "esp32" 
-    // Check the PIN is not used by SPIRAM
-    if (esp_spiram_is_initialized())
-    {
-        if (pin == 16 || pin == 17 || pin == 7 || pin == 10)
-        {
-            return;
-        }
-    }
-#endif
-#endif
-
 #ifndef DEBUG_PINMODE
     esp_log_level_set("gpio", ESP_LOG_NONE);
 #endif
