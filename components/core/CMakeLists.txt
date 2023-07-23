@@ -16,6 +16,13 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)
 endif()
 
+set(TEST_LITTLEFS_FOLDER ${COMPONENT_DIR}/../esp_littlefs-src)
+get_filename_component(TEST_LITTLEFS_SRC ${TEST_LITTLEFS_FOLDER} REALPATH)
+if (EXISTS "${TEST_LITTLEFS_SRC}")
+  message(STATUS "========================================= LittleFS component found")
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_littlefs-src )
+endif()
+
 idf_component_register(
   SRCS
     "ArduinoUtils/ArduinoGPIO.cpp"

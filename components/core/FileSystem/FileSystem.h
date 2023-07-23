@@ -162,7 +162,7 @@ private:
     bool checkFileSystem(const String& fileSystemStr, String& fsName) const;
     String getFilePath(const String& nameOfFS, const String& filename) const;
     void localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bool formatIfCorrupt);
-#ifdef ESP_LITTLEFS_SUPPORT
+#ifdef FEATURE_LITTLEFS_SUPPORT
     bool localFileSystemSetupLittleFS(bool formatIfCorrupt);
 #endif
     bool localFileSystemSetupSPIFFS(bool formatIfCorrupt);

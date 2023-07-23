@@ -21,7 +21,7 @@
 #include <ConfigPinMap.h>
 #include <Logger.h>
 #include <SpiramAwareAllocator.h>
-#ifdef ESP_LITTLEFS_SUPPORT
+#ifdef FEATURE_LITTLEFS_SUPPORT
 #include "esp_littlefs.h"
 #endif
 
@@ -127,7 +127,7 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isFileInfoSetup = false;
     esp_err_t ret = ESP_FAIL;
-#ifdef ESP_LITTLEFS_SUPPORT
+#ifdef FEATURE_LITTLEFS_SUPPORT
     if (_localFSIsLittleFS)
         ret = esp_littlefs_format(NULL);
     else
@@ -903,7 +903,7 @@ void FileSystem::localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bo
     }
 
     // Init LittleFS if enabled
-#ifdef ESP_LITTLEFS_SUPPORT
+#ifdef FEATURE_LITTLEFS_SUPPORT
     if (enableLittleFS)
     {
         // Init LittleFS file system (format if required)
@@ -917,7 +917,7 @@ void FileSystem::localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bo
 // Setup local file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ESP_LITTLEFS_SUPPORT
+#ifdef FEATURE_LITTLEFS_SUPPORT
 bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 {
     // Using ESP IDF virtual file system
@@ -949,7 +949,7 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
         return false;
     }
 
-#ifdef ESP_LITTLEFS_SUPPORT
+#ifdef FEATURE_LITTLEFS_SUPPORT
     // Get file system info
     size_t total = 0, used = 0;
     ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &total, &used);
@@ -1301,7 +1301,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
     {
         size_t sizeBytes = 0, usedBytes = 0;
         esp_err_t ret = ESP_FAIL;
-#ifdef ESP_LITTLEFS_SUPPORT
+#ifdef FEATURE_LITTLEFS_SUPPORT
         if (_localFSIsLittleFS)
             ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &sizeBytes, &usedBytes);
         else
