@@ -13,7 +13,7 @@
 #include <RaftUtils.h>
 #include <ConfigBase.h>
 #include <ConfigPinMap.h>
-#include <WS2812LedStrip.h>
+#include <LEDPixels.h>
 
 // #define DEBUG_POWER_LED_SETUP
 
@@ -44,6 +44,10 @@ void powerUpLEDSet(const char *pModuleName, ConfigBase &mainConfig)
 #endif
     if (ledPin < 0)
         return;
+
+    // Get colour order string
+    String colourOrderStr = config.getString("colourOrder", "GRB");
+    LEDPixel::ColourOrder colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
 
     // Get LED settings and default ledVal
     String ledValStr = config.getString("ledVal", "0");
@@ -78,11 +82,14 @@ void powerUpLEDSet(const char *pModuleName, ConfigBase &mainConfig)
     if (isPix)
     {
         // Setup pixel strip
-        WS2812LedStrip pixStrip;
-        esp_err_t espError = pixStrip.setup(RMT_CHANNEL_0, ledPin, pixIdx+1);
-        if (espError != ESP_OK)
+        LEDPixels ledPixels;
+        LEDStripConfig ledStripConfig;
+        ledStripConfig.numPixels = pixIdx + 1;
+        ledStripConfig.ledDataPin = ledPin;
+        ledStripConfig.colourOrder = colourOrder;
+        if (!ledPixels.setup(ledStripConfig))
         {
-            LOG_W("PowerUpLEDSet", "setup, Failed to setup WS2812 driver, espError %d", espError);
+            LOG_W("PowerUpLEDSet", "setup FAILED to setup WS2812 driver");
             return;
         }
         else
@@ -91,12 +98,12 @@ void powerUpLEDSet(const char *pModuleName, ConfigBase &mainConfig)
             LOG_I("PowerUpLEDSet", "setup ok");
 #endif
         }
-        pixStrip.setPixelColor(pixIdx, ledVal);
-        pixStrip.show();
+        ledPixels.setPixelColor(pixIdx, ledVal);
+        ledPixels.show();
     }
     else
     {
-        gpio_set_direction((gpio_num_t)ledPin, GPIO_MODE_OUTPUT);
-        gpio_set_level((gpio_num_t)ledPin, ledVal);
+        pinMode(ledPin, OUTPUT);
+        digitalWrite(ledPin, ledVal);
     }
 }

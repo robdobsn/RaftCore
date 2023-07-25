@@ -31,3 +31,8 @@ For ESP IDF based projects the following are provided:
 - Arduino time equivalents (millis(), micros(), etc)
 - Arduino GPIO equivalents (pinMode(), digitialWrite(), etc)
 - Arduino String (WString)
+
+# Todo
+
+- [ ] Sort out why ROS throughput is wrong
+

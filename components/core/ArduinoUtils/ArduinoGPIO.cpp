@@ -3,13 +3,19 @@
 
 #ifndef ARDUINO
 
+#include <sdkconfig.h>
 #include <stdint.h>
 #include <ArduinoGPIO.h>
 #include <ArduinoTime.h>
+#include "esp_log.h"
 #include <esp_attr.h>
 #include <driver/gpio.h>
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #include "driver/adc.h"
-#include "esp_log.h"
+#else
+#include "esp_adc/adc_oneshot.h"
+#endif
 
 // #define DEBUG_PINMODE
 #ifdef DEBUG_PINMODE
@@ -102,6 +108,8 @@ extern "C" int IRAM_ATTR __digitalRead(uint8_t pin)
 
 extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
 {
+
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     // Convert pin to adc channel
     // Only handles channel 1 (channel 2 generally available when WiFi used)
     adc1_channel_t analogChan = ADC1_CHANNEL_0;
@@ -128,6 +136,43 @@ extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
 
     // Get adc reading
     return adc1_get_raw(analogChan);
+#else
+    // Convert pin to adc channel
+    adc_unit_t adcUnit = ADC_UNIT_1;
+    adc_channel_t adcChannel = ADC_CHANNEL_0;
+    if (adc_oneshot_io_to_channel(pin, &adcUnit, &adcChannel) != ESP_OK)
+        return 0;
+
+    // Configure one-shot ADC
+    adc_oneshot_unit_handle_t adcHandle;
+    adc_oneshot_unit_init_cfg_t initConfig = {
+        .unit_id = adcUnit,
+        .clk_src = (adc_oneshot_clk_src_t)0, // use default clock
+        .ulp_mode = ADC_ULP_MODE_DISABLE,
+    };
+    if (adc_oneshot_new_unit(&initConfig, &adcHandle) != ESP_OK)
+        return 0;
+
+    // Configure channel
+    adc_oneshot_chan_cfg_t chanConfig = {
+        .atten = ADC_ATTEN_DB_11,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+    if (adc_oneshot_config_channel(adcHandle, adcChannel, &chanConfig) != ESP_OK)
+        return 0;
+
+    // Get adc reading
+    int adcVal = 0;
+    if (adc_oneshot_read(adcHandle, adcChannel, &adcVal) != ESP_OK)
+        return 0;
+
+    // Recycle the one-shot ADC
+    adc_oneshot_del_unit(adcHandle);
+
+    // Return value
+    return adcVal;
+#endif
+
 }
 
 extern void pinMode(int pin, uint8_t mode) __attribute__ ((weak, alias("__pinMode")));

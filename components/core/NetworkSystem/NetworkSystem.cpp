@@ -103,6 +103,11 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
 
     // Create an RTOS event group to record network events
     _networkRTOSEventGroup = xEventGroupCreate();
+    if (!_networkRTOSEventGroup)
+    {
+        LOG_E(MODULE_PREFIX, "setup failed to create RTOS event group");
+        return false;
+    }
 
     // Create the default event loop
     esp_err_t err = esp_event_loop_create_default();
@@ -217,6 +222,9 @@ void NetworkSystem::service()
 
 bool NetworkSystem::isWifiStaConnectedWithIP()
 {
+    // Check valid
+    if (!_isSetup)
+        return false;
     // Use the clear bits function with nothing to clear as a way to get the current value
     uint connBits = xEventGroupClearBits(_networkRTOSEventGroup, 0);
     return (connBits & WIFI_STA_CONNECTED_BIT) && (connBits & WIFI_STA_IP_CONNECTED_BIT);
@@ -224,6 +232,9 @@ bool NetworkSystem::isWifiStaConnectedWithIP()
 
 bool NetworkSystem::isIPConnected()
 {
+    // Check valid
+    if (!_isSetup)
+        return false;
     // Use the clear bits function with nothing to clear as a way to get the current value
     uint connBits = xEventGroupClearBits(_networkRTOSEventGroup, 0);
     return (connBits & WIFI_STA_IP_CONNECTED_BIT) | (connBits & ETH_IP_CONNECTED_BIT);
@@ -231,6 +242,9 @@ bool NetworkSystem::isIPConnected()
 
 bool NetworkSystem::isEthConnectedWithIP()
 {
+    // Check valid
+    if (!_isSetup)
+        return false;
     // Use the clear bits function with nothing to clear as a way to get the current value
     uint connBits = xEventGroupClearBits(_networkRTOSEventGroup, 0);
     return (connBits & ETH_CONNECTED_BIT) && (connBits & ETH_IP_CONNECTED_BIT);
@@ -442,6 +456,10 @@ void NetworkSystem::stopWifi()
 
 bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
 {
+    // Check valid
+    if (!_isSetup)
+        return false;
+
     // Unescape strings
     String ssidUnescaped = Raft::unescapeString(ssidIn);
     String pwUnescaped = Raft::unescapeString(pwIn);

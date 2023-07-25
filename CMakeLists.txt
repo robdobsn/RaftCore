@@ -15,6 +15,7 @@ set(RAFT_CORE_REQUIRES
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_adc)
 endif()
 
 set(TEST_LITTLEFS_FOLDER ${COMPONENT_DIR}/../esp_littlefs-src)
@@ -52,6 +53,9 @@ idf_component_register(
     "components/core/FileStreamProtocols/StreamDatagramProtocol.cpp"
     "components/core/FileSystem/FileSystem.cpp"
     "components/core/FileSystem/FileSystemChunker.cpp"
+    "components/core/LEDPixels/LEDPixels.cpp"
+    "components/core/LEDPixels/ESP32RMTLedStrip.cpp"
+    "components/core/LEDPixels/LEDStripEncoder.c"
     "components/core/libb64/cencode.cpp"
     "components/core/Logger/LoggerCore.cpp"
     "components/core/MiniHDLC/MiniHDLC.cpp"
@@ -92,10 +96,12 @@ idf_component_register(
     "components/core/ExpressionEval"
     "components/core/FileStreamProtocols"
     "components/core/FileSystem"
+    "components/core/LEDPixels"
     "components/core/libb64"
     "components/core/Logger"
     "components/core/MiniHDLC"
     "components/core/MQTT"
+    "components/core/NamedValueProvider"
     "components/core/NetCoreIF"
     "components/core/NetworkSystem"
     "components/core/NumericalFilters"
