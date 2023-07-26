@@ -26,7 +26,6 @@ public:
     virtual ~LEDPixels();
 
     // Setup
-    bool setup(ConfigBase& config, const char* pConfigPrefix);
     bool setup(LEDStripConfig& ledStripConfig);
 
     // Service

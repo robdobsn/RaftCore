@@ -10,6 +10,7 @@
 
 #include <ArduinoOrAlt.h>
 #include <LEDPixel.h>
+#include <RaftUtils.h>
 
 class LEDStripConfig
 {
@@ -19,7 +20,8 @@ public:
     }
     LEDStripConfig(uint32_t numPixels, const char* pColourOrder, const char* pInitialPattern, 
                    int ledDataPin, uint32_t rmtResolutionHz, float bit0Duration0Us, float bit0Duration1Us,
-                   float bit1Duration0Us, float bit1Duration1Us, float resetDurationUs, bool msbFirst)
+                   float bit1Duration0Us, float bit1Duration1Us, float resetDurationUs, bool msbFirst,
+                   uint32_t legacyChannel, const String& startupFirstPixel)
     {
         this->numPixels = numPixels;
         this->colourOrder = LEDPixel::getColourOrderCode(pColourOrder);
@@ -32,6 +34,8 @@ public:
         this->bit1Duration1Us = bit1Duration1Us;
         this->resetDurationUs = resetDurationUs;
         this->msbFirst = msbFirst;
+        this->legacyChannel = legacyChannel;
+        this->startupFirstPixelColour = Raft::getRGBFromHex(startupFirstPixel);
     }
     String toStr() const
     {
@@ -40,7 +44,8 @@ public:
                      " ledDataPin=" + String(ledDataPin) + " rmtResolutionHz=" + String(rmtResolutionHz) +
                      " bit0Duration0Us=" + String(bit0Duration0Us) + " bit0Duration1Us=" + String(bit0Duration1Us) +
                      " bit1Duration0Us=" + String(bit1Duration0Us) + " bit1Duration1Us=" + String(bit1Duration1Us) +
-                     " resetDurationUs=" + String(resetDurationUs) + " msbFirst=" + String(msbFirst);
+                     " resetDurationUs=" + String(resetDurationUs) + " msbFirst=" + String(msbFirst) +
+                     " ledStripLegacyChannel=" + String(legacyChannel);
         return str;
     }
     uint32_t numPixels = 0;
@@ -54,4 +59,6 @@ public:
     float bit1Duration1Us = 0.3;
     float resetDurationUs = 50;
     bool msbFirst = true;
+    uint32_t legacyChannel = 0;
+    Raft::RGBValue startupFirstPixelColour;
 };

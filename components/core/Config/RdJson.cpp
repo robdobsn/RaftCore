@@ -23,6 +23,7 @@ static const char *MODULE_PREFIX = "RdJson";
 // #define DEBUG_GET_ARRAY_ELEMS
 // #define DEBUG_EXTRACT_NAME_VALUES
 // #define DEBUG_FIND_KEY_IN_JSON
+// #define DEBUG_FIND_KEY_IN_JSON_ARRAY
 // #define DEBUG_IS_BOOLEAN
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -730,7 +731,7 @@ int RdJson::findKeyInJson(const char *jsonOriginal, rd_jsmntok_t tokens[],
             pDataPathPos = slashPos + 1;
         }
 #ifdef DEBUG_FIND_KEY_IN_JSON
-        LOG_I(MODULE_PREFIX, "findKeyInJson slashPos %ld, %d, srchKey <%s>", (long)slashPos, slashPos-pDataPathPos, srchKey);
+        LOG_I(MODULE_PREFIX, "findKeyInJson slashPos %p, %d, srchKey <%s>", slashPos, slashPos-pDataPathPos, srchKey);
 #endif
 
         // See if search key contains an array reference
@@ -788,7 +789,7 @@ int RdJson::findKeyInJson(const char *jsonOriginal, rd_jsmntok_t tokens[],
                     if (tokens[tokIdx].type == RD_JSMN_ARRAY)
                     {
                         int newTokIdx = findArrayElem(jsonOriginal, tokens, numTokens, tokIdx, reqdArrayIdx);
-#ifdef DEBUG_FIND_KEY_IN_JSON
+#ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
                         LOG_I(MODULE_PREFIX, "findKeyInJson TokIdxArray inIdx %d, reqdArrayIdx %d, outTokIdx %d", 
                                         tokIdx, reqdArrayIdx, newTokIdx);
 #endif
@@ -797,7 +798,7 @@ int RdJson::findKeyInJson(const char *jsonOriginal, rd_jsmntok_t tokens[],
                     else
                     {
                         // This isn't an array element
-#ifdef DEBUG_FIND_KEY_IN_JSON
+#ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
                         LOG_I(MODULE_PREFIX, "findKeyInJson NOT AN ARRAY ELEM");
 #endif
                         return -1;

@@ -9,6 +9,8 @@
 #include "esp_check.h"
 #include "LEDStripEncoder.h"
 
+#ifndef LEDSTRIP_USE_LEGACY_RMT
+
 static const char *TAG = "ESPRMTLEDEncoder";
 
 typedef struct {
@@ -124,3 +126,5 @@ err:
     }
     return ret;
 }
+
+#endif // LEDSTRIP_USE_LEGACY_RMT

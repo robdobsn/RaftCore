@@ -32,55 +32,6 @@ LEDPixels::~LEDPixels()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool LEDPixels::setup(ConfigBase& config, const char* pConfigPrefix)
-{
-    // Get number of pixels
-    uint32_t numPixels = config.getLong("numPixels", DEFAULT_NUM_PIXELS, pConfigPrefix);
-    if (numPixels > MAX_NUM_PIXELS)
-        numPixels = MAX_NUM_PIXELS;
-
-    // Get data pin for LED strip
-    int ledDataPin = config.getLong("pixelDataPin", -1, pConfigPrefix);
-    if (ledDataPin < 0)
-    {
-        LOG_E(MODULE_PREFIX, "setup invalid pixelDataPin");
-        return false;
-    }
-
-    // LED speed parameters
-    LEDStripConfig ledStripConfig;
-    String colourOrderStr = config.getString("colourOrder", "GRB");
-    float bit0Duration0Us = config.getDouble("bit0Duration0Us", ledStripConfig.bit0Duration0Us, pConfigPrefix);
-    float bit0Duration1Us = config.getDouble("bit0Duration1Us", ledStripConfig.bit0Duration1Us, pConfigPrefix);
-    float bit1Duration0Us = config.getDouble("bit1Duration0Us", ledStripConfig.bit1Duration0Us, pConfigPrefix);
-    float bit1Duration1Us = config.getDouble("bit1Duration1Us", ledStripConfig.bit1Duration1Us, pConfigPrefix);
-    float resetDurationUs = config.getDouble("resetDurationUs", ledStripConfig.resetDurationUs, pConfigPrefix);
-
-    // RMT resolution
-    uint32_t rmtResolutionHz = config.getLong("rmtResolutionHz", ledStripConfig.rmtResolutionHz, pConfigPrefix);
-
-    // MSB first
-    bool msbFirst = config.getBool("msbFirst", ledStripConfig.msbFirst, pConfigPrefix);
-
-    // Get pattern
-    String patternName = config.getString("pattern", "", pConfigPrefix);
-
-    // Config
-    ledStripConfig = {
-        numPixels, colourOrderStr.c_str(), patternName.c_str(), 
-        ledDataPin, rmtResolutionHz, 
-        bit0Duration0Us, bit0Duration1Us, bit1Duration0Us, bit1Duration1Us, 
-        resetDurationUs, msbFirst 
-    };
-
-    // Setup hardware
-    return setup(ledStripConfig);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
 {
     // Colour order
