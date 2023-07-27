@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <ArduinoOrAlt.h>
-#include <RdJsmn.h>
+#include <RaftJsmn.h>
 #include <vector>
 
 // Define this to enable reformatting of JSON
@@ -23,7 +23,7 @@
 #define RD_JSMN_SUCCESS 0
 #endif
 
-class RdJson {
+class RaftJson {
 public:
     // Get location of element in JSON string
     static bool getElement(const char* dataPath,
@@ -127,7 +127,7 @@ public:
      // Extract name value pairs from a string
     static void extractNameValues(const String& inStr, 
         const char* pNameValueSep, const char* pPairDelim, const char* pPairDelimAlt, 
-        std::vector<RdJson::NameValuePair>& nameValuePairs);
+        std::vector<RaftJson::NameValuePair>& nameValuePairs);
 
     // Check for boolean    
     static bool isBoolean(const char* pBuf, uint32_t bufLen, int &retValue);

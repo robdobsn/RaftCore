@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ArduinoOrAlt.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <Logger.h>
 #include <RaftUtils.h>
 #include "unity.h"
@@ -22,7 +22,7 @@ static bool testFindElemEnd(rd_jsmntok_t* pTokens, int numTokens, int tokenIdx, 
 {
     
     // Find element end
-    int endPos = RdJson::findElemEnd(pSourceStr, pTokens, numTokens, tokenIdx);
+    int endPos = RaftJson::findElemEnd(pSourceStr, pTokens, numTokens, tokenIdx);
     // LOG_I(MODULE_PREFIX, "testFindElemEnd startTok %d endTok %d", tokenIdx, endPos);
     if (expEndPos != endPos)
     {
@@ -38,7 +38,7 @@ static bool testFindKeyInJson(rd_jsmntok_t* pTokens, int numTokens,
     // find key
     int endTokenIdx = 0;
     rd_jsmntype_t keyType = RD_JSMN_UNDEFINED;
-    int foundTokenIdx = RdJson::findKeyInJson(pSourceStr, pTokens, numTokens, dataPath, endTokenIdx, keyType);
+    int foundTokenIdx = RaftJson::findKeyInJson(pSourceStr, pTokens, numTokens, dataPath, endTokenIdx, keyType);
     String elemStr;
     if (foundTokenIdx >= 0)
         Raft::strFromBuffer((uint8_t*)pSourceStr + pTokens[foundTokenIdx].start, 
@@ -57,7 +57,7 @@ static bool testFindKeyInJson(rd_jsmntok_t* pTokens, int numTokens,
 
 static bool testGetString(const char* dataPath, const char* expStr, const char* pSourceStr)
 {
-    String val = RdJson::getString(dataPath, "", pSourceStr);
+    String val = RaftJson::getString(dataPath, "", pSourceStr);
     // LOG_I(MODULE_PREFIX, "testGetString dataPath %s val %s", dataPath, val.c_str());
     if (!val.equals(expStr))
     {
@@ -70,7 +70,7 @@ static bool testGetString(const char* dataPath, const char* expStr, const char* 
 static bool testGetArrayElems(const char* dataPath, const char* expStrs[], int numStrs, const char* pSourceStr)
 {
     std::vector<String> arrayElems;
-    bool isValid = RdJson::getArrayElems(dataPath, arrayElems, pSourceStr);
+    bool isValid = RaftJson::getArrayElems(dataPath, arrayElems, pSourceStr);
     // LOG_I(MODULE_PREFIX, "testGetArrayElems dataPath %s got len %d", dataPath, arrayElems.size());
     if (!isValid)
     {
@@ -96,7 +96,7 @@ static bool testGetArrayElems(const char* dataPath, const char* expStrs[], int n
 static bool testGetObjectKeys(const char* dataPath, const char* expStrs[], int numStrs, const char* pSourceStr)
 {
     std::vector<String> arrayElems;
-    bool isValid = RdJson::getKeys(dataPath, arrayElems, pSourceStr);
+    bool isValid = RaftJson::getKeys(dataPath, arrayElems, pSourceStr);
     // LOG_I(MODULE_PREFIX, "testGetObjectKeys dataPath %s got len %d", dataPath, arrayElems.size());
     if (!isValid)
     {
@@ -151,7 +151,7 @@ TEST_CASE("test_rdjson", "[rdjson]")
 
     // Parse json into tokens
     int numTokens = 0;
-    rd_jsmntok_t *pTokens = RdJson::parseJson(testJSON, numTokens);
+    rd_jsmntok_t *pTokens = RaftJson::parseJson(testJSON, numTokens);
     if (pTokens == NULL)
     {
         LOG_I(MODULE_PREFIX, "testFindElemEnd parseJson failed");
@@ -159,7 +159,7 @@ TEST_CASE("test_rdjson", "[rdjson]")
     }
 
     // Debug
-    // RdJson::debugDumpParseResult(testJSON, pTokens, numTokens);
+    // RaftJson::debugDumpParseResult(testJSON, pTokens, numTokens);
 
     // Test the findElemEnd function
     int endTokens[] = {48,2,48,4,5,
@@ -211,9 +211,9 @@ TEST_CASE("test_rdjson", "[rdjson]")
     // Test higher level methods
     TEST_ASSERT_MESSAGE(true == testGetString("consts/oxis/coo[3]/minotaur", "[1,3,4]", testJSON), "getString1");
     TEST_ASSERT_MESSAGE(true == testGetString("consts/lastly", "elephant", testJSON), "getString2");
-    TEST_ASSERT_MESSAGE(5 == RdJson::getLong("consts/comarr/[1]", -1, testJSON), "getLong1");
-    TEST_ASSERT_MESSAGE(0 == RdJson::getLong("consts/bool1", -1, testJSON), "getLongBool1");
-    TEST_ASSERT_MESSAGE(1 == RdJson::getLong("consts/bool2", -1, testJSON), "getLongBool2");
+    TEST_ASSERT_MESSAGE(5 == RaftJson::getLong("consts/comarr/[1]", -1, testJSON), "getLong1");
+    TEST_ASSERT_MESSAGE(0 == RaftJson::getLong("consts/bool1", -1, testJSON), "getLongBool1");
+    TEST_ASSERT_MESSAGE(1 == RaftJson::getLong("consts/bool2", -1, testJSON), "getLongBool2");
 
     // Test array elements
     const char* expectedStrs[] = {"6", "5", "4", "3", "3", "{\"fish\": \"stew\"}"};

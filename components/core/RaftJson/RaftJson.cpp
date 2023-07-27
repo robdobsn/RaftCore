@@ -10,10 +10,10 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <Logger.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <RaftUtils.h>
 
-static const char *MODULE_PREFIX = "RdJson";
+static const char *MODULE_PREFIX = "RaftJson";
 
 #define WARN_ON_PARSE_FAILURE
 // #define DEBUG_PARSE_FAILURE
@@ -41,7 +41,7 @@ static const char *MODULE_PREFIX = "RdJson";
  * @param  {char*} pSourceStr     : json string to search for element
  * @return {bool}                 : true if element found
  */
-bool RdJson::getElement(const char *dataPath,
+bool RaftJson::getElement(const char *dataPath,
                         int &startPos, int &strLen,
                         rd_jsmntype_t &elemType, int &elemSize,
                         const char *pSourceStr)
@@ -103,7 +103,7 @@ bool RdJson::getElement(const char *dataPath,
  * @param  {char*} pSourceStr     : json to search
  * @return {String}               : found string value or default
  */
-String RdJson::getString(const char *dataPath,
+String RaftJson::getString(const char *dataPath,
                          const char *defaultValue, bool &isValid,
                          rd_jsmntype_t &elemType, int &elemSize,
                          const char *pSourceStr)
@@ -139,7 +139,7 @@ String RdJson::getString(const char *dataPath,
  * @param  {bool&} isValid      : [out] true if valid
  * @return {String}             : returned value or default
  */
-String RdJson::getString(const char *dataPath, const char *defaultValue,
+String RaftJson::getString(const char *dataPath, const char *defaultValue,
                          const char *pSourceStr, bool &isValid)
 {
     rd_jsmntype_t elemType = RD_JSMN_UNDEFINED;
@@ -157,7 +157,7 @@ String RdJson::getString(const char *dataPath, const char *defaultValue,
  * @param  {char*} pSourceStr   : json string to search
  * @return {String}             : returned value or default
  */
-String RdJson::getString(const char *dataPath, const char *defaultValue,
+String RaftJson::getString(const char *dataPath, const char *defaultValue,
                          const char *pSourceStr)
 {
     bool isValid = false;
@@ -179,7 +179,7 @@ String RdJson::getString(const char *dataPath, const char *defaultValue,
  * @param  {char*} pSourceStr    : json string to search
  * @return {double}              : returned value or default
  */
-double RdJson::getDouble(const char *dataPath,
+double RaftJson::getDouble(const char *dataPath,
                          double defaultValue, bool &isValid,
                          const char *pSourceStr)
 {
@@ -192,7 +192,7 @@ double RdJson::getDouble(const char *dataPath,
         return defaultValue;
     // Check for booleans
     int retValue = 0;
-    if (RdJson::isBoolean(pSourceStr+startPos, strLen, retValue))
+    if (RaftJson::isBoolean(pSourceStr+startPos, strLen, retValue))
         return retValue;
     return strtod(pSourceStr + startPos, NULL);
 }
@@ -204,7 +204,7 @@ double RdJson::getDouble(const char *dataPath,
  * @param  {char*} pSourceStr    : json string to search
  * @return {double}              : returned value or default
  */
-double RdJson::getDouble(const char *dataPath, double defaultValue,
+double RaftJson::getDouble(const char *dataPath, double defaultValue,
                          const char *pSourceStr)
 {
     bool isValid = false;
@@ -224,7 +224,7 @@ double RdJson::getDouble(const char *dataPath, double defaultValue,
  * @param  {char*} pSourceStr  : json string to search
  * @return {long}              : returned value or default
  */
-long RdJson::getLong(const char *dataPath,
+long RaftJson::getLong(const char *dataPath,
                      long defaultValue, bool &isValid,
                      const char *pSourceStr)
 {
@@ -237,7 +237,7 @@ long RdJson::getLong(const char *dataPath,
         return defaultValue;
     // Check for booleans
     int retValue = 0;
-    if (RdJson::isBoolean(pSourceStr+startPos, strLen, retValue))
+    if (RaftJson::isBoolean(pSourceStr+startPos, strLen, retValue))
         return retValue;
     return strtol(pSourceStr + startPos, NULL, 0);
 }
@@ -250,7 +250,7 @@ long RdJson::getLong(const char *dataPath,
  * @param  {char*} pSourceStr  : json string to search
  * @return {long}              : returned value or default
  */
-long RdJson::getLong(const char *dataPath, long defaultValue, const char *pSourceStr)
+long RaftJson::getLong(const char *dataPath, long defaultValue, const char *pSourceStr)
 {
     bool isValid = false;
     return getLong(dataPath, defaultValue, isValid, pSourceStr);
@@ -269,11 +269,11 @@ long RdJson::getLong(const char *dataPath, long defaultValue, const char *pSourc
  * @param  {char*} pSourceStr  : json string to search
  * @return {bool}              : returned value or default
  */
-bool RdJson::getBool(const char *dataPath,
+bool RaftJson::getBool(const char *dataPath,
                      bool defaultValue, bool &isValid,
                      const char *pSourceStr)
 {
-    return RdJson::getLong(dataPath, defaultValue, isValid, pSourceStr) != 0;
+    return RaftJson::getLong(dataPath, defaultValue, isValid, pSourceStr) != 0;
 }
 
 /**
@@ -284,16 +284,16 @@ bool RdJson::getBool(const char *dataPath,
  * @param  {char*} pSourceStr  : json string to search
  * @return {bool}              : returned value or default
  */
-bool RdJson::getBool(const char *dataPath, bool defaultValue, const char *pSourceStr)
+bool RaftJson::getBool(const char *dataPath, bool defaultValue, const char *pSourceStr)
 {
-    return RdJson::getLong(dataPath, defaultValue, pSourceStr) != 0;
+    return RaftJson::getLong(dataPath, defaultValue, pSourceStr) != 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getLong
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const char *RdJson::getElemTypeStr(rd_jsmntype_t type)
+const char *RaftJson::getElemTypeStr(rd_jsmntype_t type)
 {
     switch (type)
     {
@@ -322,7 +322,7 @@ const char *RdJson::getElemTypeStr(rd_jsmntype_t type)
  * @param  {char*} pSourceStr : json string to search
  * @return {rd_jsmntype_t}       : returned value is the type of the object
  */
-rd_jsmntype_t RdJson::getType(int &arrayLen, const char *pSourceStr)
+rd_jsmntype_t RaftJson::getType(int &arrayLen, const char *pSourceStr)
 {
     arrayLen = 0;
     // Check for null
@@ -354,7 +354,7 @@ rd_jsmntype_t RdJson::getType(int &arrayLen, const char *pSourceStr)
  * @param  {char*} pSourceStr               : json string to search
  * @return {bool}                           : true if valid
  */
-bool RdJson::getKeys(const char *dataPath, std::vector<String>& keysVector, const char *pSourceStr)
+bool RaftJson::getKeys(const char *dataPath, std::vector<String>& keysVector, const char *pSourceStr)
 {
     // Check for null
     if (!pSourceStr)
@@ -436,7 +436,7 @@ bool RdJson::getKeys(const char *dataPath, std::vector<String>& keysVector, cons
  * @param  {char*} pSourceStr               : json string to search
  * @return {bool}                           : true if valid
  */
-bool RdJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems, const char *pSourceStr)
+bool RaftJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems, const char *pSourceStr)
 {
     // Check for null
     if (!pSourceStr)
@@ -501,14 +501,14 @@ bool RdJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * rd_jsmntok_t* RdJson::parseJson 
+ * rd_jsmntok_t* RaftJson::parseJson 
  * 
  * @param  {char*} jsonStr  : json string to search
  * @param  {int&} numTokens : [out] number of tokens found
  * @param  {int} maxTokens  : max number of tokens to return
  * @return {rd_jsmntok_t*}     : tokens found - NOTE - pointer must be delete[] by caller
  */
-rd_jsmntok_t *RdJson::parseJson(const char *jsonStr, int &numTokens,
+rd_jsmntok_t *RaftJson::parseJson(const char *jsonStr, int &numTokens,
                               int maxTokens)
 {
     // Check for null source string
@@ -529,7 +529,7 @@ rd_jsmntok_t *RdJson::parseJson(const char *jsonStr, int &numTokens,
         LOG_I(MODULE_PREFIX, "parseJson result %d maxTokens %d jsonLen %d jsonStr %s", tokenCountRslt, 
                         maxTokens, strlen(jsonStr), jsonStr);
 #endif
-        // rd_jsmn_logLongStr("RdJson: jsonStr", jsonStr, false);
+        // rd_jsmn_logLongStr("RaftJson: jsonStr", jsonStr, false);
         return NULL;
     }
 
@@ -561,7 +561,7 @@ rd_jsmntok_t *RdJson::parseJson(const char *jsonStr, int &numTokens,
 // validateJson
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RdJson::validateJson(const char* pSourceStr, int& numTokens)
+bool RaftJson::validateJson(const char* pSourceStr, int& numTokens)
 {
     // Check for null source string
     if (pSourceStr == NULL)
@@ -583,7 +583,7 @@ bool RdJson::validateJson(const char* pSourceStr, int& numTokens)
         LOG_I(MODULE_PREFIX, "validateJson result %d maxTokens %d jsonLen %d", 
                 numTokens, RDJSON_MAX_TOKENS, strlen(pSourceStr));
 #endif
-        // rd_jsmn_logLongStr("RdJson: jsonStr", pSourceStr, false);
+        // rd_jsmn_logLongStr("RaftJson: jsonStr", pSourceStr, false);
         return false;
     }
     return true;
@@ -604,7 +604,7 @@ bool RdJson::validateJson(const char* pSourceStr, int& numTokens)
  *                                : OR numTokens+1 if element occupies rest of json
  *                                : OR -1 on error
  */
-int RdJson::findElemEnd(const char *jsonOriginal, rd_jsmntok_t tokens[],
+int RaftJson::findElemEnd(const char *jsonOriginal, rd_jsmntok_t tokens[],
                           unsigned int numTokens, int startTokenIdx)
 {
     // Check valid
@@ -651,7 +651,7 @@ int RdJson::findElemEnd(const char *jsonOriginal, rd_jsmntok_t tokens[],
  * @param  {int} arrayElemIdx    : 
  * @return {int}                 : 
  */
-int RdJson::findArrayElem(const char *jsonOriginal, rd_jsmntok_t tokens[],
+int RaftJson::findArrayElem(const char *jsonOriginal, rd_jsmntok_t tokens[],
                           unsigned int numTokens, int startTokenIdx, 
                           int arrayElemIdx)
 {
@@ -694,7 +694,7 @@ int RdJson::findArrayElem(const char *jsonOriginal, rd_jsmntok_t tokens[],
  * @param  {rd_jsmntype_t} keyType     : type of json element to find
  * @return {int}                    : index of found token or -1 if failed
  */
-int RdJson::findKeyInJson(const char *jsonOriginal, rd_jsmntok_t tokens[],
+int RaftJson::findKeyInJson(const char *jsonOriginal, rd_jsmntok_t tokens[],
                           unsigned int numTokens, const char *dataPath,
                           int &endTokenIdx,
                           rd_jsmntype_t keyType)
@@ -887,7 +887,7 @@ int RdJson::findKeyInJson(const char *jsonOriginal, rd_jsmntok_t tokens[],
  * 
  * @param  {String} strToEsc : string in which to replace characters which are invalid in JSON
  */
-void RdJson::escapeString(String &strToEsc)
+void RaftJson::escapeString(String &strToEsc)
 {
     // Replace characters which are invalid in JSON
     strToEsc.replace("\\", "\\\\");
@@ -899,7 +899,7 @@ void RdJson::escapeString(String &strToEsc)
  * 
  * @param  {String} strToUnEsc : string in which to restore characters which are invalid in JSON
  */
-void RdJson::unescapeString(String &strToUnEsc)
+void RaftJson::unescapeString(String &strToUnEsc)
 {
     // Replace characters which are invalid in JSON
     strToUnEsc.replace("\\\"", "\"");
@@ -907,7 +907,7 @@ void RdJson::unescapeString(String &strToUnEsc)
     strToUnEsc.replace("\\n", "\n");
 }
 
-size_t RdJson::safeStringLen(const char *pSrc,
+size_t RaftJson::safeStringLen(const char *pSrc,
                              bool skipJSONWhitespace, size_t maxx)
 {
     if (maxx == 0)
@@ -934,7 +934,7 @@ size_t RdJson::safeStringLen(const char *pSrc,
     return stringLen;
 }
 
-void RdJson::safeStringCopy(char *pDest, const char *pSrc,
+void RaftJson::safeStringCopy(char *pDest, const char *pSrc,
                             size_t maxx, bool skipJSONWhitespace)
 {
     char *pD = pDest;
@@ -964,7 +964,7 @@ void RdJson::safeStringCopy(char *pDest, const char *pSrc,
     }
 }
 
-char *RdJson::safeStringDup(const char *pSrc, size_t maxx,
+char *RaftJson::safeStringDup(const char *pSrc, size_t maxx,
                             bool skipJSONWhitespace)
 {
     size_t toAlloc = safeStringLen(pSrc, skipJSONWhitespace, maxx);
@@ -1001,7 +1001,7 @@ char *RdJson::safeStringDup(const char *pSrc, size_t maxx,
     return pDest;
 }
 
-void RdJson::debugDumpParseResult(const char* pSourceStr, rd_jsmntok_t* pTokens, int numTokens)
+void RaftJson::debugDumpParseResult(const char* pSourceStr, rd_jsmntok_t* pTokens, int numTokens)
 {
     for (int i = 0; i < numTokens; i++)
     {
@@ -1017,7 +1017,7 @@ void RdJson::debugDumpParseResult(const char* pSourceStr, rd_jsmntok_t* pTokens,
 // Convert name value pairs to JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String RdJson::getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePairs, bool includeOuterBraces)
+String RaftJson::getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePairs, bool includeOuterBraces)
 {
     // Calculate length for efficiency
     uint32_t reserveLen = 0;
@@ -1045,11 +1045,11 @@ String RdJson::getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePairs, bo
 // Convert JSON object to HTML query string syntax
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String RdJson::getHTMLQueryFromJSON(const String& jsonStr)
+String RaftJson::getHTMLQueryFromJSON(const String& jsonStr)
 {
     // Get keys of object
     std::vector<String> keyStrs;
-    RdJson::getKeys("", keyStrs, jsonStr.c_str());
+    RaftJson::getKeys("", keyStrs, jsonStr.c_str());
     if (keyStrs.size() == 0)
         return "";
 
@@ -1074,9 +1074,9 @@ String RdJson::getHTMLQueryFromJSON(const String& jsonStr)
 // pairDelimAlt - e.g. ";" for HTTP alternate (pass 0 if not needed)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RdJson::extractNameValues(const String& inStr, 
+void RaftJson::extractNameValues(const String& inStr, 
         const char* pNameValueSep, const char* pPairDelim, const char* pPairDelimAlt, 
-        std::vector<RdJson::NameValuePair>& nameValuePairs)
+        std::vector<RaftJson::NameValuePair>& nameValuePairs)
 {
    // Count the pairs
     uint32_t pairCount = 0;
@@ -1148,7 +1148,7 @@ void RdJson::extractNameValues(const String& inStr,
 
 #ifdef DEBUG_EXTRACT_NAME_VALUES
     // Debug
-    for (RdJson::NameValuePair& pair : nameValuePairs)
+    for (RaftJson::NameValuePair& pair : nameValuePairs)
         LOG_I(MODULE_PREFIX, "extractNameValues name %s val %s", pair.name.c_str(), pair.value.c_str());
 #endif
 }
@@ -1157,7 +1157,7 @@ void RdJson::extractNameValues(const String& inStr,
 // 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RdJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
+bool RaftJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
 {
     if ((*pBuf == 'f') || (*pBuf == 't'))
     {
@@ -1185,7 +1185,7 @@ bool RdJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef RDJSON_RECREATE_JSON
-int RdJson::recreateJson(const char *js, rd_jsmntok_t *t,
+int RaftJson::recreateJson(const char *js, rd_jsmntok_t *t,
                          size_t count, int indent, String &outStr)
 {
     int i, j, k;
@@ -1274,7 +1274,7 @@ int RdJson::recreateJson(const char *js, rd_jsmntok_t *t,
 // Print JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RdJson::doPrint(const char *jsonStr)
+bool RaftJson::doPrint(const char *jsonStr)
 {
     rd_jsmn_parser parser;
     rd_jsmn_init(&parser);

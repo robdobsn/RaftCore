@@ -342,7 +342,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
         Raft::strFromBuffer(cmdMsg.getBuf(), cmdMsg.getBufLen(), cmdMsgStr);
         JSONParams cmdFrame = cmdMsgStr;
         String reqStr = cmdFrame.getString("cmdName", "");
-        String queryStr = RdJson::getHTMLQueryFromJSON(cmdMsgStr);
+        String queryStr = RaftJson::getHTMLQueryFromJSON(cmdMsgStr);
         if (queryStr.length() > 0)
             reqStr += "?" + queryStr;
 
@@ -573,7 +573,7 @@ bool ProtocolExchange::processRICRESTNonFileStream(const String& cmdName,
     // Convert to REST API query string - it won't necessarily be a valid query string for external use
     // but works fine for internal use
     String reqStr = cmdName;
-    String queryStr = RdJson::getHTMLQueryFromJSON(ricRESTReqMsg.getPayloadJson());
+    String queryStr = RaftJson::getHTMLQueryFromJSON(ricRESTReqMsg.getPayloadJson());
     if (queryStr.length() > 0)
         reqStr += "?" + queryStr;
 

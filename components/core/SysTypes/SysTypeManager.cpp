@@ -8,7 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <RaftUtils.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <RestAPIEndpointManager.h>
 #include <SysTypeManager.h>
 
@@ -49,7 +49,7 @@ void SysTypeManager::setup(const char** pSysTypeConfigArrayStatic, int sysTypeCo
     {
         // Check JSON is valid
         int numJsonTokens = 0;
-        if (!RdJson::validateJson(_sysTypesList.front(), numJsonTokens))
+        if (!RaftJson::validateJson(_sysTypesList.front(), numJsonTokens))
         {
             LOG_E(MODULE_PREFIX, "setup JSON from SysType failed to parse");
             return;
@@ -157,7 +157,7 @@ bool SysTypeManager::setSysSettings(const uint8_t *pData, int len)
 
         // Check JSON is valid
         int numJsonTokens = 0;
-        if (!RdJson::validateJson(configJson.c_str(), numJsonTokens))
+        if (!RaftJson::validateJson(configJson.c_str(), numJsonTokens))
         {
             LOG_E(MODULE_PREFIX, "setSysSettings JSON failed to parse %s", configJson.c_str());
             return false;

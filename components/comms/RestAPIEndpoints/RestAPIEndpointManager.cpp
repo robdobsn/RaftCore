@@ -323,7 +323,7 @@ const char* RestAPIEndpointManager::getEndpointMethodStr(RestAPIEndpoint::Endpoi
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vector<String>& params, 
-            std::vector<RdJson::NameValuePair>& nameValuePairs)
+            std::vector<RaftJson::NameValuePair>& nameValuePairs)
 {
     // Params
     uint32_t numParams = getNumArgs(reqStr);
@@ -394,7 +394,7 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
 
     // Debug
 #ifdef DEBUG_NAME_VALUE_PAIR_EXTRACTION
-    for (RdJson::NameValuePair& pair : nameValuePairs)
+    for (RaftJson::NameValuePair& pair : nameValuePairs)
         LOG_I(MODULE_PREFIX, "getParamsAndNamedValues name %s val %s", pair.name.c_str(), pair.value.c_str());
 #endif
     return true;

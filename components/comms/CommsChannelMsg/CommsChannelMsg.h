@@ -11,7 +11,7 @@
 #include <ArduinoOrAlt.h>
 #include <SpiramAwareAllocator.h>
 #include <vector>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <stdint.h>
 
 // #define IMPLEMENT_COMMS_MSG_JSON
@@ -189,21 +189,21 @@ public:
     }
     String getString(const char *dataPath, const char *defaultValue)
     {
-        return RdJson::getString(dataPath, defaultValue, _cmdJSON.c_str());
+        return RaftJson::getString(dataPath, defaultValue, _cmdJSON.c_str());
     }
     String getString(const char *dataPath, const String& defaultValue)
     {
-        return RdJson::getString(dataPath, defaultValue.c_str(), _cmdJSON.c_str());
+        return RaftJson::getString(dataPath, defaultValue.c_str(), _cmdJSON.c_str());
     }
 
     long getLong(const char *dataPath, long defaultValue)
     {
-        return RdJson::getLong(dataPath, defaultValue, _cmdJSON.c_str());
+        return RaftJson::getLong(dataPath, defaultValue, _cmdJSON.c_str());
     }
 
     double getDouble(const char *dataPath, double defaultValue)
     {
-        return RdJson::getDouble(dataPath, defaultValue, _cmdJSON.c_str());
+        return RaftJson::getDouble(dataPath, defaultValue, _cmdJSON.c_str());
     }
 #endif
 

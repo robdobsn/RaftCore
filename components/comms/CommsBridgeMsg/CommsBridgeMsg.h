@@ -10,7 +10,7 @@
 
 #include <ArduinoOrAlt.h>
 #include <vector>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <stdint.h>
 
 enum CommsBridgeIndex

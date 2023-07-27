@@ -11,7 +11,7 @@
 #include <functional>
 #include <vector>
 #include <ArduinoOrAlt.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include "RestAPIEndpoint.h"
 
 // Collection of endpoints
@@ -76,7 +76,7 @@ public:
     static const char *getEndpointMethodStr(RestAPIEndpoint::EndpointMethod endpointMethod);
 
     // URL Parser
-    static bool getParamsAndNameValues(const char* reqStr, std::vector<String>& params, std::vector<RdJson::NameValuePair>& nameValuePairs);
+    static bool getParamsAndNameValues(const char* reqStr, std::vector<String>& params, std::vector<RaftJson::NameValuePair>& nameValuePairs);
 
     // Special channel IDs
     static const uint32_t CHANNEL_ID_EVENT_DETECTOR = 20000;

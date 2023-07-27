@@ -14,7 +14,7 @@
 #include <Logger.h>
 #include <SysModBase.h>
 #include <JSONParams.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <RestAPIEndpointManager.h>
 #include <esp_system.h>
 #include <esp_heap_caps.h>
@@ -662,9 +662,9 @@ RaftRetCode SysManager::apiTestSetLoopDelay(const String &reqStr, String& respSt
 {
     // Extract params
     std::vector<String> params;
-    std::vector<RdJson::NameValuePair> nameValues;
+    std::vector<RaftJson::NameValuePair> nameValues;
     RestAPIEndpointManager::getParamsAndNameValues(reqStr.c_str(), params, nameValues);
-    JSONParams nameValueParamsJson = RdJson::getJSONFromNVPairs(nameValues, true);
+    JSONParams nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
 
     // Extract values
     _stressTestLoopDelayMs = nameValueParamsJson.getLong("delayMs", 0);
@@ -686,9 +686,9 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
 {
     // Extract params
     std::vector<String> params;
-    std::vector<RdJson::NameValuePair> nameValues;
+    std::vector<RaftJson::NameValuePair> nameValues;
     RestAPIEndpointManager::getParamsAndNameValues(reqStr.c_str(), params, nameValues);
-    JSONParams nameValueParamsJson = RdJson::getJSONFromNVPairs(nameValues, true);
+    JSONParams nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
 
     // Extract log output interval
     _monitorPeriodMs = nameValueParamsJson.getDouble("interval", _monitorPeriodMs/1000) * 1000;

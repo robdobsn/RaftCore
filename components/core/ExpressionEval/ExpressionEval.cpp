@@ -49,11 +49,11 @@ void ExpressionEval::addVariables(const char* valsJSON, bool append)
 
     // Set the constants into the evaluator
     std::vector<String> initValNames;
-    RdJson::getKeys("", initValNames, valsJSON);
+    RaftJson::getKeys("", initValNames, valsJSON);
     for (String& valToAdd : initValNames)
     {
         // Get value
-        double val = RdJson::getDouble(valToAdd.c_str(), 0, valsJSON);
+        double val = RaftJson::getDouble(valToAdd.c_str(), 0, valsJSON);
 #ifdef DEBUG_EXPRESSION_EVAL_VAR_DETAIL
         LOG_I(MODULE_PREFIX, "addVariables var %s val %f", valToAdd.c_str(), val);
 #endif
@@ -222,7 +222,7 @@ void ExpressionEval::evalStatements(const char* pImmutableVarsJSON)
     // Get the names of immutable variables 
     std::vector<String> immutableVarNames;
     if (pImmutableVarsJSON && (pImmutableVarsJSON[0] != '\0'))
-        RdJson::getKeys("", immutableVarNames, pImmutableVarsJSON);
+        RaftJson::getKeys("", immutableVarNames, pImmutableVarsJSON);
 
 #ifdef DEBUG_EXPRESSION_EVAL
     // Debug

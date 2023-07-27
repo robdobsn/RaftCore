@@ -31,7 +31,7 @@ static bool testGetString(const char* dataPath, const char* expectedStr, const c
     return true;
 }
 
-// Compare the results from ConfigBase::getString() with RdJson::getString()
+// Compare the results from ConfigBase::getString() with RaftJson::getString()
 static bool testConfigVsJson(const char* dataPath, const char* pSourceStr)
 {
     // Create ConfigBase
@@ -39,7 +39,7 @@ static bool testConfigVsJson(const char* dataPath, const char* pSourceStr)
 
     // Get string
     String cfgRslt = testConfigBase.getString(dataPath, "<<NOT_FOUND>>");
-    String jsonRslt = RdJson::getString(dataPath, "<<NOT_FOUND>>", pSourceStr);
+    String jsonRslt = RaftJson::getString(dataPath, "<<NOT_FOUND>>", pSourceStr);
     // LOG_I(MODULE_PREFIX, "testGetString dataPath %s expected %s", dataPath, expectedStr);
     if (!cfgRslt.equals(jsonRslt))
     {
@@ -50,7 +50,7 @@ static bool testConfigVsJson(const char* dataPath, const char* pSourceStr)
 
     // Get long
     long cfgLong = testConfigBase.getLong(dataPath, -1);
-    long jsonLong = RdJson::getLong(dataPath, -1, pSourceStr);
+    long jsonLong = RaftJson::getLong(dataPath, -1, pSourceStr);
     // LOG_I(MODULE_PREFIX, "testGetString dataPath %s expected %s", dataPath, expectedStr);
     if (jsonLong != cfgLong)
     {
@@ -61,7 +61,7 @@ static bool testConfigVsJson(const char* dataPath, const char* pSourceStr)
 
     // Get long
     double cfgDouble = testConfigBase.getDouble(dataPath, -1.5);
-    double jsonDouble = RdJson::getDouble(dataPath, -1.5, pSourceStr);
+    double jsonDouble = RaftJson::getDouble(dataPath, -1.5, pSourceStr);
     // LOG_I(MODULE_PREFIX, "testGetString dataPath %s expected %s", dataPath, expectedStr);
     if (jsonDouble != cfgDouble)
     {

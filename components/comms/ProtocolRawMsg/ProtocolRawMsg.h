@@ -11,7 +11,7 @@
 #include <ArduinoOrAlt.h>
 #include <SpiramAwareAllocator.h>
 #include <vector>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <stdint.h>
 
 class ProtocolRawMsg

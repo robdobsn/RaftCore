@@ -114,7 +114,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    String rdJsonResult = RdJson::getString(dataPath, defaultValue, pSourceStr, pPrefix);
+    String rdJsonResult = RaftJson::getString(dataPath, defaultValue, pSourceStr, pPrefix);
     if (!exists && !rdJsonResult.equals(defaultValue))
     {
         // We are returning defaultValue when we should not
@@ -127,7 +127,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
         return defaultValue;
 
     // Normalise whitespace
-    char *pStr = RdJson::safeStringDup(element.c_str(), element.length(),
+    char *pStr = RaftJson::safeStringDup(element.c_str(), element.length(),
                                        !(type == RD_JSMN_STRING || type == RD_JSMN_PRIMITIVE));
     if (pStr)
     {
@@ -168,7 +168,7 @@ long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const c
     }
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    long rdJsonResult = RdJson::getLong(dataPath, defaultValue, pSourceStr, pPrefix);
+    long rdJsonResult = RaftJson::getLong(dataPath, defaultValue, pSourceStr, pPrefix);
     if (rdJsonResult != result)
     {
         LOG_W(MODULE_PREFIX, "getLong(\"%s\", %ld) returned %ld != %ld",
@@ -201,7 +201,7 @@ double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, c
     }
     
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    double rdJsonResult = RdJson::getDouble(dataPath, defaultValue, pSourceStr);
+    double rdJsonResult = RaftJson::getDouble(dataPath, defaultValue, pSourceStr);
     if (rdJsonResult != result)
     {
         LOG_W(MODULE_PREFIX, "getDouble(\"%s\", %f) returned %f != %f",
@@ -224,7 +224,7 @@ bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>&
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
     std::vector<String> rdJsonResult;
-    double rdJsonExists = RdJson::getArrayElems(dataPath, rdJsonResult, pSourceStr, pPrefix);
+    double rdJsonExists = RaftJson::getArrayElems(dataPath, rdJsonResult, pSourceStr, pPrefix);
     if (!exists && rdJsonExists)
     {
         LOG_W(MODULE_PREFIX, "getArrayElems(\"%s\") - _helperGetElement() failed", dataPath);
@@ -235,10 +235,10 @@ bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>&
         return false;
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    bool result = RdJson::getArrayElems("", strList, element.c_str());
+    bool result = RaftJson::getArrayElems("", strList, element.c_str());
     if (result != rdJsonExists)
     {
-        LOG_W(MODULE_PREFIX, "getArrayElems(\"%s\") == %d but RdJson::getArrayElems(\"%s\") == %d",
+        LOG_W(MODULE_PREFIX, "getArrayElems(\"%s\") == %d but RaftJson::getArrayElems(\"%s\") == %d",
               dataPath, (int)result, dataPath, (int)rdJsonExists);
     }
     if (strList.size() != rdJsonResult.size())
@@ -258,7 +258,7 @@ bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>&
     return result;
 #endif
 
-    return RdJson::getArrayElems("", strList, element.c_str());
+    return RaftJson::getArrayElems("", strList, element.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +273,7 @@ bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysV
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
     std::vector<String> rdJsonResult;
-    double rdJsonExists = RdJson::getKeys(dataPath, rdJsonResult, pSourceStr, pPrefix);
+    double rdJsonExists = RaftJson::getKeys(dataPath, rdJsonResult, pSourceStr, pPrefix);
     if (!exists && rdJsonExists)
     {
         LOG_W(MODULE_PREFIX, "getKeys(\"%s\") - _helperGetElement() failed", dataPath);
@@ -284,10 +284,10 @@ bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysV
         return false;
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    bool result = RdJson::getKeys("", keysVector, element.c_str());
+    bool result = RaftJson::getKeys("", keysVector, element.c_str());
     if (result != rdJsonExists)
     {
-        LOG_W(MODULE_PREFIX, "getKeys(\"%s\") == %d but RdJson::getKeys(\"%s\") == %d",
+        LOG_W(MODULE_PREFIX, "getKeys(\"%s\") == %d but RaftJson::getKeys(\"%s\") == %d",
               dataPath, (int)result, dataPath, (int)rdJsonExists);
     }
     if (keysVector.size() != rdJsonResult.size())
@@ -307,7 +307,7 @@ bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysV
     return result;
 #endif
 
-    return RdJson::getKeys("", keysVector, element.c_str());
+    return RaftJson::getKeys("", keysVector, element.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -345,13 +345,13 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
     int startPos = -1;
     int strLen = -1;
     int size = -1;
-    bool found = RdJson::getElement(dataPathStr.c_str(), startPos, strLen, elementType, size, pConfigStr);
+    bool found = RaftJson::getElement(dataPathStr.c_str(), startPos, strLen, elementType, size, pConfigStr);
 #ifdef DEBUG_CONFIG_BASE
     {
         String debugOutStr;
         Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
         LOG_I(MODULE_PREFIX, "  - found=%d, start=%d, len=%d, type=%s, size=%d, elemSubstr='%s'",
-            (int)found, startPos, strLen, RdJson::getElemTypeStr(elementType), size,
+            (int)found, startPos, strLen, RaftJson::getElemTypeStr(elementType), size,
             (startPos < 0 || strLen < 0 || startPos > strnlen(pConfigStr, startPos+1)) ? "" : debugOutStr.c_str());
     }
 #endif
@@ -361,7 +361,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
         String debugOutStr;
         Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
         LOG_I(MODULE_PREFIX, "path %s found=%d, start=%d, len=%d, type=%s, size=%d, elemSubstr='%s'",
-            dataPathStr.c_str(), (int)found, startPos, strLen, RdJson::getElemTypeStr(elementType), size,
+            dataPathStr.c_str(), (int)found, startPos, strLen, RaftJson::getElemTypeStr(elementType), size,
             (startPos < 0 || strLen < 0 || startPos > strnlen(pConfigStr, startPos+1)) ? "" : debugOutStr.c_str());
     }
 #endif
@@ -375,7 +375,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
 
     // Try to parse an array of option objects
     std::vector<String> optionObjs(size);
-    RdJson::getArrayElems("", optionObjs, elementStr.c_str());
+    RaftJson::getArrayElems("", optionObjs, elementStr.c_str());
     bool hasSomeOptionObjs = false;
     bool hasOnlyOptionObjs = true;
     rd_jsmntype_t defaultValueType = RD_JSMN_UNDEFINED;
@@ -385,8 +385,8 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
         if (!optionObj.startsWith("{"))
             break;
         std::vector<String> hwRevs;
-        bool hasHwRevs = RdJson::getArrayElems("__hwRevs__", hwRevs, optionObj.c_str());
-        bool hasValue = RdJson::getElement("__value__", startPos, strLen, elementType, size, optionObj.c_str());
+        bool hasHwRevs = RaftJson::getArrayElems("__hwRevs__", hwRevs, optionObj.c_str());
+        bool hasValue = RaftJson::getElement("__value__", startPos, strLen, elementType, size, optionObj.c_str());
         bool isOptionObj = hasHwRevs && hasValue;
         hasSomeOptionObjs = hasSomeOptionObjs || isOptionObj;
         hasOnlyOptionObjs = hasOnlyOptionObjs && isOptionObj;

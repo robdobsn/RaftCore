@@ -32,9 +32,9 @@
 
 #include <Logger.h>
 #include <string.h>
-#include "RdJsmn.h"
+#include "RaftJsmn.h"
 
-static const char *MODULE_PREFIX = "RdJsmn";
+static const char *MODULE_PREFIX = "RaftJsmn";
 
 // Warn
 #define WARN_ON_ERROR_INVAL
