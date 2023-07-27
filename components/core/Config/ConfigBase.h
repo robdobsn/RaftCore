@@ -215,7 +215,7 @@ protected:
      *         switch array or this array is valid and contains a value for the
      *         current HW revision (even if only the default value).
      */
-    static bool _helperGetElement(const char *dataPath, String& elementStr, rd_jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix);
+    static bool _helperGetElement(const char *dataPath, String& elementStr, jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix);
 
     // Set the configuration data directly
     virtual void _setConfigData(const char* configJSONStr);

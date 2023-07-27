@@ -23,17 +23,16 @@
  */
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-// JSON parser - based on original https://github.com/zserge/jsmn
-//
-// Rob Dobson 2017-2022
-//
+// JSON parser - debugging added to https://github.com/zserge/jsmn - Rob Dobson 2017-2022
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
 
 #include <stddef.h>
 #include <stdlib.h>
+#undef JSMN_PARENT_LINKS
+#define JSMN_PARENT_LINKS 1
+#define JSMN_STRICT 1
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,82 +44,74 @@ extern "C" {
 #define JSMN_API extern
 #endif
 
-#undef JSMN_PARENT_LINKS
-#define JSMN_PARENT_LINKS 1
-#define JSMN_STRICT 1
+/**
+ * JSON type identifier. Basic types are:
+ * 	o Object
+ * 	o Array
+ * 	o String
+ * 	o Other primitive: number, boolean (true/false) or null
+ */
+typedef enum {
+  JSMN_UNDEFINED = 0,
+  JSMN_OBJECT = 1 << 0,
+  JSMN_ARRAY = 1 << 1,
+  JSMN_STRING = 1 << 2,
+  JSMN_PRIMITIVE = 1 << 3
+} jsmntype_t;
 
-  /**
-   * JSON type identifier. Basic types are:
-   * 	o Object
-   * 	o Array
-   * 	o String
-   * 	o Other primitive: number, boolean (true/false) or null
-   */
-  typedef enum
-  {
-    RD_JSMN_UNDEFINED = 0,
-    RD_JSMN_OBJECT = 1 << 0,
-    RD_JSMN_ARRAY = 1 << 1,
-    RD_JSMN_STRING = 1 << 2,
-    RD_JSMN_PRIMITIVE = 1 << 3
-  } rd_jsmntype_t;
+enum jsmnerr {
+  /* Not enough tokens were provided */
+  JSMN_ERROR_NOMEM = -1,
+  /* Invalid character inside JSON string */
+  JSMN_ERROR_INVAL = -2,
+  /* The string is not a full JSON packet, more bytes expected */
+  JSMN_ERROR_PART = -3,
+  /* Everything was fine */
+  JSMN_SUCCESS = 0
+};
 
-  typedef enum
-  {
-    /* Not enough tokens were provided */
-    RD_JSMN_ERROR_NOMEM = -1,
-    /* Invalid character inside JSON string */
-    RD_JSMN_ERROR_INVAL = -2,
-    /* The string is not a full JSON packet, more bytes expected */
-    RD_JSMN_ERROR_PART = -3,
-    /* Everything was fine */
-    RD_JSMN_SUCCESS = 0
-  } rd_jsmnerr_t;
-
-  /**
-   * JSON token description.
-   * type		type (object, array, string etc.)
-   * start	start position in JSON data string
-   * end		end position in JSON data string
-   */
-  typedef struct rd_jsmntok_t
-  {
-    rd_jsmntype_t type;
-    int start;
-    int end;
-    int size;
+/**
+ * JSON token description.
+ * type		type (object, array, string etc.)
+ * start	start position in JSON data string
+ * end		end position in JSON data string
+ */
+typedef struct jsmntok {
+  jsmntype_t type;
+  int start;
+  int end;
+  int size;
 #ifdef JSMN_PARENT_LINKS
-    int parent;
+  int parent;
 #endif
-  } rd_jsmntok_t;
+} jsmntok_t;
 
-  /**
-   * JSON parser. Contains an array of token blocks available. Also stores
-   * the string being parsed now and current position in that string
-   */
-  typedef struct
-  {
-    unsigned int pos;     /* offset in the JSON string */
-    unsigned int toknext; /* next token to allocate */
-    int toksuper;         /* superior token node, e.g. parent object or array */
-  } rd_jsmn_parser;
+/**
+ * JSON parser. Contains an array of token blocks available. Also stores
+ * the string being parsed now and current position in that string.
+ */
+typedef struct jsmn_parser {
+  unsigned int pos;     /* offset in the JSON string */
+  unsigned int toknext; /* next token to allocate */
+  int toksuper;         /* superior token node, e.g. parent object or array */
+} jsmn_parser;
 
-  /**
-   * Create JSON parser over an array of tokens
-   */
-  JSMN_API void rd_jsmn_init(rd_jsmn_parser *parser);
+/**
+ * Create JSON parser over an array of tokens
+ */
+JSMN_API void jsmn_init(jsmn_parser *parser);
 
-  /**
-   * Run JSON parser. It parses a JSON data string into and array of tokens, each
-   * describing
-   * a single JSON object.
+/**
+ * Run JSON parser. It parses a JSON data string into and array of tokens, each
+ * describing
+ * a single JSON object.
    * Returns count of parsed objects.
-   */
-  JSMN_API int rd_jsmn_parse(rd_jsmn_parser *parser, const char *js, const size_t len,
-                          rd_jsmntok_t *tokens, const unsigned int num_tokens);
+ */
+JSMN_API int jsmn_parse(jsmn_parser *parser, const char *js, const size_t len,
+                        jsmntok_t *tokens, const unsigned int num_tokens);
 
   static const uint32_t MAX_LOG_LONG_STR_LEN = 4096;
-  void rd_jsmn_logLongStr(const char *headerMsg, const char *toLog, bool infoLevel);
+  void jsmn_logLongStr(const char *headerMsg, const char *toLog, bool infoLevel);
 
 #ifdef __cplusplus
 }

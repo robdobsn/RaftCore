@@ -19,8 +19,8 @@
 // Define this to enable reformatting of JSON
 //#define RDJSON_RECREATE_JSON 1
 
-#ifndef RD_JSMN_SUCCESS
-#define RD_JSMN_SUCCESS 0
+#ifndef JSMN_SUCCESS
+#define JSMN_SUCCESS 0
 #endif
 
 class RaftJson {
@@ -28,12 +28,12 @@ public:
     // Get location of element in JSON string
     static bool getElement(const char* dataPath,
                            int& startPos, int& strLen,
-                           rd_jsmntype_t& elemType, int& elemSize,
+                           jsmntype_t& elemType, int& elemSize,
                            const char* pSourceStr);
     // Get a string from the JSON
     static String getString(const char* dataPath,
                             const char* defaultValue, bool& isValid,
-                            rd_jsmntype_t& elemType, int& elemSize,
+                            jsmntype_t& elemType, int& elemSize,
                             const char* pSourceStr);
 
     // Alternate form of getString with fewer parameters
@@ -63,9 +63,9 @@ public:
 
     static bool getBool(const char* dataPath, bool defaultValue, const char* pSourceStr);
 
-    static const char* getElemTypeStr(rd_jsmntype_t type);
+    static const char* getElemTypeStr(jsmntype_t type);
 
-    static rd_jsmntype_t getType(int& arrayLen, const char* pSourceStr);
+    static jsmntype_t getType(int& arrayLen, const char* pSourceStr);
 
     static const int MAX_KEYS_TO_RETURN = 100;
     static bool getKeys(const char *dataPath, std::vector<String>& keysVector, const char *pSourceStr);
@@ -100,27 +100,27 @@ public:
     static void safeStringCopy(char* pDest, const char* pSrc,
                                size_t maxx, bool skipJSONWhitespace = false);
 
-    static void debugDumpParseResult(const char* pSourceStr, rd_jsmntok_t* pTokens, int numTokens);
+    static void debugDumpParseResult(const char* pSourceStr, jsmntok_t* pTokens, int numTokens);
 
     static void escapeString(String& strToEsc);
 
     static void unescapeString(String& strToUnEsc);
 
-    static int findKeyInJson(const char* jsonOriginal, rd_jsmntok_t tokens[],
+    static int findKeyInJson(const char* jsonOriginal, jsmntok_t tokens[],
                              unsigned int numTokens, const char* dataPath,
                              int& endTokenIdx,
-                             rd_jsmntype_t keyType = RD_JSMN_UNDEFINED);
+                             jsmntype_t keyType = JSMN_UNDEFINED);
 
     static const int RDJSON_MAX_TOKENS = 10000;
-    static rd_jsmntok_t* parseJson(const char* jsonStr, int& numTokens,
+    static jsmntok_t* parseJson(const char* jsonStr, int& numTokens,
                                  int maxTokens = RDJSON_MAX_TOKENS);
     // Validate JSON
     static bool validateJson(const char* pSourceStr, int& numTokens);
     static char* safeStringDup(const char* pSrc, size_t maxx,
                                bool skipJSONWhitespace = false);
-    static int findElemEnd(const char* jsonOriginal, rd_jsmntok_t tokens[],
+    static int findElemEnd(const char* jsonOriginal, jsmntok_t tokens[],
                              unsigned int numTokens, int startTokenIdx);
-    static int findArrayElem(const char *jsonOriginal, rd_jsmntok_t tokens[],
+    static int findArrayElem(const char *jsonOriginal, jsmntok_t tokens[],
                           unsigned int numTokens, int startTokenIdx, 
                           int arrayElemIdx);
 
@@ -133,7 +133,7 @@ public:
     static bool isBoolean(const char* pBuf, uint32_t bufLen, int &retValue);
 
 #ifdef RDJSON_RECREATE_JSON
-    static int recreateJson(const char* js, rd_jsmntok_t* t,
+    static int recreateJson(const char* js, jsmntok_t* t,
                             size_t count, int indent, String& outStr);
     static bool doPrint(const char* jsonStr);
 #endif // RDJSON_RECREATE_JSON

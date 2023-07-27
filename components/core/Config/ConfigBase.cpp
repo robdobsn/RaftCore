@@ -110,7 +110,7 @@ void ConfigBase::_setConfigData(const char* configJSONStr)
 String ConfigBase::_helperGetString(const char *dataPath, const char *defaultValue, const char* pSourceStr, const char* pPrefix)
 {
     String element;
-    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
+    jsmntype_t type = JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
@@ -128,7 +128,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
 
     // Normalise whitespace
     char *pStr = RaftJson::safeStringDup(element.c_str(), element.length(),
-                                       !(type == RD_JSMN_STRING || type == RD_JSMN_PRIMITIVE));
+                                       !(type == JSMN_STRING || type == JSMN_PRIMITIVE));
     if (pStr)
     {
         element = pStr;
@@ -153,7 +153,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
 long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr, const char* pPrefix)
 {
     String element;
-    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
+    jsmntype_t type = JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
     long result = defaultValue;
     if (exists)
@@ -186,7 +186,7 @@ long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const c
 double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr, const char* pPrefix)
 {
     String element;
-    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
+    jsmntype_t type = JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
     double result = defaultValue;
     if (exists)
@@ -219,7 +219,7 @@ double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, c
 bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr, const char* pPrefix)
 {
     String element;
-    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
+    jsmntype_t type = JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
@@ -268,7 +268,7 @@ bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>&
 bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr, const char* pPrefix)
 {
     String element;
-    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
+    jsmntype_t type = JSMN_UNDEFINED;
     bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
@@ -317,7 +317,7 @@ bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysV
 bool ConfigBase::_helperContains(const char *dataPath, const char* pSourceStr, const char* pPrefix)
 {
     String element;
-    rd_jsmntype_t type = RD_JSMN_UNDEFINED;
+    jsmntype_t type = JSMN_UNDEFINED;
     return _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
 }
 
@@ -325,7 +325,7 @@ bool ConfigBase::_helperContains(const char *dataPath, const char* pSourceStr, c
 // _helperGetElement
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix)
+bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix)
 {
     // Combine the prefix and the data path
     String dataPathStr;
@@ -370,7 +370,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
         return false;  // Invalid path
 
     Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, elementStr);
-    if (elementType != RD_JSMN_ARRAY || size <= 0)
+    if (elementType != JSMN_ARRAY || size <= 0)
         return true;  // Not an array of option objects - return the element as is
 
     // Try to parse an array of option objects
@@ -378,7 +378,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
     RaftJson::getArrayElems("", optionObjs, elementStr.c_str());
     bool hasSomeOptionObjs = false;
     bool hasOnlyOptionObjs = true;
-    rd_jsmntype_t defaultValueType = RD_JSMN_UNDEFINED;
+    jsmntype_t defaultValueType = JSMN_UNDEFINED;
     for (auto &&optionObj : optionObjs)
     {
         optionObj.trim();
@@ -427,7 +427,7 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, rd_
         // The first element was not an option object - assume a normal array, not a revision switch
         return true;
     }
-    else if (defaultValueType != RD_JSMN_UNDEFINED)
+    else if (defaultValueType != JSMN_UNDEFINED)
     {
         // We checked the whole array and found a default value. There are only valid option objects.
         elementType = defaultValueType;
