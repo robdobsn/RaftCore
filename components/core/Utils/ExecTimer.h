@@ -11,8 +11,8 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <RaftUtils.h>
-#include <ArduinoOrAlt.h>
+#include "RaftUtils.h"
+#include "RaftArduino.h"
 
 class ExecTimer
 {

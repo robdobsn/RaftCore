@@ -2,7 +2,7 @@
 //
 // Unit test of RDJSON Performance
 //
-// Rob Dobson 2022
+// Rob Dobson 2020
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -10,11 +10,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ArduinoOrAlt.h>
+#include <WString.h>
 #include <RaftJson.h>
 #include <Logger.h>
 #include "unity.h"
+#include <RaftJsmn.h>
 #include <RaftUtils.h>
+#include <ArduinoTime.h>
+#include <ConfigBase.h>
+
+#define DEBUG_RDJSON_PERF_TEST
 
 static const char* MODULE_PREFIX = "RdJsonPerfTest";
 
@@ -23,6 +28,7 @@ static uint64_t perfParseUs;
 static uint64_t perfFindElemEndUs;
 static uint64_t perfFindKeyUs;
 static uint64_t perfGetString1Us;
+static uint64_t perfLoop100Us;
 #define EVAL_PERF_CLEAR(SVar) SVar = 0
 #define EVAL_PERF_START() perfStartTimeUs = micros();
 #define EVAL_PERF_ACCUM(SVar) {SVar += (micros() - perfStartTimeUs);}
@@ -123,6 +129,56 @@ void testAddVar(const char* varName, double val)
 {
     testVarName = varName;
     testVal = val;
+}
+
+String testJSONHWElem = 
+R"("hw":[{"name":"LeftTwist","type":"SmartServo","busName":"I2CA","addr":"0x11","idx":1,
+"whoAmI":"","serialNo":"4f7aa220974cadc7","versionStr":"0.0.0","commsOk":1,
+"pos":107.40,"curr":0,"state":0,"velo":-26804}])";
+
+void testAddHwElemInfos()
+{
+    EVAL_PERF_START();
+
+    String elemName = "testElem";
+    // Setup the variables
+    for (int i = 0; i < 100; i++)
+    {
+        // Extract important info from each element and add to variables
+        ConfigBase elemConf = testJSONHWElem;
+        ConfigBase elemHw = elemConf.getString("hw[0]", "{}");
+
+        // Debug
+#ifdef DEBUG_TRAJECTORY_MANAGER
+        LOG_I(MODULE_PREFIX, "exec add elemName %s elemHw %s", elemName.c_str(), elemHw.c_str());
+#endif
+
+        // Index
+        int elemIdx = elemHw.getLong("idx", -1);
+        if (elemIdx >= 0)
+        {
+            // Add variable
+            String idxVarName = elemName;
+            // _evaluator.addVariable(elemName.c_str(), elemIdx);
+            testAddVar(elemName.c_str(), elemIdx);
+        }
+
+        // Hardware specific values
+        String elemType = elemHw.getString("type", "");
+        if (elemType == "SmartServo")
+        {
+            double pos = elemHw.getDouble("pos", -1e10);
+            if (pos > -360)
+            {
+                String posVarName = elemName + "Pos";
+                // _evaluator.addVariable(posVarName.c_str(), pos);
+                testAddVar(elemName.c_str(), pos);
+            }
+        }
+    }
+
+    EVAL_PERF_END(perfLoop100Us);
+
 }
 
 TEST_CASE("test_rdjson_perf", "[rdjsonperf]")
@@ -236,6 +292,14 @@ TEST_CASE("test_rdjson_perf", "[rdjsonperf]")
     // TEST_ASSERT_MESSAGE(true == testGetObjectKeys("consts", expectedKeys, sizeof(expectedKeys)/sizeof(expectedKeys[0]), testJSON), "getKeys1");
 
     // Dump timings
+#ifdef DEBUG_RDJSON_PERF_TEST
     LOG_I(MODULE_PREFIX, "Parse %fms FindElemEnd %fms FindKey %fms GetStr1 %f", 
                 perfParseUs/1000.0, perfFindElemEndUs/1000.0, perfFindKeyUs/1000.0, perfGetString1Us/1000.0/100.0);
+#endif
+}
+
+TEST_CASE("test_rdjson_perf2", "[rdjsonperf]")
+{
+    testAddHwElemInfos();
+    LOG_I(MODULE_PREFIX, "Loop100Ms %fms", perfLoop100Us/1000.0);
 }

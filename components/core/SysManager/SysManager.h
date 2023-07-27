@@ -12,20 +12,19 @@
 
 #pragma once 
 
-#include <ArduinoOrAlt.h>
-#include <ExecTimer.h>
-#include <SupervisorStats.h>
-#include <SysModBase.h>
-#include <RestAPIEndpointManager.h>
 #include <list>
 #include <vector>
+#include "ExecTimer.h"
+#include "SupervisorStats.h"
+#include "SysModBase.h"
+#include "RestAPIEndpointManager.h"
+#include "RaftArduino.h"
 
 typedef String (*SysManager_statsCB)();
 
 class ConfigBase;
 class RestAPIEndpointManager;
 class CommsCoreIF;
-class NetCoreIF;
 
 class SysManager
 {
@@ -34,7 +33,7 @@ public:
     SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
             ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
             const char* pDefaultFriendlyName,
-            NetCoreIF* pNetCore = nullptr, CommsCoreIF* pCommsCore = nullptr);
+            CommsCoreIF* pCommsCore = nullptr);
 
     // Setup
     void setup();
@@ -122,16 +121,6 @@ public:
         return _pCommsCore;
     }
 
-    // NetCore
-    void setNetCore(NetCoreIF* pNetCore)
-    {
-        _pNetCore = pNetCore;
-    }
-    NetCoreIF* getNetCore()
-    {
-        return _pNetCore;
-    }
-
     // Get supervisor stats
     SupervisorStats* getStats()
     {
@@ -204,12 +193,6 @@ private:
     bool _monitorTimerStarted = false;
     std::vector<String> _monitorReportList;
 
-    // Network core
-    NetCoreIF* _pNetCore = nullptr;
-
-    // Comms core
-    CommsCoreIF* _pCommsCore = nullptr;
-
     // Stats available callback
     SysManager_statsCB _statsCB = nullptr;
 
@@ -257,6 +240,9 @@ private:
 
     // Endpoints
     RestAPIEndpointManager* _pRestAPIEndpointManager = nullptr;
+
+    // Comms core
+    CommsCoreIF* _pCommsCore = nullptr;
 
     // API to reset system
     RaftRetCode apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);

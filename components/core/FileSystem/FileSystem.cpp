@@ -1489,8 +1489,8 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
                 if (stat(filePath.c_str(), &st) == 0) 
                 {
                     it->fileSize = st.st_size;
-                    LOG_I(MODULE_PREFIX, "fileSystemCacheService updated %s size %ld", 
-                            it->fileName.c_str(), st.st_size);
+                    LOG_I(MODULE_PREFIX, "fileSystemCacheService updated %s size %d", 
+                            it->fileName.c_str(), (int)st.st_size);
                 }
                 else
                 {

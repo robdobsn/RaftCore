@@ -13,7 +13,7 @@
 
 #include "ArPreferences.h"
 #include "nvs.h"
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include "Logger.h"
 
 static const char *MODULE_PREFIX = "ArPreferences";

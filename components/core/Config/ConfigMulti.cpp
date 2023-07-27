@@ -82,7 +82,7 @@ String ConfigMulti::getString(const char *dataPath, const char *defaultValue, co
         {
             retVal = rec._pConfig->getString(dataPath, retVal, pPrefix);
 #ifdef DEBUG_CONFIG_MULTI_DETAIL
-            LOG_I(MODULE_PREFIX, "getString prefix %s dataPath %s retVal %ld %s", 
+            LOG_I(MODULE_PREFIX, "getString prefix %s dataPath %s retVal %s %s", 
                         rec._prefix.c_str(), dataPath, retVal.c_str(), rec._isMutable ? "mutable" : "immutable");
 #endif
         }

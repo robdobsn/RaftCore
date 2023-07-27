@@ -6,13 +6,13 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "esp_wifi.h"
+#include "esp_event.h"
+#include "Logger.h"
 #include "WiFiScanner.h"
-#include <Logger.h>
-#include <RaftUtils.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/event_groups.h>
-#include <esp_wifi.h>
-#include <esp_event.h>
+#include "RaftUtils.h"
 
 static const char* MODULE_PREFIX = "WiFiScanner";
 

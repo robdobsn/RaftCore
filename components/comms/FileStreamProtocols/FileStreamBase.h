@@ -9,7 +9,7 @@
 #pragma once
 
 #include <functional>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RaftRetCode.h>
 
 class RICRESTMsg;

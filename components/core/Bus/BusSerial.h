@@ -10,7 +10,7 @@
 
 #include "BusBase.h"
 #include <stdint.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <list>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

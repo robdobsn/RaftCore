@@ -10,7 +10,7 @@
 #include <Logger.h>
 #include "CommsChannelManager.h"
 #include <CommsChannelMsg.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RaftUtils.h>
 
 static const char* MODULE_PREFIX = "CommsMan";
@@ -21,6 +21,7 @@ static const char* MODULE_PREFIX = "CommsMan";
 // #define DEBUG_OUTBOUND_MSG
 // #define DEBUG_INBOUND_MESSAGE
 // #define DEBUG_COMMS_MANAGER_SERVICE
+// #define DEBUG_COMMS_MANAGER_SERVICE_NOTSENT
 // #define DEBUG_CHANNEL_ID
 // #define DEBUG_PROTOCOL_CODEC
 // #define DEBUG_FRAME_SEND
@@ -29,7 +30,6 @@ static const char* MODULE_PREFIX = "CommsMan";
 // #define DEBUG_INBOUND_BLOCK_MAX
 // #define DEBUG_OUTBOUND_BLOCK_MAX
 // #define DEBUG_COMMS_MAN_ADD_PROTOCOL
-// #define DEBUG_COMMS_MANAGER_SERVICE_NOTSENT
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -95,7 +95,7 @@ void CommsChannelManager::service()
 
                     // Debug
     #ifdef DEBUG_COMMS_MANAGER_SERVICE
-                        LOG_I(MODULE_PREFIX, "service, MSGSENT chanID %d, msgType %s msgNum %d, len %d",
+                        LOG_I(MODULE_PREFIX, "service outbound msg chanID %d, msgType %s msgNum %d, len %d",
                             msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
     #endif
                         // Handle the message

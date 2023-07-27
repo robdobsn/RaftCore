@@ -1,8 +1,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Unit tests of RdJSON - wrapper for jsmn
+// Unit tests of RdJSON - wrapper for jsmnr
 //
-// Rob Dobson 2017-2022
+// Rob Dobson 2017-2020
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -10,13 +10,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ArduinoOrAlt.h>
+#include <WString.h>
 #include <RaftJson.h>
 #include <Logger.h>
-#include <RaftUtils.h>
 #include "unity.h"
+#include <RaftJsmn.h>
+#include <RaftUtils.h>
 
-static const char* MODULE_PREFIX = "RdJsonUnitTest";
+static const char* MODULE_PREFIX = "RaftJsonUnitTest";
 
 static bool testFindElemEnd(jsmntok_t* pTokens, int numTokens, int tokenIdx, int expEndPos, const char* pSourceStr)
 {

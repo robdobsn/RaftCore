@@ -11,7 +11,7 @@
 #include "NetworkSystem.h"
 #include <RaftUtils.h>
 #include <ESPUtils.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

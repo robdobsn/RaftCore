@@ -1,17 +1,16 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// RaftCore SysModBase
 // Base class for SysMods (System Modules)
 // For more info see SysManager
 // Rob Dobson 2013-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "Logger.h"
 #include "SysModBase.h"
-#include <Logger.h>
-#include <SysManager.h>
-#include <ConfigPinMap.h>
-#include <CommsCoreIF.h>
+#include "SysManager.h"
+#include "ConfigPinMap.h"
+#include "CommsCoreIF.h"
 
 SysManager* SysModBase::_pSysManager = NULL;
 
@@ -147,7 +146,7 @@ RaftRetCode SysModBase::sysModSendCmdJSON(const char* sysModName, const char* js
 {
     if (_pSysManager)
         return _pSysManager->sendCmdJSON(sysModName, jsonCmd);
-    return RaftRetCode::RAFT_INVALID_OPERATION;
+    return RAFT_INVALID_OPERATION;
 }
 
 // SysMod get named value

@@ -14,7 +14,7 @@
 #include <HWElemConsts.h>
 #include <driver/uart.h>
 #include <RaftUtils.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <esp_err.h>
 
 static const char* MODULE_PREFIX = "BusSerial";

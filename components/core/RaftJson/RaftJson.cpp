@@ -11,7 +11,7 @@
 
 #include <Logger.h>
 #include <RaftJson.h>
-#include <RaftUtils.h>
+#include "RaftUtils.h"
 
 static const char *MODULE_PREFIX = "RaftJson";
 
@@ -520,8 +520,8 @@ jsmntok_t *RaftJson::parseJson(const char *jsonStr, int &numTokens,
 
     // Find how many tokens in the string
     jsmn_parser parser;
-    jsmn_init(&parser);
-    int tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    raft_jsmn_init(&parser);
+    int tokenCountRslt = raft_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                      NULL, maxTokens);
     if (tokenCountRslt < 0)
     {
@@ -529,7 +529,7 @@ jsmntok_t *RaftJson::parseJson(const char *jsonStr, int &numTokens,
         LOG_I(MODULE_PREFIX, "parseJson result %d maxTokens %d jsonLen %d jsonStr %s", tokenCountRslt, 
                         maxTokens, strlen(jsonStr), jsonStr);
 #endif
-        // jsmn_logLongStr("RaftJson: jsonStr", jsonStr, false);
+        // raft_jsmn_logLongStr("RaftJson: jsonStr", jsonStr, false);
         return NULL;
     }
 
@@ -539,8 +539,8 @@ jsmntok_t *RaftJson::parseJson(const char *jsonStr, int &numTokens,
     jsmntok_t *pTokens = new jsmntok_t[tokenCountRslt];
 
     // Parse again
-    jsmn_init(&parser);
-    tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    raft_jsmn_init(&parser);
+    tokenCountRslt = raft_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                  pTokens, tokenCountRslt);
     if (tokenCountRslt < 0)
     {
@@ -574,8 +574,8 @@ bool RaftJson::validateJson(const char* pSourceStr, int& numTokens)
 
     // Find how many tokens in the string
     jsmn_parser parser;
-    jsmn_init(&parser);
-    numTokens = jsmn_parse(&parser, pSourceStr, strlen(pSourceStr),
+    raft_jsmn_init(&parser);
+    numTokens = raft_jsmn_parse(&parser, pSourceStr, strlen(pSourceStr),
                                      NULL, RDJSON_MAX_TOKENS);
     if (numTokens < 0)
     {
@@ -583,7 +583,7 @@ bool RaftJson::validateJson(const char* pSourceStr, int& numTokens)
         LOG_I(MODULE_PREFIX, "validateJson result %d maxTokens %d jsonLen %d", 
                 numTokens, RDJSON_MAX_TOKENS, strlen(pSourceStr));
 #endif
-        // jsmn_logLongStr("RaftJson: jsonStr", pSourceStr, false);
+        // raft_jsmn_logLongStr("RaftJson: jsonStr", pSourceStr, false);
         return false;
     }
     return true;
@@ -1277,8 +1277,8 @@ int RaftJson::recreateJson(const char *js, jsmntok_t *t,
 bool RaftJson::doPrint(const char *jsonStr)
 {
     jsmn_parser parser;
-    jsmn_init(&parser);
-    int tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    raft_jsmn_init(&parser);
+    int tokenCountRslt = raft_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                      NULL, 1000);
     if (tokenCountRslt < 0)
     {
@@ -1286,8 +1286,8 @@ bool RaftJson::doPrint(const char *jsonStr)
         return false;
     }
     jsmntok_t *pTokens = new jsmntok_t[tokenCountRslt];
-    jsmn_init(&parser);
-    tokenCountRslt = jsmn_parse(&parser, jsonStr, strlen(jsonStr),
+    raft_jsmn_init(&parser);
+    tokenCountRslt = raft_jsmn_parse(&parser, jsonStr, strlen(jsonStr),
                                  pTokens, tokenCountRslt);
     if (tokenCountRslt < 0)
     {

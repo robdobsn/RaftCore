@@ -10,7 +10,6 @@
 #include <Logger.h>
 #include "ProtocolExchange.h"
 #include "CommsChannelMsg.h"
-#include <CommsChannelManager.h>
 #include <RestAPIEndpointManager.h>
 #include <ProtocolRICSerial.h>
 #include <ProtocolRICFrame.h>

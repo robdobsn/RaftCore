@@ -13,7 +13,7 @@
 #include <vector>
 
 #include <RaftJson.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 
 typedef std::function<void()> ConfigChangeCallbackType;
 

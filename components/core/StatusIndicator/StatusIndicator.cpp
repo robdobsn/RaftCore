@@ -58,8 +58,8 @@ void StatusIndicator::setup(const char *pName, int hwPin, bool onLevel, uint32_t
     _longOffMs = longOffMs;
 
 #ifdef DEBUG_STATUS_INDICATOR_SETUP
-    LOG_I(MODULE_PREFIX, "setup name %s pin %d onLevel %d onMs %ld shortMs %ld longMs %ld",
-          _name.c_str(), _hwPin, _onLevel, _onMs, _shortOffMs, _longOffMs);
+    LOG_I(MODULE_PREFIX, "setup name %s pin %d onLevel %d onMs %d shortMs %d longMs %d",
+          _name.c_str(), _hwPin, _onLevel, (int)_onMs, (int)_shortOffMs, (int)_longOffMs);
 #endif
 
     // Setup pin
@@ -89,8 +89,8 @@ void StatusIndicator::setStatusCode(int code, uint32_t timeoutMs)
         return;
 
 #ifdef DEBUG_STATUS_INDICATOR_CODE
-    LOG_I(MODULE_PREFIX, "setCode %d curCode %d isSetup %d timeoutMs %ld", 
-                code, _curCode, _isSetup, timeoutMs);
+    LOG_I(MODULE_PREFIX, "setCode %d curCode %d isSetup %d timeoutMs %d", 
+                code, _curCode, _isSetup, (int)timeoutMs);
 #endif
 
     // Set new code

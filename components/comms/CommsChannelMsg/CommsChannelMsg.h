@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <ArduinoOrAlt.h>
-#include <SpiramAwareAllocator.h>
 #include <vector>
-#include <RaftJson.h>
 #include <stdint.h>
+#include <RaftArduino.h>
+#include <RaftJson.h>
+#include <SpiramAwareAllocator.h>
 
 // #define IMPLEMENT_COMMS_MSG_JSON
 

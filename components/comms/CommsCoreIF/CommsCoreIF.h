@@ -10,13 +10,13 @@
 #pragma once
 
 #include <functional>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <CommsChannelMsg.h>
 
 class ProtocolCodecFactoryHelper;
 class CommsChannelSettings;
 
-// Return type for CommsCore messages
+// Return type for CommsCoreIF messages
 enum CommsCoreRetCode
 {
     COMMS_CORE_RET_OK,

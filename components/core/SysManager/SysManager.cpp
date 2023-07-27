@@ -11,18 +11,18 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "SysManager.h"
-#include <Logger.h>
-#include <SysModBase.h>
-#include <JSONParams.h>
-#include <RaftJson.h>
-#include <RestAPIEndpointManager.h>
-#include <esp_system.h>
-#include <esp_heap_caps.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <ESPUtils.h>
-#include <NetCoreIF.h>
-#include <CommsCoreIF.h>
+#include "SysModBase.h"
+#include "JSONParams.h"
+#include "Logger.h"
+#include "RestAPIEndpointManager.h"
+#include "esp_system.h"
+#include "esp_heap_caps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "RaftJson.h"
+#include "ESPUtils.h"
+#include "CommsCoreIF.h"
+#include "NetworkSystem.h"
 
 // Log prefix
 static const char *MODULE_PREFIX = "SysMan";
@@ -51,8 +51,8 @@ static const char *MODULE_PREFIX = "SysMan";
 SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
                 ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
                 const char* pDefaultFriendlyName,
-                NetCoreIF* pNetCore, CommsCoreIF* pCommsCore) :
-        _pNetCore(pNetCore), _pCommsCore(pCommsCore)
+                CommsCoreIF* pCommsCore) :
+        _pCommsCore(pCommsCore)
 {
     // Store mutable config
     _pMutableConfig = pMutableConfig;
@@ -163,7 +163,7 @@ void SysManager::setup()
     }
 
     // Give each SysMod the opportunity to add endpoints and comms channels and to keep a
-    // pointer to the CommsCore that can be used to send messages
+    // pointer to the CommsCoreIF that can be used to send messages
     for (SysModBase* pSysMod : _sysModuleList)
     {
         if (pSysMod)
@@ -462,16 +462,16 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
             RaftRetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
 
 #ifdef DEBUG_SEND_CMD_JSON_PERF
-            LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %lldus exec time %lldus", 
-                    sysModName, RaftUtils::getRetCodeStr(rslt), foundSysModUs - startUs, micros() - foundSysModUs);
+            LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %dus exec time %dus", 
+                    sysModName, Raft::getRetCodeStr(rslt), int(foundSysModUs - startUs), int(micros() - foundSysModUs));
 #endif
             return rslt;
         }
     }
 #ifdef DEBUG_SEND_CMD_JSON_PERF
-    LOG_I(MODULE_PREFIX, "getHWElemByName %s NOT found in %lldus", sysModName, micros() - startUs);
+    LOG_I(MODULE_PREFIX, "getHWElemByName %s NOT found in %dus", sysModName, int(micros() - startUs));
 #endif
-    return RaftRetCode::RAFT_INVALID_OPERATION;
+    return RAFT_INVALID_OPERATION;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

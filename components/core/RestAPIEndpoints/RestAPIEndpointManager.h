@@ -10,7 +10,7 @@
 #pragma once
 #include <functional>
 #include <vector>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RaftJson.h>
 #include "RestAPIEndpoint.h"
 

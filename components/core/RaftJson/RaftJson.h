@@ -12,16 +12,12 @@
 #pragma once
 #include <stdlib.h>
 #include <limits.h>
-#include <ArduinoOrAlt.h>
-#include <RaftJsmn.h>
+#include <RaftArduino.h>
+#include "RaftJsmn.h"
 #include <vector>
 
 // Define this to enable reformatting of JSON
 //#define RDJSON_RECREATE_JSON 1
-
-#ifndef JSMN_SUCCESS
-#define JSMN_SUCCESS 0
-#endif
 
 class RaftJson {
 public:

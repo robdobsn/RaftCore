@@ -9,7 +9,7 @@
 
 #pragma once
 #include <functional>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RaftRetCode.h>
 #include "FileStreamBlock.h"
 #include "APISourceInfo.h"

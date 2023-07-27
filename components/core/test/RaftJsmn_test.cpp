@@ -3,7 +3,7 @@
 // Unit tests of JSON parser
 // Original https://github.com/zserge/jsmn
 //
-// Rob Dobson 2017-2022
+// Rob Dobson 2017-2020
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -23,10 +23,6 @@ static const int ERROR_TOKEN_START_ERROR = 12;
 static const int ERROR_TOKEN_END_ERROR = 13;
 static const int ERROR_TOKEN_SIZE_ERROR = 14;
 static const int ERROR_TOKEN_VALUE_ERROR = 15;
-
-#ifndef JSMN_SUCCESS
-#define JSMN_SUCCESS 0
-#endif
 
 static int vtokeq(const char *s, jsmntok_t *t, unsigned long numtok,
                   va_list ap) {
@@ -95,122 +91,122 @@ static int tokeq(const char *s, jsmntok_t *tokens, unsigned long numtok, ...) {
   return ok;
 }
 
-static int parse(const char *s, int status, unsigned long numtok, ...) {
+static int test_helper_parse(const char *s, int status, unsigned long numtok, ...) {
   jsmntok_t *t = (jsmntok_t*)malloc(numtok * sizeof(jsmntok_t));
 
   jsmn_parser p;
-  jsmn_init(&p);
-  int r = jsmn_parse(&p, s, strlen(s), t, numtok);
+  raft_jsmn_init(&p);
+  int r = raft_jsmn_parse(&p, s, strlen(s), t, numtok);
   if (r != status) {
     LOG_I(MODULE_PREFIX, "status is %d, not %d\n", r, status);
     return ERROR_PARSE_RESULT_ERROR;
   }
 
-  int rslt = JSMN_SUCCESS;
+  jsmnerr rslt = JSMN_SUCCESS;
   if (status >= 0) {
     va_list args;
     va_start(args, numtok);
-    rslt = vtokeq(s, t, numtok, args);
+    rslt = (jsmnerr) vtokeq(s, t, numtok, args);
     va_end(args);
   }
   free(t);
   return rslt;
 }
 
-TEST_CASE("test_empty", "[jsmn]")
+TEST_CASE("test_empty", "[jsmnr]")
 {
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{}", 1, 1, JSMN_OBJECT, 0, 2, 0), "empty object");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("[]", 1, 1, JSMN_ARRAY, 0, 2, 0), "empty array");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("[{},{}]", 3, 3, JSMN_ARRAY, 0, 7, 2, JSMN_OBJECT, 1, 3, 0,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{}", 1, 1, JSMN_OBJECT, 0, 2, 0), "empty object");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("[]", 1, 1, JSMN_ARRAY, 0, 2, 0), "empty array");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("[{},{}]", 3, 3, JSMN_ARRAY, 0, 7, 2, JSMN_OBJECT, 1, 3, 0,
               JSMN_OBJECT, 4, 6, 0), "empty array of empty objects");
 }
 
-TEST_CASE("test_object", "[jsmn]")
+TEST_CASE("test_object", "[jsmnr]")
 {
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":0}", 3, 3, JSMN_OBJECT, 0, 7, 1, JSMN_STRING, "a", 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":0}", 3, 3, JSMN_OBJECT, 0, 7, 1, JSMN_STRING, "a", 1,
               JSMN_PRIMITIVE, "0"), "member primitive");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":[]}", 3, 3, JSMN_OBJECT, 0, 8, 1, JSMN_STRING, "a", 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":[]}", 3, 3, JSMN_OBJECT, 0, 8, 1, JSMN_STRING, "a", 1,
               JSMN_ARRAY, 5, 7, 0), "member array");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":{},\"b\":{}}", 5, 5, JSMN_OBJECT, -1, -1, 2, JSMN_STRING,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":{},\"b\":{}}", 5, 5, JSMN_OBJECT, -1, -1, 2, JSMN_STRING,
               "a", 1, JSMN_OBJECT, -1, -1, 0, JSMN_STRING, "b", 1, JSMN_OBJECT,
               -1, -1, 0), "member object");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\n \"Day\": 26,\n \"Month\": 9,\n \"Year\": 12\n }", 7, 7,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\n \"Day\": 26,\n \"Month\": 9,\n \"Year\": 12\n }", 7, 7,
               JSMN_OBJECT, -1, -1, 3, JSMN_STRING, "Day", 1, JSMN_PRIMITIVE,
               "26", JSMN_STRING, "Month", 1, JSMN_PRIMITIVE, "9", JSMN_STRING,
               "Year", 1, JSMN_PRIMITIVE, "12"), "member primitives");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\": 0, \"b\": \"c\"}", 5, 5, JSMN_OBJECT, -1, -1, 2,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\": 0, \"b\": \"c\"}", 5, 5, JSMN_OBJECT, -1, -1, 2,
               JSMN_STRING, "a", 1, JSMN_PRIMITIVE, "0", JSMN_STRING, "b", 1,
               JSMN_STRING, "c", 0), "member mixed");
 }
 
-TEST_CASE("test_strict", "[jsmn]")
+TEST_CASE("test_strict", "[jsmnr]")
 {
-#ifdef JSMN_STRICT
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\"\n0}", JSMN_ERROR_INVAL, 3), "strict1");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\", 0}", JSMN_ERROR_INVAL, 3), "strict2");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\": {2}}", JSMN_ERROR_INVAL, 3), "strict3");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\": {2: 3}}", JSMN_ERROR_INVAL, 3), "strict4");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\": {\"a\": 2 3}}", JSMN_ERROR_INVAL, 5), "strict5");
+#ifdef JSMNR_STRICT
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\"\n0}", JSMN_ERROR_INVAL, 3), "strict1");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\", 0}", JSMN_ERROR_INVAL, 3), "strict2");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\": {2}}", JSMN_ERROR_INVAL, 3), "strict3");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\": {2: 3}}", JSMN_ERROR_INVAL, 3), "strict4");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\": {\"a\": 2 3}}", JSMN_ERROR_INVAL, 5), "strict5");
 /* FIXME */
-/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\"}", JSMN_ERROR_INVAL, 2));*/
-/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\": 1, \"b\"}", JSMN_ERROR_INVAL, 4));*/
-/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\",\"b\":1}", JSMN_ERROR_INVAL, 4));*/
-/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":1,}", JSMN_ERROR_INVAL, 4));*/
-/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":\"b\":\"c\"}", JSMN_ERROR_INVAL, 4));*/
-/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{,}", JSMN_ERROR_INVAL, 4));*/
+/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\"}", JSMN_ERROR_INVAL, 2));*/
+/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\": 1, \"b\"}", JSMN_ERROR_INVAL, 4));*/
+/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\",\"b\":1}", JSMN_ERROR_INVAL, 4));*/
+/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":1,}", JSMN_ERROR_INVAL, 4));*/
+/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":\"b\":\"c\"}", JSMN_ERROR_INVAL, 4));*/
+/*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{,}", JSMN_ERROR_INVAL, 4));*/
 #endif
 }
 
-TEST_CASE("test_array", "[jsmn]")
+TEST_CASE("test_array", "[jsmnr]")
 {
   /* FIXME */
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("[10}", JSMN_ERROR_INVAL, 3), "incorrect brackets");
-  // TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("[1,,3]", JSMN_ERROR_INVAL, 3), "missing value");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("[10]", 2, 2, JSMN_ARRAY, -1, -1, 1, JSMN_PRIMITIVE, "10"), "array of primitive");
-  // TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\": 1]", JSMN_ERROR_INVAL, 3), "unmatched brackets");
+  /*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("[10}", JSMN_ERROR_INVAL, 3));*/
+  /*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("[1,,3]", JSMN_ERROR_INVAL, 3)*/
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("[10]", 2, 2, JSMN_ARRAY, -1, -1, 1, JSMN_PRIMITIVE, "10"), "array of primitive");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\": 1]", JSMN_ERROR_INVAL, 3), "unmatched brackets");
   /* FIXME */
-  /*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("[\"a\": 1]", JSMN_ERROR_INVAL, 3));*/
+  /*TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("[\"a\": 1]", JSMN_ERROR_INVAL, 3));*/
 }
 
-TEST_CASE("test_primitives", "[jsmn]")
+TEST_CASE("test_primitives", "[jsmnr]")
 {
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"boolVar\" : true }", 3, 3, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"boolVar\" : true }", 3, 3, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "boolVar", 1, JSMN_PRIMITIVE, "true"), "boolVar true");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"boolVar\" : false }", 3, 3, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"boolVar\" : false }", 3, 3, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "boolVar", 1, JSMN_PRIMITIVE, "false"), "boolVar false");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"nullVar\" : null }", 3, 3, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"nullVar\" : null }", 3, 3, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "nullVar", 1, JSMN_PRIMITIVE, "null"), "nullVar");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"intVar\" : 12}", 3, 3, JSMN_OBJECT, -1, -1, 1, JSMN_STRING,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"intVar\" : 12}", 3, 3, JSMN_OBJECT, -1, -1, 1, JSMN_STRING,
               "intVar", 1, JSMN_PRIMITIVE, "12"), "intVar 12");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"floatVar\" : 12.345}", 3, 3, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"floatVar\" : 12.345}", 3, 3, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "floatVar", 1, JSMN_PRIMITIVE, "12.345"), "floatVar 12.345");
 }
 
-TEST_CASE("test_strings", "[jsmn]")
+TEST_CASE("test_strings", "[jsmnr]")
 {
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"strVar\" : \"hello world\"}", 3, 3, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"strVar\" : \"hello world\"}", 3, 3, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "strVar", 1, JSMN_STRING, "hello world", 0), "strVar hello world");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"strVar\" : \"escapes: \\/\\r\\n\\t\\b\\f\\\"\\\\\"}", 3, 3,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"strVar\" : \"escapes: \\/\\r\\n\\t\\b\\f\\\"\\\\\"}", 3, 3,
               JSMN_OBJECT, -1, -1, 1, JSMN_STRING, "strVar", 1, JSMN_STRING,
               "escapes: \\/\\r\\n\\t\\b\\f\\\"\\\\", 0), "strVar escapes");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"strVar\": \"\"}", 3, 3, JSMN_OBJECT, -1, -1, 1, JSMN_STRING,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"strVar\": \"\"}", 3, 3, JSMN_OBJECT, -1, -1, 1, JSMN_STRING,
               "strVar", 1, JSMN_STRING, "", 0), "strVar empty");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":\"\\uAbcD\"}", 3, 3, JSMN_OBJECT, -1, -1, 1, JSMN_STRING,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":\"\\uAbcD\"}", 3, 3, JSMN_OBJECT, -1, -1, 1, JSMN_STRING,
               "a", 1, JSMN_STRING, "\\uAbcD", 0), "strVar backslashU");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":\"str\\u0000\"}", 3, 3, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":\"str\\u0000\"}", 3, 3, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "a", 1, JSMN_STRING, "str\\u0000", 0), "strVar nullterminated");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":\"\\uFFFFstr\"}", 3, 3, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":\"\\uFFFFstr\"}", 3, 3, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "a", 1, JSMN_STRING, "\\uFFFFstr", 0), "strVar maxUshort");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":[\"\\u0280\"]}", 4, 4, JSMN_OBJECT, -1, -1, 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":[\"\\u0280\"]}", 4, 4, JSMN_OBJECT, -1, -1, 1,
               JSMN_STRING, "a", 1, JSMN_ARRAY, -1, -1, 1, JSMN_STRING,
               "\\u0280", 0), "strVar backslashU280");
 
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":\"str\\uFFGFstr\"}", JSMN_ERROR_INVAL, 3), "strVar muckedup1");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{\"a\":\"str\\u@FfF\"}", JSMN_ERROR_INVAL, 3), "strVar muckedup2");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse("{{\"a\":[\"\\u028\"]}", JSMN_ERROR_INVAL, 4), "strVar muckedup3");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":\"str\\uFFGFstr\"}", JSMN_ERROR_INVAL, 3), "strVar muckedup1");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{\"a\":\"str\\u@FfF\"}", JSMN_ERROR_INVAL, 3), "strVar muckedup2");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse("{{\"a\":[\"\\u028\"]}", JSMN_ERROR_INVAL, 4), "strVar muckedup3");
 }
 
-TEST_CASE("test_partial_string", "[jsmn]")
+TEST_CASE("test_partial_string", "[jsmnr]")
 {
   int r;
   unsigned long i;
@@ -218,9 +214,9 @@ TEST_CASE("test_partial_string", "[jsmn]")
   jsmntok_t tok[5];
   const char *js = "{\"x\": \"va\\\\ue\", \"y\": \"value y\"}";
 
-  jsmn_init(&p);
+  raft_jsmn_init(&p);
   for (i = 1; i <= strlen(js); i++) {
-    r = jsmn_parse(&p, js, i, tok, sizeof(tok) / sizeof(tok[0]));
+    r = raft_jsmn_parse(&p, js, i, tok, sizeof(tok) / sizeof(tok[0]));
     if (i == strlen(js)) {
       TEST_ASSERT_MESSAGE(r == 5, "strlen fail 5");
       TEST_ASSERT_MESSAGE(JSMN_SUCCESS == tokeq(js, tok, 5, JSMN_OBJECT, -1, -1, 2, JSMN_STRING, "x", 1,
@@ -232,18 +228,18 @@ TEST_CASE("test_partial_string", "[jsmn]")
   }
 }
 
-TEST_CASE("test_partial_array", "[jsmn]")
+TEST_CASE("test_partial_array", "[jsmnr]")
 {
-#ifdef JSMN_STRICT
+#ifdef JSMNR_STRICT
   int r;
   unsigned long i;
   jsmn_parser p;
   jsmntok_t tok[10];
   const char *js = "[ 1, true, [123, \"hello\"]]";
 
-  jsmn_init(&p);
+  raft_jsmn_init(&p);
   for (i = 1; i <= strlen(js); i++) {
-    r = jsmn_parse(&p, js, i, tok, sizeof(tok) / sizeof(tok[0]));
+    r = raft_jsmn_parse(&p, js, i, tok, sizeof(tok) / sizeof(tok[0]));
     if (i == strlen(js)) {
       TEST_ASSERT_MESSAGE(r == 6, "strlen 6");
       TEST_ASSERT_MESSAGE(JSMN_SUCCESS == tokeq(js, tok, 6, JSMN_ARRAY, -1, -1, 3, JSMN_PRIMITIVE, "1",
@@ -256,7 +252,7 @@ TEST_CASE("test_partial_array", "[jsmn]")
 #endif
 }
 
-TEST_CASE("test_array_nomem", "[jsmn]")
+TEST_CASE("test_array_nomem", "[jsmnr]")
 {
   int i;
   int r;
@@ -267,15 +263,15 @@ TEST_CASE("test_array_nomem", "[jsmn]")
   js = "  [ 1, true, [123, \"hello\"]]";
 
   for (i = 0; i < 6; i++) {
-    jsmn_init(&p);
+    raft_jsmn_init(&p);
     memset(toksmall, 0, sizeof(toksmall));
     memset(toklarge, 0, sizeof(toklarge));
-    r = jsmn_parse(&p, js, strlen(js), toksmall, i);
+    r = raft_jsmn_parse(&p, js, strlen(js), toksmall, i);
     TEST_ASSERT_MESSAGE(r == JSMN_ERROR_NOMEM, "nomem");
 
     memcpy(toklarge, toksmall, sizeof(toksmall));
 
-    r = jsmn_parse(&p, js, strlen(js), toklarge, 10);
+    r = raft_jsmn_parse(&p, js, strlen(js), toklarge, 10);
     TEST_ASSERT_MESSAGE(r >= 0, "parse result > 0");
     TEST_ASSERT_MESSAGE(JSMN_SUCCESS == tokeq(js, toklarge, 4, JSMN_ARRAY, -1, -1, 3, JSMN_PRIMITIVE, "1",
                 JSMN_PRIMITIVE, "true", JSMN_ARRAY, -1, -1, 2, JSMN_PRIMITIVE,
@@ -283,25 +279,25 @@ TEST_CASE("test_array_nomem", "[jsmn]")
   }
 }
 
-TEST_CASE("test_unquoted_keys", "[jsmn]")
+TEST_CASE("test_unquoted_keys", "[jsmnr]")
 {
-#ifndef JSMN_STRICT
+#ifndef JSMNR_STRICT
   int r;
   jsmn_parser p;
   jsmntok_t tok[10];
   const char *js;
 
-  jsmn_init(&p);
+  raft_jsmn_init(&p);
   js = "key1: \"value\"\nkey2 : 123";
 
-  r = jsmn_parse(&p, js, strlen(js), tok, 10);
-  TEST_ASSERT_MESSAGE(r >= 0, "parse unquoted fail");
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == tokeq(js, tok, 4, JSMN_PRIMITIVE, "key1", JSMN_STRING, "value", 0,
-              JSMN_PRIMITIVE, "key2", JSMN_PRIMITIVE, "123"), "parse unquoted fail2");
+  r = raft_jsmn_parse(&p, js, strlen(js), tok, 10);
+  TEST_ASSERT_MESSAGE(r == JSMN_ERROR_INVAL, "parse unquoted fail");
+  TEST_ASSERT_MESSAGE(11 == tokeq(js, tok, 4, JSMN_PRIMITIVE, "key1", JSMN_STRING, "value", 0,
+              0, "key2", 0, "123"), "parse unquoted fail2");
 #endif
 }
 
-TEST_CASE("test_issue_22", "[jsmn]")
+TEST_CASE("test_issue_22", "[jsmnr]")
 {
   int r;
   jsmn_parser p;
@@ -319,19 +315,19 @@ TEST_CASE("test_issue_22", "[jsmn]")
       "\"properties\":{}, \"spacing\":0, \"tileheight\":32, \"tilewidth\":32 "
       "}], "
       "\"tilewidth\":32, \"version\":1, \"width\":10 }";
-  jsmn_init(&p);
-  r = jsmn_parse(&p, js, strlen(js), tokens, 128);
+  raft_jsmn_init(&p);
+  r = raft_jsmn_parse(&p, js, strlen(js), tokens, 128);
   TEST_ASSERT_MESSAGE(r >= 0, "issue22");
 }
 
-TEST_CASE("test_issue_27", "[jsmn]")
+TEST_CASE("test_issue_27", "[jsmnr]")
 {
   const char *js =
       "{ \"name\" : \"Jack\", \"age\" : 27 } { \"name\" : \"Anna\", ";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_PART, 8), "issue27");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_PART, 8), "issue27");
 }
 
-TEST_CASE("test_input_length", "[jsmn]")
+TEST_CASE("test_input_length", "[jsmnr]")
 {
   const char *js;
   int r;
@@ -340,114 +336,112 @@ TEST_CASE("test_input_length", "[jsmn]")
 
   js = "{\"a\": 0}garbage";
 
-  jsmn_init(&p);
-  r = jsmn_parse(&p, js, 8, tokens, 10);
+  raft_jsmn_init(&p);
+  r = raft_jsmn_parse(&p, js, 8, tokens, 10);
   TEST_ASSERT_MESSAGE(r == 3, "garbage1");
   TEST_ASSERT_MESSAGE(JSMN_SUCCESS == tokeq(js, tokens, 3, JSMN_OBJECT, -1, -1, 1, JSMN_STRING, "a", 1,
               JSMN_PRIMITIVE, "0"), "garbage2");
 }
 
-TEST_CASE("test_count", "[jsmn]")
+TEST_CASE("test_count", "[jsmnr]")
 {
   jsmn_parser p;
   const char *js;
 
   js = "{}";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 1, "count1");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 1, "count1");
 
   js = "[]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 1, "count2");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 1, "count2");
 
   js = "[[]]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 2, "count3");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 2, "count3");
 
   js = "[[], []]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 3, "count4");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 3, "count4");
 
   js = "[[], []]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 3, "count5");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 3, "count5");
 
   js = "[[], [[]], [[], []]]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 7, "count6");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 7, "count6");
 
   js = "[\"a\", [[], []]]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 5, "count7");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 5, "count7");
 
   js = "[[], \"[], [[]]\", [[]]]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 5, "count8");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 5, "count8");
 
   js = "[1, 2, 3]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 4, "count9");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 4, "count9");
 
   js = "[1, 2, [3, \"a\"], null]";
-  jsmn_init(&p);
-  TEST_ASSERT_MESSAGE(jsmn_parse(&p, js, strlen(js), NULL, 0) == 7, "count10");
+  raft_jsmn_init(&p);
+  TEST_ASSERT_MESSAGE(raft_jsmn_parse(&p, js, strlen(js), NULL, 0) == 7, "count10");
 }
 
-TEST_CASE("test_nonstrict", "[jsmn]")
+TEST_CASE("test_strict", "[jsmnr]")
 {
-#ifndef JSMN_STRICT
+#ifndef JSMNR_STRICT
   const char *js;
   js = "a: 0garbage";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, 2, 2, JSMN_PRIMITIVE, "a", JSMN_PRIMITIVE, "0garbage"), "nonstrict garbage");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 2, JSMN_PRIMITIVE, "a", JSMN_PRIMITIVE, "0garbage"), "strict garbage");
 
   js = "Day : 26\nMonth : Sep\n\nYear: 12";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, 6, 6, JSMN_PRIMITIVE, "Day", JSMN_PRIMITIVE, "26",
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 6, JSMN_PRIMITIVE, "Day", JSMN_PRIMITIVE, "26",
               JSMN_PRIMITIVE, "Month", JSMN_PRIMITIVE, "Sep", JSMN_PRIMITIVE,
-              "Year", JSMN_PRIMITIVE, "12"), "nonstrict sep");
+              "Year", JSMN_PRIMITIVE, "12"), "strict sep");
 
-  /* nested {s don't cause a parse error. */
+  /* nested {s cause a parse error. */
   js = "\"key {1\": 1234";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, 2, 2, JSMN_STRING, "key {1", 1, JSMN_PRIMITIVE, "1234"), "nonstrict keyerr");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_PART, 2, JSMN_STRING, "key {1", 1, JSMN_PRIMITIVE, "1234"), "strict keyerr");
 
 #endif
 }
 
-TEST_CASE("test_unmatched_brackets", "[jsmn]")
+TEST_CASE("test_unmatched_brackets", "[jsmnr]")
 {
   const char *js;
-  js = "{\"key 1\": 1234";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_PART, 3), "unmatched 1");
-  js = "{\"key {1\": 1234}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, 3, 3, JSMN_OBJECT, 0, 16, 1, JSMN_STRING, "key {1", 1,
-              JSMN_PRIMITIVE, "1234"), "unmatched 2");
-  js = "{\"key 1\":{\"key 2\": 1234}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_PART, 5), "unmatched 3");
-
-  // The following tests require the latest version of jsmn and this is not included in the esp-idf currently
   js = "\"key 1\": 1234}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_INVAL, 2), "unmatched 4");
-  js = "\"key 1\"}: 1234";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_INVAL, 3), "unmatched 5");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 2), "unmatched 1");
+  js = "{\"key 1\": 1234";
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_PART, 3), "unmatched 2");
   js = "{\"key 1\": 1234}}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_INVAL, 3), "unmatched 6");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 3), "unmatched 3");
+  js = "\"key 1\"}: 1234";
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 3), "unmatched 4");
+  js = "{\"key {1\": 1234}";
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, 3, 3, JSMN_OBJECT, 0, 16, 1, JSMN_STRING, "key {1", 1,
+              JSMN_PRIMITIVE, "1234"), "unmatched 5");
+  js = "{\"key 1\":{\"key 2\": 1234}";
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_PART, 5), "unmatched 6");
 }
 
-TEST_CASE("test_object2", "[jsmn]")
+TEST_CASE("test_object2", "[jsmnr]")
 {
   const char *js;
 
   js = "{\"key\": 1}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, 3, 3, JSMN_OBJECT, 0, 10, 1, JSMN_STRING, "key", 1,
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, 3, 3, JSMN_OBJECT, 0, 10, 1, JSMN_STRING, "key", 1,
               JSMN_PRIMITIVE, "1"), "object1");
-#ifdef JSMN_STRICT
+#ifdef JSMNR_STRICT
   js = "{true: 1}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_INVAL, 3), "object2");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 3), "object2");
   js = "{1: 1}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_INVAL, 3), "object3");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 3), "object3");
   js = "{{\"key\": 1}: 2}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_INVAL, 5), "object4");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 5), "object4");
   js = "{[1,2]: 2}";
-  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == parse(js, JSMN_ERROR_INVAL, 5), "object5");
+  TEST_ASSERT_MESSAGE(JSMN_SUCCESS == test_helper_parse(js, JSMN_ERROR_INVAL, 5), "object5");
 #endif
 }
 

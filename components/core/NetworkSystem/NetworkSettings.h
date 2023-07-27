@@ -9,7 +9,7 @@
 #pragma once
 
 #include <string.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <ConfigBase.h>
 #include <esp_wifi_types.h>
 

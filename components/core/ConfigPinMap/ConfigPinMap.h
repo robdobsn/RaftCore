@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include <ArduinoOrAlt.h>
+#include "RaftArduino.h"
 
 class ConfigBase;
 

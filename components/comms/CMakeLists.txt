@@ -42,7 +42,6 @@ idf_component_register(
     "ProtocolRICFrame/ProtocolRICFrame.cpp"
     "ProtocolRICJSON/ProtocolRICJSON.cpp"
     "ProtocolRICSerial/ProtocolRICSerial.cpp"
-    "RestAPIEndpoints/RestAPIEndpointManager.cpp"
     "RICRESTMsg/RICRESTMsg.cpp"
     "ROSSerial/ROSSerialMsg.cpp"
   INCLUDE_DIRS
@@ -58,7 +57,6 @@ idf_component_register(
     "ProtocolRICFrame"
     "ProtocolRICJSON"
     "ProtocolRICSerial"
-    "RestAPIEndpoints"
     "RICRESTMsg"
     "ROSSerial"
   REQUIRES

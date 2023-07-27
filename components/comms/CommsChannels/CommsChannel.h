@@ -9,7 +9,7 @@
 
 #pragma once
 #include <Logger.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <ProtocolBase.h>
 #include <ThreadSafeQueue.h>
 #include <CommsChannelMsg.h>

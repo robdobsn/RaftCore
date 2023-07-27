@@ -329,7 +329,7 @@ JSMN_API int raft_jsmn_parse(jsmn_parser *parser, const char *js, const size_t l
       /* Error if unmatched closing bracket */
       if (i == -1) {
         LOG_I(MODULE_PREFIX, "JSMN_ERROR_INVAL unmatchedbrace pos %d ch %d toknext %d type %d", parser->pos, js[parser->pos], parser->toknext, type);
-        jsmn_logLongStr("JSMN: parse input", js, true);
+        raft_jsmn_logLongStr("JSMN: parse input", js, true);
         return JSMN_ERROR_INVAL;
       }
       for (; i >= 0; i--) {

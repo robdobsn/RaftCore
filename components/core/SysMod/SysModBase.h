@@ -1,6 +1,5 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// RaftCore SysModBase
 // Base class for SysMods (System Modules)
 // For more info see SysManager
 // Rob Dobson 2013-2023
@@ -9,7 +8,7 @@
 
 #pragma once
 
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <functional>
 #include <ConfigMulti.h>
 #include <list>

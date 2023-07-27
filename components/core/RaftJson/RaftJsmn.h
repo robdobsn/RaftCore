@@ -99,7 +99,7 @@ typedef struct jsmn_parser {
 /**
  * Create JSON parser over an array of tokens
  */
-JSMN_API void jsmn_init(jsmn_parser *parser);
+JSMN_API void raft_jsmn_init(jsmn_parser *parser);
 
 /**
  * Run JSON parser. It parses a JSON data string into and array of tokens, each
@@ -107,11 +107,11 @@ JSMN_API void jsmn_init(jsmn_parser *parser);
  * a single JSON object.
    * Returns count of parsed objects.
  */
-JSMN_API int jsmn_parse(jsmn_parser *parser, const char *js, const size_t len,
+JSMN_API int raft_jsmn_parse(jsmn_parser *parser, const char *js, const size_t len,
                         jsmntok_t *tokens, const unsigned int num_tokens);
 
   static const uint32_t MAX_LOG_LONG_STR_LEN = 4096;
-  void jsmn_logLongStr(const char *headerMsg, const char *toLog, bool infoLevel);
+  void raft_jsmn_logLongStr(const char *headerMsg, const char *toLog, bool infoLevel);
 
 #ifdef __cplusplus
 }

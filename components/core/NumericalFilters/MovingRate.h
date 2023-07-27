@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RaftUtils.h>
 
 /*

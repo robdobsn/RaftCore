@@ -9,22 +9,22 @@
 
 #pragma once
 
-#include "NetworkSettings.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "esp_event.h"
+#include "esp_idf_version.h"
+#include "nvs_flash.h"
+#include "RaftArduino.h"
 #include "WiFiScanner.h"
-#include <ArduinoOrAlt.h>
-#include <NetCoreIF.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <freertos/event_groups.h>
-#include <esp_system.h>
-#include <esp_wifi.h>
-#include <esp_event.h>
-#include <nvs_flash.h>
+#include "NetworkSettings.h"
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#include <esp_eth_driver.h>
+#include "esp_eth_driver.h"
 #endif
 
-#include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
 // #pragma message "Using V4.3+ WiFi methods"
 #define ESP_IDF_WIFI_STA_MODE_FLAG WIFI_IF_STA
@@ -35,10 +35,10 @@
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)
 #include "esp_netif.h"
 #else
-#include <tcpip_adapter.h>
+#include "tcpip_adapter.h"
 #endif
 
-class NetworkSystem : public NetCoreIF
+class NetworkSystem
 {
 public:
     NetworkSystem();
@@ -69,12 +69,12 @@ public:
         return _ethIPV4Addr;
     }
 
-    virtual String getHostname() override final
+    String getHostname()
     {
         return _hostname;
     }
 
-    virtual void setHostname(const char* hostname) override final;
+    void setHostname(const char* hostname);
 
     String getSSID()
     {

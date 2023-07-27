@@ -8,7 +8,7 @@
 
 #pragma once
 #include <vector>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 
 class WiFiScanner
 {

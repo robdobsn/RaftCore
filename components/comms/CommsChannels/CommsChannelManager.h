@@ -8,7 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <vector>
 #include <ProtocolBase.h>
 #include "ProtocolCodecFactoryHelper.h"
@@ -68,6 +68,7 @@ public:
     virtual void bridgeUnregister(uint32_t bridgeID, bool forceClose) override final;
     virtual void bridgeHandleInboundMsg(uint32_t bridgeID, CommsChannelMsg& msg) override final;
     virtual bool bridgeHandleOutboundMsg(CommsChannelMsg& msg) override final;
+    void bridgeService();
 
 protected:
     // Service - called frequently
@@ -96,7 +97,6 @@ private:
     // Helpers
     void ensureProtocolCodecExists(uint32_t channelID);
     CommsCoreRetCode handleOutboundMessageOnChannel(CommsChannelMsg& msg, uint32_t channelID);
-    void bridgeService();
 
     // Consts
     static const int MAX_INBOUND_MSGS_IN_LOOP = 1;

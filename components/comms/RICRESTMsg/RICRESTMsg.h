@@ -10,7 +10,7 @@
 #pragma once
 
 #include <Logger.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <SpiramAwareAllocator.h>
 #include <vector>
 

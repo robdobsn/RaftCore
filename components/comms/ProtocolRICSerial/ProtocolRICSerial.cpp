@@ -11,7 +11,7 @@
 #include <CommsChannelMsg.h>
 #include <ConfigBase.h>
 #include <MiniHDLC.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RaftUtils.h>
 
 // Logging

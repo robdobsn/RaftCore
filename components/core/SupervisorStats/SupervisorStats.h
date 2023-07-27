@@ -11,9 +11,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <RaftUtils.h>
-#include <ArduinoOrAlt.h>
-#include <ExecTimer.h>
+#include "RaftUtils.h"
+#include "RaftArduino.h"
+#include "ExecTimer.h"
 
 #ifdef DEBUG_GLOBAL_VALUE
 #define SUPERVISE_SERVICE_CALL(supervisor, idx, debugVal, func) { DEBUG_GLOB_VAR_NAME(debugVal) = idx; supervisor.execStarted(idx); func; supervisor.execEnded(idx); }

@@ -8,7 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <vector>
 #include <ProtocolBase.h>
 #include "ProtocolCodecFactoryHelper.h"

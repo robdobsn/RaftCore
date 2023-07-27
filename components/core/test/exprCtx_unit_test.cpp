@@ -11,7 +11,7 @@
 #include <ExpressionContext.h>
 #include <Logger.h>
 #include <RaftUtils.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include "esp_heap_caps.h"
 
 // #define DEBUG_EXPR_CTX_UNIT_TEST

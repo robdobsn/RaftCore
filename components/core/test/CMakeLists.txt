@@ -1,11 +1,11 @@
 idf_component_register(
                 SRCS 
-                  "./jsmn_test.cpp"
-                  "./rdjson_test.cpp"
-                  "./rdjson_perf_test.cpp"
-                  "./ConfigBase_test.cpp"
-                  "./exprCtx_unit_test.cpp"
                   "./expressions_unit_test.cpp"
+                  "./RaftJsmn_test.cpp"
+                  "./RaftJson_test.cpp"
+                  "./ConfigBase_test.cpp"
+                  "./RaftJson_perf_test.cpp"
+                  "./exprCtx_unit_test.cpp"
                   "./ProtocolOverAscii_test.cpp"
                 INCLUDE_DIRS
                   "."
@@ -13,3 +13,4 @@ idf_component_register(
                   unity
                   core
                 )
+
