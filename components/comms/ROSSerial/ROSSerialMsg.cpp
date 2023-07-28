@@ -85,3 +85,23 @@ void ROSSerialMsg::writeRawMsgToVector(std::vector<uint8_t, SpiramAwareAllocator
     memcpy(rawMsg.data() + bufPos, _payload.data(), _payload.size());
     rawMsg[_payload.size() + bufPos] = _payloadChecksum;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Generate message to a vector
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ROSSerialMsg::writeRawMsgToVector(std::vector<uint8_t>& rawMsg, bool append)
+{
+    uint32_t bufPos = (append ? rawMsg.size() : 0);
+    uint32_t rawMsgLen = bufPos + _payload.size() + 8;
+    rawMsg.resize(rawMsgLen);
+    rawMsg[bufPos++] = 0xff;
+    rawMsg[bufPos++] = 0xfe;
+    rawMsg[bufPos++] = _payload.size() & 0xff;
+    rawMsg[bufPos++] = (_payload.size() >> 8) & 0xff;
+    rawMsg[bufPos++] = _headerChecksum;
+    rawMsg[bufPos++] = _topicID & 0xff;
+    rawMsg[bufPos++] = (_topicID >> 8) & 0xff;
+    memcpy(rawMsg.data() + bufPos, _payload.data(), _payload.size());
+    rawMsg[_payload.size() + bufPos] = _payloadChecksum;
+}
