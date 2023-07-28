@@ -28,10 +28,10 @@ public:
     static const uint32_t DOWNLOAD_FAIL_TIMEOUT_MS = 2 * 3600 * 1000;
 
     // Constructor
-    FileDownloadOKTOProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB, 
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileRxCancelCB,
+    FileDownloadOKTOProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead, 
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileRxCancel,
             CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,

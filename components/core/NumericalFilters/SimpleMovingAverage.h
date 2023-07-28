@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Moving Average
+// Simple Moving Average
 //
 // Rob Dobson 2022
 //
@@ -25,10 +25,10 @@
  */
 
 template <uint8_t N, class input_t = uint32_t, class sum_t = uint64_t>
-class MovingAverage
+class SimpleMovingAverage
 {
 public:
-    MovingAverage()
+    SimpleMovingAverage()
     {
         clear();
     }

@@ -232,7 +232,7 @@ bool FileSystem::getFilesJSON(const char* req, const String& fileSystemStr, cons
 // If non-null pointer returned then it must be freed by caller
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-char* FileSystem::getFileContents(const String& fileSystemStr, const String& filename, 
+uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& filename, 
                 int maxLen)
 {
     // Check file system supported
@@ -302,8 +302,8 @@ char* FileSystem::getFileContents(const String& fileSystemStr, const String& fil
 #endif
 
     // Buffer
-    SpiramAwareAllocator<char> allocator;
-    char* pBuf = allocator.allocate(fileSize+1);
+    SpiramAwareAllocator<uint8_t> allocator;
+    uint8_t* pBuf = allocator.allocate(fileSize+1);
     if (!pBuf)
     {
         fclose(pFile);
@@ -496,7 +496,7 @@ String FileSystem::getFilePath(const String& nameOfFS, const String& filename) c
     // Check if filename already contains file system
     if ((filename.indexOf(LOCAL_FILE_SYSTEM_PATH_ELEMENT) >= 0) || (filename.indexOf(SD_FILE_SYSTEM_PATH_ELEMENT) >= 0))
         return (filename.startsWith("/") ? filename : ("/" + filename));
-    return (filename.startsWith("/") ? filename : ("/" + nameOfFS + "/" + filename));
+    return (filename.startsWith("/") ? "/" + nameOfFS + filename : ("/" + nameOfFS + "/" + filename));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -727,7 +727,7 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     // Check result
     if (!pFile)
     {
-        LOG_W(MODULE_PREFIX, "getFileSection failed to open file to read %s", rootFilename.c_str());
+        LOG_W(MODULE_PREFIX, "fileOpen failed to open file to %s %s", writeMode ? "write" : "read", rootFilename.c_str());
         return nullptr;
     }
 
@@ -949,7 +949,6 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
         return false;
     }
 
-#ifdef FEATURE_LITTLEFS_SUPPORT
     // Get file system info
     size_t total = 0, used = 0;
     ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &total, &used);
@@ -971,9 +970,6 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
     _localFsCache.fsName = LOCAL_FILE_SYSTEM_NAME;
     _localFsCache.fsBase = LOCAL_FILE_SYSTEM_BASE_PATH;
     return true;
-#else
-    return false;
-#endif
 }
 #endif
 

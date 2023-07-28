@@ -16,11 +16,11 @@
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileStreamBase::FileStreamBase(FileStreamBlockWriteCB fileBlockWriteCB, 
-        FileStreamBlockReadCB fileBlockReadCB,
-        FileStreamGetCRCCB fileGetCRCCB,
-        FileStreamCancelEndCB fileCancelEndCB,
-        CommsCoreIF* pCommsCoreIF,
+FileStreamBase::FileStreamBase(FileStreamBlockWriteFnType fileBlockWrite, 
+        FileStreamBlockReadFnType fileBlockRead,
+        FileStreamGetCRCFnType fileGetCRC,
+        FileStreamCancelEndFnType fileCancelEnd,
+        CommsCoreIF* pCommsCore,
         FileStreamBase::FileStreamContentType fileStreamContentType,
         FileStreamBase::FileStreamFlowType fileStreamFlowType,
         uint32_t streamID,
@@ -28,11 +28,11 @@ FileStreamBase::FileStreamBase(FileStreamBlockWriteCB fileBlockWriteCB,
         const char* fileStreamName)
 {
     // Vars
-    _fileStreamBlockWriteCB = fileBlockWriteCB;
-    _fileStreamBlockReadCB = fileBlockReadCB;
-    _fileStreamGetCRCCB = fileGetCRCCB;
-    _fileStreamCancelEndCB = fileCancelEndCB;
-    _pCommsCore = pCommsCoreIF;
+    _fileStreamBlockWrite = fileBlockWrite;
+    _fileStreamBlockRead = fileBlockRead;
+    _fileStreamGetCRC = fileGetCRC;
+    _fileStreamCancelEnd = fileCancelEnd;
+    _pCommsCore = pCommsCore;
     _fileStreamContentType = fileStreamContentType;
     _fileStreamFlowType = fileStreamFlowType;
     _streamID = streamID;

@@ -25,18 +25,18 @@ static const char *MODULE_PREFIX = "StreamDatagram";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-StreamDatagramProtocol::StreamDatagramProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelEndCB,
-            CommsCoreIF *pCommsCoreIF,
+StreamDatagramProtocol::StreamDatagramProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
+            CommsCoreIF *pCommsCore,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID,
             uint32_t fileStreamLength,
             const char* fileStreamName) :
-    FileStreamBase(fileBlockWriteCB, fileBlockReadCB, fileGetCRCCB, fileCancelEndCB, 
-            pCommsCoreIF,
+    FileStreamBase(fileBlockWrite, fileBlockRead, fileGetCRC, fileCancelEnd, 
+            pCommsCore,
             fileStreamContentType, fileStreamFlowType, 
             streamID, fileStreamLength, fileStreamName)
 {
@@ -84,7 +84,7 @@ RaftRetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsg
 RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Check valid CB
-    if (!_fileStreamBlockWriteCB)
+    if (!_fileStreamBlockWriteFnType)
         return RaftRetCode::RAFT_INVALID_OBJECT;
 
     // Handle the upload block
@@ -126,7 +126,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
                             );
 
         // Call the callback
-        rslt = _fileStreamBlockWriteCB(fileStreamBlock);
+        rslt = _fileStreamBlockWriteFnType(fileStreamBlock);
 
         // Update stream position
         _streamPos = filePos + bufferLen;

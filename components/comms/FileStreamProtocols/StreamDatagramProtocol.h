@@ -14,10 +14,10 @@ class StreamDatagramProtocol : public FileStreamBase
 {
 public:
     // Constructor
-    StreamDatagramProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelEndCB,
+    StreamDatagramProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
             CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,

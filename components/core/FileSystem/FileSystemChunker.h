@@ -98,7 +98,7 @@ private:
 
     // File ptr (when file is kept open)
     FILE* _pFile = nullptr;
-    
+
     // Helpers
     bool nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_t& handledBytes, 
                         bool& finalChunk, uint32_t numToRead);

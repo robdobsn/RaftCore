@@ -22,10 +22,10 @@ class APISourceInfo;
 class JSONParams;
 
 // File/stream callback function types
-typedef std::function<RaftRetCode(FileStreamBlock& fileBlock)> FileStreamBlockWriteCB;
-typedef std::function<RaftRetCode(FileStreamBlockOwned& fileBlock, uint32_t filePos, uint32_t maxLen)> FileStreamBlockReadCB;
-typedef std::function<RaftRetCode(uint32_t& fileCRC, uint32_t& fileLen)> FileStreamGetCRCCB;
-typedef std::function<void(bool isNormalEnd)> FileStreamCancelEndCB;
+typedef std::function<RaftRetCode(FileStreamBlock& fileBlock)> FileStreamBlockWriteFnType;
+typedef std::function<RaftRetCode(FileStreamBlockOwned& fileBlock, uint32_t filePos, uint32_t maxLen)> FileStreamBlockReadFnType;
+typedef std::function<RaftRetCode(uint32_t& fileCRC, uint32_t& fileLen)> FileStreamGetCRCFnType;
+typedef std::function<void(bool isNormalEnd)> FileStreamCancelEndFnType;
 
 class FileStreamBase
 {
@@ -62,11 +62,11 @@ public:
     };
 
     // Constructor
-    FileStreamBase(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelEndCB,
-            CommsCoreIF* pCommsCoreIF,
+    FileStreamBase(FileStreamBlockWriteFnType fileBlockWrite,
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
+            CommsCoreIF* pCommsCore,
             FileStreamBase::FileStreamContentType fileStreamContentType,
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID,
@@ -163,10 +163,10 @@ public:
 
 protected:
     // Callbacks
-    FileStreamBlockWriteCB _fileStreamBlockWriteCB;
-    FileStreamBlockReadCB _fileStreamBlockReadCB;
-    FileStreamGetCRCCB _fileStreamGetCRCCB;
-    FileStreamCancelEndCB _fileStreamCancelEndCB;
+    FileStreamBlockWriteFnType _fileStreamBlockWrite;
+    FileStreamBlockReadFnType _fileStreamBlockRead;
+    FileStreamGetCRCFnType _fileStreamGetCRC;
+    FileStreamCancelEndFnType _fileStreamCancelEnd;
 
     // Comms core
     CommsCoreIF* _pCommsCore;

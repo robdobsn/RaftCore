@@ -44,7 +44,7 @@ public:
 
     // Get file contents as a string
     // If a non-null pointer is returned then it must be freed by caller
-    char* getFileContents(const String& fileSystemStr, const String& filename, int maxLen=0);
+    uint8_t* getFileContents(const String& fileSystemStr, const String& filename, int maxLen=0);
 
     // Set file contents from string
     bool setFileContents(const String& fileSystemStr, const String& filename, String& fileContents);

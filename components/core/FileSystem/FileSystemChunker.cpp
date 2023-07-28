@@ -310,7 +310,8 @@ bool FileSystemChunker::nextWrite(const uint8_t* pBuf, uint32_t bufLen, uint32_t
 #endif
 
 #ifdef DEBUG_FILE_CHUNKER_PERFORMANCE
-    LOG_I(MODULE_PREFIX, "nextWrite elapsed ms %d file open %d", (int)(millis() - startMs), fileOpenMs != 0 ? fileOpenMs - startMs : 0);
+    LOG_I(MODULE_PREFIX, "nextWrite elapsed ms %d file open %d", 
+                (int)(millis() - startMs), fileOpenMs != 0 ? fileOpenMs - startMs : 0);
 #endif
 
     return writeOk;

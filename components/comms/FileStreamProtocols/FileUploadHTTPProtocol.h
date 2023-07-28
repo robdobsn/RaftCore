@@ -14,11 +14,11 @@ class FileUploadHTTPProtocol : public FileStreamBase
 {
 public:
     // Constructor
-    FileUploadHTTPProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelCB,
-            CommsCoreIF* pCommsCoreIF,
+    FileUploadHTTPProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
+            CommsCoreIF* pCommsCore,
             FileStreamBase::FileStreamContentType fileStreamContentType,
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID, 

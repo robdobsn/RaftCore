@@ -27,17 +27,17 @@ static const char *MODULE_PREFIX = "FileUpldOKTO";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileUploadOKTOProtocol::FileUploadOKTOProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelEndCB,
+FileUploadOKTOProtocol::FileUploadOKTOProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
             CommsCoreIF* pCommsCore,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID,
             uint32_t fileStreamLength,
             const char* fileStreamName) :
-    FileStreamBase(fileBlockWriteCB, fileBlockReadCB, fileGetCRCCB, fileCancelEndCB, 
+    FileStreamBase(fileBlockWrite, fileBlockRead, fileGetCRC, fileCancelEnd, 
             pCommsCore, 
             fileStreamContentType, fileStreamFlowType, 
             streamID, fileStreamLength, fileStreamName)
@@ -139,7 +139,7 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
 
     // Check valid
     RaftRetCode rslt = RaftRetCode::RAFT_OK;
-    if (blockValid && _fileStreamBlockWriteCB)
+    if (blockValid && _fileStreamBlockWriteFnType)
     {
         FileStreamBlock fileStreamBlock(_fileName.c_str(), 
                             _fileSize, 
@@ -155,7 +155,7 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
                             );            
 
         // If this is the first block of a firmware update then there will be a long delay
-        rslt = _fileStreamBlockWriteCB(fileStreamBlock);
+        rslt = _fileStreamBlockWriteFnType(fileStreamBlock);
 
         // Check result
         if (rslt != RaftRetCode::RAFT_OK)
@@ -338,8 +338,8 @@ RaftRetCode  FileUploadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMs
 #endif
 
     // Callback to indicate end of activity
-    if (_fileStreamCancelEndCB)
-        _fileStreamCancelEndCB(true);
+    if (_fileStreamCancelEndFnType)
+        _fileStreamCancelEndFnType(true);
 
     // Response
     Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
@@ -547,8 +547,8 @@ void FileUploadOKTOProtocol::transferCancel(const char* reasonStr)
     transferEnd();
 
     // Callback to indicate cancellation
-    if (_fileStreamCancelEndCB)
-        _fileStreamCancelEndCB(false);
+    if (_fileStreamCancelEndFnType)
+        _fileStreamCancelEndFnType(false);
 
     // Check if we need to send back a reason
     if (reasonStr != nullptr)

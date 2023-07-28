@@ -31,17 +31,17 @@ static const char *MODULE_PREFIX = "FileDnldOKTO";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileDownloadOKTOProtocol::FileDownloadOKTOProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelEndCB,
+FileDownloadOKTOProtocol::FileDownloadOKTOProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
             CommsCoreIF* pCommsCoreIF,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID,
             uint32_t fileStreamLength,
             const char* fileStreamName) :
-    FileStreamBase(fileBlockWriteCB, fileBlockReadCB, fileGetCRCCB, fileCancelEndCB, 
+    FileStreamBase(fileBlockWrite, fileBlockRead, fileGetCRC, fileCancelEnd, 
             pCommsCoreIF, 
             fileStreamContentType, fileStreamFlowType, streamID, 
             fileStreamLength, fileStreamName)
@@ -213,8 +213,8 @@ RaftRetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqM
 #endif
 
     // Callback to indicate end of activity
-    if (_fileStreamCancelEndCB)
-        _fileStreamCancelEndCB(true);
+    if (_fileStreamCancelEnd)
+        _fileStreamCancelEnd(true);
 
     // Response
     Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
@@ -362,7 +362,7 @@ bool FileDownloadOKTOProtocol::validateFileStreamStart(const String& fileName,
 void FileDownloadOKTOProtocol::transferService()
 {
     // Check valid
-    if (!_isDownloading || !_fileStreamBlockReadCB)
+    if (!_isDownloading || !_fileStreamBlockRead)
         return;
     
     // Check min time between blocks
@@ -431,7 +431,7 @@ void FileDownloadOKTOProtocol::transferService()
 
     // Send a block
     FileStreamBlockOwned block;
-    RaftRetCode retc = _fileStreamBlockReadCB(block, _lastSentUptoFilePos, _blockSize);
+    RaftRetCode retc = _fileStreamBlockRead(block, _lastSentUptoFilePos, _blockSize);
     if (retc == RaftRetCode::RAFT_OK)
     {
         // Send block
@@ -457,8 +457,8 @@ void FileDownloadOKTOProtocol::transferCancel(const char* reasonStr)
     transferEnd();
 
     // Callback to indicate cancellation
-    if (_fileStreamCancelEndCB)
-        _fileStreamCancelEndCB(false);
+    if (_fileStreamCancelEnd)
+        _fileStreamCancelEnd(false);
 
     // Check if we need to send back a reason
     if (reasonStr != nullptr)

@@ -16,18 +16,18 @@ static const char *MODULE_PREFIX = "FileUpHTTP";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FileUploadHTTPProtocol::FileUploadHTTPProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelEndCB,
-            CommsCoreIF* pCommsCoreIF,
+FileUploadHTTPProtocol::FileUploadHTTPProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
+            CommsCoreIF* pCommsCore,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID, 
             uint32_t fileStreamLength,
             const char* fileStreamName) :
-    FileStreamBase(fileBlockWriteCB, fileBlockReadCB, fileGetCRCCB, fileCancelEndCB, 
-            pCommsCoreIF, 
+    FileStreamBase(fileBlockWrite, fileBlockRead, fileGetCRC, fileCancelEnd, 
+            pCommsCore,
             fileStreamContentType, fileStreamFlowType, 
             streamID, fileStreamLength, fileStreamName)
 {

@@ -260,7 +260,7 @@ RaftRetCode FileStreamSession::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, 
 {
     if (!_pFileStreamProtocolHandler)
     {
-        RaftRetCode rslt = RaftRetCode::RAFT_INVALID_OBJECT;
+        RaftRetCode rslt = RAFT_INVALID_OBJECT;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"reason\":\"%s\"", Raft::getRetCodeStr(rslt));
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, errorMsg);
@@ -401,7 +401,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
     _sessionLastActiveMs = millis();
 
     // Handle file/stream types
-    RaftRetCode handledOk = RaftRetCode::RAFT_INVALID_DATA;
+    RaftRetCode handledOk = RAFT_INVALID_DATA;
     switch(_fileStreamContentType)
     {
         case FileStreamBase::FILE_STREAM_CONTENT_TYPE_FIRMWARE:
@@ -419,7 +419,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
 #ifdef DEBUG_FILE_STREAM_START_END
             LOG_I(MODULE_PREFIX, "fileStreamBlockWrite invalid type %d isActive %d", _fileStreamContentType, _isActive);
 #endif
-            return RaftRetCode::RAFT_INVALID_DATA;
+            return RAFT_INVALID_DATA;
         }
     }
 #ifdef DEBUG_FILE_STREAM_BLOCK
@@ -427,7 +427,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
 #endif
 
     // Check handled ok
-    if (handledOk == RaftRetCode::RAFT_OK)
+    if (handledOk == RAFT_OK)
     {
         // Check for first block
         if (fileStreamBlock.firstBlock)
@@ -446,7 +446,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
         // Update stats
         _totalChunks++;
     }
-    else if (handledOk != RaftRetCode::RAFT_BUSY)
+    else if (handledOk != RAFT_BUSY)
     {
         // Not handled ok
         _isActive = false;
@@ -466,7 +466,7 @@ RaftRetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& fileStreamBlo
 {
     // Firmware updater valid?
     if (!_pFirmwareUpdater)
-        return RaftRetCode::RAFT_INVALID_OPERATION;
+        return RAFT_INVALID_OPERATION;
 
     // Check if this is the first block
     if (fileStreamBlock.firstBlock)
@@ -480,7 +480,7 @@ RaftRetCode FileStreamSession::writeFirmwareBlock(FileStreamBlock& fileStreamBlo
             LOG_W(MODULE_PREFIX, "writeFirmwareBlock start FAILED name %s len %d",
                             fileStreamBlock.filename, fileStreamBlock.fileLen);
 #endif
-            return RaftRetCode::RAFT_CANNOT_START;
+            return RAFT_CANNOT_START;
         }
     }
     uint64_t startUs = micros();
@@ -498,7 +498,7 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
 {
     // Write using the chunker
     if (!_pFileChunker)
-        return RaftRetCode::RAFT_INVALID_OPERATION;
+        return RAFT_INVALID_OPERATION;
 
     uint32_t bytesWritten = 0; 
     uint64_t startUs = micros();
@@ -506,7 +506,7 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
                     bytesWritten, fileStreamBlock.finalBlock);
     _totalBytes += bytesWritten;
     _totalWriteTimeUs += micros() - startUs;
-    return chunkerRslt ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_OTHER_FAILURE;
+    return chunkerRslt ? RAFT_OK : RAFT_OTHER_FAILURE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -517,7 +517,7 @@ RaftRetCode FileStreamSession::writeRealTimeStreamBlock(FileStreamBlock& fileStr
 {
     // Check valid
     if (!_pStreamChunkCB)
-        return RaftRetCode::RAFT_INVALID_OPERATION;
+        return RAFT_INVALID_OPERATION;
 
     // Write to stream
     return _pStreamChunkCB(_streamRequestStr, fileStreamBlock, _streamSourceInfo);

@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <RaftArduino.h>
 #include <RaftUtils.h>
+#include <RaftArduino.h>
 #include "FileStreamBlock.h"
 #include "FileStreamBlockOwned.h"
 #include "FileSystemChunker.h"

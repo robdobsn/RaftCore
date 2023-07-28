@@ -27,11 +27,11 @@ public:
     static const uint32_t UPLOAD_FAIL_TIMEOUT_MS = 2 * 3600 * 1000;
 
     // Constructor
-    FileUploadOKTOProtocol(FileStreamBlockWriteCB fileBlockWriteCB, 
-            FileStreamBlockReadCB fileBlockReadCB,
-            FileStreamGetCRCCB fileGetCRCCB,
-            FileStreamCancelEndCB fileCancelCB,
-            CommsCoreIF* pCommsCoreIF,
+    FileUploadOKTOProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
+            FileStreamBlockReadFnType fileBlockRead,
+            FileStreamGetCRCFnType fileGetCRC,
+            FileStreamCancelEndFnType fileCancelEnd,
+            CommsCoreIF* pCommsCore,
             FileStreamBase::FileStreamContentType fileStreamContentType, 
             FileStreamBase::FileStreamFlowType fileStreamFlowType,
             uint32_t streamID, 
