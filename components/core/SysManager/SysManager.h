@@ -25,6 +25,7 @@ typedef String (*SysManager_statsCB)();
 class ConfigBase;
 class RestAPIEndpointManager;
 class CommsCoreIF;
+class NetCoreIF;
 
 class SysManager
 {
@@ -33,6 +34,7 @@ public:
     SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
             ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
             const char* pDefaultFriendlyName,
+            NetCoreIF* pNetCore = nullptr, 
             CommsCoreIF* pCommsCore = nullptr);
 
     // Setup
@@ -133,6 +135,16 @@ public:
         return _pCommsCore;
     }
 
+    // NetCore
+    void setNetCore(NetCoreIF* pNetCore)
+    {
+        _pNetCore = pNetCore;
+    }
+    NetCoreIF* getNetCore()
+    {
+        return _pNetCore;
+    }
+    
     // Get supervisor stats
     SupervisorStats* getStats()
     {
@@ -258,6 +270,9 @@ private:
 
     // Comms core
     CommsCoreIF* _pCommsCore = nullptr;
+
+    // Network core
+    NetCoreIF* _pNetCore = nullptr;
 
     // API to reset system
     RaftRetCode apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
