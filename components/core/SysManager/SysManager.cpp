@@ -51,8 +51,10 @@ static const char *MODULE_PREFIX = "SysMan";
 SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
                 ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
                 const char* pDefaultFriendlyName,
+                NetCoreIF* pNetCore, 
                 CommsCoreIF* pCommsCore) :
-        _pCommsCore(pCommsCore)
+        _pCommsCore(pCommsCore),
+        _pNetCore(pNetCore)
 {
     // Store mutable config
     _pMutableConfig = pMutableConfig;
@@ -666,7 +668,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
 RaftRetCode SysManager::apiHwRevisionNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Create response JSON
-    char jsonOut[30];
+    char jsonOut[50];
     snprintf(jsonOut, sizeof(jsonOut), R"("RicHwRevNo":%d,"HwRevNo":%d)", _hwRevision, _hwRevision);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, jsonOut);
 }
