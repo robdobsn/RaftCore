@@ -860,8 +860,8 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
     }
 
     // Setup network system hostname
-    if (_mutableConfigCache.friendlyNameIsSet && setHostname && _pNetCore)
-        _pNetCore->setHostname(_mutableConfigCache.friendlyName.c_str());
+    if (_mutableConfigCache.friendlyNameIsSet && setHostname && getCommsCore())
+        getCommsCore()->setHostname(_mutableConfigCache.friendlyName.c_str());
 
     // Store the new name (even if it is blank)
     String jsonConfig = getMutableConfigJson();
