@@ -23,6 +23,7 @@
 #include "RaftJson.h"
 #include "ESPUtils.h"
 #include "NetworkSystem.h"
+#include "DebugGlobals.h"
 
 // Log prefix
 static const char *MODULE_PREFIX = "SysMan";
@@ -187,6 +188,16 @@ void SysManager::setup()
     {
         if (pSysMod)
             pSysMod->postSetup();
+    }
+
+    // Check if WiFi to be paused when BLE connected
+    bool pauseWiFiForBLEConn = _sysModManConfig.getLong("pauseWiFiforBLE", 0) != 0;
+    LOG_I(MODULE_PREFIX, "pauseWiFiForBLEConn %s", pauseWiFiForBLEConn ? "YES" : "NO");
+    if (pauseWiFiForBLEConn)
+    {
+        // Hook status change on BLE
+        setStatusChangeCB("BLEMan", 
+                std::bind(&SysManager::statusChangeBLEConnCB, this, std::placeholders::_1, std::placeholders::_2));
     }
 
 #ifdef DEBUG_LIST_SYSMODS
@@ -428,6 +439,12 @@ String SysManager::getDebugJSON(const char* sysModName)
     // Check if it is the SysManager's own stats that are wanted
     if (strcasecmp(sysModName, "SysMan") == 0)
         return _supervisorStats.getSummaryString();
+
+    // Check for global debug values
+    if (strcasecmp(sysModName, "Globs") == 0)
+    {
+        return DebugGlobals::getDebugJson(false);
+    }
 
     // Check for stats callback
     if (strcasecmp(sysModName, "StatsCB") == 0)
@@ -875,3 +892,19 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
     }
     return true;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Status change CB on BLE
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOnline)
+{
+    // Check if WiFi should be paused
+    LOG_I(MODULE_PREFIX, "BLE connection change isConn %s", changeToOnline ? "YES" : "NO");
+    bool pauseWiFiForBLEConn = _sysModManConfig.getString("pauseWiFiforBLE", 0);
+    if (pauseWiFiForBLEConn)
+    {
+        networkSystem.pauseWiFi(changeToOnline);
+    }
+}
+

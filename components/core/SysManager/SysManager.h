@@ -288,6 +288,9 @@ private:
     // Clear status change callbacks
     void clearAllStatusChangeCBs();
 
+    // Connection change on BLE
+    void statusChangeBLEConnCB(const String& sysModName, bool changeToOnline);
+
     // Mutable config
     String getMutableConfigJson();
 
