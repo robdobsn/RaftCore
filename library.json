@@ -1,6 +1,6 @@
 {
   "name": "RaftCore",
-  "version": "0.5.12",
+  "version": "0.5.13",
   "description": "Core elements for the Raft ESP32 framework",
   "keywords": "esp32, esp32s3, framework",
   "repository": {
@@ -63,7 +63,6 @@
       "-Icomponents/core/MiniHDLC",
       "-Icomponents/core/MQTT",
       "-Icomponents/core/NamedValueProvider",
-      "-Icomponents/core/NetCoreIF",
       "-Icomponents/core/NetworkSystem",
       "-Icomponents/core/NumericalFilters",
       "-Icomponents/core/RaftJson",

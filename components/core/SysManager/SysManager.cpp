@@ -19,9 +19,9 @@
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "RaftUtils.h"
 #include "RaftJson.h"
 #include "ESPUtils.h"
-#include "CommsCoreIF.h"
 #include "NetworkSystem.h"
 
 // Log prefix
@@ -50,11 +50,7 @@ static const char *MODULE_PREFIX = "SysMan";
 
 SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
                 ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
-                const char* pDefaultFriendlyName,
-                NetCoreIF* pNetCore, 
-                CommsCoreIF* pCommsCore) :
-        _pCommsCore(pCommsCore),
-        _pNetCore(pNetCore)
+                const char* pDefaultFriendlyName)
 {
     // Store mutable config
     _pMutableConfig = pMutableConfig;
@@ -862,8 +858,8 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
     }
 
     // Setup network system hostname
-    if (_mutableConfigCache.friendlyNameIsSet && setHostname && _pNetCore)
-        _pNetCore->setHostname(_mutableConfigCache.friendlyName.c_str());
+    if (_mutableConfigCache.friendlyNameIsSet && setHostname)
+        networkSystem.setHostname(_mutableConfigCache.friendlyName.c_str());
 
     // Store the new name (even if it is blank)
     String jsonConfig = getMutableConfigJson();

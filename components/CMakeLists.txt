@@ -110,7 +110,6 @@ idf_component_register(
     "core/MiniHDLC"
     "core/MQTT"
     "core/NamedValueProvider"
-    "core/NetCoreIF"
     "core/NetworkSystem"
     "core/NumericalFilters"
     "core/RaftJson"
