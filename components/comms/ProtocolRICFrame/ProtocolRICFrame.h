@@ -37,6 +37,7 @@ public:
                     uint32_t& msgProtocolCode, uint32_t& msgTypeCode, uint32_t& payloadStartPos);
 
     virtual void encodeTxMsgAndSend(CommsChannelMsg& msg) override final;
+    static void encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg);
     static void encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg);
 
     virtual const char* getProtocolName() override final

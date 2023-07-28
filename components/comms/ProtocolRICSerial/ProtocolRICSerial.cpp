@@ -11,8 +11,8 @@
 #include <CommsChannelMsg.h>
 #include <ConfigBase.h>
 #include <MiniHDLC.h>
-#include <RaftArduino.h>
 #include <RaftUtils.h>
+#include <RaftArduino.h>
 
 // Logging
 static const char* MODULE_PREFIX = "RICSerial";

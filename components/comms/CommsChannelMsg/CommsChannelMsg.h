@@ -14,6 +14,9 @@
 #include <RaftJson.h>
 #include <SpiramAwareAllocator.h>
 
+// TODO - determine if this has a positive impact on memory use or has some unknown negative impact
+// #define IMPLEMENT_USE_PSRAM_FOR_COMMS_CHANNEL_MSG
+
 // #define IMPLEMENT_COMMS_MSG_JSON
 
 static const uint32_t COMMS_MSG_UNNUMBERED_NUM = UINT32_MAX;
@@ -216,7 +219,11 @@ public:
     {
         return _cmdVector.size();
     }
+#ifdef IMPLEMENT_USE_PSRAM_FOR_COMMS_CHANNEL_MSG
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& getCmdVector()
+#else
+    std::vector<uint8_t>& getCmdVector()
+#endif
     {
         return _cmdVector;
     }
@@ -226,7 +233,11 @@ private:
     CommsMsgProtocol _msgProtocol;
     uint32_t _msgNum;
     CommsMsgTypeCode _msgTypeCode;
+#ifdef IMPLEMENT_USE_PSRAM_FOR_COMMS_CHANNEL_MSG
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _cmdVector;
+#else
+    std::vector<uint8_t> _cmdVector;
+#endif
 #ifdef IMPLEMENT_COMMS_MSG_JSON
     String _cmdJSON;
 #endif

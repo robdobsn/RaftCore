@@ -11,6 +11,9 @@
 #include <CommsChannelMsg.h>
 #include <ConfigBase.h>
 
+// TODO - determine if this has a positive impact on memory use or has some unknown negative impact
+// #define IMPLEMENT_USE_PSRAM_FOR_RIC_FRAME_ENCODING
+
 // Debug
 // #define DEBUG_PROTOCOL_RIC_FRAME
 // #define DEBUG_CONSTRUCTOR
@@ -95,7 +98,21 @@ bool ProtocolRICFrame::decodeParts(const uint8_t* pData, uint32_t dataLen, uint3
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Encode
+// Encode (standard buffer)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ProtocolRICFrame::encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg)
+{
+    // Create the message
+    outMsg.reserve(msg.getBufLen()+2);
+    outMsg.push_back(msg.getMsgNumber());
+    uint8_t protocolTypeByte = ((msg.getMsgTypeCode() & 0x03) << 6) + (msg.getProtocol() & 0x3f);
+    outMsg.push_back(protocolTypeByte);
+    outMsg.insert(outMsg.end(), msg.getCmdVector().begin(), msg.getCmdVector().end());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Encode (PSRAM buffer)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void ProtocolRICFrame::encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg)
@@ -125,7 +142,11 @@ void ProtocolRICFrame::encodeTxMsgAndSend(CommsChannelMsg& msg)
     }
 
     // Encode
+#ifdef IMPLEMENT_USE_PSRAM_FOR_RIC_FRAME_ENCODING
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricFrameMsg;
+#else
+    std::vector<uint8_t> ricFrameMsg;
+#endif
     encode(msg, ricFrameMsg);
     msg.setFromBuffer(ricFrameMsg.data(), ricFrameMsg.size());
 
