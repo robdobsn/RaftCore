@@ -104,7 +104,7 @@ idf_component_register(
     "components/core/Config"
     "components/core/ConfigPinMap"
     "components/core/DebounceButton"
-    "components/core/DebugGlobals/DebugGlobals.cpp"
+    "components/core/DebugGlobals"
     "components/core/ExpressionEval"
     "components/core/FileSystem"
     "components/core/LEDPixels"
