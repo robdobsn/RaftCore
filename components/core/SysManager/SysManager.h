@@ -32,7 +32,8 @@ public:
     // Constructor
     SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
             ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
-            const char* pDefaultFriendlyName);
+            const char* pDefaultFriendlyName,
+            const char* pSystemHWName);
 
     // Setup
     void setup();

@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <WString.h>
+#include <RaftArduino.h>
 #include <RaftJson.h>
 #include <Logger.h>
 #include "unity.h"

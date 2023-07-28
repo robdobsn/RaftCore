@@ -6,11 +6,11 @@ idf_component_register(
                   "./ConfigBase_test.cpp"
                   "./RaftJson_perf_test.cpp"
                   "./exprCtx_unit_test.cpp"
-                  "./ProtocolOverAscii_test.cpp"
                 INCLUDE_DIRS
                   "."
                 REQUIRES
                   unity
                   core
+                  comms
                 )
 

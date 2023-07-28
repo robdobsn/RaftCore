@@ -50,7 +50,8 @@ static const char *MODULE_PREFIX = "SysMan";
 
 SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
                 ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
-                const char* pDefaultFriendlyName)
+                const char* pDefaultFriendlyName,
+                const char* pSystemHWName)
 {
     // Store mutable config
     _pMutableConfig = pMutableConfig;
@@ -61,16 +62,16 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     // Module name
     _moduleName = pModuleName;
 
+    // Slow SysMod threshold
+    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
+
     // Extract info from config
     _sysModManConfig = pGlobalConfig ? 
                 pGlobalConfig->getString(_moduleName.c_str(), "{}") :
                 defaultConfig.getString(_moduleName.c_str(), "{}");
 
-    // Slow SysMod threshold
-    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
-
     // Extract system name from config
-    _systemName = defaultConfig.getString("SystemName", "Raft");
+    _systemName = defaultConfig.getString("SystemName", pSystemHWName);
     _systemVersion = defaultConfig.getString("SystemVersion", "0.0.0");
 
     // Monitoring period and monitoring timer

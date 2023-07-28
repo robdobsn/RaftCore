@@ -11,6 +11,7 @@
 // #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include <ConfigBase.h>
 #include <ESPUtils.h>
+#include <RaftArduino.h>
 #include "unity.h"
 
 static const char* MODULE_PREFIX = "ConfBaseUnitTest";
