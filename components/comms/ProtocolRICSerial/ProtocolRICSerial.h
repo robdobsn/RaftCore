@@ -51,14 +51,6 @@ private:
     // HDLC
     MiniHDLC* _pHDLC;
 
-    // Consts
-    static const int DEFAULT_RIC_SERIAL_RX_MAX = 100000;
-    static const int DEFAULT_RIC_SERIAL_TX_MAX = 100000;
-
-    // Max msg lengths
-    uint32_t _maxTxMsgLen;
-    uint32_t _maxRxMsgLen;
-
     // Debug
     uint32_t _debugLastInReportMs = 0;
     uint32_t _debugNumBytesRx = 0;

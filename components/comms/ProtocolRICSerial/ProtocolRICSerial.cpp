@@ -39,9 +39,22 @@ ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, con
                     CommsChannelInboundCanAcceptFnType readyToRxCB) :
     ProtocolBase(channelID, msgTxCB, msgRxCB, readyToRxCB)
 {
+    // Consts
+    static const int DEFAULT_RX_MAX_NO_PSRAM = 5000;
+    static const int DEFAULT_RX_MAX_PSRAM = 100000;
+    static const int DEFAULT_TX_MAX_NO_PSRAM = 5000;
+    static const int DEFAULT_TX_MAX_PSRAM = 100000;
+
+    // Check for overrides
+    uint32_t maxRxMsgLen = config.getLong("MaxRxMsgLen", 0, pConfigPrefix);
+    uint32_t maxTxMsgLen = config.getLong("MaxTxMsgLen", 0, pConfigPrefix);
+
+    // If not overridden then use default based on PSRAM availability
+    bool isPSRAM = utilsGetSPIRAMSize() > 0;
+    maxRxMsgLen = (maxRxMsgLen == 0) ? (isPSRAM ? DEFAULT_RX_MAX_PSRAM : DEFAULT_RX_MAX_NO_PSRAM) : maxRxMsgLen;
+    maxTxMsgLen = (maxTxMsgLen == 0) ? (isPSRAM ? DEFAULT_TX_MAX_PSRAM : DEFAULT_TX_MAX_NO_PSRAM) : maxTxMsgLen;
+
     // Extract configuration
-    _maxRxMsgLen = config.getLong("MaxRxMsgLen", DEFAULT_RIC_SERIAL_RX_MAX, pConfigPrefix);
-    _maxTxMsgLen = config.getLong("MaxTxMsgLen", DEFAULT_RIC_SERIAL_TX_MAX, pConfigPrefix);
     unsigned frameBoundary = config.getLong("FrameBound", 0x7E, pConfigPrefix);
     unsigned controlEscape = config.getLong("CtrlEscape", 0x7D, pConfigPrefix);
 
@@ -50,11 +63,11 @@ ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, con
             std::bind(&ProtocolRICSerial::hdlcFrameRxCB, this, std::placeholders::_1, std::placeholders::_2),
             frameBoundary,
             controlEscape,
-            _maxTxMsgLen, _maxRxMsgLen);
+            maxTxMsgLen, maxRxMsgLen);
 
     // Debug
     LOG_I(MODULE_PREFIX, "constructor channelID %d maxRxMsgLen %d maxTxMsgLen %d frameBoundary %02x controlEscape %02x", 
-            (int)_channelID, (int)_maxRxMsgLen, (int)_maxTxMsgLen, frameBoundary, controlEscape);
+            (int)_channelID, (int)maxRxMsgLen, (int)maxTxMsgLen, frameBoundary, controlEscape);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
