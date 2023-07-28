@@ -56,6 +56,18 @@ public:
         return _systemVersion;
     }
 
+    // Set hardware revision number
+    void setHwRevision(uint16_t hwRevNo)
+    {
+        _hwRevision = hwRevNo;
+    }
+
+    // Get hardware revision number
+    uint16_t getHwRevision()
+    {
+        return _hwRevision;
+    }
+
     // Get friendly name
     String getFriendlyName(bool& isSet);
     bool getFriendlyNameIsSet();
@@ -207,6 +219,9 @@ private:
     // System name and version
     String _systemName;
     String _systemVersion;
+
+    // Hardware revision number
+    uint16_t _hwRevision = 0;
 
     // Module config
     ConfigBase _sysModManConfig;

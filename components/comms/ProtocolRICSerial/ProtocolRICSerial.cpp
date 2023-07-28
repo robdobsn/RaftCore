@@ -13,6 +13,7 @@
 #include <MiniHDLC.h>
 #include <RaftUtils.h>
 #include <RaftArduino.h>
+#include <ESPUtils.h>
 
 // Logging
 static const char* MODULE_PREFIX = "RICSerial";
@@ -41,9 +42,9 @@ ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, con
 {
     // Consts
     static const int DEFAULT_RX_MAX_NO_PSRAM = 5000;
-    static const int DEFAULT_RX_MAX_PSRAM = 100000;
+    static const int DEFAULT_RX_MAX_PSRAM = 200000;
     static const int DEFAULT_TX_MAX_NO_PSRAM = 5000;
-    static const int DEFAULT_TX_MAX_PSRAM = 100000;
+    static const int DEFAULT_TX_MAX_PSRAM = 200000;
 
     // Check for overrides
     uint32_t maxRxMsgLen = config.getLong("MaxRxMsgLen", 0, pConfigPrefix);

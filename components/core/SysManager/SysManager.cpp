@@ -143,6 +143,9 @@ void SysManager::setup()
         _pRestAPIEndpointManager->addEndpoint("serialno", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiSerialNumber, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Serial number");
+        _pRestAPIEndpointManager->addEndpoint("hwrevno", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
+                std::bind(&SysManager::apiHwRevisionNumber, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                "HW revision number");
         _pRestAPIEndpointManager->addEndpoint("testsetloopdelay", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiTestSetLoopDelay, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Set a loop delay to test resilience, e.g. ?delayMs=10&skipCount=1, applies 10ms delay to alternate loops");
@@ -538,12 +541,14 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
     char versionJson[225];
     snprintf(versionJson, sizeof(versionJson),
              R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
-             R"("MAC":"%s"})",
+             R"("MAC":"%s","RicHwRevNo":%d,"HwRev":%d})",
              reqStr.c_str(), 
              _systemName.c_str(), 
              _systemVersion.c_str(), 
              serialNo.c_str(),
-             _systemUniqueString.c_str());
+             _systemUniqueString.c_str(),
+             _hwRevision,
+             _hwRevision);
     respStr = versionJson;
 
 #ifdef DEBUG_API_ENDPOINTS
@@ -662,7 +667,7 @@ RaftRetCode SysManager::apiHwRevisionNumber(const String &reqStr, String& respSt
 {
     // Create response JSON
     char jsonOut[30];
-    snprintf(jsonOut, sizeof(jsonOut), R"("HwRevNo":%d)", getHWRevision());
+    snprintf(jsonOut, sizeof(jsonOut), R"("RicHwRevNo":%d,"HwRevNo":%d)", _hwRevision, _hwRevision);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, jsonOut);
 }
 
@@ -782,9 +787,10 @@ void SysManager::statsShow()
 {
     // Generate stats
     char statsStr[200];
-    snprintf(statsStr, sizeof(statsStr), R"({"n":"%s","v":"%s","hpInt":%d,"hpMin":%d,"hpAll":%d)", 
+    snprintf(statsStr, sizeof(statsStr), R"({"n":"%s","v":"%s","r":%d,"hpInt":%d,"hpMin":%d,"hpAll":%d)", 
                 _systemName.c_str(),
                 _systemVersion.c_str(),
+                _hwRevision,
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_free_size(MALLOC_CAP_8BIT));
