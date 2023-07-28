@@ -33,7 +33,8 @@ public:
     SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
             ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
             const char* pDefaultFriendlyName,
-            const char* pSystemHWName);
+            const char* pSystemHWName,
+            uint32_t serialLengthBytes, const String& serialMagicStr);
 
     // Setup
     void setup();
@@ -169,9 +170,9 @@ private:
     // Name of this module
     String _moduleName;
 
-    // Consts
-    static const uint32_t SERIAL_NUMBER_BYTES = 16;
-    static constexpr const char* SERIAL_SET_MAGIC_STR = "RaftMagic";
+    // Serial set magic string
+    uint32_t _serialLengthBytes = 16;
+    String _serialMagicStr = "SerialMagic";
 
     // Service loop supervisor
     void supervisorSetup();

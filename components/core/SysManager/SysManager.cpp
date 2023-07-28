@@ -51,10 +51,15 @@ static const char *MODULE_PREFIX = "SysMan";
 SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
                 ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
                 const char* pDefaultFriendlyName,
-                const char* pSystemHWName)
+                const char* pSystemHWName,
+                uint32_t serialLengthBytes, const String& serialMagicStr)
 {
     // Store mutable config
     _pMutableConfig = pMutableConfig;
+
+    // Set serial length and magic string
+    _serialLengthBytes = serialLengthBytes;
+    _serialMagicStr = serialMagicStr;
 
     // Register this manager to all objects derived from SysModBase
     SysModBase::setSysManager(this);
@@ -617,8 +622,8 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
     {
         // Get serial number to set
         String serialNoHexStr = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
-        uint8_t serialNumBuf[SERIAL_NUMBER_BYTES];
-        if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, SERIAL_NUMBER_BYTES) != SERIAL_NUMBER_BYTES)
+        uint8_t serialNumBuf[_serialLengthBytes];
+        if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, _serialLengthBytes) != _serialLengthBytes)
         {
             Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
             return RaftRetCode::RAFT_INVALID_DATA;
@@ -629,7 +634,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
         {
             magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
-            if (!magicString.equals(SERIAL_SET_MAGIC_STR))
+            if (!magicString.equals(_serialMagicStr))
             {
                 Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
                 return RaftRetCode::RAFT_INVALID_DATA;
@@ -637,7 +642,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         }
 
         // Get formatted serial no
-        Raft::getHexStrFromBytes(serialNumBuf, SERIAL_NUMBER_BYTES, _mutableConfigCache.serialNo);
+        Raft::getHexStrFromBytes(serialNumBuf, _serialLengthBytes, _ricSerialNoStoredStr);
 
         // Store the serial no
         String jsonConfig = getMutableConfigJson();
@@ -653,7 +658,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         serialNo = _pMutableConfig->getString("serialNo", "");
 
     // Create response JSON
-    char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 70];
+    char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 100];
     snprintf(JsonOut, sizeof(JsonOut), R"("SerialNo":"%s")", serialNo.c_str());
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
 }
@@ -769,7 +774,7 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
 
 String SysManager::getMutableConfigJson()
 {
-    char jsonConfig[MAX_FRIENDLY_NAME_LENGTH + SERIAL_NUMBER_BYTES*2 + 40];
+    char jsonConfig[MAX_FRIENDLY_NAME_LENGTH + _serialLengthBytes*2 + 70];
     snprintf(jsonConfig, sizeof(jsonConfig), 
             R"({"friendlyName":"%s","nameSet":%d,"serialNo":"%s"})", 
                 _mutableConfigCache.friendlyName.c_str(), 
