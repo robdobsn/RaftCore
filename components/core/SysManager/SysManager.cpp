@@ -642,7 +642,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         }
 
         // Get formatted serial no
-        Raft::getHexStrFromBytes(serialNumBuf, _serialLengthBytes, _ricSerialNoStoredStr);
+        Raft::getHexStrFromBytes(serialNumBuf, _serialLengthBytes, _mutableConfigCache.serialNo);
 
         // Store the serial no
         String jsonConfig = getMutableConfigJson();
