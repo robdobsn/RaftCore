@@ -7,10 +7,11 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "RICRESTMsg.h"
-#include <CommsChannelMsg.h>
 #include <stdio.h>
-#include <RaftUtils.h>
+#include "RICRESTMsg.h"
+#include "CommsChannelMsg.h"
+#include "RaftUtils.h"
+#include "ESPUtils.h"
 
 // #define DEBUG_RICREST_MSG
 
@@ -19,12 +20,16 @@
 static const char* MODULE_PREFIX = "RICRESTMsg";
 #endif
 
+uint32_t RICRESTMsg::_maxRestBodySize = 0;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RICRESTMsg::RICRESTMsg()
 {
+    // Check if max length has been determined
+    computeMaxRestBodySize();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,8 +66,8 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
 
             // Set request
             uint32_t contentLen = len - RICREST_HEADER_PAYLOAD_POS;
-            if (contentLen > RICREST_MAX_PAYLOAD_LEN)
-                contentLen = RICREST_MAX_PAYLOAD_LEN;
+            if (contentLen > _maxRestBodySize)
+                contentLen = _maxRestBodySize;
             Raft::strFromBuffer(pBuf+RICREST_HEADER_PAYLOAD_POS, contentLen, _req);
             _binaryData.clear();
 
@@ -80,8 +85,8 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
 
             // Set payload
             uint32_t contentLen = len - RICREST_HEADER_PAYLOAD_POS;
-            if (contentLen > RICREST_MAX_PAYLOAD_LEN)
-                contentLen = RICREST_MAX_PAYLOAD_LEN;
+            if (contentLen > _maxRestBodySize)
+                contentLen = _maxRestBodySize;
             Raft::strFromBuffer(pBuf+RICREST_HEADER_PAYLOAD_POS, contentLen, _payloadJson);
             _binaryData.clear();
 
@@ -100,8 +105,8 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             const uint8_t* pEndStop = pBuf + len;
             _bufferPos = Raft::getBEUint32AndInc(pData, pEndStop);
             _totalBytes = Raft::getBEUint32AndInc(pData, pEndStop);
-            if (_totalBytes > MAX_REST_BODY_SIZE)
-                _totalBytes = MAX_REST_BODY_SIZE;
+            if (_totalBytes > _maxRestBodySize)
+                _totalBytes = _maxRestBodySize;
             if (_bufferPos > _totalBytes)
                 _bufferPos = 0;
             if (pData <= pEndStop)
@@ -128,8 +133,8 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
 
             // Check length
             uint32_t contentLen = terminatorFoundIdx < 0 ? len-RICREST_COMMAND_FRAME_PAYLOAD_POS : terminatorFoundIdx-RICREST_COMMAND_FRAME_PAYLOAD_POS;
-            if (contentLen > RICREST_MAX_PAYLOAD_LEN)
-                contentLen = RICREST_MAX_PAYLOAD_LEN;
+            if (contentLen > _maxRestBodySize)
+                contentLen = _maxRestBodySize;
             Raft::strFromBuffer(pBuf+RICREST_COMMAND_FRAME_PAYLOAD_POS, contentLen, _payloadJson);
 
             // Check for any binary element
@@ -210,7 +215,7 @@ void RICRESTMsg::encodeFileBlock(uint32_t filePos, const uint8_t* pBuf, uint32_t
 // Debug
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String RICRESTMsg::debugBinaryMsg(uint32_t maxBytesLen, bool includePayload)
+String RICRESTMsg::debugBinaryMsg(uint32_t maxBytesLen, bool includePayload) const
 {
     // Check if binary data
     if (!includePayload)
@@ -225,7 +230,7 @@ String RICRESTMsg::debugBinaryMsg(uint32_t maxBytesLen, bool includePayload)
     return " binLen: " + String(_binaryData.size()) + " bin: " + binaryStr;
 }
 
-String RICRESTMsg::debugMsg(uint32_t maxBytesLen, bool includePayload)
+String RICRESTMsg::debugMsg(uint32_t maxBytesLen, bool includePayload) const
 {
     String debugStr;
     switch (_RICRESTElemCode)
@@ -312,4 +317,18 @@ String RICRESTMsg::debugResp(const CommsChannelMsg& endpointMsg, uint32_t maxByt
            " msgNum: " + String(endpointMsg.getMsgNumber()) +
            " channelId: " + String(endpointMsg.getChannelID()) +
             debugStr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Compute maximum REST body size
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void RICRESTMsg::computeMaxRestBodySize()
+{
+    if (_maxRestBodySize == 0)
+    {
+        // Check if PSRAM is available
+        bool isPSRAM = utilsGetSPIRAMSize() > 0;
+        _maxRestBodySize = isPSRAM ? MAX_REST_BODY_SIZE_PSRAM : MAX_REST_BODY_SIZE_NO_PSRAM;
+    }
 }

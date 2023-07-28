@@ -61,7 +61,7 @@ void StreamDatagramProtocol::resetCounters(uint32_t fileStreamLength){
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+RaftRetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType,
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
@@ -74,7 +74,7 @@ RaftRetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsg
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
     LOG_I(MODULE_PREFIX, "handleCmdFrame req %s resp %s", ricRESTReqMsg.debugMsg().c_str(), respMsg.c_str());
 #endif
-    return RaftRetCode::RAFT_OK;
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -84,8 +84,8 @@ RaftRetCode StreamDatagramProtocol::handleCmdFrame(FileStreamBase::FileStreamMsg
 RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Check valid CB
-    if (!_fileStreamBlockWriteFnType)
-        return RaftRetCode::RAFT_INVALID_OBJECT;
+    if (!_fileStreamBlockWrite)
+        return RAFT_INVALID_OBJECT;
 
     // Handle the upload block
     uint32_t filePos = ricRESTReqMsg.getBufferPos();
@@ -103,7 +103,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
 #endif
 
     // Process the frame
-    RaftRetCode rslt = RaftRetCode::RAFT_POS_MISMATCH;
+    RaftRetCode rslt = RAFT_POS_MISMATCH;
     bool isFinalBlock = (_fileStreamLength != 0) && (filePos + bufferLen >= _fileStreamLength);
 
     bool isFirstBlock = (filePos == 0) && !_continuingStream;
@@ -126,7 +126,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
                             );
 
         // Call the callback
-        rslt = _fileStreamBlockWriteFnType(fileStreamBlock);
+        rslt = _fileStreamBlockWrite(fileStreamBlock);
 
         // Update stream position
         _streamPos = filePos + bufferLen;
@@ -145,7 +145,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
     }
 
     // This is a better never than late stream where packets may be dropped, but still tell the central of any issues
-    if ((rslt == RaftRetCode::RAFT_BUSY) || (rslt == RaftRetCode::RAFT_POS_MISMATCH))
+    if ((rslt == RAFT_BUSY) || (rslt == RAFT_POS_MISMATCH))
     {
         // Send a SOKTO which indicates where the stream was received up to
         char ackJson[100];
@@ -155,11 +155,11 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
         Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
 #ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
         LOG_I(MODULE_PREFIX, "handleDataFrame: %s streamID %d streamPos %d sokto %d retc %s", 
-                    rslt == RaftRetCode::RAFT_BUSY ? "BUSY" : "POS_MISMATCH", streamID, _streamPos, _streamPos,
+                    rslt == RAFT_BUSY ? "BUSY" : "POS_MISMATCH", streamID, _streamPos, _streamPos,
                     Raft::getRetCodeStr(rslt));
 #endif
     }
-    else if (rslt != RaftRetCode::RAFT_OK)
+    else if (rslt != RAFT_OK)
     {
         // Failure of the stream
         char errorMsg[100];

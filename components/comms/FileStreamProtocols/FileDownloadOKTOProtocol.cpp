@@ -318,9 +318,9 @@ bool FileDownloadOKTOProtocol::validateFileStreamStart(const String& fileName,
 
     // Get file CRC and length
     crc16Valid = false;
-    if (_fileStreamGetCRCCB)
+    if (_fileStreamGetCRC)
     {
-        RaftRetCode retc = _fileStreamGetCRCCB(crc16, fileSize);
+        RaftRetCode retc = _fileStreamGetCRC(crc16, fileSize);
         if (retc == RaftRetCode::RAFT_OK)
             crc16Valid = true;
     }

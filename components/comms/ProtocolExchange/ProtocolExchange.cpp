@@ -190,35 +190,9 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
     uint32_t msgProcStartTimeMs = millis();
 #endif
 
-#ifdef DEBUG_ENDPOINT_MESSAGES_DETAIL
-    String debugStr;
-    static const uint32_t MAX_DEBUG_BYTES_LEN = 40;
-    uint32_t numBytes = cmdMsg.getBufLen() > MAX_DEBUG_BYTES_LEN ? MAX_DEBUG_BYTES_LEN : cmdMsg.getBufLen();
-    Raft::getHexStrFromBytes(cmdMsg.getBuf(), numBytes, debugStr);
-    String msgNumStr;
-    if (cmdMsg.getMsgNumber() != 0)
-        msgNumStr = String(cmdMsg.getMsgNumber());
-    else
-        msgNumStr = "Unnumbered";
-    LOG_I(MODULE_PREFIX, "processEndpointMsg %s msgNum %s msgType %s len %d data %s%s", 
-            CommsChannelMsg::getProtocolAsString(protocol), 
-            msgNumStr.c_str(),
-            CommsChannelMsg::getMsgTypeAsString(cmdMsg.getMsgTypeCode()),
-            cmdMsg.getBufLen(),
-            debugStr.c_str(),
-            numBytes < cmdMsg.getBufLen() ? "..." : "");
-#elif defined(DEBUG_ENDPOINT_MESSAGES)
     // Debug
-    String msgNumStr;
-    if (cmdMsg.getMsgNumber() != 0)
-        msgNumStr = String(cmdMsg.getMsgNumber());
-    else
-        msgNumStr = "Unnumbered";
-    LOG_I(MODULE_PREFIX, "processEndpointMsg %s msgNum %s msgType %s len %d", 
-    		CommsChannelMsg::getProtocolAsString(protocol), 
-            msgNumStr.c_str(),
-            CommsChannelMsg::getMsgTypeAsString(cmdMsg.getMsgTypeCode()),
-    		cmdMsg.getBufLen());
+#if defined(DEBUG_ENDPOINT_MESSAGES) || defined(DEBUG_ENDPOINT_MESSAGES_DETAIL)
+    debugEndpointMessage(cmdMsg);
 #endif
 
     // Handle ROSSerial
@@ -232,16 +206,9 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
         RICRESTMsg ricRESTReqMsg;
         ricRESTReqMsg.decode(cmdMsg.getBuf(), cmdMsg.getBufLen());
 
-#ifdef DEBUG_RICREST_MESSAGES_DETAIL
         // Debug
-        static const uint32_t MAX_DEBUG_BYTES_LEN = 80;
-        String debugStr = ricRESTReqMsg.debugMsg(MAX_DEBUG_BYTES_LEN, true);
-        LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST elemCode %s len %d data %s", 
-                    RICRESTMsg::getRICRESTElemCodeStr(ricRESTReqMsg.getElemCode()), 
-                    cmdMsg.getBufLen(), debugStr.c_str());
-#elif defined(DEBUG_RICREST_MESSAGES)
-        LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST elemCode %s", 
-                    RICRESTMsg::getRICRESTElemCodeStr(ricRESTReqMsg.getElemCode()));
+#if defined(DEBUG_RICREST_MESSAGES) || defined(DEBUG_RICREST_MESSAGES_DETAIL)
+        debugRICRESTMessage(cmdMsg, ricRESTReqMsg);
 #endif
 
         // Check elemCode of message
@@ -290,15 +257,9 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
             // Send message on the appropriate channel
             getCommsCore()->outboundHandleMsg(endpointMsg);
 
-#ifdef DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL
             // Debug
-            static const uint32_t MAX_DEBUG_BYTES_LEN = 80;
-            LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST %s", 
-                        RICRESTMsg::debugResp(endpointMsg, MAX_DEBUG_BYTES_LEN, true).c_str());
-#elif defined(DEBUG_RICREST_MESSAGES_RESPONSE)
-            static const uint32_t MAX_DEBUG_BYTES_LEN = 10;
-            LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST %s", 
-                        RICRESTMsg::debugResp(endpointMsg, MAX_DEBUG_BYTES_LEN, false).c_str());
+#if defined(DEBUG_RICREST_MESSAGES_RESPONSE) || defined(DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL)
+            debugRICRESTResponse(endpointMsg);
 #endif
         }
     }
@@ -451,7 +412,7 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
 
     // Handle non-file-stream messages
     if (fileStreamMsgType == FileStreamBase::FILE_STREAM_MSG_TYPE_NONE)
-        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, endpointMsg) ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_INVALID_OBJECT;
+        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, endpointMsg) ? RAFT_OK : RAFT_INVALID_OBJECT;
 
     // ChannelID
     uint32_t channelID = endpointMsg.getChannelID();
@@ -624,7 +585,7 @@ FileStreamSession* ProtocolExchange::getFileStreamNewSession(const char* fileStr
 {
     // Check existing sessions
     FileStreamSession* pSession = findFileStreamSession(FileStreamBase::FILE_STREAM_ID_ANY, 
-                            fileStreamName, channelID);
+                        fileStreamName, channelID);
     if (pSession)
     {
         // If we find one then ignore this as it is a re-start of an existing session
@@ -718,16 +679,90 @@ RaftRetCode ProtocolExchange::handleFileUploadBlock(const String& req, FileStrea
                         sourceInfo.channelID, fileStreamContentType, restAPIEndpointName,
                         FileStreamBase::FILE_STREAM_FLOW_TYPE_HTTP_UPLOAD,
                         fileStreamBlock.fileLenValid ? fileStreamBlock.fileLen : fileStreamBlock.contentLen))
-            return RaftRetCode::RAFT_INSUFFICIENT_RESOURCE;
+            return RAFT_INSUFFICIENT_RESOURCE;
     }
 
     // Get the session
     FileStreamSession* pSession = getFileStreamExistingSession(fileStreamBlock.filename, sourceInfo.channelID, 
                     FileStreamBase::FILE_STREAM_ID_ANY);
     if (!pSession)
-        return RaftRetCode::RAFT_SESSION_NOT_FOUND;
+        return RAFT_SESSION_NOT_FOUND;
     
     // Handle the block
     return pSession->fileStreamBlockWrite(fileStreamBlock);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Debug endpoint message
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ProtocolExchange::debugEndpointMessage(const CommsChannelMsg &cmdMsg)
+{
+#ifdef DEBUG_ENDPOINT_MESSAGES_DETAIL
+    String debugStr;
+    static const uint32_t MAX_DEBUG_BYTES_LEN = 40;
+    uint32_t numBytes = cmdMsg.getBufLen() > MAX_DEBUG_BYTES_LEN ? MAX_DEBUG_BYTES_LEN : cmdMsg.getBufLen();
+    Raft::getHexStrFromBytes(cmdMsg.getBuf(), numBytes, debugStr);
+    String msgNumStr;
+    if (cmdMsg.getMsgNumber() != 0)
+        msgNumStr = String(cmdMsg.getMsgNumber());
+    else
+        msgNumStr = "Unnumbered";
+    LOG_I(MODULE_PREFIX, "processEndpointMsg %s msgNum %s msgType %s len %d data %s%s", 
+            CommsChannelMsg::getProtocolAsString(cmdMsg.getProtocol()), 
+            msgNumStr.c_str(),
+            CommsChannelMsg::getMsgTypeAsString(cmdMsg.getMsgTypeCode()),
+            cmdMsg.getBufLen(),
+            debugStr.c_str(),
+            numBytes < cmdMsg.getBufLen() ? "..." : "");
+#elif defined(DEBUG_ENDPOINT_MESSAGES)
+    // Debug
+    String msgNumStr;
+    if (cmdMsg.getMsgNumber() != 0)
+        msgNumStr = String(cmdMsg.getMsgNumber());
+    else
+        msgNumStr = "Unnumbered";
+    LOG_I(MODULE_PREFIX, "processEndpointMsg %s msgNum %s msgType %s len %d", 
+    		CommsChannelMsg::getProtocolAsString(cmdMsg.getProtocol()), 
+            msgNumStr.c_str(),
+            CommsChannelMsg::getMsgTypeAsString(cmdMsg.getMsgTypeCode()),
+    		cmdMsg.getBufLen());
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Debug RICREST message
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ProtocolExchange::debugRICRESTMessage(const CommsChannelMsg &cmdMsg, const RICRESTMsg& ricRESTReqMsg)
+{
+#ifdef DEBUG_RICREST_MESSAGES_DETAIL
+    // Debug
+    static const uint32_t MAX_DEBUG_BYTES_LEN = 80;
+    String debugStr = ricRESTReqMsg.debugMsg(MAX_DEBUG_BYTES_LEN, true);
+    LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST elemCode %s len %d data %s", 
+                RICRESTMsg::getRICRESTElemCodeStr(ricRESTReqMsg.getElemCode()), 
+                cmdMsg.getBufLen(), debugStr.c_str());
+#elif defined(DEBUG_RICREST_MESSAGES)
+    LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST elemCode %s", 
+                RICRESTMsg::getRICRESTElemCodeStr(ricRESTReqMsg.getElemCode()));
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Debug RICREST response
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ProtocolExchange::debugRICRESTResponse(const CommsChannelMsg &endpointMsg)
+{
+#ifdef DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL
+    // Debug
+    static const uint32_t MAX_DEBUG_BYTES_LEN = 80;
+    LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST %s", 
+                RICRESTMsg::debugResp(endpointMsg, MAX_DEBUG_BYTES_LEN, true).c_str());
+#elif defined(DEBUG_RICREST_MESSAGES_RESPONSE)
+    static const uint32_t MAX_DEBUG_BYTES_LEN = 10;
+    LOG_I(MODULE_PREFIX, "processEndpointMsg RICREST %s", 
+                RICRESTMsg::debugResp(endpointMsg, MAX_DEBUG_BYTES_LEN, false).c_str());
+#endif
+}

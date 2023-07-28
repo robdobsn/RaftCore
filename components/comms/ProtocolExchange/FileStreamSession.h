@@ -75,7 +75,7 @@ public:
                 const String& cmdName);
 
     // Handle command frame
-    RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+    RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType,
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg);
 

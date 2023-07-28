@@ -27,12 +27,12 @@ public:
     static String getDebugJson(bool includeOuterBrackets)
     {
         char outStr[100];
-        snprintf(outStr, sizeof(outStr), "[%d,%d,%d,%d,%d]", 
-            __loggerGlobalDebugValue0,
-            __loggerGlobalDebugValue1,
-            __loggerGlobalDebugValue2,
-            __loggerGlobalDebugValue3,
-            __loggerGlobalDebugValue4);
+        snprintf(outStr, sizeof(outStr), "[%ld,%ld,%ld,%ld,%ld]", 
+            (long)__loggerGlobalDebugValue0,
+            (long)__loggerGlobalDebugValue1,
+            (long)__loggerGlobalDebugValue2,
+            (long)__loggerGlobalDebugValue3,
+            (long)__loggerGlobalDebugValue4);
         if (includeOuterBrackets)
             return R"({"globs":)" + String(outStr) + "}";
         return outStr;

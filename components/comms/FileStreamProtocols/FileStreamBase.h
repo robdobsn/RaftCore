@@ -18,7 +18,6 @@ class CommsCoreIF;
 class SysModBase;
 class FileStreamBlock;
 class FileStreamBlockOwned;
-class APISourceInfo;
 class JSONParams;
 
 // File/stream callback function types

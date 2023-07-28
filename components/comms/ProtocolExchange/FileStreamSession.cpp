@@ -231,11 +231,10 @@ RaftRetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStreamMsgType 
 {
     // Check handler exists
     if (!_pFileStreamProtocolHandler)
-        return RaftRetCode::RAFT_INVALID_OBJECT;
+        return RAFT_INVALID_OBJECT;
 
     // Send to handler
-    RaftRetCode rslt = 
-            _pFileStreamProtocolHandler->handleCmdFrame(fsMsgType, ricRESTReqMsg, respMsg, endpointMsg);
+    RaftRetCode rslt = _pFileStreamProtocolHandler->handleCmdFrame(fsMsgType, ricRESTReqMsg, respMsg, endpointMsg);
 
     // Session may now be finished
     if (!_pFileStreamProtocolHandler->isActive())

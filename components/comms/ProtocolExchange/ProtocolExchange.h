@@ -18,7 +18,6 @@
 #include "FileStreamSession.h"
 
 class APISourceInfo;
-class commsCoreIF;
 
 class ProtocolExchange : public SysModBase
 {
@@ -83,4 +82,9 @@ private:
                     FileStreamBase::FileStreamContentType fileStreamContentType, const char* restAPIEndpointName,
                     FileStreamBase::FileStreamFlowType flowType, uint32_t fileStreamLength);
     FileStreamSession* getFileStreamExistingSession(const char* fileStreamName, uint32_t channelID, uint32_t streamID);
+
+    // Debug
+    void debugEndpointMessage(const CommsChannelMsg& msg);
+    void debugRICRESTMessage(const CommsChannelMsg &cmdMsg, const RICRESTMsg& ricRESTReqMsg);
+    void debugRICRESTResponse(const CommsChannelMsg &endpointMsg);
 };

@@ -31,7 +31,7 @@ public:
     void resetCounters(uint32_t fileStreamLength);
 
     // Handle command frame
-    virtual RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+    virtual RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType,
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg) override final;
 

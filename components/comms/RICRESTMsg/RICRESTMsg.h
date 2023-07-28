@@ -9,10 +9,10 @@
 
 #pragma once
 
+#include <vector>
 #include <Logger.h>
 #include <RaftArduino.h>
 #include <SpiramAwareAllocator.h>
-#include <vector>
 
 static const uint32_t RICREST_ELEM_CODE_POS = 0;
 static const uint32_t RICREST_HEADER_PAYLOAD_POS = 1;
@@ -25,9 +25,6 @@ static const uint32_t RICREST_FILEBLOCK_CHANNEL_POS = 0;
 static const uint32_t RICREST_FILEBLOCK_FILEPOS_POS = 1;
 static const uint32_t RICREST_FILEBLOCK_FILEPOS_POS_BYTES = 4;
 static const uint32_t RICREST_FILEBLOCK_PAYLOAD_POS = 5;
-
-// TODO - ensure this is long enough for all needs
-static const uint32_t RICREST_MAX_PAYLOAD_LEN = 5000;
 
 class CommsChannelMsg;
 
@@ -55,9 +52,27 @@ public:
             default: return "UNKNOWN";
         }
     }
-    static const uint32_t MAX_REST_BODY_SIZE = 5000;
+
+    // Maximum REST message lengths
+    static const uint32_t MAX_REST_BODY_SIZE_NO_PSRAM = 5000;
+    static const uint32_t MAX_REST_BODY_SIZE_PSRAM = 200000;
+    static uint32_t _maxRestBodySize;
+
+    // Constructor
     RICRESTMsg();
+
+    // Get maximum REST body size
+    static uint32_t getMaxRestBodySize()
+    {
+        // Ensure max length has been determined
+        computeMaxRestBodySize();
+        return _maxRestBodySize;
+    }
+
+    // Decode
     bool decode(const uint8_t* pBuf, uint32_t len);
+
+    // Encode
     static void encode(const String& payload, CommsChannelMsg& endpointMsg, RICRESTElemCode elemCode);
     static void encode(const uint8_t* pBuf, uint32_t len, CommsChannelMsg& endpointMsg, RICRESTElemCode elemCode);
     static void encodeFileBlock(uint32_t filePos, const uint8_t* pBuf, uint32_t len, 
@@ -101,12 +116,12 @@ public:
     }
 
     // Debug
-    String debugMsg(uint32_t maxBytesLen, bool includePayload);
+    String debugMsg(uint32_t maxBytesLen, bool includePayload) const;
     static String debugResp(const CommsChannelMsg& resp, uint32_t maxBytesLen, bool includePayload);
 
 private:
     // Debug binary
-    String debugBinaryMsg(uint32_t maxBytesLen, bool includePayload);
+    String debugBinaryMsg(uint32_t maxBytesLen, bool includePayload) const;
 
     // RICRESTElemCode
     RICRESTElemCode _RICRESTElemCode = RICREST_ELEM_CODE_URL;
@@ -114,8 +129,11 @@ private:
     // Parameters
     String _req;
     String _payloadJson;
-    uint32_t _bufferPos;
+    uint32_t _bufferPos = 0;
     uint32_t _totalBytes = 0;
     uint32_t _streamID = 0;
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _binaryData;
+
+    // Helpers
+    static void computeMaxRestBodySize();
 };
