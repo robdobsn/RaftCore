@@ -19,6 +19,7 @@
 #include "nvs_flash.h"
 #include "RaftArduino.h"
 #include "WiFiScanner.h"
+#include "NetCoreIF.h"
 #include "NetworkSettings.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -38,7 +39,7 @@
 #include "tcpip_adapter.h"
 #endif
 
-class NetworkSystem
+class NetworkSystem : public NetCoreIF
 {
 public:
     NetworkSystem();

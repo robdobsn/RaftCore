@@ -112,7 +112,7 @@ String RaftJson::getString(const char *dataPath,
     int startPos = 0, strLen = 0;
     isValid = getElement(dataPath, startPos, strLen, elemType, elemSize, pSourceStr);
     if (!isValid)
-        return defaultValue;
+        return defaultValue ? defaultValue : "";
 
     // Extract string
     String outStr;

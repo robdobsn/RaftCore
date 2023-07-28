@@ -256,6 +256,9 @@ private:
     // Serial no
     RaftRetCode apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
+    // Hardware (RIC) revision number
+    RaftRetCode apiHwRevisionNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+
     // SysMod info and debug
     RaftRetCode apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
     RaftRetCode apiGetSysModDebug(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);

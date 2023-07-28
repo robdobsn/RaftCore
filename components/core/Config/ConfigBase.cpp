@@ -3,7 +3,7 @@
 // ConfigBase
 // Base class of configuration classes
 //
-// Rob Dobson 2016-2022
+// Rob Dobson & Branislav Pilnan 2016-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -115,16 +115,19 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
     String rdJsonResult = RaftJson::getString(dataPath, defaultValue, pSourceStr, pPrefix);
-    if (!exists && !rdJsonResult.equals(defaultValue))
+    if (!exists && !rdJsonResult.equals(defaultValue ? defaultValue : ""))
     {
         // We are returning defaultValue when we should not
         LOG_W(MODULE_PREFIX, "getString(\"%s\", \"%s\") returned '%s' != '%s'",
-              dataPath, defaultValue, defaultValue, rdJsonResult.c_str());
+              dataPath, 
+              defaultValue ? defaultValue : "", 
+              defaultValue ? defaultValue : "",
+              rdJsonResult.c_str());
     }
 #endif
 
     if (!exists)
-        return defaultValue;
+        return defaultValue ? defaultValue : "";
 
     // Normalise whitespace
     char *pStr = RaftJson::safeStringDup(element.c_str(), element.length(),
@@ -139,7 +142,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
     if (!rdJsonResult.equals(element))
     {
         LOG_W(MODULE_PREFIX, "getString(\"%s\", \"%s\") returned '%s' != '%s'",
-              dataPath, defaultValue, element.c_str(), rdJsonResult.c_str());
+              dataPath, defaultValue ? defaultValue : "", element.c_str(), rdJsonResult.c_str());
     }
 #endif
 

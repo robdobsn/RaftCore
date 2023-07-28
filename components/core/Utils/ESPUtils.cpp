@@ -2,7 +2,7 @@
 //
 // ESPUtils
 //
-// Rob Dobson 2020-2022
+// Rob Dobson 2020-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -16,7 +16,6 @@
 #include "esp_task_wdt.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
-
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
 extern "C" {

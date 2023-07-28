@@ -13,6 +13,16 @@
 #include <RaftArduino.h>
 #include <RaftUtils.h>
 
+// TODO - decide on enabling this - or maybe it needs to be more sophisticated?
+// the idea is to avoid swamping the outbound queue with publish messages that end up either
+// blocking non-publish messages or result in publish messages being received which are already
+// stale
+// But enabling this simplistic check might mean that some publish messages are not sent at all
+// For instance if there is a rapid sequence of 2 publish messages and then a long pause
+// before repeating that pattern then the second message type will never be sent
+
+// #define SKIP_PUBLISHING_IF_OUTBOUND_QUEUE_NOT_EMPTY
+
 static const char* MODULE_PREFIX = "CommsMan";
 
 // #define WARN_ON_NO_CHANNEL_MATCH
@@ -454,6 +464,7 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
 #endif
     }
 
+#ifdef SKIP_PUBLISHING_IF_OUTBOUND_QUEUE_NOT_EMPTY
     // Skip publishing if there is another message in the queue
     else if (pChannel->outboundQueuedCount() > 0)
     {
@@ -462,6 +473,8 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
             LOG_I(MODULE_PREFIX, "handleOutboundMessage PUBLISH IGNORED while other msg waiting");
 #endif
     }
+#endif
+
     else
     {
             // TODO - maybe on callback thread here so make sure this is ok!!!!

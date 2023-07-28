@@ -7,10 +7,10 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <RaftUtils.h>
-#include <RaftJson.h>
-#include <RestAPIEndpointManager.h>
-#include <SysTypeManager.h>
+#include "SysTypeManager.h"
+#include "RaftJson.h"
+#include "RestAPIEndpointManager.h"
+#include "RaftUtils.h"
 
 static const char* MODULE_PREFIX = "SysTypeManager";
 
@@ -296,7 +296,7 @@ RaftRetCode SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, con
         _lastPostResultOk = setSysSettings(pData, len);
         LOG_I(MODULE_PREFIX, "apiSysTypePostSettingsBody oneblock rslt %s len %d index %d total %d curBufLen %d", 
                     _lastPostResultOk ? "OK" : "FAIL", len, index, total, _postResultBuf.size());
-        return RaftRetCode::RAFT_OK;
+        return RAFT_OK;
     }
 
     // Check if first block
@@ -320,7 +320,7 @@ RaftRetCode SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, con
         LOG_I(MODULE_PREFIX, "apiSysTypePostSettingsBody partial len %d index %d total %d curBufLen %d", 
             len, index, total, _postResultBuf.size());
     }
-    return RaftRetCode::RAFT_OK;
+    return RAFT_OK;
 }
 
 RaftRetCode SysTypeManager::apiSysTypeClearSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)

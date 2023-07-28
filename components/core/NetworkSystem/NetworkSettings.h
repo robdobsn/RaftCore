@@ -23,7 +23,7 @@ public:
         ETH_CHIP_TYPE_LAN87XX
     };
 
-    void setFromConfig(ConfigBase& config, const char* pDefaultHostname, const char* pPrefix = nullptr)
+    void setFromConfig(ConfigBase& config, const String& defaultHostnameIn, const char* pPrefix = nullptr)
     {
         // Extract enables from config
         enableWifiSTAMode = config.getBool("wifiSTAEn", false, pPrefix) || 
@@ -41,7 +41,7 @@ public:
         wifiAPChannel = config.getLong("wifiAPChannel", 1, pPrefix);
 
         // Hostname
-        defaultHostname = config.getString("defaultHostname", pDefaultHostname, pPrefix);
+        defaultHostname = config.getString("defaultHostname", defaultHostnameIn, pPrefix);
 
         // Ethernet settings
         ethLanChip = getChipEnum(config.getString("ethLanChip", "", pPrefix));
@@ -52,8 +52,8 @@ public:
         phyRstPin = config.getLong("ethPhyRstPin", config.getLong("EthPhyRstPin", -1, pPrefix), pPrefix);
 
         // NTP settings
-        ntpServer = config.getString("NTPServer", "pool.ntp.org");
-        timezone = config.getString("timezone", 0);
+        ntpServer = config.getString("NTPServer", "pool.ntp.org", pPrefix);
+        timezone = config.getString("timezone", "UTC", pPrefix);
     }
 
     // Enables

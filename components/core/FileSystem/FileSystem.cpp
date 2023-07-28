@@ -129,7 +129,7 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     esp_err_t ret = ESP_FAIL;
 #ifdef FEATURE_LITTLEFS_SUPPORT
     if (_localFSIsLittleFS)
-        ret = esp_littlefs_format(NULL);
+        ret = esp_littlefs_format(LOCAL_FILE_SYSTEM_PARTITION_LABEL);
     else
 #endif
         ret = esp_spiffs_format(NULL);

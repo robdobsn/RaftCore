@@ -214,7 +214,7 @@ String ConfigNVS::getString(const char *dataPath, const char *defaultValue, cons
         return ConfigBase::getString(dataPath, defaultValue, pPrefix);
     if (_pStaticConfig)
         return _helperGetString(dataPath, defaultValue, _pStaticConfig, pPrefix);
-    return defaultValue;
+    return defaultValue ? defaultValue : "";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
