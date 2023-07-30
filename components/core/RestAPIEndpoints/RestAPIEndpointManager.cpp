@@ -147,14 +147,14 @@ RestAPIEndpoint* RestAPIEndpointManager::getMatchingEndpoint(const char *request
 // Handle simple REST API request
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RestAPIEndpointManager::handleApiRequest(const char *requestStr, String &retStr, const APISourceInfo& sourceInfo)
+RaftRetCode RestAPIEndpointManager::handleApiRequest(const char *requestStr, String &retStr, const APISourceInfo& sourceInfo)
 {
     // Get matching def
     RestAPIEndpoint* pEndpoint = getMatchingEndpoint(requestStr);
 
     // Check valid
     if (!pEndpoint)
-        return false;
+        return RAFT_INVALID_DATA;
 
     // Call endpoint
     String reqStr(requestStr);
@@ -162,7 +162,7 @@ bool RestAPIEndpointManager::handleApiRequest(const char *requestStr, String &re
 #ifdef DEBUG_HANDLE_API_REQUEST_AND_RESPONSE
     LOG_W(MODULE_PREFIX, "handleApiRequest %s resp %s channelID %d", requestStr, retStr.c_str(), sourceInfo.channelID);
 #endif
-    return true;
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

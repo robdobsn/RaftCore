@@ -46,7 +46,7 @@ public:
     RestAPIEndpoint *getEndpoint(const char *pEndpointStr);
 
     // Handle an API request
-    bool handleApiRequest(const char *requestStr, String &retStr, const APISourceInfo& sourceInfo);
+    RaftRetCode handleApiRequest(const char *requestStr, String &retStr, const APISourceInfo& sourceInfo);
 
     // Get matching endpoint def
     RestAPIEndpoint* getMatchingEndpoint(const char *requestStr,

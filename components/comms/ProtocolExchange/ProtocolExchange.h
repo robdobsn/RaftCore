@@ -66,14 +66,14 @@ private:
     // Process endpoint message
     bool canProcessEndpointMsg();
     bool processEndpointMsg(CommsChannelMsg& msg);
-    bool processRICRESTURL(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo);
-    bool processRICRESTBody(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo);
-    bool processRICRESTCmdRespJSON(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+    RaftRetCode processRICRESTURL(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo);
+    RaftRetCode processRICRESTBody(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo);
+    RaftRetCode processRICRESTCmdRespJSON(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const APISourceInfo& sourceInfo);
     RaftRetCode processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                         const CommsChannelMsg &endpointMsg);
     RaftRetCode processRICRESTFileStreamBlock(const RICRESTMsg& ricRESTReqMsg, String& respMsg, CommsChannelMsg &cmdMsg);
-    bool processRICRESTNonFileStream(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+    RaftRetCode processRICRESTNonFileStream(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg);
 
     // File/stream session handling

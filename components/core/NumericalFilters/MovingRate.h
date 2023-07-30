@@ -83,4 +83,3 @@ private:
     input_t _values[N] = {};
     unsigned long _timestampsMs[N] = {};
 };
-

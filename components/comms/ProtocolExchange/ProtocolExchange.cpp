@@ -217,7 +217,7 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
         {
             case RICRESTMsg::RICREST_ELEM_CODE_URL:
             {
-                rslt = processRICRESTURL(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
+                rslt = processRICRESTURL(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID())) == RAFT_OK;
                 if (!rslt && respMsg.isEmpty())
                 {
                     Raft::setJsonErrorResult(ricRESTReqMsg.getReq().c_str(), respMsg, "API not found");
@@ -226,12 +226,12 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
             }
             case RICRESTMsg::RICREST_ELEM_CODE_BODY:
             {
-                rslt = processRICRESTBody(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
+                rslt = processRICRESTBody(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID())) == RAFT_OK;
                 break;
             }
             case RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON:
             {
-                rslt = processRICRESTCmdRespJSON(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID()));
+                rslt = processRICRESTCmdRespJSON(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID())) == RAFT_OK;
                 break;
             }
             case RICRESTMsg::RICREST_ELEM_CODE_COMMAND_FRAME:
@@ -343,19 +343,19 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
 // Process RICRESTMsg URL
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ProtocolExchange::processRICRESTURL(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo)
+RaftRetCode ProtocolExchange::processRICRESTURL(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo)
 {
     // Handle via standard REST API
     if (getRestAPIEndpointManager())
         return getRestAPIEndpointManager()->handleApiRequest(ricRESTReqMsg.getReq().c_str(), respMsg, sourceInfo);
-    return false;
+    return RAFT_NOT_IMPLEMENTED;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Process RICRESTMsg URL
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ProtocolExchange::processRICRESTBody(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo)
+RaftRetCode ProtocolExchange::processRICRESTBody(RICRESTMsg& ricRESTReqMsg, String& respMsg, const APISourceInfo& sourceInfo)
 {
     // NOTE - implements POST for RICREST - not currently needed
 
@@ -381,18 +381,18 @@ bool ProtocolExchange::processRICRESTBody(RICRESTMsg& ricRESTReqMsg, String& res
 //     LOG_I(MODULE_PREFIX, "addCommand restBody binBufLen %d bufferPos %d totalBytes %d", 
 //                 bufferLen, bufferPos, totalBytes);
 // // #endif
-    return false;
+    return RAFT_NOT_IMPLEMENTED;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Process RICRESTMsg CmdRespJSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ProtocolExchange::processRICRESTCmdRespJSON(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
+RaftRetCode ProtocolExchange::processRICRESTCmdRespJSON(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const APISourceInfo& sourceInfo)
 {
     // Not currently used
-    return false;
+    return RAFT_NOT_IMPLEMENTED;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -412,7 +412,7 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
 
     // Handle non-file-stream messages
     if (fileStreamMsgType == FileStreamBase::FILE_STREAM_MSG_TYPE_NONE)
-        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, endpointMsg) ? RAFT_OK : RAFT_INVALID_OBJECT;
+        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, endpointMsg);
 
     // ChannelID
     uint32_t channelID = endpointMsg.getChannelID();
@@ -526,7 +526,7 @@ RaftRetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICRESTMsg& ri
 // Process RICRESTMsg CmdFrame that are non-file-stream messages
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ProtocolExchange::processRICRESTNonFileStream(const String& cmdName, 
+RaftRetCode ProtocolExchange::processRICRESTNonFileStream(const String& cmdName, 
                 RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
@@ -541,7 +541,7 @@ bool ProtocolExchange::processRICRESTNonFileStream(const String& cmdName,
     if (getRestAPIEndpointManager())
         return getRestAPIEndpointManager()->handleApiRequest(reqStr.c_str(), 
                             respMsg, APISourceInfo(endpointMsg.getChannelID()));
-    return false;
+    return RAFT_INVALID_OBJECT;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
