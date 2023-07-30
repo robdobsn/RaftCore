@@ -74,11 +74,7 @@ public:
     void clear()
     {
         _headIdx = 0;
-        for (uint32_t i = 0; i < N; i++)
-        {
-            _values[i] = 0;
-            _timestampsMs[i] = 0;
-        }
+        _usedSlots = 0;
     }
 
 private:
