@@ -510,7 +510,7 @@ RaftRetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICRESTMsg& ri
     if (!pSession)
     {
         LOG_W(MODULE_PREFIX, "processRICRESTFileStreamBlock session not found for streamID %d", streamID);
-        RaftRetCode rslt = RaftRetCode::RAFT_SESSION_NOT_FOUND;
+        RaftRetCode rslt = RAFT_SESSION_NOT_FOUND;
         char errorMsg[100];
         snprintf(errorMsg, sizeof(errorMsg), "\"streamID\":%d,\"reason\":\"%s\"", 
                             (int)streamID, Raft::getRetCodeStr(rslt));

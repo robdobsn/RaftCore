@@ -69,13 +69,14 @@ public:
         return _ethIPV4Addr;
     }
 
+    // Hostname
     String getHostname()
     {
         return _hostname;
     }
-
     void setHostname(const char* hostname);
 
+    // SSID
     String getSSID()
     {
         return _wifiStaSSID;

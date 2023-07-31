@@ -422,7 +422,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
         }
     }
 #ifdef DEBUG_FILE_STREAM_BLOCK
-    LOG_I(MODULE_PREFIX, "fileStreamBlockWrite write finished, time %dms, handledOk: %s", (millis() - _sessionLastActiveMs), RaftRetCode::RAFT_getRetcStr(handledOk));
+    LOG_I(MODULE_PREFIX, "fileStreamBlockWrite write finished, time %dms, handledOk: %s", (millis() - _sessionLastActiveMs), Raft::getRetCodeStr(handledOk));
 #endif
 
     // Check handled ok

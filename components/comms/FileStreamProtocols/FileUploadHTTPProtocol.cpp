@@ -46,7 +46,7 @@ void FileUploadHTTPProtocol::service()
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 
+RaftRetCode FileUploadHTTPProtocol::handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType,
                 const RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
