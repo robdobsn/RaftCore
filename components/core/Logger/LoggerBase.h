@@ -13,6 +13,9 @@
 #include "esp_log.h"
 #include "ConfigBase.h"
 
+// #define LOGGING_FUNCTION_DECORATOR
+#define LOGGING_FUNCTION_DECORATOR IRAM_ATTR
+
 class LoggerBase
 {
 public:
@@ -24,7 +27,7 @@ public:
     virtual ~LoggerBase()
     {
     }
-    virtual void IRAM_ATTR log(esp_log_level_t level, const char *tag, const char* msg) = 0;
+    virtual void LOGGING_FUNCTION_DECORATOR log(esp_log_level_t level, const char *tag, const char* msg) = 0;
 
     const char* getLoggerType()
     {
