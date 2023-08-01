@@ -16,7 +16,13 @@ class FileUploadOKTOProtocol : public FileStreamBase
 {
 public:
     // Consts
-    static const uint32_t FIRST_MSG_TIMEOUT_MS = 5000;
+    static const uint32_t FIRST_MSG_TIMEOUT_MS = 
+#ifdef IMPLEMENT_RAFT_UPLOAD_OKTO_FIRST_MSG_TIMOUT_MS
+        IMPLEMENT_RAFT_UPLOAD_OKTO_FIRST_MSG_TIMOUT_MS;
+#else
+        5000;
+#endif
+
     static const uint32_t BLOCK_MSGS_TIMEOUT_MS = 1000;
     static const uint32_t MAX_BATCH_BLOCK_ACK_RETRIES = 5;
     static const uint32_t FILE_BLOCK_SIZE_MIN = 20;

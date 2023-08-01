@@ -14,9 +14,6 @@
 #include <RaftJson.h>
 #include <SpiramAwareAllocator.h>
 
-// TODO - determine if this has a positive impact on memory use or has some unknown negative impact
-// #define IMPLEMENT_USE_PSRAM_FOR_PROTOCOL_RAW_MSG
-
 class ProtocolRawMsg
 {
 public:
@@ -62,19 +59,19 @@ public:
     {
         return _cmdVector.size();
     }
-#ifdef IMPLEMENT_USE_PSRAM_FOR_PROTOCOL_RAW_MSG
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& getCmdVector()
-#else
+#ifdef IMPLEMENT_NO_PSRAM_FOR_PROTOCOL_RAW_MSG
     std::vector<uint8_t>& getCmdVector()
+#else
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& getCmdVector()
 #endif
     {
         return _cmdVector;
     }
 
 private:
-#ifdef IMPLEMENT_USE_PSRAM_FOR_PROTOCOL_RAW_MSG
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _cmdVector;
-#else
+#ifdef IMPLEMENT_NO_PSRAM_FOR_PROTOCOL_RAW_MSG
     std::vector<uint8_t> _cmdVector;
+#else
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _cmdVector;
 #endif
 };

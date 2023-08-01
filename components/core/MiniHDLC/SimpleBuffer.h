@@ -11,16 +11,13 @@
 #include <vector>
 #include <SpiramAwareAllocator.h>
 
-// TODO - determine if this has a positive impact on memory use or has some unknown negative impact
-// #define IMPLEMENT_USE_PSRAM_FOR_HDLC_BUFFERS
-
 class SimpleBuffer
 {
 public:
-#ifdef IMPLEMENT_USE_PSRAM_FOR_HDLC_BUFFERS
-    static const unsigned DEFAULT_MAX_LEN = 200000;
-#else
+#ifdef IMPLEMENT_NO_PSRAM_FOR_HDLC_BUFFERS
     static const unsigned DEFAULT_MAX_LEN = 5000;
+#else
+    static const unsigned DEFAULT_MAX_LEN = 200000;
 #endif
     SimpleBuffer(unsigned maxFrameLen = DEFAULT_MAX_LEN)
     {
@@ -79,10 +76,10 @@ public:
     }
 
 private:
-#ifdef IMPLEMENT_USE_PSRAM_FOR_HDLC_BUFFERS
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _buffer;
-#else
+#ifdef IMPLEMENT_NO_PSRAM_FOR_HDLC_BUFFERS
     std::vector<uint8_t> _buffer;
+#else
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _buffer;
 #endif
     unsigned _bufMaxLen;
 };

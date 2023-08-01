@@ -11,6 +11,9 @@
 #include "esp_log.h"
 #include "esp_attr.h"
 
+// #define LOGGING_FUNCTION_DECORATOR
+#define LOGGING_FUNCTION_DECORATOR IRAM_ATTR
+
 #ifdef __cplusplus
 extern "C" {
 #endif

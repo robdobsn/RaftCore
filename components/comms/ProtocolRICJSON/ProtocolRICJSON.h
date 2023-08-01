@@ -9,9 +9,6 @@
 
 #pragma once
 
-// TODO - determine if this has a positive impact on memory use or has some unknown negative impact
-// #define IMPLEMENT_USE_PSRAM_FOR_RIC_JSON
-
 #include <Logger.h>
 #include <ProtocolBase.h>
 #include <SpiramAwareAllocator.h>
@@ -40,10 +37,10 @@ public:
                     uint32_t& msgProtocolCode, uint32_t& msgTypeCode, uint32_t& payloadStartPos);
 
     virtual void encodeTxMsgAndSend(CommsChannelMsg& msg) override final;
-#ifdef IMPLEMENT_USE_PSRAM_FOR_RIC_JSON
-    static void encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg);
-#else
+#ifdef IMPLEMENT_NO_PSRAM_FOR_RIC_JSON
     static void encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg);
+#else
+    static void encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg);
 #endif
 
     virtual const char* getProtocolName() override final

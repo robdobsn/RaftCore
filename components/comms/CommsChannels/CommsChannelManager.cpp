@@ -21,7 +21,7 @@
 // For instance if there is a rapid sequence of 2 publish messages and then a long pause
 // before repeating that pattern then the second message type will never be sent
 
-// #define IMPLEMENT_SKIP_PUBLISHING_IF_OUTBOUND_QUEUE_NOT_EMPTY
+// #define IMPLEMENT_PUBLISH_EVEN_IF_OUTBOUND_QUEUE_NOT_EMPTY
 
 static const char* MODULE_PREFIX = "CommsMan";
 
@@ -464,7 +464,7 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
 #endif
     }
 
-#ifdef IMPLEMENT_SKIP_PUBLISHING_IF_OUTBOUND_QUEUE_NOT_EMPTY
+#ifndef IMPLEMENT_PUBLISH_EVEN_IF_OUTBOUND_QUEUE_NOT_EMPTY
     // Skip publishing if there is another message in the queue
     else if (pChannel->outboundQueuedCount() > 0)
     {

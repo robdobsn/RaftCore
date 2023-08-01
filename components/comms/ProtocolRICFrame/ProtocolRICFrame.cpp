@@ -11,9 +11,6 @@
 #include <CommsChannelMsg.h>
 #include <ConfigBase.h>
 
-// TODO - determine if this has a positive impact on memory use or has some unknown negative impact
-// #define IMPLEMENT_USE_PSRAM_FOR_RIC_FRAME_ENCODING
-
 // Debug
 // #define DEBUG_PROTOCOL_RIC_FRAME
 // #define DEBUG_CONSTRUCTOR
@@ -142,10 +139,10 @@ void ProtocolRICFrame::encodeTxMsgAndSend(CommsChannelMsg& msg)
     }
 
     // Encode
-#ifdef IMPLEMENT_USE_PSRAM_FOR_RIC_FRAME_ENCODING
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricFrameMsg;
-#else
+#ifdef IMPLEMENT_NO_PSRAM_FOR_RIC_FRAME_ENCODING
     std::vector<uint8_t> ricFrameMsg;
+#else
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricFrameMsg;
 #endif
     encode(msg, ricFrameMsg);
     msg.setFromBuffer(ricFrameMsg.data(), ricFrameMsg.size());

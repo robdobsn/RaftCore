@@ -130,7 +130,12 @@ private:
 
     // Session idle handler
     uint32_t _sessionLastActiveMs;
-    static const uint32_t MAX_SESSION_IDLE_TIME_MS = 10000;
+    static const uint32_t MAX_SESSION_IDLE_TIME_MS = 
+#ifdef IMPLEMENT_FILE_STREAM_SESSION_IDLE_TIMEOUT
+                IMPLEMENT_FILE_STREAM_SESSION_IDLE_TIMEOUT;
+#else
+    10000;
+#endif
 
     // Stats
     uint32_t _startTimeMs;

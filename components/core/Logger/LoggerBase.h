@@ -12,9 +12,7 @@
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "ConfigBase.h"
-
-// #define LOGGING_FUNCTION_DECORATOR
-#define LOGGING_FUNCTION_DECORATOR IRAM_ATTR
+#include "Logger.h"
 
 class LoggerBase
 {

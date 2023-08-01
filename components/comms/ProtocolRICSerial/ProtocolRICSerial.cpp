@@ -121,8 +121,6 @@ void ProtocolRICSerial::addRxData(const uint8_t* pData, uint32_t dataLen)
 // addRxData
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #define USE_HDLC_BYTEWISE_SEND
-
 void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 {
 #ifdef DEBUG_PROTOCOL_RIC_SERIAL_ENCODE
@@ -132,7 +130,7 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
     // Add to HDLC
     if (_pHDLC)
     {
-#ifdef USE_HDLC_BYTEWISE_SEND
+#ifdef IMPLEMENT_USE_SLOWER_HDLC_BYTEWISE_SEND
         CommsChannelMsg& encodedMsg = msg;
         // Create the message
         std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricSerialMsg;
