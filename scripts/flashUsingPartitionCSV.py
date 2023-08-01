@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Script to flash firmware elements to ESP32 using partitions.csv as the guide
 # to where to flash each element.
-# Rob Dobson 2021-2022
+# Rob Dobson 2021-2023
 import argparse
 import csv
 import logging

@@ -93,7 +93,7 @@ RaftRetCode StreamDatagramProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
     uint32_t bufferLen = ricRESTReqMsg.getBinLen();
     uint32_t streamID = ricRESTReqMsg.getStreamID();
 
-#ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL
+#ifdef DEBUG_STREAM_DATAGRAM_PROTOCOL_DETAIL
     LOG_I(MODULE_PREFIX, "handleDataFrame %s dataLen %d msgPos %d expectedPos %d streamID %d", 
             _streamPos == filePos ? "OK" : "BAD STREAM POS",
             bufferLen, filePos, _streamPos, streamID);
