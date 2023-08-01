@@ -5,7 +5,7 @@ CMD ?= idf.py -B ./build build
 
 all: build
 
-build: Makefile $(wildcard main/*) $(wildcard components/core/*)
+build: Makefile $(wildcard ./*) $(wildcard components/core/*)
 	$(DOCKER) $(CMD)
 
 clean:

@@ -9,6 +9,7 @@
 #include "LoggerCore.h"
 #include "RaftArduino.h"
 #include <SpiramAwareAllocator.h>
+#include "Logger.h"
 
 LoggerCore loggerCore;
 
