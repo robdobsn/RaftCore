@@ -15,9 +15,8 @@
 #include "LEDStripConfig.h"
 #include "LEDStripEncoder.h"
 
-#define LEDSTRIP_USE_LEGACY_RMT ((ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)) && !defined(IDF_USE_LEGACY_RMT))
-
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+// Note that this #define is set in LEDStripEncoder.h
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
 #include <driver/rmt.h>
 #else
 #include "driver/rmt_tx.h"
@@ -37,7 +36,7 @@ public:
 
 private:
 
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
     // Bits per led cmd
     static const int WS2812_BITS_PER_LED_CMD = 24;
 

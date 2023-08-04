@@ -5,9 +5,12 @@
  */
 #pragma once
 
-#define LEDSTRIP_USE_LEGACY_RMT ((ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)) && !defined(IDF_USE_LEGACY_RMT))
+#include "esp_idf_version.h"
+#if ((ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)) || defined(IMPLEMENT_USE_LEGACY_RMT_APIS))
+#define LED_STRIP_USE_LEGACY_RMT_APIS
+#endif
 
-#ifndef LEDSTRIP_USE_LEGACY_RMT
+#ifndef LED_STRIP_USE_LEGACY_RMT_APIS
 
 #include <stdint.h>
 #include "driver/rmt_encoder.h"
@@ -45,4 +48,4 @@ esp_err_t rmt_new_led_strip_encoder(const led_strip_encoder_config_t *config, rm
 }
 #endif
 
-#endif // LEDSTRIP_USE_LEGACY_RMT
+#endif // LED_STRIP_USE_LEGACY_RMT_APIS

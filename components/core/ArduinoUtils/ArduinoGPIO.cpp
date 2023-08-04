@@ -11,7 +11,12 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "esp_idf_version.h"
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+
+#if ((ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)) || defined(IMPLEMENT_USE_LEGACY_ANALOG_APIS))
+#define ARDUINO_GPIO_USE_LEGACY_ANALOG_APIS
+#endif
+
+#ifdef ARDUINO_GPIO_USE_LEGACY_ANALOG_APIS
 #include "driver/adc.h"
 #else
 #include "esp_adc/adc_oneshot.h"
@@ -109,7 +114,7 @@ extern "C" int IRAM_ATTR __digitalRead(uint8_t pin)
 extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
 {
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 1, 0)
+#ifdef ARDUINO_GPIO_USE_LEGACY_ANALOG_APIS
     // Convert pin to adc channel
     // Only handles channel 1 (channel 2 generally available when WiFi used)
     adc1_channel_t analogChan = ADC1_CHANNEL_0;

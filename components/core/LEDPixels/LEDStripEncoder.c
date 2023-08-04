@@ -9,7 +9,7 @@
 #include "esp_check.h"
 #include "LEDStripEncoder.h"
 
-#ifndef LEDSTRIP_USE_LEGACY_RMT
+#ifndef LED_STRIP_USE_LEGACY_RMT_APIS
 
 static const char *TAG = "ESPRMTLEDEncoder";
 
@@ -127,4 +127,4 @@ err:
     return ret;
 }
 
-#endif // LEDSTRIP_USE_LEGACY_RMT
+#endif // LED_STRIP_USE_LEGACY_RMT_APIS

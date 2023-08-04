@@ -40,7 +40,7 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& ledStripConfig)
         return true;
     }
 
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
 
     // Release previous buffers and driver if required
     _isSetup = false;
@@ -206,7 +206,7 @@ esp_err_t ESP32RMTLedStrip::showFromBuffer()
     if (!_isSetup)
         return ESP_FAIL;
 
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
     // Transmit the data
     writeAsync();
     esp_err_t err = rmt_wait_tx_done(_rmtChannel, portMAX_DELAY);
@@ -249,7 +249,7 @@ void ESP32RMTLedStrip::clear()
 
 void ESP32RMTLedStrip::releaseResources()
 {
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
     // Uninstall driver
     if (_driverInstalled)
         rmt_driver_uninstall(_rmtChannel);
@@ -291,7 +291,7 @@ void ESP32RMTLedStrip::setPixelColor(uint32_t ledIdx, Raft::RGBValue rgbValue)
 // Legacy RMT set wave buffer
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
 
 // These values are determined by measuring pulse timing with a logic
 // analyzer and adjusting accordingly to match the WS2812 datasheet
@@ -321,7 +321,7 @@ void ESP32RMTLedStrip::setWaveBufferAtPos(uint32_t ledIdx, uint32_t ledValue)
 // from newState to a per-bit waveform description
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
 void ESP32RMTLedStrip::fillWaveBuffer()
 {
     for (uint32_t rawBufPos = 0, pixelIdx = 0; rawBufPos < _numPixels; rawBufPos += 3, pixelIdx += 1)
@@ -336,7 +336,7 @@ void ESP32RMTLedStrip::fillWaveBuffer()
 // Update the LEDs to the new state. Call as needed - does not block, so be aware of timing
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef LEDSTRIP_USE_LEGACY_RMT
+#ifdef LED_STRIP_USE_LEGACY_RMT_APIS
 bool ESP32RMTLedStrip::writeAsync()
 {
     // TODO
