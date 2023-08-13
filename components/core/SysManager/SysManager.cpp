@@ -39,6 +39,7 @@ static const char *MODULE_PREFIX = "SysMan";
 #define INCLUDE_PROTOCOL_FILE_UPLOAD_IN_STATS
 
 // Debug
+// #define DEBUG_SYSMOD_MEMORY_USAGE
 // #define DEBUG_LIST_SYSMODS
 // #define DEBUG_SYSMOD_WITH_GLOBAL_VALUE
 // #define DEBUG_SEND_CMD_JSON_PERF
@@ -166,8 +167,16 @@ void SysManager::setup()
     // Now call setup on system modules
     for (SysModBase* pSysMod : _sysModuleList)
     {
+#ifdef DEBUG_SYSMOD_MEMORY_USAGE
+        uint32_t heapBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+#endif
         if (pSysMod)
             pSysMod->setup();
+#ifdef DEBUG_SYSMOD_MEMORY_USAGE
+        uint32_t heapAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        ESP_LOGI(MODULE_PREFIX, "%s setup heap before %d after %d diff %d", 
+                pSysMod->modName(), heapBefore, heapAfter, heapBefore - heapAfter);
+#endif
     }
 
     // Give each SysMod the opportunity to add endpoints and comms channels and to keep a
