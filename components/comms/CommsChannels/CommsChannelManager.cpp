@@ -609,7 +609,8 @@ String CommsChannelManager::getInfoJSON()
 // Register a comms bridge
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t CommsChannelManager::bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, uint32_t otherChannelID)
+uint32_t CommsChannelManager::bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, 
+            uint32_t otherChannelID, uint32_t idleCloseSecs)
 {
     // Check if bridge already exists between required channels
     for (auto it = _bridgeList.begin(); it != _bridgeList.end(); ++it)
@@ -629,12 +630,14 @@ uint32_t CommsChannelManager::bridgeRegister(const char* bridgeName, uint32_t es
     uint32_t bridgeID = _bridgeIDCounter++;
 
     // Create a bridge
-    CommsChannelBridge bridge(bridgeName, bridgeID, establishmentChannelID, otherChannelID);
+    CommsChannelBridge bridge(bridgeName, bridgeID, establishmentChannelID, otherChannelID, idleCloseSecs);
     _bridgeList.push_back(bridge);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "registerBridge bridgeName %s bridgeID %d estChanID %d otherChanID %d", bridgeName, (int)bridgeID, 
-                (int)establishmentChannelID, (int)otherChannelID);
+    LOG_I(MODULE_PREFIX, "registerBridge bridgeName %s bridgeID %d estChanID %d otherChanID %d idleCloseSecs %d", 
+                bridgeName, (int)bridgeID, 
+                (int)establishmentChannelID, (int)otherChannelID,
+                (int)idleCloseSecs);
 
     // Return bridge ID
     return bridgeID;
@@ -747,7 +750,7 @@ void CommsChannelManager::bridgeService()
     for (auto it = _bridgeList.begin(); it != _bridgeList.end(); ++it)
     {
         // Check if bridge is not used for a while
-        if (Raft::isTimeout(millis(), it->lastMsgTimeMs, BRIDGE_CLOSE_TIMEOUT_MS))
+        if (Raft::isTimeout(millis(), it->lastMsgTimeMs, it->idleCloseSecs == 0 ? DEFAULT_BRIDGE_CLOSE_TIMEOUT_MS : it->idleCloseSecs * 1000))
         {
             // Debug
             LOG_I(MODULE_PREFIX, "bridgeService idle bridgeID %d estChanID %d otherChanID %d will be removed", (int)it->bridgeID, 

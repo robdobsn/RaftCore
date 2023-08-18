@@ -71,7 +71,8 @@ public:
     virtual int32_t getChannelIDByName(const String& channelName, const String& protocolName) = 0;
 
     // Register and unregister a bridge between two different interfaces
-    virtual uint32_t bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, uint32_t otherChannelID) = 0;
+    virtual uint32_t bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, 
+                    uint32_t otherChannelID, uint32_t idleCloseSecs) = 0;
     virtual void bridgeUnregister(uint32_t bridgeID, bool forceClose) = 0;
     virtual void bridgeHandleInboundMsg(uint32_t bridgeID, CommsChannelMsg& msg) = 0;
     virtual bool bridgeHandleOutboundMsg(CommsChannelMsg& msg) = 0;

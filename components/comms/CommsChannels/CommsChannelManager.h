@@ -64,7 +64,8 @@ public:
     String getInfoJSON();
 
     // Register and unregister a bridge between two different interfaces
-    virtual uint32_t bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, uint32_t otherChannelID) override final;
+    virtual uint32_t bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, 
+                    uint32_t otherChannelID, uint32_t idleCloseSecs) override final;
     virtual void bridgeUnregister(uint32_t bridgeID, bool forceClose) override final;
     virtual void bridgeHandleInboundMsg(uint32_t bridgeID, CommsChannelMsg& msg) override final;
     virtual bool bridgeHandleOutboundMsg(CommsChannelMsg& msg) override final;
@@ -89,7 +90,7 @@ private:
     std::list<CommsChannelBridge> _bridgeList;
 
     // Bridge close timeout (after last message or weak close)
-    static const uint32_t BRIDGE_CLOSE_TIMEOUT_MS = 30000;
+    static const uint32_t DEFAULT_BRIDGE_CLOSE_TIMEOUT_MS = 30000;
 
     // Callbacks
     bool frameSendCB(CommsChannelMsg& msg);

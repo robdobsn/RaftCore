@@ -355,7 +355,7 @@ bool NetworkSystem::startWifi()
     bool enWifiAPMode = _networkSettings.enableWifiAPMode;
     if (enWifiSTAMode && !_pWifiStaNetIf)
         _pWifiStaNetIf = esp_netif_create_default_wifi_sta();
-    if ( enWifiAPMode && !_pWifiApNetIf)
+    if (enWifiAPMode && !_pWifiApNetIf)
         _pWifiApNetIf = esp_netif_create_default_wifi_ap();
 
     // Set hostname
@@ -691,8 +691,8 @@ bool NetworkSystem::startEthernet()
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &networkEventHandler, nullptr, nullptr);
 
     #ifdef ETHERNET_HARDWARE_OLIMEX
-    if (_netifStarted && enableEthernet && pEthSettings && 
-        (pEthSettings->_ethLanChip != ETH_CHIP_TYPE_NONE) && (pEthSettings->_powerPin != -1))
+    if (_networkSettings.enableEthernet &&  
+        (_networkSettings.ethLanChip != NetworkSettings::ETH_CHIP_TYPE_NONE) && (_networkSettings.powerPin != -1))
     {
         // Create ethernet event loop that running in background
         esp_netif_t *pEthNetif = nullptr;
@@ -709,31 +709,31 @@ bool NetworkSystem::startEthernet()
         eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
         eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
 
-        phy_config.phy_addr = pEthSettings->_phyAddr;
-        phy_config.reset_gpio_num = pEthSettings->_phyRstPin;
+        phy_config.phy_addr = _networkSettings.phyAddr;
+        phy_config.reset_gpio_num = _networkSettings.phyRstPin;
         gpio_config_t powerPinConfig(
         {
-            .pin_bit_mask = (1ULL << pEthSettings->_powerPin),
+            .pin_bit_mask = (1ULL << _networkSettings.powerPin),
             .mode = GPIO_MODE_OUTPUT,
             .pull_up_en = GPIO_PULLUP_DISABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
             .intr_type = GPIO_INTR_DISABLE
         });
         gpio_config(&powerPinConfig);
-        gpio_set_level((gpio_num_t) pEthSettings->_powerPin, 1);
+        gpio_set_level((gpio_num_t) _networkSettings.powerPin, 1);
         vTaskDelay(pdMS_TO_TICKS(10));
 
         // Create Ethernet driver
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
         // Init vendor specific MAC config to default
         eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
-        esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) pEthSettings->_smiMDCPin;
-        esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) pEthSettings->_smiMDIOPin;
+        esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
+        esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
         // Create new ESP32 Ethernet MAC instance
         esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
 #else
-        mac_config.smi_mdc_gpio_num = (gpio_num_t) pEthSettings->_smiMDCPin;
-        mac_config.smi_mdio_gpio_num = (gpio_num_t) pEthSettings->_smiMDIOPin;
+        mac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
+        mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
         esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
 #endif
 #if defined(ETH_PHY_IP101)
@@ -770,50 +770,6 @@ bool NetworkSystem::startEthernet()
             err = ESP_FAIL;
         }
 
-        // Check ok
-        if ((err == ESP_OK) && _ethWiFiBridge)
-        {
-            // Update input path for ethernet packets
-            err = esp_eth_update_input_path(_ethernetHandle, ethRxPacketCallback, NULL);
-
-            // Check ok 
-            if (err != ESP_OK)
-            {
-                LOG_W(MODULE_PREFIX, "setup failed to update ethernet input path");
-            }
-            else
-            {
-                // Set promiscuous mode
-                bool ethPromiscuous = true;
-                err = esp_eth_ioctl(_ethernetHandle, ETH_CMD_S_PROMISCUOUS, &ethPromiscuous);
-                if (err != ESP_OK)
-                {
-                    LOG_W(MODULE_PREFIX, "setup failed to set promiscuous mode");
-                }
-                else
-                {
-                    LOG_I(MODULE_PREFIX, "setup set input path for WiFi<->Ethernet bridge OK");
-                }
-            }
-        }
-        else
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to attach eth driver to netif");
-        }
-
-        // Check attach ok
-        if (err != ESP_OK)
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to attach eth driver to netif");
-        }
-        else
-        {
-            // Register user defined event handers
-            err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &NetworkSystem::ethEventHandler, NULL);
-            if (err == ESP_OK)
-                err = esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &NetworkSystem::ethGotIPEvent, NULL);
-        }
-
         // Check event handler ok
         if (err != ESP_OK)
         {
@@ -829,13 +785,10 @@ bool NetworkSystem::startEthernet()
         if (err != ESP_OK)
         {
             LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
+            return false;
         }
-        else
-        {
-            _isEthEnabled = true;
-        }
+        return true;
     }
-    return _isEthEnabled;
 #endif
     return false;
 }

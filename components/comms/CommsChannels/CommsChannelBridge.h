@@ -14,13 +14,15 @@
 class CommsChannelBridge
 {
 public:
-    CommsChannelBridge(const char* bridgeName, uint32_t bridgeID, uint32_t establishmentChannelID, uint32_t otherChannelID)
+    CommsChannelBridge(const char* bridgeName, uint32_t bridgeID, uint32_t establishmentChannelID, 
+                uint32_t otherChannelID, uint32_t idleCloseSecs)
     {
         this->bridgeName = bridgeName;
         this->bridgeID = bridgeID;
         this->establishmentChannelID = establishmentChannelID;
         this->otherChannelID = otherChannelID;
         this->lastMsgTimeMs = millis();
+        this->idleCloseSecs = idleCloseSecs;
     }
     CommsChannelBridge(const CommsChannelBridge& other)
     {
@@ -29,10 +31,12 @@ public:
         this->establishmentChannelID = other.establishmentChannelID;
         this->otherChannelID = other.otherChannelID;
         this->lastMsgTimeMs = other.lastMsgTimeMs;
+        this->idleCloseSecs = other.idleCloseSecs;
     }
     String bridgeName;
     uint32_t bridgeID = 0;
     uint32_t establishmentChannelID = 0;
     uint32_t otherChannelID = 0;
     uint32_t lastMsgTimeMs = 0;
+    uint32_t idleCloseSecs = 0;
 };
