@@ -348,7 +348,8 @@ void RaftMQTTClient::socketConnect()
 
         // Connect
         int connRslt = connect(_clientHandle, pAddr->ai_addr, pAddr->ai_addrlen);
-        if ((connRslt < 0) && (errno != EINPROGRESS))
+        err = errno;
+        if ((connRslt < 0) && (err != EINPROGRESS))
         {
             if (Raft::isTimeout(millis(), _internalSocketConnErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
@@ -361,9 +362,7 @@ void RaftMQTTClient::socketConnect()
                             hexStr.c_str());
             }
         }
-
-        // Check valid connection
-        if (connRslt == 0)
+        else
         {
 #ifdef DEBUG_MQTT_GENERAL
             LOG_I(MODULE_PREFIX, "socketConnect conn ok connId %d on %s", 

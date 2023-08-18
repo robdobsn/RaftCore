@@ -45,11 +45,11 @@ public:
 
         // Ethernet settings
         ethLanChip = getChipEnum(config.getString("ethLanChip", "", pPrefix));
-        powerPin = config.getLong("ethPowerPin", config.getLong("EthPowerPin", -1, pPrefix), pPrefix);
-        smiMDCPin = config.getLong("ethMDCPin", config.getLong("EthMDCPin", -1, pPrefix), pPrefix);
-        smiMDIOPin = config.getLong("ethMDIOPin", config.getLong("EthMDIOPin", -1, pPrefix), pPrefix);
-        phyAddr = config.getLong("ethPhyAddr", config.getLong("EthPhyAddr", -1, pPrefix), pPrefix);
-        phyRstPin = config.getLong("ethPhyRstPin", config.getLong("EthPhyRstPin", -1, pPrefix), pPrefix);
+        powerPin = config.getLong("ethPowerPin", config.getLong("ethPowerPin", -1, pPrefix), pPrefix);
+        smiMDCPin = config.getLong("ethMDCPin", config.getLong("ethMDCPin", -1, pPrefix), pPrefix);
+        smiMDIOPin = config.getLong("ethMDIOPin", config.getLong("ethMDIOPin", -1, pPrefix), pPrefix);
+        phyAddr = config.getLong("ethPhyAddr", config.getLong("ethPhyAddr", -1, pPrefix), pPrefix);
+        phyRstPin = config.getLong("ethPhyRstPin", config.getLong("ethPhyRstPin", -1, pPrefix), pPrefix);
 
         // NTP settings
         ntpServer = config.getString("NTPServer", "pool.ntp.org", pPrefix);

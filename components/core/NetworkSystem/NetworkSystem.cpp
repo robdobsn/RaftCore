@@ -277,7 +277,7 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
 {
     // Get the status JSON
     String jsonStr;
-    if (staInfo)
+    if (staInfo && _networkSettings.enableWifiSTAMode)
     {
         bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
         if (useBeforePauseValue)
@@ -293,7 +293,7 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
                             R"(,"hostname":")" + _hostname + R"(")";
         jsonStr += R"(})";
     }
-    if (apInfo)
+    if (apInfo && _networkSettings.enableWifiAPMode)
     {
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
@@ -303,7 +303,7 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
                         R"(","clients":)" + String(_wifiAPClientCount);
         jsonStr += R"(})";
     }
-    if (ethInfo)
+    if (ethInfo && _networkSettings.enableEthernet)
     {
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
@@ -690,7 +690,13 @@ bool NetworkSystem::startEthernet()
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &networkEventHandler, nullptr, nullptr);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &networkEventHandler, nullptr, nullptr);
 
-    #ifdef ETHERNET_HARDWARE_OLIMEX
+#ifdef ETHERNET_HARDWARE_OLIMEX
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "startEthernet - Olimex hardware lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
+                _networkSettings.ethLanChip, _networkSettings.phyAddr, _networkSettings.phyRstPin,
+                _networkSettings.smiMDCPin, _networkSettings.smiMDIOPin, _networkSettings.powerPin);
+                
     if (_networkSettings.enableEthernet &&  
         (_networkSettings.ethLanChip != NetworkSettings::ETH_CHIP_TYPE_NONE) && (_networkSettings.powerPin != -1))
     {
@@ -787,6 +793,9 @@ bool NetworkSystem::startEthernet()
             LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
             return false;
         }
+
+        // Debug
+        LOG_I(MODULE_PREFIX, "setup Ethernet OK");
         return true;
     }
 #endif
