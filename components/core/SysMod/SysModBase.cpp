@@ -58,6 +58,13 @@ String SysModBase::getSystemName()
     return "";
 }
 
+String SysModBase::getSystemUniqueString()
+{
+    if (_pSysManager)
+        return _pSysManager->getSystemUniqueString();
+    return "";
+}
+
 String SysModBase::getFriendlyName(bool& isSet)
 {
     if (_pSysManager)

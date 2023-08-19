@@ -80,6 +80,12 @@ public:
         _systemUniqueString = sysUniqueStr;
     }
 
+    // Get system unique string
+    String getSystemUniqueString()
+    {
+        return _systemUniqueString;
+    }
+
     // Set stats callback (for SysManager's own stats)
     void setStatsCB(SysManager_statsCB statsCB)
     {

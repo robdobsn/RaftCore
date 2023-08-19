@@ -83,6 +83,9 @@ public:
     // System name
     virtual String getSystemName();
 
+    // System unique string
+    virtual String getSystemUniqueString();
+
     // Friendly name
     virtual String getFriendlyName(bool& isSet);
 

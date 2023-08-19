@@ -276,21 +276,22 @@ String NetworkSystem::getSettingsJSON(bool includeBraces)
 String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue)
 {
     // Get the status JSON
-    String jsonStr;
+    String jsonStr = R"("hostname":")" + _hostname + R"(")";
     if (staInfo && _networkSettings.enableWifiSTAMode)
     {
+        if (!jsonStr.isEmpty())
+            jsonStr += R"(,)";
         bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
         if (useBeforePauseValue)
             wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
-        jsonStr = R"("wifiSTA":{"en":)" + String(_networkSettings.enableWifiSTAMode);
+        jsonStr += R"("wifiSTA":{"en":)" + String(_networkSettings.enableWifiSTAMode);
         if (_networkSettings.enableWifiSTAMode)
             jsonStr += R"(,"conn":)" + String(wifiStaConnWithIP) + 
                             R"(,"SSID":")" + _wifiStaSSID +
                             R"(","RSSI":)" + String(_wifiRSSI) + 
                             R"(,"IP":")" + _wifiIPV4Addr + 
                             R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") +
-                            R"(","paused":)" + String(isPaused() ? 1 : 0) +
-                            R"(,"hostname":")" + _hostname + R"(")";
+                            R"(","paused":)" + String(isPaused() ? 1 : 0);
         jsonStr += R"(})";
     }
     if (apInfo && _networkSettings.enableWifiAPMode)
