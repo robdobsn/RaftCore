@@ -85,5 +85,5 @@ String FileUploadHTTPProtocol::getDebugJSON(bool includeBraces)
 
 bool FileUploadHTTPProtocol::isActive()
 {
-    return false;
+    return true;
 }

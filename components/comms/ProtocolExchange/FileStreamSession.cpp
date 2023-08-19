@@ -173,8 +173,8 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
     _isActive = _pFileStreamProtocolHandler != nullptr;
 
 #ifdef DEBUG_FILE_STREAM_START_END
-    LOG_I(MODULE_PREFIX, "constructor finished filename %s channelID %d streamID %d endpointName %s isActive %d", 
-                _fileStreamName.c_str(), _channelID, streamID, restAPIEndpointName, _isActive);
+    LOG_I(MODULE_PREFIX, "constructor finished filename %s channelID %d streamID %d endpointName %s isActive %d contentType %d pSession %p", 
+                _fileStreamName.c_str(), _channelID, streamID, restAPIEndpointName, _isActive, _fileStreamContentType, this);
 #endif
 }
 
@@ -198,8 +198,8 @@ void FileStreamSession::service()
         if (!_pFileStreamProtocolHandler->isActive())
         {
 #ifdef DEBUG_FILE_STREAM_START_END
-            LOG_I(MODULE_PREFIX, "service handler-is-inactive filename %s channelID %d isActive %d", 
-                        _fileStreamName.c_str(), _channelID, _isActive);
+            LOG_I(MODULE_PREFIX, "service handler-is-inactive filename %s channelID %d isActive %d pSession %p", 
+                        _fileStreamName.c_str(), _channelID, _isActive, this);
 #endif
             _isActive = false;
         }
@@ -241,8 +241,8 @@ RaftRetCode FileStreamSession::handleCmdFrame(FileStreamBase::FileStreamMsgType 
     {
         _isActive = false;
 #ifdef DEBUG_FILE_STREAM_START_END
-        LOG_I(MODULE_PREFIX, "handleCmdFrame handler inactive filename %s channelID %d isActive %d", 
-                    _fileStreamName.c_str(), _channelID, _isActive);
+        LOG_I(MODULE_PREFIX, "handleCmdFrame handler inactive filename %s channelID %d isActive %d pSession %p", 
+                    _fileStreamName.c_str(), _channelID, _isActive, this);
 #endif
     }
 
@@ -532,8 +532,8 @@ void FileStreamSession::fileStreamCancelEnd(bool isNormalEnd)
     _isActive = false;
 
 #ifdef DEBUG_FILE_STREAM_START_END
-    LOG_I(MODULE_PREFIX, "fileStreamCancelEnd filename %s channelID %d isActive %d", 
-                _fileStreamName.c_str(), _channelID, _isActive);
+    LOG_I(MODULE_PREFIX, "fileStreamCancelEnd filename %s channelID %d isActive %d pSession %p", 
+                _fileStreamName.c_str(), _channelID, _isActive, this);
 #endif
 
     // Check if we should cancel a firmware update

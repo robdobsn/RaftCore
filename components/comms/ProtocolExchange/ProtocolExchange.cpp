@@ -36,6 +36,7 @@ static const char* MODULE_PREFIX = "ProtExchg";
 // #define DEBUG_RICREST_MESSAGES_RESPONSE_DETAIL
 // #define DEBUG_RICREST_BRIDGE_MESSAGES
 // #define DEBUG_FILE_STREAM_SESSIONS
+// #define DEBUG_FILE_STREAM_SESSION_MATCHING
 // #define DEBUG_RAW_CMD_FRAME
 // #define DEBUG_SLOW_PROC_ENDPOINT_MESSAGE_DETAIL
 
@@ -565,6 +566,13 @@ FileStreamSession* ProtocolExchange::findFileStreamSession(uint32_t streamID,
     // Check for matching filename and channel
     for (FileStreamSession* pSession : _sessions)
     {
+#ifdef DEBUG_FILE_STREAM_SESSION_MATCHING
+        LOG_I(MODULE_PREFIX, "findFileStreamSession checking name %s channelID %d streamID %d vs pSession %p %s %d %d", 
+                        fileStreamName, channelID, streamID, pSession,
+                        pSession ? pSession->getFileStreamName().c_str() : "NONE", 
+                        pSession ? pSession->getChannelID() : 0, 
+                        pSession ? pSession->getStreamID() : 0);
+#endif
         if (pSession && 
                 ((!fileStreamName || pSession->getFileStreamName().equals(fileStreamName))) &&
                 (pSession->getChannelID() == channelID))
