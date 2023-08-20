@@ -98,6 +98,9 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     // Reboot after N hours
     _rebootAfterNHours = _sysModManConfig.getLong("rebootAfterNHours", 0);
 
+    // Reboot if disconnected for N minutes
+    _rebootIfDiscMins = _sysModManConfig.getLong("rebootIfDiscMins", 0);
+
     // Prime the mutable config info
     if (_pMutableConfig)
     {
@@ -111,9 +114,9 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     String friendlyName = getFriendlyName(friendlyNameIsSet);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "friendlyName %s rebootAfterNHours %d slowSysModUs %d serialNo %s (defaultFriendlyName %s)",
+    LOG_I(MODULE_PREFIX, "friendlyName %s rebootAfterNHours %d rebootIfDiscMins %d slowSysModUs %d serialNo %s (defaultFriendlyName %s)",
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
-                _rebootAfterNHours,
+                _rebootAfterNHours, _rebootIfDiscMins,
                 _slowSysModThresholdUs,
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
                 _defaultFriendlyName.c_str());
@@ -219,6 +222,8 @@ void SysManager::setup()
     }
 #endif
 
+    // Set last time connected for rebbot if disconnected check
+    _rebootLastNetConnMs = millis();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -344,6 +349,21 @@ void SysManager::service()
         LOG_I(MODULE_PREFIX, "Rebooting after %d hours", _rebootAfterNHours);
         delay(500);
         esp_restart();
+    }
+
+    // Check for reboot after N mins if disconnected
+    if (networkSystem.isIPConnected())
+    {
+        _rebootLastNetConnMs = millis();
+    }
+    else
+    {
+        if ((_rebootIfDiscMins != 0) && Raft::isTimeout(millis(), _rebootLastNetConnMs, _rebootIfDiscMins * (uint64_t)60000))
+        {
+            LOG_I(MODULE_PREFIX, "Rebooting after %d mins disconnected", _rebootIfDiscMins);
+            delay(500);
+            esp_restart();
+        }
     }
 }
 
