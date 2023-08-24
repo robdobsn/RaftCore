@@ -117,30 +117,65 @@ extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
 #ifdef ARDUINO_GPIO_USE_LEGACY_ANALOG_APIS
     // Convert pin to adc channel
     // Only handles channel 1 (channel 2 generally available when WiFi used)
-    adc1_channel_t analogChan = ADC1_CHANNEL_0;
+    adc1_channel_t adc1Chan = ADC1_CHANNEL_MAX;
     switch(pin)
     {
-        case 36: analogChan = ADC1_CHANNEL_0; break;
-        case 37: analogChan = ADC1_CHANNEL_1; break;
-        case 38: analogChan = ADC1_CHANNEL_2; break;
-        case 39: analogChan = ADC1_CHANNEL_3; break;
-        case 32: analogChan = ADC1_CHANNEL_4; break;
-        case 33: analogChan = ADC1_CHANNEL_5; break;
-        case 34: analogChan = ADC1_CHANNEL_6; break;
-        case 35: analogChan = ADC1_CHANNEL_7; break;
+        case 36: adc1Chan = ADC1_CHANNEL_0; break;
+        case 37: adc1Chan = ADC1_CHANNEL_1; break;
+        case 38: adc1Chan = ADC1_CHANNEL_2; break;
+        case 39: adc1Chan = ADC1_CHANNEL_3; break;
+        case 32: adc1Chan = ADC1_CHANNEL_4; break;
+        case 33: adc1Chan = ADC1_CHANNEL_5; break;
+        case 34: adc1Chan = ADC1_CHANNEL_6; break;
+        case 35: adc1Chan = ADC1_CHANNEL_7; break;
         default: 
             // Invalid channel - return 0 reading
-            return 0;
+            adc1Chan = ADC1_CHANNEL_MAX;
     }
+    adc2_channel_t adc2Chan = ADC2_CHANNEL_MAX;
+    switch (pin)
+    {
+        case 4: adc2Chan = ADC2_CHANNEL_0; break;
+        case 0: adc2Chan = ADC2_CHANNEL_1; break;
+        case 2: adc2Chan = ADC2_CHANNEL_2; break;
+        case 15: adc2Chan = ADC2_CHANNEL_3; break;
+        case 13: adc2Chan = ADC2_CHANNEL_4; break;
+        case 12: adc2Chan = ADC2_CHANNEL_5; break;
+        case 14: adc2Chan = ADC2_CHANNEL_6; break;
+        case 27: adc2Chan = ADC2_CHANNEL_7; break;
+        case 25: adc2Chan = ADC2_CHANNEL_8; break;
+        case 26: adc2Chan = ADC2_CHANNEL_9; break;
+        default: 
+            // Invalid channel - return 0 reading
+            adc2Chan = ADC2_CHANNEL_MAX;
+    }
+    if (adc1Chan != ADC1_CHANNEL_MAX)
+    {
+        // Configure width
+        adc1_config_width(ADC_WIDTH_BIT_12);
 
-    // Configure width
-    adc1_config_width(ADC_WIDTH_BIT_12);
+        // Set attenuation (to allow voltages 0 .. 2.5V approx)
+        adc1_config_channel_atten(adc1Chan, ADC_ATTEN_DB_11);
 
-    // Set attenuation (to allow voltages 0 .. 2.5V approx)
-    adc1_config_channel_atten(analogChan, ADC_ATTEN_DB_11);
+        // Get adc reading
+        return adc1_get_raw(adc1Chan);
+    }
+    else if (adc2Chan != ADC2_CHANNEL_MAX)
+    {
+        // Configure width
+        adc2_config_channel_atten(adc2Chan, ADC_ATTEN_DB_11);
 
-    // Get adc reading
-    return adc1_get_raw(analogChan);
+        // Get adc reading
+        int rawValue = 0;
+        esp_err_t err = adc2_get_raw(adc2Chan, ADC_WIDTH_BIT_12, &rawValue);
+        if (err == ESP_OK)
+            return rawValue;
+        return 0;
+    }
+    else
+    {
+        return 0;
+    }
 #else
     // Convert pin to adc channel
     adc_unit_t adcUnit = ADC_UNIT_1;

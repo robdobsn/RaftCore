@@ -27,6 +27,7 @@
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
+#include "esp_eth_netif_glue.h"
 
 // This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
 #define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(servers_in_list, list_of_servers)   {   \
