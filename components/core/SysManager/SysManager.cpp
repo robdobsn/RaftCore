@@ -69,13 +69,13 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     // Module name
     _moduleName = pModuleName;
 
-    // Slow SysMod threshold
-    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
-
     // Extract info from config
     _sysModManConfig = pGlobalConfig ? 
                 pGlobalConfig->getString(_moduleName.c_str(), "{}") :
                 defaultConfig.getString(_moduleName.c_str(), "{}");
+
+    // Slow SysMod threshold
+    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
 
     // Extract system name from config
     _systemName = defaultConfig.getString("SystemName", pSystemHWName);
