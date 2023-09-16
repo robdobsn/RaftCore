@@ -133,13 +133,13 @@ namespace Raft
         {
             r=0; g=0; b=0;
         }
-        RGBValue(uint32_t r_, uint32_t g_, uint32_t b_)
+        RGBValue(uint8_t r_, uint8_t g_, uint8_t b_)
         {
             r=r_; g=g_; b=b_;
         }
-        uint32_t r;
-        uint32_t g;
-        uint32_t b;
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
     };
 
     // Get RGB from hex string
