@@ -153,7 +153,7 @@ double ConfigMulti::getDouble(const char *dataPath, double defaultValue, const c
         {
             retVal = rec._pConfig->getDouble(dataPath, retVal, pPrefix);
 #ifdef DEBUG_CONFIG_MULTI_DETAIL
-            LOG_I(MODULE_PREFIX, "getString prefix %s dataPath %s retVal %f %s", 
+            LOG_I(MODULE_PREFIX, "getDouble prefix %s dataPath %s retVal %f %s", 
                         rec._prefix.c_str(), dataPath, retVal, rec._isMutable ? "mutable" : "immutable");
 #endif
         }
