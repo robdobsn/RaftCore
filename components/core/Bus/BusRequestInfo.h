@@ -29,8 +29,6 @@ enum BusReqType
 class BusRequestInfo
 {
 public:
-    friend class BusRequestRec;
-    
     BusRequestInfo()
     {
         clear();
