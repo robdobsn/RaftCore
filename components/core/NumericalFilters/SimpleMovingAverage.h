@@ -24,7 +24,7 @@
  * 
  */
 
-template <uint8_t N, class input_t = uint32_t, class sum_t = uint64_t>
+template <uint16_t N, class input_t = uint32_t, class sum_t = uint64_t>
 class SimpleMovingAverage
 {
 public:
@@ -34,35 +34,37 @@ public:
     }
     input_t sample(input_t input) 
     {
+        // Update sum removing oldest and adding newest
         sum -= previousInputs[index];
         sum += input;
         previousInputs[index] = input;
+        // Bump circular index
         if (++index == N)
             index = 0;
-        return (sum + (N / 2)) / N;
+        // Add to number of entries if below N
+        if (numEntries < N)
+            numEntries++;
+        // Calculate result
+        return sum / numEntries;
     }
 
     input_t getAverage() 
     {
-        return (sum + (N / 2)) / N;
+        return sum / numEntries;
     }
 
     void clear()
     {
         index = 0;
+        numEntries = 0;
         sum = 0;
         for (uint8_t i = 0; i < N; i++)
             previousInputs[i] = 0;
     }
 
-    static_assert(
-        // Check that `sum_t` is an unsigned type
-        sum_t(0) < sum_t(-1),  
-        "Error: sum data type should be an unsigned integer, otherwise, "
-        "the rounding operation in the return statement is invalid.");
-
 private:
-    uint8_t index             = 0;
+    uint16_t index = 0;
+    uint16_t numEntries = 0;
     input_t previousInputs[N] = {};
-    sum_t sum                 = 0;
+    sum_t sum = 0;
 };
