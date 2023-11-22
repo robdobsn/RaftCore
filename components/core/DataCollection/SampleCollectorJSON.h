@@ -113,8 +113,15 @@ protected:
         // Add endpoint for sampling
         pEndpoints.addEndpoint(_sampleAPIName.c_str(), 
                 RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
-                            std::bind(&SampleCollector<T>::apiSample, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                            std::bind(&SampleCollectorJSON::apiSample, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             "handle samples, e.g. sample/start, sample/stop, sample/clear, sample/write/<filename>");
+    }
+
+    // Receive JSON command
+    virtual RaftRetCode receiveCmdJSON(const char* cmdJSON) override final
+    {
+        addSample(cmdJSON);
+        return RAFT_OK;
     }
 
 private:
@@ -176,6 +183,13 @@ private:
             {
                 rslt = writeToFile(params[2], rsltStr);
             }
+            // Get buffer
+            else if (params[1].equalsIgnoreCase("get"))
+            {
+                respStr = String(_sampleBuffer.data(), _sampleBuffer.size());
+                _sampleBuffer.clear();
+                return RAFT_OK;
+            }
         }
         // Result
         if (rslt)
@@ -199,7 +213,7 @@ private:
         }
 
         // Write header
-        fileSystem.fileWrite(pFile, (uint8_t*)_sampleHeader.c_str(), _sampleHeader.length());
+        uint32_t bytesWritten = fileSystem.fileWrite(pFile, (uint8_t*)_sampleHeader.c_str(), _sampleHeader.length());
         fileSystem.fileWrite(pFile, (uint8_t*)"\n", 1);
         bool rslt = true;
         if (bytesWritten != _sampleHeader.length() + 1)
@@ -211,7 +225,7 @@ private:
         // Write buffer
         if (rslt)
         {
-            uint32_t bytesWritten = fileSystem.fileWrite(pFile, (uint8_t*)_sampleBuffer.data(), _sampleBuffer.size());
+            bytesWritten = fileSystem.fileWrite(pFile, (uint8_t*)_sampleBuffer.data(), _sampleBuffer.size());
             if (bytesWritten != _sampleBuffer.size())
             {
                 errMsg = "failWrite";
