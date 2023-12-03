@@ -26,6 +26,7 @@ public:
     virtual ~LEDPixels();
 
     // Setup
+    bool setup(const ConfigBase& config, const char* pConfigPrefix);
     bool setup(LEDStripConfig& ledStripConfig);
 
     // Service
@@ -35,10 +36,25 @@ public:
     void setPattern(const String& patternName);
 
     // Write to an individual LED
-    void setPixelColor(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b);
-    void setPixelColor(uint32_t ledIdx, uint32_t c);
+    void setPixelColor(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness=true);
+    void setPixelColor(uint32_t ledIdx, uint32_t c, bool applyBrightness=true);
     void setPixelColor(uint32_t ledIdx, const LEDPixel& pixRGB);
 
+    // Clear all pixels
+    void clear(bool showAfterClear=false);
+
+    // Get number of pixels
+    uint32_t getNumPixels() const
+    {
+        return _ledStripConfig.numPixels;
+    }
+
+    // Get data pin
+    int getDataPin() const
+    {
+        return _ledStripConfig.ledDataPin;
+    }
+    
     // Show 
     bool show();
     bool canShow()
@@ -46,16 +62,15 @@ public:
         return true;
     }
 
+    // Wait until show complete
+    void waitUntilShowComplete();
+
 private:
     // Pixels
     std::vector<LEDPixel> _pixels;
 
-    // Colour order for this LED strip
-    LEDPixel::ColourOrder _colourOrder = LEDPixel::RGB;
-
-    // Default and max num pixels
-    static const uint32_t DEFAULT_NUM_PIXELS = 60;
-    static const uint32_t MAX_NUM_PIXELS = 1000;
+    // Config
+    LEDStripConfig _ledStripConfig;
 
     // LED strip
     ESP32RMTLedStrip _ledStrip;

@@ -97,24 +97,11 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& ledStripConfig)
                 ledStripConfig.toStr().c_str(), ledStripConfig.numPixels, _rmtChannelHandle, ledStripConfig.rmtResolutionHz, 
                 ledStripConfig.ledDataPin, _ledStripEncoderHandle);
 
-    // Allocate pixel buffer
-    uint32_t pixelBufSize = ledStripConfig.numPixels * sizeof(LEDPixel);
-    if (_pixelBuffer.size() != pixelBufSize)
-        _pixelBuffer.resize(pixelBufSize);
-    _numPixels = ledStripConfig.numPixels;
-        
-    // Clear LED buffer (note that it tests setupOk)
-    clear();
-
-    // See if first pixel is to be set to show some sign of life during startup
-    setPixelColor(0, ledStripConfig.startupFirstPixelColour);
-    showFromBuffer();
-
     return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// Show pixels
+// Show pixels
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
@@ -129,29 +116,6 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
         _pixelBuffer.resize(numBytesToCopy);
     memcpy(_pixelBuffer.data(), pixels.data(), numBytesToCopy);
 
-    // Show from buffer
-    esp_err_t err = showFromBuffer();
-
-#ifdef DEBUG_ESP32RMTLEDSTRIP_DETAIL
-    // Debug
-    String outStr;
-    Raft::getHexStrFromBytes(_pixelBuffer.data(), numBytesToCopy, outStr);
-    LOG_I(MODULE_PREFIX, "showPixels %s %d bytes %s", err == ESP_OK ? "OK" : "FAILED", numBytesToCopy, outStr.c_str());
-#else
-    err = err;
-#endif
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Show from pixel buffer
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-esp_err_t ESP32RMTLedStrip::showFromBuffer()
-{
-    // Can't show pixels if not setup
-    if (!_isSetup)
-        return ESP_FAIL;
-
     // Transmit the data
     static const rmt_transmit_config_t tx_config = {
         .loop_count = 0,        // no repetition
@@ -165,22 +129,20 @@ esp_err_t ESP32RMTLedStrip::showFromBuffer()
         LOG_E(MODULE_PREFIX, "rmt_transmit failed: %d", err);
         _isSetup = false;
     }
-
-    return err;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Clear
+// Wait until show complete
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ESP32RMTLedStrip::clear()
+void ESP32RMTLedStrip::waitUntilShowComplete()
 {
-    // Can't show pixels if not setup
+    // Can't wait if not setup
     if (!_isSetup)
         return;
 
-    // Clear the buffer
-    memset(_pixelBuffer.data(), 0, _pixelBuffer.size());
+    // Wait for RMT to be done
+    rmt_tx_wait_all_done(_rmtChannelHandle, (WAIT_RMT_BASE_US + WAIT_RMT_PER_PIX_US * _pixelBuffer.size() + 1000)/1000);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -201,21 +163,3 @@ void ESP32RMTLedStrip::releaseResources()
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set pixel colour
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void ESP32RMTLedStrip::setPixelColor(uint32_t ledIdx, Raft::RGBValue rgbValue)
-{
-    // Can't show pixels if not setup
-    if (!_isSetup)
-        return;
-
-    // Check index
-    if (ledIdx >= _pixelBuffer.size() / sizeof(LEDPixel))
-        return;
-
-    // Set pixel colour
-    LEDPixel* pPixel = (LEDPixel*)_pixelBuffer.data() + ledIdx;
-    pPixel->fromRGB(rgbValue.r, rgbValue.g, rgbValue.b, LEDPixel::RGB);
-}

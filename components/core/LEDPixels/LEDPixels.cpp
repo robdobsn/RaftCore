@@ -32,23 +32,37 @@ LEDPixels::~LEDPixels()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+bool LEDPixels::setup(const ConfigBase& config, const char* pConfigPrefix)
+{
+    // LED strip config
+    LEDStripConfig ledStripConfig;
+    if (!ledStripConfig.setup(config, pConfigPrefix))
+    {
+        LOG_E(MODULE_PREFIX, "setup failed to get LED strip config");
+        return false;
+    }
+
+    // Setup
+    return setup(ledStripConfig);
+}
+
 bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
 {
-    // Colour order
-    _colourOrder = ledStripConfig.colourOrder;
+    // Copy config
+    _ledStripConfig = ledStripConfig;
 
     // Setup pixels
-    _pixels.resize(ledStripConfig.numPixels);
+    _pixels.resize(_ledStripConfig.numPixels);
 
     // Setup hardware
     bool rslt = _ledStrip.setup(ledStripConfig);
 
     // Set pattern
-    setPattern(ledStripConfig.initialPattern);
+    setPattern(_ledStripConfig.initialPattern);
 
     // Log
     LOG_I(MODULE_PREFIX, "setup %s numPixels %d pixelsPin %d", 
-                rslt ? "OK" : "FAILED", (int)ledStripConfig.numPixels, (int)ledStripConfig.ledDataPin);
+                rslt ? "OK" : "FAILED", (int)_ledStripConfig.numPixels, (int)_ledStripConfig.ledDataPin);
     return rslt;
 }
 
@@ -101,21 +115,21 @@ void LEDPixels::setPattern(const String& patternName)
 // Write to an individual LED
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void LEDPixels::setPixelColor(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b)
+void LEDPixels::setPixelColor(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness)
 {
     if (ledIdx >= _pixels.size())
         return;
-    _pixels[ledIdx].fromRGB(r, g, b, _colourOrder);
+    _pixels[ledIdx].fromRGB(r, g, b, _ledStripConfig.colourOrder, applyBrightness ? _ledStripConfig.pixelBrightnessFactor : 1.0f);
 #ifdef DEBUG_LED_PIXEL_VALUES
     LOG_I(MODULE_PREFIX, "setPixelColor %d r %d g %d b %d order %d val %08x", ledIdx, r, g, b, _colourOrder, _pixels[ledIdx].getRaw());
 #endif
 }
 
-void LEDPixels::setPixelColor(uint32_t ledIdx, uint32_t c)
+void LEDPixels::setPixelColor(uint32_t ledIdx, uint32_t c, bool applyBrightness)
 {
     if (ledIdx >= _pixels.size())
         return;
-    _pixels[ledIdx].fromRGB(c, _colourOrder);
+    _pixels[ledIdx].fromRGB(c, _ledStripConfig.colourOrder, applyBrightness ? _ledStripConfig.pixelBrightnessFactor : 1.0f);
 }
 
 void LEDPixels::setPixelColor(uint32_t ledIdx, const LEDPixel& pixel)
@@ -144,4 +158,27 @@ bool LEDPixels::show()
 #endif
 
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Wait until show complete
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void LEDPixels::waitUntilShowComplete()
+{
+    _ledStrip.waitUntilShowComplete();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Clear all pixels
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void LEDPixels::clear(bool showAfterClear)
+{
+    for (auto& pix : _pixels)
+    {
+        pix.clear();
+    }
+    if (showAfterClear)
+        show();
 }

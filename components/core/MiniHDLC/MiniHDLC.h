@@ -65,7 +65,8 @@ public:
 
     // Constructor for HDLC with frame-wise transmit
     MiniHDLC(MiniHDLCFrameFnType frameTxFn, MiniHDLCFrameFnType frameRxFn,
-            uint8_t frameBoundaryOctet, uint8_t controlEscapeOctet,
+            uint8_t frameBoundaryOctet = FRAME_BOUNDARY_OCTET_DEFAULT, 
+            uint8_t controlEscapeOctet = CONTROL_ESCAPE_OCTET_DEFAULT,
             uint32_t txMsgMaxLen=1000, uint32_t rxMsgMaxLen=1000, 
             bool bigEndianCRC = true, bool bitwiseHDLC = false);
 
@@ -87,8 +88,19 @@ public:
     uint32_t encodeFrameAddPayload(uint8_t* pEncoded, uint32_t maxEncodedLen, uint16_t& fcs, uint32_t curPos, const uint8_t *pFrame, uint32_t frameLen);
     uint32_t encodeFrameEnd(uint8_t* pEncoded, uint32_t maxEncodedLen, uint16_t& fcs, uint32_t curPos);
 
-    // Calculate encoded length for data
-    uint32_t calcEncodedPayloadLen(const uint8_t *pFrame, uint32_t frameLen);
+    // Get encoded length of frame
+    uint32_t calcEncodedLen(const uint8_t *pFrame, uint32_t frameLen)
+    {
+        return calcEncodedPayloadLen(pFrame, frameLen) + HDLC_MAX_OVERHEAD_BYTES;
+    }
+
+    // Get max encoded length of payload
+    uint32_t maxEncodedLen(uint32_t payloadLen)
+    {
+        // Worst case length is 2 * payloadLen (if every byte is escaped)
+        // + 2 * BORDER + 2 * FCS
+        return payloadLen * 2 + HDLC_MAX_OVERHEAD_BYTES;
+    }
 
     // Send a frame
     void sendFrame(const uint8_t *pData, unsigned frameLen);
@@ -98,14 +110,6 @@ public:
 
     // Overhead bytes (assumes 1 start, 1 end and both FCS bytes are escaped)
     static constexpr uint32_t HDLC_MAX_OVERHEAD_BYTES = 6;
-
-    // Max encoded length
-    uint32_t maxEncodedLen(uint32_t payloadLen)
-    {
-        // Worst case length is 2 * payloadLen (if every byte is escaped)
-        // + 2 * BORDER + 2 * FCS
-        return payloadLen * 2 + HDLC_MAX_OVERHEAD_BYTES;
-    }
 
     // Get frame rx max len
     uint32_t getFrameRxMaxLen()
@@ -148,15 +152,22 @@ public:
     static uint16_t crcUpdateCCITT(unsigned short fcs, unsigned char value);
     static uint16_t crcUpdateCCITT(unsigned short fcs, const unsigned char* pBuf, unsigned bufLen);
 
+    // Calculate encoded length for payload
+    uint32_t calcEncodedPayloadLen(const uint8_t *pFrame, uint32_t frameLen);
+
+    // Frame boundary and escape values
+    static const uint8_t FRAME_BOUNDARY_OCTET_DEFAULT = 0xE7;
+    static const uint8_t CONTROL_ESCAPE_OCTET_DEFAULT = 0xD7;
+
 private:
     // If either of the following two octets appears in the transmitted data, an escape octet is sent,
     // followed by the original data octet with bit 5 inverted
 
     // The frame boundary octet
-    uint8_t _frameBoundaryOctet;
+    uint8_t _frameBoundaryOctet = FRAME_BOUNDARY_OCTET_DEFAULT;
 
     // Control escape octet
-    uint8_t _controlEscapeOctet;
+    uint8_t _controlEscapeOctet = CONTROL_ESCAPE_OCTET_DEFAULT;
 
     // Invert octet explained above
     static constexpr uint8_t INVERT_OCTET = 0x20;
@@ -181,31 +192,31 @@ private:
 #endif
 
     // Bitwise HDLC flag (otherwise byte-wise)
-    bool _bitwiseHDLC;
+    bool _bitwiseHDLC = false;
 
     // Send FCS (CRC) big-endian - i.e. high byte first
-    bool _bigEndianCRC;
+    bool _bigEndianCRC = false;
 
     // State vars
-    uint16_t _framePos;
-    uint16_t _frameCRC;
-    bool _inEscapeSeq;
+    uint16_t _framePos = 0;
+    uint16_t _frameCRC = CRC16_CCITT_INIT_VAL;
+    bool _inEscapeSeq = false;
 
     // Bitwise state
-    uint8_t _bitwiseLast8Bits;
-    uint8_t _bitwiseByte;
-    uint8_t _bitwiseBitCount;
-    uint8_t _bitwiseSendOnesCount;
+    uint8_t _bitwiseLast8Bits = 0;
+    uint8_t _bitwiseByte = 0;
+    uint8_t _bitwiseBitCount = 0;
+    uint8_t _bitwiseSendOnesCount = 0;
 
     // Receive buffer
     SimpleBuffer _rxBuffer;
-    uint16_t _rxBufferMaxLen;
+    uint16_t _rxBufferMaxLen = 0;
 
     // Transmit buffer
     SimpleBuffer _txBuffer;
-    uint16_t _txBufferMaxLen;
-    uint16_t _txBufferPos;
-    uint16_t _txBufferBitPos;
+    uint16_t _txBufferMaxLen = 0;
+    uint16_t _txBufferPos = 0;
+    uint16_t _txBufferBitPos = 0;
 
     // Stats
     MiniHDLCStats _stats;

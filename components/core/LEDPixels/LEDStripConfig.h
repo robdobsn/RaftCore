@@ -11,6 +11,8 @@
 #include <RaftArduino.h>
 #include <LEDPixel.h>
 #include <RaftUtils.h>
+#include <ConfigBase.h>
+#include <Logger.h>
 
 class LEDStripConfig
 {
@@ -21,15 +23,15 @@ public:
     LEDStripConfig(uint32_t numPixels, const char* pColourOrder, const char* pInitialPattern, 
                    int ledDataPin, uint32_t rmtResolutionHz, float bit0Duration0Us, float bit0Duration1Us,
                    float bit1Duration0Us, float bit1Duration1Us, float resetDurationUs, bool msbFirst,
-                   const String& startupFirstPixel)
+                   float pixelBrightnessFactor, const String& startupFirstPixel)
     {
         set(numPixels, pColourOrder, pInitialPattern, ledDataPin, rmtResolutionHz, bit0Duration0Us, bit0Duration1Us,
-            bit1Duration0Us, bit1Duration1Us, resetDurationUs, msbFirst, startupFirstPixel);
+            bit1Duration0Us, bit1Duration1Us, resetDurationUs, msbFirst, pixelBrightnessFactor, startupFirstPixel);
     }
     void set(uint32_t numPixels, const char* pColourOrder, const char* pInitialPattern, 
              int ledDataPin, uint32_t rmtResolutionHz, float bit0Duration0Us, float bit0Duration1Us,
              float bit1Duration0Us, float bit1Duration1Us, float resetDurationUs, bool msbFirst,
-             const String& startupFirstPixel)
+             float pixelBrightnessFactor, const String& startupFirstPixel)
     {
         this->numPixels = numPixels;
         this->colourOrder = LEDPixel::getColourOrderCode(pColourOrder);
@@ -42,6 +44,7 @@ public:
         this->bit1Duration1Us = bit1Duration1Us;
         this->resetDurationUs = resetDurationUs;
         this->msbFirst = msbFirst;
+        this->pixelBrightnessFactor = pixelBrightnessFactor;
         this->startupFirstPixelColour = Raft::getRGBFromHex(startupFirstPixel);
     }
     String toStr() const
@@ -51,53 +54,56 @@ public:
                      " ledDataPin=" + String(ledDataPin) + " rmtResolutionHz=" + String(rmtResolutionHz) +
                      " bit0Duration0Us=" + String(bit0Duration0Us) + " bit0Duration1Us=" + String(bit0Duration1Us) +
                      " bit1Duration0Us=" + String(bit1Duration0Us) + " bit1Duration1Us=" + String(bit1Duration1Us) +
-                     " resetDurationUs=" + String(resetDurationUs) + " msbFirst=" + String(msbFirst)
+                     " resetDurationUs=" + String(resetDurationUs) + " msbFirst=" + String(msbFirst) + 
+                     " brightnessFactor=" + String(pixelBrightnessFactor) + " startupFirstPixel=" + startupFirstPixelColour.toStr();
         return str;
     }
-    bool setup(ConfigBase& config, const char* pConfigPrefix)
+    bool setup(const ConfigBase& config, const char* pConfigPrefix)
     {
+        // Get data pin for LED strip
+        ledDataPin = config.getLong("pixelDataPin", -1, pConfigPrefix);
+        if (ledDataPin < 0)
+        {
+            LOG_W("LEDStripConfig", "setup invalid pixelDataPin");
+            return false;
+        }
+
         // Get number of pixels
-        uint32_t numPixels = config.getLong("numPixels", DEFAULT_NUM_PIXELS, pConfigPrefix);
+        numPixels = config.getLong("numPixels", DEFAULT_NUM_PIXELS, pConfigPrefix);
         if (numPixels > MAX_NUM_PIXELS)
             numPixels = MAX_NUM_PIXELS;
 
         // Colour order
         String colourOrderStr = config.getString("colourOrder", "GRB");
+        colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
 
         // Get pattern
-        String patternName = config.getString("pattern", "", pConfigPrefix);
-
-        // Get data pin for LED strip
-        int ledDataPin = config.getLong("pixelDataPin", -1, pConfigPrefix);
-        if (ledDataPin < 0)
-        {
-            LOG_E(MODULE_PREFIX, "setup invalid pixelDataPin");
-            return false;
-        }
+        initialPattern = config.getString("pattern", "", pConfigPrefix);
 
         // RMT resolution
-        uint32_t rmtResolutionHz = config.getLong("rmtResolutionHz", ledStripConfig.rmtResolutionHz, pConfigPrefix);
+        rmtResolutionHz = config.getLong("rmtResolutionHz", rmtResolutionHz, pConfigPrefix);
 
         // LED speed parameters
-        float bit0Duration0Us = config.getDouble("bit0Duration0Us", ledStripConfig.bit0Duration0Us, pConfigPrefix);
-        float bit0Duration1Us = config.getDouble("bit0Duration1Us", ledStripConfig.bit0Duration1Us, pConfigPrefix);
-        float bit1Duration0Us = config.getDouble("bit1Duration0Us", ledStripConfig.bit1Duration0Us, pConfigPrefix);
-        float bit1Duration1Us = config.getDouble("bit1Duration1Us", ledStripConfig.bit1Duration1Us, pConfigPrefix);
-        float resetDurationUs = config.getDouble("resetDurationUs", ledStripConfig.resetDurationUs, pConfigPrefix);
+        bit0Duration0Us = config.getDouble("bit0Duration0Us", bit0Duration0Us, pConfigPrefix);
+        bit0Duration1Us = config.getDouble("bit0Duration1Us", bit0Duration1Us, pConfigPrefix);
+        bit1Duration0Us = config.getDouble("bit1Duration0Us", bit1Duration0Us, pConfigPrefix);
+        bit1Duration1Us = config.getDouble("bit1Duration1Us", bit1Duration1Us, pConfigPrefix);
+        resetDurationUs = config.getDouble("resetDurationUs", resetDurationUs, pConfigPrefix);
 
         // MSB first
-        bool msbFirst = config.getBool("msbFirst", ledStripConfig.msbFirst, pConfigPrefix);
+        msbFirst = config.getBool("msbFirst", msbFirst, pConfigPrefix);
+
+        // Brightness percent
+        pixelBrightnessFactor = config.getDouble("brightnessPC", pixelBrightnessFactor*100.0, pConfigPrefix) / 100.0;
 
         // Startup first pixel colour
-        String startupFirstPixel = config.getString("startupFirstPixel", "000000", pConfigPrefix);
-
-        // Set parameters
-        set(numPixels, colourOrderStr.c_str(), patternName.c_str(), ledDataPin, rmtResolutionHz, bit0Duration0Us, bit0Duration1Us,
-            bit1Duration0Us, bit1Duration1Us, resetDurationUs, msbFirst, startupFirstPixel);
+        String startupFirstPixelStr = config.getString("startupFirstPixel", "000000", pConfigPrefix);
+        startupFirstPixelColour = Raft::getRGBFromHex(startupFirstPixelStr);
 
         return true;
     }
 
+    // Parameters
     uint32_t numPixels = 0;
     LEDPixel::ColourOrder colourOrder = LEDPixel::RGB;
     String initialPattern;
@@ -110,4 +116,9 @@ public:
     float resetDurationUs = 50;
     bool msbFirst = true;
     Raft::RGBValue startupFirstPixelColour;
+    float pixelBrightnessFactor = 1.0;
+
+    // Default and max num pixels
+    static const uint32_t MAX_NUM_PIXELS = 1000;    
+    static const uint32_t DEFAULT_NUM_PIXELS = 60;
 };

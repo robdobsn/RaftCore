@@ -28,6 +28,9 @@ public:
     // Show pixels
     void showPixels(std::vector<LEDPixel>& pixels);
 
+    // Wait for show to complete
+    void waitUntilShowComplete();
+
 private:
 
     // RMT channel
@@ -37,14 +40,15 @@ private:
     bool _isSetup = false;
 
     // // LED strip encoder
-    // ESP32RMTLedStripEncoder _ledStripEncoder;
     rmt_encoder_handle_t _ledStripEncoderHandle = nullptr;
 
     // Pixel working buffer
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _pixelBuffer;
 
+    // Wait for RMT complete
+    static const uint32_t WAIT_RMT_BASE_US = 100;
+    static const uint32_t WAIT_RMT_PER_PIX_US = 5;
+
     // Helpers
     void releaseResources();
-    void setPixelColor(uint32_t ledIdx, Raft::RGBValue rgbValue);
-    esp_err_t showFromBuffer();    
 };
