@@ -181,6 +181,10 @@ namespace Raft
 
     // Get string from part of buffer with optional hex and ascii
     String getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHex, bool includeAscii);
+
+    // Convert UUID128 string to uint8_t array
+    static const uint32_t UUID128_BYTE_COUNT = 16;
+    bool uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool reverseOrder = true);
 };
 
 // Name value pair double

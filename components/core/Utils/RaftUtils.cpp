@@ -938,3 +938,42 @@ String Raft::getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHe
     }
     return outStr;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Convert UUID128 string to uint8_t array
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool reverseOrder)
+{
+    // Check length (handle version with or without dashes)
+    uint32_t slen = strlen(uuid128Str);
+    if ((slen != UUID128_BYTE_COUNT*2) && (slen != UUID128_BYTE_COUNT*2+4))
+        return false;
+
+    // Convert
+    uint32_t byteIdx = 0;
+    for (int i = 0; i < slen; i+=2)
+    {
+        if (uuid128Str[i] == '-')
+            continue;
+        if (i + 1 >= slen)
+            return false;
+        char tmpBuf[3];
+        tmpBuf[0] = uuid128Str[i];
+        tmpBuf[1] = uuid128Str[i+1];
+        tmpBuf[2] = 0;
+        pUUID128[byteIdx++] = strtoul(tmpBuf, nullptr, 16);
+    }
+
+    // Check for reversal
+    if (reverseOrder)
+    {
+        for (uint32_t i = 0; i < UUID128_BYTE_COUNT/2; i++)
+        {
+            uint8_t tmp = pUUID128[i];
+            pUUID128[i] = pUUID128[UUID128_BYTE_COUNT-1-i];
+            pUUID128[UUID128_BYTE_COUNT-1-i] = tmp;
+        }
+    }
+    return true;
+}

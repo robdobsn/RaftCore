@@ -3,10 +3,9 @@
 // DebounceButton.cpp
 // Callback on button press via a hardware pin
 //
-// Rob Dobson 2018-2022
+// Rob Dobson 2018-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 #include "DebounceButton.h"
 #include <RaftUtils.h>
@@ -119,7 +118,7 @@ void DebounceButton::service()
             // Check if active
             if (curVal)
             {
-                if (Raft::isTimeout(curMs, _lastRepeatTimeMs, _activeRepeatTimeMs))
+                if ((_activeRepeatTimeMs != 0) && (Raft::isTimeout(curMs, _lastRepeatTimeMs, _activeRepeatTimeMs)))
                 {
                     _lastRepeatTimeMs = curMs;
                     _repeatCount++;
