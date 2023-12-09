@@ -952,17 +952,24 @@ bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool rev
 
     // Convert
     uint32_t byteIdx = 0;
-    for (int i = 0; i < slen; i+=2)
+    for (int i = 0; i < slen; i++)
     {
-        if (uuid128Str[i] == '-')
+        // Skip dashes (actually any non-alphanumeric in case any other punctuation used)
+        if (!isalnum(uuid128Str[i]))
             continue;
+        // This should catch badly formatted strings at least to avoid buffer overruns
         if (i + 1 >= slen)
             return false;
+
+        // Form hex string
         char tmpBuf[3];
         tmpBuf[0] = uuid128Str[i];
         tmpBuf[1] = uuid128Str[i+1];
         tmpBuf[2] = 0;
         pUUID128[byteIdx++] = strtoul(tmpBuf, nullptr, 16);
+
+        // Inc i beyond hex digits
+        i++;
     }
 
     // Check for reversal
