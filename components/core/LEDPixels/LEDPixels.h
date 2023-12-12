@@ -19,6 +19,7 @@ class ConfigBase;
 class BusRequestResult;
 class NamedValueProvider;
 
+typedef LEDPatternBase* (*LEDPatternBuildFn)(NamedValueProvider* pNamedValueProvider, std::vector<LEDPixel>& pixels, ESP32RMTLedStrip& ledStrip);
 class LEDPixels
 {
 public:
@@ -32,8 +33,9 @@ public:
     // Service
     void service();
 
-    // Set pattern
+    // Pattern handling
     void setPattern(const String& patternName);
+    void addPattern(const String& patternName, LEDPatternBuildFn buildFn);
 
     // Write to an individual LED
     void setPixelColor(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness=true);
@@ -82,7 +84,7 @@ private:
     struct LEDPatternListItem
     {
         String name;
-        LEDPatternBuildFunc buildFn;
+        LEDPatternBuildFn buildFn;
     };
 
     // LED patterns
