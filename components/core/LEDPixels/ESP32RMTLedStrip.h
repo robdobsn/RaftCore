@@ -23,7 +23,7 @@ public:
     virtual ~ESP32RMTLedStrip();
 
     // Setup
-    bool setup(const LEDStripConfig& ledStripConfig);
+    bool setup(uint32_t ledStripIdx, const LEDStripConfig& ledStripConfig);
 
     // Show pixels
     void showPixels(std::vector<LEDPixel>& pixels);
@@ -39,8 +39,15 @@ private:
     // Setup ok
     bool _isSetup = false;
 
-    // // LED strip encoder
+    // LED strip pixel indexing start offset
+    uint32_t _pixelIdxStartOffset = 0;
+    
+    // LED strip encoder
     rmt_encoder_handle_t _ledStripEncoderHandle = nullptr;
+
+    // Num pixels in strip - this is recorded here rather than using _pixelBuffer.size()
+    // because the buffer is lazily allocated and is multiplied by size of one pixel
+    uint32_t _numPixels = 0;
 
     // Pixel working buffer
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _pixelBuffer;

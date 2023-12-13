@@ -10,16 +10,16 @@
 
 #include <RaftArduino.h>
 #include <stdint.h>
-#include <NamedValueProvider.h>
-#include <LEDPixel.h>
-#include <ESP32RMTLedStrip.h>
+
+class LEDPixels;
+class NamedValueProvider;
 
 // Base class for LED patterns
 class LEDPatternBase
 {
 public:
-    LEDPatternBase(NamedValueProvider* pNamedValueProvider, std::vector<LEDPixel>& pixels, ESP32RMTLedStrip& ledStrip) :
-        _pNamedValueProvider(pNamedValueProvider), _pixels(pixels), _ledStrip(ledStrip)
+    LEDPatternBase(NamedValueProvider* pNamedValueProvider, LEDPixels& pixels) :
+        _pNamedValueProvider(pNamedValueProvider), _pixels(pixels)
     {
     }
     virtual ~LEDPatternBase()
@@ -27,7 +27,7 @@ public:
     }
 
     // Setup
-    virtual void setup() = 0;
+    virtual void setup(const char* pParamsJson = nullptr) = 0;
 
     // Service
     virtual void service() = 0;
@@ -41,12 +41,5 @@ protected:
     NamedValueProvider* _pNamedValueProvider = nullptr;
 
     // Pixels
-    std::vector<LEDPixel>& _pixels;
-
-    // LED strip
-    ESP32RMTLedStrip& _ledStrip;
+    LEDPixels& _pixels;
 };
-
-// Build function for factory
-typedef LEDPatternBase* (*LEDPatternBuildFunc)(NamedValueProvider* pNamedValueProvider, std::vector<LEDPixel>& pixels, ESP32RMTLedStrip& ledStrip);
-

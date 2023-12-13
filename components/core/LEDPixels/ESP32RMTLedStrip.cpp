@@ -10,6 +10,7 @@
 #include <Logger.h>
 #include <RaftUtils.h>
 
+#define DEBUG_ESP32RMTLEDSTRIP_SETUP
 // #define DEBUG_ESP32RMTLEDSTRIP_DETAIL
 
 static const char* MODULE_PREFIX = "RMTLedStrip";
@@ -31,8 +32,15 @@ ESP32RMTLedStrip::~ESP32RMTLedStrip()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ESP32RMTLedStrip::setup(const LEDStripConfig& ledStripConfig)
+bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStripConfig)
 {
+    // Check index valid
+    if (ledStripIdx >= ledStripConfig.hwConfigs.size())
+    {
+        LOG_E(MODULE_PREFIX, "setup FAILED ledStripIdx %d invalid numHWConfigs %d", ledStripIdx, ledStripConfig.hwConfigs.size());
+        return false;
+    }
+
     // Can't setup twice
     if (_isSetup)
     {
@@ -40,11 +48,18 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& ledStripConfig)
         return true;
     }
 
+    // Hardware config
+    const LEDStripHwConfig& hwConfig = ledStripConfig.hwConfigs[ledStripIdx];
+    _numPixels = hwConfig.numPixels;
+
+    // Get the offset to the first pixel
+    _pixelIdxStartOffset = ledStripConfig.getPixelStartOffset(ledStripIdx);
+
     // Setup the RMT channel
     rmt_tx_channel_config_t rmtChannelConfig = {
-        .gpio_num = (gpio_num_t)ledStripConfig.ledDataPin,              // LED strip data pin
+        .gpio_num = (gpio_num_t)hwConfig.ledDataPin,              // LED strip data pin
         .clk_src = RMT_CLK_SRC_DEFAULT,                     // Default clock
-        .resolution_hz = ledStripConfig.rmtResolutionHz,
+        .resolution_hz = hwConfig.rmtResolutionHz,
         .mem_block_symbols = 64,                            // Increase to reduce flickering
         .trans_queue_depth = 4,                             // Number of transactions that can be pending in the background
         .flags = {
@@ -52,7 +67,8 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& ledStripConfig)
             .with_dma = false,                              // No DMA
             .io_loop_back = false,                          // No loop
             .io_od_mode = false,                            // Not open drain
-        }
+        },
+        .intr_priority = 0,                                  // Interrupt priority
     };
 
     // Create RMT TX channel
@@ -64,15 +80,16 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& ledStripConfig)
     }
 
     // Setup LED strip encoder
-    // _ledStripEncoder.setup(ledStripConfig);
+    // _ledStripEncoder.setup(hwConfig);
+
     led_strip_encoder_config_t encoder_config = {
-        .resolution = ledStripConfig.rmtResolutionHz,
-        .bit0Duration0Us = ledStripConfig.bit0Duration0Us,
-        .bit0Duration1Us = ledStripConfig.bit0Duration1Us,
-        .bit1Duration0Us = ledStripConfig.bit1Duration0Us,
-        .bit1Duration1Us = ledStripConfig.bit1Duration1Us,
-        .resetDurationUs = ledStripConfig.resetDurationUs,
-        .msbFirst = ledStripConfig.msbFirst,
+        .resolution = hwConfig.rmtResolutionHz,
+        .bit0Duration0Us = hwConfig.bit0Duration0Us,
+        .bit0Duration1Us = hwConfig.bit0Duration1Us,
+        .bit1Duration0Us = hwConfig.bit1Duration0Us,
+        .bit1Duration1Us = hwConfig.bit1Duration1Us,
+        .resetDurationUs = hwConfig.resetDurationUs,
+        .msbFirst = hwConfig.msbFirst,
     };
     err = rmt_new_led_strip_encoder(&encoder_config, &_ledStripEncoderHandle);
     if (err != ESP_OK)
@@ -92,10 +109,12 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& ledStripConfig)
     // Setup ok
     _isSetup = true;
 
-    // Log
+#ifdef DEBUG_ESP32RMTLEDSTRIP_SETUP
+    // Debug
     LOG_I(MODULE_PREFIX, "setup ok config %s numPixels %d rmtChannelHandle %p resolutionHz %d gpioNum %d encoderHandle %p", 
-                ledStripConfig.toStr().c_str(), ledStripConfig.numPixels, _rmtChannelHandle, ledStripConfig.rmtResolutionHz, 
-                ledStripConfig.ledDataPin, _ledStripEncoderHandle);
+                hwConfig.debugStr().c_str(), _numPixels, _rmtChannelHandle, hwConfig.rmtResolutionHz, 
+                hwConfig.ledDataPin, _ledStripEncoderHandle);
+#endif
 
     return true;
 }
@@ -110,11 +129,18 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     if (!_isSetup)
         return;
 
+    // Get numnber of pixels to copy
+    if (pixels.size() < _pixelIdxStartOffset)
+        return;
+    uint32_t numPixelsToCopy = pixels.size() - _pixelIdxStartOffset;
+    if (numPixelsToCopy > _numPixels)
+        numPixelsToCopy = _numPixels;
+
     // Copy the buffer
-    uint32_t numBytesToCopy = pixels.size() * sizeof(LEDPixel);
+    uint32_t numBytesToCopy = numPixelsToCopy * sizeof(LEDPixel);
     if (_pixelBuffer.size() != numBytesToCopy)
         _pixelBuffer.resize(numBytesToCopy);
-    memcpy(_pixelBuffer.data(), pixels.data(), numBytesToCopy);
+    memcpy(_pixelBuffer.data(), pixels.data() + (_pixelIdxStartOffset*sizeof(LEDPixel)), numBytesToCopy);
 
     // Transmit the data
     static const rmt_transmit_config_t tx_config = {

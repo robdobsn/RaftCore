@@ -38,7 +38,7 @@ bool LEDPixels::setup(const ConfigBase& config, const char* pConfigPrefix)
     LEDStripConfig ledStripConfig;
     if (!ledStripConfig.setup(config, pConfigPrefix))
     {
-        LOG_E(MODULE_PREFIX, "setup failed to get LED strip config");
+        LOG_E(MODULE_PREFIX, "setup failed to get LED strip config, prefix %s", pConfigPrefix ? pConfigPrefix : "<NULL>");
         return false;
     }
 
@@ -52,17 +52,24 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
     _ledStripConfig = ledStripConfig;
 
     // Setup pixels
-    _pixels.resize(_ledStripConfig.numPixels);
+    _pixels.resize(_ledStripConfig.totalPixels);
 
     // Setup hardware
-    bool rslt = _ledStrip.setup(ledStripConfig);
+    _ledStrips.resize(_ledStripConfig.hwConfigs.size());
+    bool rslt = false;
+    for (uint32_t ledStripIdx = 0; ledStripIdx < _ledStripConfig.hwConfigs.size(); ledStripIdx++)
+    {
+        rslt = _ledStrips[ledStripIdx].setup(ledStripIdx, _ledStripConfig);
+        if (!rslt)
+            break;
+    }
 
     // Set pattern
     setPattern(_ledStripConfig.initialPattern);
 
     // Log
-    LOG_I(MODULE_PREFIX, "setup %s numPixels %d pixelsPin %d", 
-                rslt ? "OK" : "FAILED", (int)_ledStripConfig.numPixels, (int)_ledStripConfig.ledDataPin);
+    LOG_I(MODULE_PREFIX, "setup %s numStrips %d totalPixels %d", 
+                rslt ? "OK" : "FAILED", (int)_ledStripConfig.hwConfigs.size(), (int)_ledStripConfig.totalPixels);
     return rslt;
 }
 
@@ -103,7 +110,7 @@ void LEDPixels::addPattern(const String& patternName, LEDPatternBuildFn buildFn)
 // Set a pattern
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void LEDPixels::setPattern(const String& patternName)
+void LEDPixels::setPattern(const String& patternName, const char* pParamsJson)
 {
     // Check for existing pattern with differnt name and remove if so
     if (_pCurrentPattern && _currentPatternName != patternName)
@@ -119,12 +126,15 @@ void LEDPixels::setPattern(const String& patternName)
         if (pattern.name.equalsIgnoreCase(patternName))
         {
             // Build pattern
-            LEDPatternBase* pPattern = pattern.buildFn(_pNamedValueProvider, _pixels, _ledStrip);
+            LEDPatternBase* pPattern = pattern.buildFn(_pNamedValueProvider, *this);
             if (pPattern)
             {
                 // Set pattern
                 _pCurrentPattern = pPattern;
                 _currentPatternName = patternName;
+
+                // Setup
+                _pCurrentPattern->setup(pParamsJson);
             }
             return;
         }
@@ -135,28 +145,49 @@ void LEDPixels::setPattern(const String& patternName)
 // Write to an individual LED
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void LEDPixels::setPixelColor(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness)
+void LEDPixels::setRGB(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness)
 {
+    // Check for mapping function & valid index
+    if (_pixelMappingFn)
+        ledIdx = _pixelMappingFn(ledIdx);
     if (ledIdx >= _pixels.size())
         return;
+
+    // Set pixel
     _pixels[ledIdx].fromRGB(r, g, b, _ledStripConfig.colourOrder, applyBrightness ? _ledStripConfig.pixelBrightnessFactor : 1.0f);
 #ifdef DEBUG_LED_PIXEL_VALUES
     LOG_I(MODULE_PREFIX, "setPixelColor %d r %d g %d b %d order %d val %08x", ledIdx, r, g, b, _colourOrder, _pixels[ledIdx].getRaw());
 #endif
 }
 
-void LEDPixels::setPixelColor(uint32_t ledIdx, uint32_t c, bool applyBrightness)
+void LEDPixels::setRGB(uint32_t ledIdx, uint32_t c, bool applyBrightness)
 {
+    // Check for mapping function & valid index
+    if (_pixelMappingFn)
+        ledIdx = _pixelMappingFn(ledIdx);
     if (ledIdx >= _pixels.size())
         return;
     _pixels[ledIdx].fromRGB(c, _ledStripConfig.colourOrder, applyBrightness ? _ledStripConfig.pixelBrightnessFactor : 1.0f);
 }
 
-void LEDPixels::setPixelColor(uint32_t ledIdx, const LEDPixel& pixel)
+void LEDPixels::setRGB(uint32_t ledIdx, const LEDPixel& pixel)
 {
+    // Check for mapping function & valid index
+    if (_pixelMappingFn)
+        ledIdx = _pixelMappingFn(ledIdx);
     if (ledIdx >= _pixels.size())
         return;
     _pixels[ledIdx] = pixel;
+}
+
+void LEDPixels::setHSV(uint32_t ledIdx, uint32_t h, uint32_t s, uint32_t v)
+{
+    // Check for mapping function & valid index
+    if (_pixelMappingFn)
+        ledIdx = _pixelMappingFn(ledIdx);
+    if (ledIdx >= _pixels.size())
+        return;
+    setRGB(ledIdx, LEDPixHSV::toRGB(h, s, v));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -166,7 +197,10 @@ void LEDPixels::setPixelColor(uint32_t ledIdx, const LEDPixel& pixel)
 bool LEDPixels::show()
 {
     // Show
-    _ledStrip.showPixels(_pixels);
+    for (auto& ledStrip : _ledStrips)
+    {
+        ledStrip.showPixels(_pixels);
+    }
 
 #ifdef DEBUG_LED_PIXEL_VALUES
     String outStr;
@@ -186,7 +220,10 @@ bool LEDPixels::show()
 
 void LEDPixels::waitUntilShowComplete()
 {
-    _ledStrip.waitUntilShowComplete();
+    for (auto& ledStrip : _ledStrips)
+    {
+        ledStrip.waitUntilShowComplete();
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -19,7 +19,10 @@ class ConfigBase;
 class BusRequestResult;
 class NamedValueProvider;
 
-typedef LEDPatternBase* (*LEDPatternBuildFn)(NamedValueProvider* pNamedValueProvider, std::vector<LEDPixel>& pixels, ESP32RMTLedStrip& ledStrip);
+// Function definitions
+typedef LEDPatternBase* (*LEDPatternBuildFn)(NamedValueProvider* pNamedValueProvider, LEDPixels& pixels);
+typedef uint32_t (*LEDPixelMappingFn)(uint32_t);
+
 class LEDPixels
 {
 public:
@@ -33,14 +36,21 @@ public:
     // Service
     void service();
 
+    // Set a mapping function to map from a pixel index to a physical LED index
+    void setPixelMappingFn(LEDPixelMappingFn pixelMappingFn)
+    {
+        _pixelMappingFn = pixelMappingFn;
+    }
+
     // Pattern handling
-    void setPattern(const String& patternName);
+    void setPattern(const String& patternName, const char* pParamsJson=nullptr);
     void addPattern(const String& patternName, LEDPatternBuildFn buildFn);
 
     // Write to an individual LED
-    void setPixelColor(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness=true);
-    void setPixelColor(uint32_t ledIdx, uint32_t c, bool applyBrightness=true);
-    void setPixelColor(uint32_t ledIdx, const LEDPixel& pixRGB);
+    void setRGB(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness=true);
+    void setRGB(uint32_t ledIdx, uint32_t c, bool applyBrightness=true);
+    void setRGB(uint32_t ledIdx, const LEDPixel& pixRGB);
+    void setHSV(uint32_t ledIdx, uint32_t h, uint32_t s, uint32_t v);
 
     // Clear all pixels
     void clear(bool showAfterClear=false);
@@ -48,15 +58,9 @@ public:
     // Get number of pixels
     uint32_t getNumPixels() const
     {
-        return _ledStripConfig.numPixels;
+        return _ledStripConfig.totalPixels;
     }
 
-    // Get data pin
-    int getDataPin() const
-    {
-        return _ledStripConfig.ledDataPin;
-    }
-    
     // Show 
     bool show();
     bool canShow()
@@ -74,11 +78,14 @@ private:
     // Config
     LEDStripConfig _ledStripConfig;
 
-    // LED strip
-    ESP32RMTLedStrip _ledStrip;
+    // LED strips
+    std::vector<ESP32RMTLedStrip> _ledStrips;
 
     // Interface to named values used in pattern generation
     NamedValueProvider* _pNamedValueProvider = nullptr;
+
+    // Pixel mapping function
+    LEDPixelMappingFn _pixelMappingFn = nullptr;
 
     // LED pattern list item
     struct LEDPatternListItem
