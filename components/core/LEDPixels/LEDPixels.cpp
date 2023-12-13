@@ -135,10 +135,16 @@ void LEDPixels::setPattern(const String& patternName, const char* pParamsJson)
 
                 // Setup
                 _pCurrentPattern->setup(pParamsJson);
+
+                // Debug
+                LOG_I(MODULE_PREFIX, "setPattern %s OK", patternName.c_str());
             }
             return;
         }
     }
+
+    // Debug
+    LOG_W(MODULE_PREFIX, "setPattern %s PATTERN NOT FOUND", patternName.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -78,44 +78,6 @@ public:
     LEDStripConfig()
     {
     }
-    // LEDStripConfig(uint32_t numPixels, const char* pColourOrder, const char* pInitialPattern, 
-    //                int ledDataPin, uint32_t rmtResolutionHz, float bit0Duration0Us, float bit0Duration1Us,
-    //                float bit1Duration0Us, float bit1Duration1Us, float resetDurationUs, bool msbFirst,
-    //                float pixelBrightnessFactor, const String& startupFirstPixel)
-    // {
-    //     set(numPixels, pColourOrder, pInitialPattern, ledDataPin, rmtResolutionHz, bit0Duration0Us, bit0Duration1Us,
-    //         bit1Duration0Us, bit1Duration1Us, resetDurationUs, msbFirst, pixelBrightnessFactor, startupFirstPixel);
-    // }
-    // void set(uint32_t numPixels, const char* pColourOrder, const char* pInitialPattern, 
-    //          int ledDataPin, uint32_t rmtResolutionHz, float bit0Duration0Us, float bit0Duration1Us,
-    //          float bit1Duration0Us, float bit1Duration1Us, float resetDurationUs, bool msbFirst,
-    //          float pixelBrightnessFactor, const String& startupFirstPixel)
-    // {
-    //     this->numPixels = numPixels;
-    //     this->colourOrder = LEDPixel::getColourOrderCode(pColourOrder);
-    //     this->initialPattern = pInitialPattern ? pInitialPattern : "";
-    //     this->ledDataPin = ledDataPin;
-    //     this->rmtResolutionHz = rmtResolutionHz;
-    //     this->bit0Duration0Us = bit0Duration0Us;
-    //     this->bit0Duration1Us = bit0Duration1Us;
-    //     this->bit1Duration0Us = bit1Duration0Us;
-    //     this->bit1Duration1Us = bit1Duration1Us;
-    //     this->resetDurationUs = resetDurationUs;
-    //     this->msbFirst = msbFirst;
-    //     this->pixelBrightnessFactor = pixelBrightnessFactor;
-    //     this->startupFirstPixelColour = Raft::getRGBFromHex(startupFirstPixel);
-    // }
-    // String toStr() const
-    // {
-    //     String str = "numPix=" + String(numPixels) + (initialPattern.isEmpty() ? String("") : " " + initialPattern) + 
-    //                  " colourOrder=" + String(LEDPixel::getColourOrderStr(colourOrder)) +
-    //                  " ledDataPin=" + String(ledDataPin) + " rmtResolutionHz=" + String(rmtResolutionHz) +
-    //                  " bit0Duration0Us=" + String(bit0Duration0Us) + " bit0Duration1Us=" + String(bit0Duration1Us) +
-    //                  " bit1Duration0Us=" + String(bit1Duration0Us) + " bit1Duration1Us=" + String(bit1Duration1Us) +
-    //                  " resetDurationUs=" + String(resetDurationUs) + " msbFirst=" + String(msbFirst) + 
-    //                  " brightnessFactor=" + String(pixelBrightnessFactor) + " startupFirstPixel=" + startupFirstPixelColour.toStr();
-    //     return str;
-    // }
     bool setup(const ConfigBase& config, const char* pConfigPrefix)
     {
         // Colour order

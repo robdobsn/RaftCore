@@ -19,9 +19,11 @@ class ConfigBase;
 class BusRequestResult;
 class NamedValueProvider;
 
-// Function definitions
+// Build function for LED pattern factory
 typedef LEDPatternBase* (*LEDPatternBuildFn)(NamedValueProvider* pNamedValueProvider, LEDPixels& pixels);
-typedef uint32_t (*LEDPixelMappingFn)(uint32_t);
+
+// Pixel mapping function
+typedef std::function<uint32_t(uint32_t)> LEDPixelMappingFn;
 
 class LEDPixels
 {

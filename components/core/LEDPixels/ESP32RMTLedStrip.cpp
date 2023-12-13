@@ -111,9 +111,9 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
 
 #ifdef DEBUG_ESP32RMTLEDSTRIP_SETUP
     // Debug
-    LOG_I(MODULE_PREFIX, "setup ok config %s numPixels %d rmtChannelHandle %p resolutionHz %d gpioNum %d encoderHandle %p", 
-                hwConfig.debugStr().c_str(), _numPixels, _rmtChannelHandle, hwConfig.rmtResolutionHz, 
-                hwConfig.ledDataPin, _ledStripEncoderHandle);
+    LOG_I(MODULE_PREFIX, "setup ok numPixels %d rmtChannelHandle %p encoderHandle %p hw %s", 
+                _numPixels, _rmtChannelHandle, _ledStripEncoderHandle,
+                hwConfig.debugStr().c_str());
 #endif
 
     return true;
