@@ -98,6 +98,17 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
         return false;
     }
 
+    // Setup callback on completion
+    rmt_tx_event_callbacks_t cbs = {
+        .on_trans_done = rmtTxCompleteCBStatic,
+    };
+    err = rmt_tx_register_event_callbacks(_rmtChannelHandle, &cbs, this);
+    if (err != ESP_OK)
+    {
+        LOG_E(MODULE_PREFIX, "setup FAILED rmt_tx_register_event_callbacks error %d", err);
+        return false;
+    }
+
     // Enable RMT TX channel
     err = rmt_enable(_rmtChannelHandle);
     if (err != ESP_OK)
@@ -108,6 +119,7 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
 
     // Setup ok
     _isSetup = true;
+    _txInProgress = false;
 
 #ifdef DEBUG_ESP32RMTLEDSTRIP_SETUP
     // Debug
@@ -155,6 +167,7 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
         LOG_E(MODULE_PREFIX, "rmt_transmit failed: %d", err);
         _isSetup = false;
     }
+    _txInProgress = true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -167,8 +180,22 @@ void ESP32RMTLedStrip::waitUntilShowComplete()
     if (!_isSetup)
         return;
 
-    // Wait for RMT to be done
-    rmt_tx_wait_all_done(_rmtChannelHandle, (WAIT_RMT_BASE_US + WAIT_RMT_PER_PIX_US * _pixelBuffer.size() + 1000)/1000);
+    // Check if already complete
+    if (!_txInProgress)
+        return;
+
+    // We're not going to use rmt_tx_wait_all_done as it errors on timeout
+
+    // Max time to wait
+    uint64_t maxWaitUs = (WAIT_RMT_BASE_US + WAIT_RMT_PER_PIX_US * _pixelBuffer.size() + 1000)/1000;
+    uint64_t startTimeUs = micros();
+    while (_txInProgress && !Raft::isTimeout(micros(), startTimeUs, maxWaitUs))
+    {
+        if (maxWaitUs > 1000)
+            delay(1);
+        else
+            delayMicroseconds(100);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -189,3 +216,25 @@ void ESP32RMTLedStrip::releaseResources()
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// RMT TX complete callback
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool ESP32RMTLedStrip::rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx)
+{
+    // Get this pointer
+    ESP32RMTLedStrip* pThis = (ESP32RMTLedStrip*)user_ctx;
+    if (!pThis)
+    {
+        // False indicates a higher-priority task hasn't been woken up
+        return false;
+    }
+    return pThis->rmtTxCompleteCB(tx_chan, edata);
+}
+
+bool ESP32RMTLedStrip::rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata)
+{
+    _txInProgress = false;
+    // False indicates a higher-priority task hasn't been woken up
+    return false;
+}

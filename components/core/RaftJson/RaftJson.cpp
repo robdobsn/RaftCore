@@ -22,9 +22,11 @@ static const char *MODULE_PREFIX = "RaftJson";
 // #define DEBUG_GET_KEYS
 // #define DEBUG_GET_ARRAY_ELEMS
 // #define DEBUG_EXTRACT_NAME_VALUES
+// #define DEBUG_IS_BOOLEAN
+// Note that the following #defines can define a dataPath in inverted commas to restrict debugging to a specfic key/path
+// e.g. #define DEBUG_FIND_KEY_IN_JSON "my/path/to/a/key"
 // #define DEBUG_FIND_KEY_IN_JSON
 // #define DEBUG_FIND_KEY_IN_JSON_ARRAY
-// #define DEBUG_IS_BOOLEAN
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getElement
@@ -50,7 +52,7 @@ bool RaftJson::getElement(const char *dataPath,
     if (!pSourceStr)
     {
 #ifdef DEBUG_GET_ELEMENT
-        LOG_I(MODULE_PREFIX, "getElement failed null source");
+        LOG_I(MODULE_PREFIX, "getElement failed null source %s", dataPath);
 #endif
         return false;
     }
@@ -61,7 +63,7 @@ bool RaftJson::getElement(const char *dataPath,
     if (pTokens == NULL)
     {
 #ifdef DEBUG_GET_ELEMENT
-        LOG_I(MODULE_PREFIX, "getElement failedParse");
+        LOG_I(MODULE_PREFIX, "getElement failedParse %s", dataPath);
 #endif
         return false;
     }
@@ -73,7 +75,7 @@ bool RaftJson::getElement(const char *dataPath,
     if (startTokenIdx < 0)
     {
 #ifdef DEBUG_GET_ELEMENT
-        LOG_I(MODULE_PREFIX, "getElement failed findKeyInJson");
+        LOG_I(MODULE_PREFIX, "getElement failed findKeyInJson %s", dataPath);
 #endif
         delete[] pTokens;
         return false;
@@ -731,7 +733,14 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
             pDataPathPos = slashPos + 1;
         }
 #ifdef DEBUG_FIND_KEY_IN_JSON
-        LOG_I(MODULE_PREFIX, "findKeyInJson slashPos %p, %d, srchKey <%s>", slashPos, slashPos-pDataPathPos, srchKey);
+        {
+            String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+            {
+                LOG_I(MODULE_PREFIX, "findKeyInJson slashPos %p, %d, srchKey <%s>", 
+                            slashPos, slashPos-pDataPathPos, srchKey);
+            }
+        }
 #endif
 
         // See if search key contains an array reference
@@ -752,7 +761,13 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
         }
 
 #ifdef DEBUG_FIND_KEY_IN_JSON
-        LOG_I(MODULE_PREFIX, "findKeyInJson srchKey %s arrayIdx %d", srchKey, reqdArrayIdx);
+        {
+            String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+            {
+                LOG_I(MODULE_PREFIX, "findKeyInJson srchKey %s arrayIdx %d", srchKey, reqdArrayIdx);
+            }
+        }
 #endif
         // Iterate over tokens to find key of the right type
         // If we are already looking at the node level then search for requested type
@@ -775,8 +790,14 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                 keyMatchFound = true;
             }
 #ifdef DEBUG_FIND_KEY_IN_JSON
-            LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d Token type %d srchKey %s arrayReqd %d reqdIdx %d matchFound %d", 
+            {
+                String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+                if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                {
+                    LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d Token type %d srchKey %s arrayReqd %d reqdIdx %d matchFound %d", 
                             tokIdx, pTok->type, srchKey, arrayElementReqd, reqdArrayIdx, keyMatchFound);
+                }
+            }
 #endif
 
             if (keyMatchFound)
@@ -790,8 +811,14 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                     {
                         int newTokIdx = findArrayElem(jsonOriginal, tokens, numTokens, tokIdx, reqdArrayIdx);
 #ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
-                        LOG_I(MODULE_PREFIX, "findKeyInJson TokIdxArray inIdx %d, reqdArrayIdx %d, outTokIdx %d", 
-                                        tokIdx, reqdArrayIdx, newTokIdx);
+                        {
+                            String testStr = DEBUG_FIND_KEY_IN_JSON_ARRAY "__";
+                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            {
+                                LOG_I(MODULE_PREFIX, "findKeyInJson TokIdxArray inIdx %d, reqdArrayIdx %d, outTokIdx %d", 
+                                            tokIdx, reqdArrayIdx, newTokIdx);
+                            }
+                        }
 #endif
                         tokIdx = newTokIdx;
                     }
@@ -799,7 +826,13 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                     {
                         // This isn't an array element
 #ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
-                        LOG_I(MODULE_PREFIX, "findKeyInJson NOT AN ARRAY ELEM");
+                        {
+                            String testStr = DEBUG_FIND_KEY_IN_JSON_ARRAY "__";
+                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            {
+                                LOG_I(MODULE_PREFIX, "findKeyInJson NOT AN ARRAY ELEM");
+                            }
+                        }
 #endif
                         return -1;
                     }
@@ -832,8 +865,14 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                         maxTokenIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx);
                         curTokenIdx = (tokens[tokIdx].type == JSMN_OBJECT) ? tokIdx + 1 : tokIdx;
 #ifdef DEBUG_FIND_KEY_IN_JSON
-                        LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d max %d next %d", 
+                        {
+                            String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            {
+                                LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d max %d next %d", 
                                     tokIdx, maxTokenIdx, curTokenIdx);
+                            }
+                        }
 #endif
                         break;
                     }
@@ -841,7 +880,13 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                     {
                         // Found a key in the path but it didn't point to an object so we can't continue
 #ifdef DEBUG_FIND_KEY_IN_JSON
-                        LOG_I(MODULE_PREFIX, "findKeyInJson FOUND KEY BUT NOT POINTING TO OBJ");
+                        {
+                            String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            {
+                                LOG_I(MODULE_PREFIX, "findKeyInJson FOUND KEY BUT NOT POINTING TO OBJ");
+                            }
+                        }
 #endif
                         return -1;
                     }
@@ -861,7 +906,13 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
             {
                 // Root level array which doesn't match the dataPath
 #ifdef DEBUG_FIND_KEY_IN_JSON
-                LOG_I(MODULE_PREFIX, "findKeyInJson UNEXPECTED ARRAY");
+                {
+                    String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+                    if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                    {
+                        LOG_I(MODULE_PREFIX, "findKeyInJson UNEXPECTED ARRAY");
+                    }
+                }
 #endif
                 return -1;
             }
@@ -873,7 +924,13 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
         }
     }
 #ifdef DEBUG_FIND_KEY_IN_JSON
-    LOG_I(MODULE_PREFIX, "findKeyInJson DROPPED OUT");
+    {
+        String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+        if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+        {
+            LOG_I(MODULE_PREFIX, "findKeyInJson DROPPED OUT");
+        }
+    }
 #endif
     return -1;
 }
