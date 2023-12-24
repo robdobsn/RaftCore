@@ -79,9 +79,6 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
         return false;
     }
 
-    // Setup LED strip encoder
-    // _ledStripEncoder.setup(hwConfig);
-
     led_strip_encoder_config_t encoder_config = {
         .resolution = hwConfig.rmtResolutionHz,
         .bit0Duration0Us = hwConfig.bit0Duration0Us,
