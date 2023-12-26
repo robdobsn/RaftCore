@@ -41,25 +41,56 @@ static const char *MODULE_PREFIX = "RaftJson";
  * @param  {jsmntype_t&} elemType : [out] element type
  * @param  {int&} elemSize        : [out] element size
  * @param  {char*} pSourceStr     : json string to search for element
+ * @param  {void**} pCachedParseResult : [in/out] pointer to cached parse result
+ * @param  {uint32_t*} pCachedParseNumTokens : [in/out] pointer to cached parse result
  * @return {bool}                 : true if element found
+ * 
+ * NOTE: If pCachedParseResult and pCachedParseNumTokens are provided then they must be a pointer to an already
+ *      allocated void pointer and pointer to uint32_t respectively. In this case the parse result will be cached
+ *      and the caller must call releaseCachedParseResult() with the same pointer as used when creating the cache
+ *      to release the cached memory when all uses of this parse result are complete.
  */
 bool RaftJson::getElement(const char *dataPath,
                         int &startPos, int &strLen,
                         jsmntype_t &elemType, int &elemSize,
-                        const char *pSourceStr)
+                        const char *pSourceStr,
+                        void** pCachedParseResult,
+                        uint32_t* pCachedParseNumTokens)
 {
-    // Check for null
-    if (!pSourceStr)
+    // Check if already parsed
+    int numTokens = 0;
+    jsmntok_t *pTokens = nullptr;
+    bool parseResultRequiresDeletion = false;
+    if (pCachedParseResult && *pCachedParseResult && pCachedParseNumTokens)
     {
+        pTokens = (jsmntok_t*)(*pCachedParseResult);
+        numTokens = *pCachedParseNumTokens;
+    }
+    else
+    {
+        // Check for null source string
+        if (!pSourceStr)
+        {
 #ifdef DEBUG_GET_ELEMENT
-        LOG_I(MODULE_PREFIX, "getElement failed null source %s", dataPath);
+            LOG_I(MODULE_PREFIX, "getElement failed null source %s", dataPath);
 #endif
-        return false;
+            return false;
+        }
+
+        // Parse json into tokens
+        pTokens = parseJson(pSourceStr, numTokens);
+        parseResultRequiresDeletion = true;
+
+        // Check if we should cache the parse result
+        if (pCachedParseResult && pCachedParseNumTokens)
+        {
+            *pCachedParseResult = (void*)pTokens;
+            *pCachedParseNumTokens = numTokens;
+            parseResultRequiresDeletion = false;
+        }
     }
 
-    // Parse json into tokens
-    int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+    // Check valid parse info
     if (pTokens == NULL)
     {
 #ifdef DEBUG_GET_ELEMENT
@@ -72,22 +103,27 @@ bool RaftJson::getElement(const char *dataPath,
     int endTokenIdx = 0;
     int startTokenIdx = findKeyInJson(pSourceStr, pTokens, numTokens, 
                         dataPath, endTokenIdx);
-    if (startTokenIdx < 0)
+    if (startTokenIdx >= 0)
+    {
+        // Extract information on element
+        elemType = pTokens[startTokenIdx].type;
+        elemSize = pTokens[startTokenIdx].size;
+        startPos = pTokens[startTokenIdx].start;
+        strLen = pTokens[startTokenIdx].end - startPos;
+    }
+    else
     {
 #ifdef DEBUG_GET_ELEMENT
         LOG_I(MODULE_PREFIX, "getElement failed findKeyInJson %s", dataPath);
 #endif
-        delete[] pTokens;
-        return false;
     }
 
-    // Extract information on element
-    elemType = pTokens[startTokenIdx].type;
-    elemSize = pTokens[startTokenIdx].size;
-    startPos = pTokens[startTokenIdx].start;
-    strLen = pTokens[startTokenIdx].end - startPos;
-    delete[] pTokens;
-    return true;
+    // Check if we should delete the parse result or leave it for the caller to delete
+    if (parseResultRequiresDeletion)
+        delete[] pTokens;
+
+    // Return true if found
+    return startTokenIdx >= 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1235,6 +1271,17 @@ bool RaftJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
         }
     }
     return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Release cached parse result
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void RaftJson::releaseCachedParseResult(void** pCachedParseResult)
+{
+    if (!pCachedParseResult || !*pCachedParseResult)
+        return;
+    delete[] ((jsmntok_t*)*pCachedParseResult);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
