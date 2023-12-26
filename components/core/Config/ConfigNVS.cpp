@@ -28,9 +28,6 @@ ConfigNVS::ConfigNVS(const char *configNamespace, int configMaxlen) :
 {
     _configNamespace = configNamespace;
     _pPreferences = new ArPreferences();
-    _nonVolatileStoreEmpty = true;
-    _pStaticConfig = NULL;
-    _callsToGetNVStr = 0;
     setup();
 }
 
@@ -66,7 +63,7 @@ void ConfigNVS::clear()
     _setConfigData("");
 
     // No non-volatile store
-    _nonVolatileStoreEmpty = true;
+    _nonVolatileStoreValid = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +86,7 @@ bool ConfigNVS::setup()
 
     // Check if we should use this config info in favour of
     // static pointer
-    _nonVolatileStoreEmpty = (configStr.length() <= 2);
+    _nonVolatileStoreValid = (configStr.length() > 2);
 
     // Ok
     return true;
@@ -102,9 +99,9 @@ bool ConfigNVS::setup()
 bool ConfigNVS::writeConfig(const String& configJSONStr)
 {
     // Check length of string
-    if (configJSONStr.length() >= _configMaxDataLen)
+    if (configJSONStr.length() >= getMaxLen())
     {
-        LOG_E(MODULE_PREFIX, "writeConfig config too long %d > %d", configJSONStr.length(), _configMaxDataLen);
+        LOG_E(MODULE_PREFIX, "writeConfig config too long %d > %d", configJSONStr.length(), getMaxLen());
         return false;
     }
 
@@ -112,7 +109,7 @@ bool ConfigNVS::writeConfig(const String& configJSONStr)
     _setConfigData(configJSONStr.c_str());
 
     // Check if non-volatile data is valid
-    _nonVolatileStoreEmpty = (configJSONStr.length() <= 2);
+    _nonVolatileStoreValid = (configJSONStr.length() > 2);
 
 #ifdef DEBUG_NVS_CONFIG_READ_WRITE
     // Debug
@@ -210,7 +207,7 @@ String ConfigNVS::getNVConfigStr() const
 String ConfigNVS::getString(const char *dataPath, const char *defaultValue, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+    if (ConfigBase::contains(dataPath, pPrefix))
         return ConfigBase::getString(dataPath, defaultValue, pPrefix);
     if (_pStaticConfig)
         return _helperGetString(dataPath, defaultValue, _pStaticConfig, pPrefix);
@@ -224,7 +221,7 @@ String ConfigNVS::getString(const char *dataPath, const char *defaultValue, cons
 long ConfigNVS::getLong(const char *dataPath, long defaultValue, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+    if (ConfigBase::contains(dataPath, pPrefix))
     {
         long retVal = ConfigBase::getLong(dataPath, defaultValue, pPrefix);
 #ifdef DEBUG_NVS_CONFIG_DETAIL
@@ -263,7 +260,7 @@ bool ConfigNVS::getBool(const char *dataPath, bool defaultValue, const char* pPr
 double ConfigNVS::getDouble(const char *dataPath, double defaultValue, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+    if (ConfigBase::contains(dataPath, pPrefix))
         return ConfigBase::getDouble(dataPath, defaultValue, pPrefix);
     if (_pStaticConfig)
         return _helperGetDouble(dataPath, defaultValue, _pStaticConfig, pPrefix);
@@ -273,7 +270,7 @@ double ConfigNVS::getDouble(const char *dataPath, double defaultValue, const cha
 bool ConfigNVS::getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+    if (ConfigBase::contains(dataPath, pPrefix))
         return ConfigBase::getArrayElems(dataPath, strList, pPrefix);
     if (_pStaticConfig)
         return _helperGetArrayElems(dataPath, strList, _pStaticConfig, pPrefix);
@@ -283,7 +280,7 @@ bool ConfigNVS::getArrayElems(const char *dataPath, std::vector<String>& strList
 bool ConfigNVS::contains(const char *dataPath, const char* pPrefix) const
 {
     // Check source
-    if (_helperContains(dataPath, _dataStrJSON.c_str(), pPrefix))
+    if (ConfigBase::contains(dataPath, pPrefix))
         return true;
     if (_pStaticConfig)
         return _helperContains(dataPath, _pStaticConfig, pPrefix);

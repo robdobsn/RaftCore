@@ -20,31 +20,36 @@ public:
 
     // Set the config data from a static source - note that only the
     // pointer is stored so this data MUST be statically allocated
-    void setStaticConfigData(const char* pStaticConfig)
+    void setStaticConfigData(const char* pStaticJSONConfigStr)
     {
-        _pStaticConfig = pStaticConfig;
+        _staticConfigData.pDataStrJSONStatic = pStaticJSONConfigStr;
+#ifdef FEATURE_NO_CACHE_FLASH_CONFIG_STR
+        _staticConfigData.enableCaching = false;
+#endif
     }
 
     // Get config raw string
     virtual String getConfigString() const override final
     {
-        return (_nonVolatileStoreEmpty && _pStaticConfig) ? _pStaticConfig : _dataStrJSON;
+        // If the non-volatile store is not valid then return the static config
+        
+        return (!_nonVolatileStoreValid && _pStaticConfig) ? _pStaticConfig : ConfigBase::getConfigString();
     }
 
     // Get persisted config
     String getPersistedConfig() const
     {
-        if (!_nonVolatileStoreEmpty)
-            if (_dataStrJSON.length() > 0)
-                return _dataStrJSON;
+        if (_nonVolatileStoreValid)
+            if (ConfigBase::getConfigString().length() > 0)
+                return ConfigBase::getConfigString();
         return "{}";
     }
 
     // Get static config
     String getStaticConfig() const
     {
-        if (_pStaticConfig)
-            return _pStaticConfig;
+        if (_staticConfigData.pDataStrJSONStatic)
+            return _staticConfigData.pDataStrJSONStatic;
         return "{}";
     }
 
@@ -83,21 +88,21 @@ private:
     String _configNamespace;
 
     // ArPreferences instance
-    ArPreferences* _pPreferences;
+    ArPreferences* _pPreferences = nullptr;
 
     // List of callbacks on change of config
     std::vector<ConfigChangeCallbackType> _configChangeCallbacks;
 
-    // Non-volatile store empty
-    bool _nonVolatileStoreEmpty;
+    // Non-volatile store valid
+    bool _nonVolatileStoreValid = true;
 
-    // Pointer to statically allocated storage which is used only when
-    // non-volatile store is empty
-    const char* _pStaticConfig;
+    // JSON data for statically allocated storage which is used when
+    // a key is not found in the non-volatile store
+    JSONDataAndCache _staticConfigData;
 
     // Get non-volatile config str
     String getNVConfigStr() const;
 
     // Stats on calls to getNVConfigStr
-    uint32_t _callsToGetNVStr;
+    uint32_t _callsToGetNVStr = 0;
 };

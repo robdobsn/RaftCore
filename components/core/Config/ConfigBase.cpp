@@ -23,13 +23,30 @@ const char* MODULE_PREFIX = "ConfigBase";
 int ConfigBase::_hwRevision = DEFAULT_HARDWARE_REVISION_NUMBER;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// clear
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ConfigBase::clear()
+{
+    // Check if cached parse result needs to be released
+    if (_dataAndCache.pCachedParseResult)
+    {
+        RaftJson::releaseCachedParseResult(&_dataAndCache.pCachedParseResult);
+        _dataAndCache.pCachedParseResult = nullptr;
+    }
+
+    // Clear the data
+    _dataAndCache.dataStrJSON = "";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getString
 // If overriding getString then override the one with const char*
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 String ConfigBase::getString(const char *dataPath, const char *defaultValue, const char* pPrefix) const
 {
-    return _helperGetString(dataPath, defaultValue, _getConfigCStr(), pPrefix);
+    return _helperGetString(dataPath, defaultValue, _getSourceJSONDataAndCache(), pPrefix);
 }
 
 String ConfigBase::getString(const char *dataPath, const String& defaultValue, const char* pPrefix) const
@@ -43,7 +60,7 @@ String ConfigBase::getString(const char *dataPath, const String& defaultValue, c
 
 long ConfigBase::getLong(const char *dataPath, long defaultValue, const char* pPrefix) const
 {
-    return _helperGetLong(dataPath, defaultValue, _getConfigCStr(), pPrefix);
+    return _helperGetLong(dataPath, defaultValue, _getSourceJSONDataAndCache(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +69,7 @@ long ConfigBase::getLong(const char *dataPath, long defaultValue, const char* pP
 
 bool ConfigBase::getBool(const char *dataPath, bool defaultValue, const char* pPrefix) const
 {
-    return _helperGetLong(dataPath, defaultValue, _getConfigCStr(), pPrefix) != 0;
+    return _helperGetLong(dataPath, defaultValue, _getSourceJSONDataAndCache(), pPrefix) != 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +78,7 @@ bool ConfigBase::getBool(const char *dataPath, bool defaultValue, const char* pP
 
 double ConfigBase::getDouble(const char *dataPath, double defaultValue, const char* pPrefix) const
 {
-    return _helperGetDouble(dataPath, defaultValue, _getConfigCStr(), pPrefix);
+    return _helperGetDouble(dataPath, defaultValue, _getSourceJSONDataAndCache(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +87,7 @@ double ConfigBase::getDouble(const char *dataPath, double defaultValue, const ch
 
 bool ConfigBase::getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix) const
 {
-    return _helperGetArrayElems(dataPath, strList, _getConfigCStr(), pPrefix);
+    return _helperGetArrayElems(dataPath, strList, _getSourceJSONDataAndCache(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -79,7 +96,7 @@ bool ConfigBase::getArrayElems(const char *dataPath, std::vector<String>& strLis
 
 bool ConfigBase::contains(const char *dataPath, const char* pPrefix) const
 {
-    return _helperContains(dataPath, _getConfigCStr(), pPrefix);
+    return _helperContains(dataPath, _getSourceJSONDataAndCache(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +105,7 @@ bool ConfigBase::contains(const char *dataPath, const char* pPrefix) const
 
 bool ConfigBase::getKeys(const char *dataPath, std::vector<String>& keysVector, const char* pPrefix) const
 {
-    return _helperGetKeys(dataPath, keysVector, _getConfigCStr(), pPrefix);
+    return _helperGetKeys(dataPath, keysVector, _getSourceJSONDataAndCache(), pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,24 +114,28 @@ bool ConfigBase::getKeys(const char *dataPath, std::vector<String>& keysVector, 
 
 void ConfigBase::_setConfigData(const char* configJSONStr)
 {
-    if (!configJSONStr || (configJSONStr[0] == '\0'))
-        _dataStrJSON = "{}";
+    // This is necessary to ensure that the cached parse result is released
+    clear();
+
+    // Set the data
+    if(!configJSONStr || (configJSONStr[0] == '\0'))
+        _dataAndCache.dataStrJSON = "{}";
     else
-        _dataStrJSON = configJSONStr;
+        _dataAndCache.dataStrJSON = configJSONStr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // _helperGetString
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String ConfigBase::_helperGetString(const char *dataPath, const char *defaultValue, const char* pSourceStr, const char* pPrefix)
+String ConfigBase::_helperGetString(const char *dataPath, const char *defaultValue, const JSONDataAndCache& sourceJsonData, const char* pPrefix)
 {
     String element;
     jsmntype_t type = JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
+    bool exists = _helperGetElement(dataPath, element, type, sourceJsonData, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    String rdJsonResult = RaftJson::getString(dataPath, defaultValue, pSourceStr, pPrefix);
+    String rdJsonResult = RaftJson::getString(dataPath, defaultValue, sourceJsonData.getSourceJSONStr(), pPrefix);
     if (!exists && !rdJsonResult.equals(defaultValue ? defaultValue : ""))
     {
         // We are returning defaultValue when we should not
@@ -135,7 +156,7 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
     if (pStr)
     {
         element = pStr;
-        delete[] pStr;
+        delete pStr;
     }
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
@@ -153,11 +174,11 @@ String ConfigBase::_helperGetString(const char *dataPath, const char *defaultVal
 // _helperGetLong
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr, const char* pPrefix)
+long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const JSONDataAndCache& sourceJsonData, const char* pPrefix)
 {
     String element;
     jsmntype_t type = JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
+    bool exists = _helperGetElement(dataPath, element, type, sourceJsonData, pPrefix);
     long result = defaultValue;
     if (exists)
     {
@@ -171,7 +192,7 @@ long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const c
     }
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    long rdJsonResult = RaftJson::getLong(dataPath, defaultValue, pSourceStr, pPrefix);
+    long rdJsonResult = RaftJson::getLong(dataPath, defaultValue, sourceJsonData.getSourceJSONStr(), pPrefix);
     if (rdJsonResult != result)
     {
         LOG_W(MODULE_PREFIX, "getLong(\"%s\", %ld) returned %ld != %ld",
@@ -186,11 +207,11 @@ long ConfigBase::_helperGetLong(const char *dataPath, long defaultValue, const c
 // getDouble
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr, const char* pPrefix)
+double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, const JSONDataAndCache& sourceJsonData, const char* pPrefix)
 {
     String element;
     jsmntype_t type = JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
+    bool exists = _helperGetElement(dataPath, element, type, sourceJsonData, pPrefix);
     double result = defaultValue;
     if (exists)
     {
@@ -204,7 +225,7 @@ double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, c
     }
     
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
-    double rdJsonResult = RaftJson::getDouble(dataPath, defaultValue, pSourceStr);
+    double rdJsonResult = RaftJson::getDouble(dataPath, defaultValue, sourceJsonData.getSourceJSONStr(), pPrefix);
     if (rdJsonResult != result)
     {
         LOG_W(MODULE_PREFIX, "getDouble(\"%s\", %f) returned %f != %f",
@@ -219,15 +240,15 @@ double ConfigBase::_helperGetDouble(const char *dataPath, double defaultValue, c
 // _helperGetArrayElems
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr, const char* pPrefix)
+bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const JSONDataAndCache& sourceJsonData, const char* pPrefix)
 {
     String element;
     jsmntype_t type = JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
+    bool exists = _helperGetElement(dataPath, element, type, sourceJsonData, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
     std::vector<String> rdJsonResult;
-    double rdJsonExists = RaftJson::getArrayElems(dataPath, rdJsonResult, pSourceStr, pPrefix);
+    double rdJsonExists = RaftJson::getArrayElems(dataPath, rdJsonResult, sourceJsonData.getSourceJSONStr(), pPrefix);
     if (!exists && rdJsonExists)
     {
         LOG_W(MODULE_PREFIX, "getArrayElems(\"%s\") - _helperGetElement() failed", dataPath);
@@ -268,15 +289,15 @@ bool ConfigBase::_helperGetArrayElems(const char *dataPath, std::vector<String>&
 // _helperGetKeys
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr, const char* pPrefix)
+bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const JSONDataAndCache& sourceJsonData, const char* pPrefix)
 {
     String element;
     jsmntype_t type = JSMN_UNDEFINED;
-    bool exists = _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
+    bool exists = _helperGetElement(dataPath, element, type, sourceJsonData, pPrefix);
 
 #ifdef DEBUG_CHECK_BACKWARDS_COMPATIBILITY
     std::vector<String> rdJsonResult;
-    double rdJsonExists = RaftJson::getKeys(dataPath, rdJsonResult, pSourceStr, pPrefix);
+    double rdJsonExists = RaftJson::getKeys(dataPath, rdJsonResult, sourceJsonData.getSourceJSONStr(), pPrefix);
     if (!exists && rdJsonExists)
     {
         LOG_W(MODULE_PREFIX, "getKeys(\"%s\") - _helperGetElement() failed", dataPath);
@@ -317,18 +338,18 @@ bool ConfigBase::_helperGetKeys(const char *dataPath, std::vector<String>& keysV
 // _helperContains
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperContains(const char *dataPath, const char* pSourceStr, const char* pPrefix)
+bool ConfigBase::_helperContains(const char *dataPath, const JSONDataAndCache& sourceJsonData, const char* pPrefix)
 {
     String element;
     jsmntype_t type = JSMN_UNDEFINED;
-    return _helperGetElement(dataPath, element, type, pSourceStr, pPrefix);
+    return _helperGetElement(dataPath, element, type, sourceJsonData, pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // _helperGetElement
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix)
+bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsmntype_t& elementType, const JSONDataAndCache& sourceJsonData, const char* pPrefix)
 {
     // Combine the prefix and the data path
     String dataPathStr;
@@ -348,31 +369,45 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsm
     int startPos = -1;
     int strLen = -1;
     int size = -1;
-    bool found = RaftJson::getElement(dataPathStr.c_str(), startPos, strLen, elementType, size, pConfigStr);
+    bool found = false;
+
+    // Get the pointer to the data string (dataStrJson may be overriden)
+    const char* pSourceJsonStr = sourceJsonData.getSourceJSONStr();
+
+    // Check if we should use caching
+    if (sourceJsonData.enableCaching && ((sourceJsonData.pCachedParseStr == nullptr) || (sourceJsonData.pCachedParseStr == pSourceJsonStr)))
+    {
+        found = RaftJson::getElement(dataPathStr.c_str(), startPos, strLen, elementType, size, pSourceJsonStr, &sourceJsonData.pCachedParseResult, &sourceJsonData.cachedParseNumTokens);
+        sourceJsonData.pCachedParseStr = pSourceJsonStr;
+    }
+    else
+    {
+        found = RaftJson::getElement(dataPathStr.c_str(), startPos, strLen, elementType, size, pSourceJsonStr);
+    }
 #ifdef DEBUG_CONFIG_BASE
     {
         String debugOutStr;
-        Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
+        Raft::strFromBuffer((const uint8_t*)(pSourceJsonStr+startPos), strLen, debugOutStr);
         LOG_I(MODULE_PREFIX, "  - found=%d, start=%d, len=%d, type=%s, size=%d, elemSubstr='%s'",
             (int)found, startPos, strLen, RaftJson::getElemTypeStr(elementType), size,
-            (startPos < 0 || strLen < 0 || startPos > strnlen(pConfigStr, startPos+1)) ? "" : debugOutStr.c_str());
+            (startPos < 0 || strLen < 0 || startPos > strnlen(pSourceJsonStr, startPos+1)) ? "" : debugOutStr.c_str());
     }
 #endif
 #ifdef DEBUG_CONFIG_BASE_SPECIFIC_PATH
     if (strcasecmp(dataPathStr.c_str(), DEBUG_CONFIG_BASE_SPECIFIC_PATH) == 0)
     {
         String debugOutStr;
-        Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, debugOutStr);
+        Raft::strFromBuffer((const uint8_t*)(pSourceJsonStr+startPos), strLen, debugOutStr);
         LOG_I(MODULE_PREFIX, "path %s found=%d, start=%d, len=%d, type=%s, size=%d, elemSubstr='%s'",
             dataPathStr.c_str(), (int)found, startPos, strLen, RaftJson::getElemTypeStr(elementType), size,
-            (startPos < 0 || strLen < 0 || startPos > strnlen(pConfigStr, startPos+1)) ? "" : debugOutStr.c_str());
+            (startPos < 0 || strLen < 0 || startPos > strnlen(pSourceJsonStr, startPos+1)) ? "" : debugOutStr.c_str());
     }
 #endif
 
-    if (!found || (startPos < 0) || (strLen < 0) || (startPos > strnlen(pConfigStr, startPos+1)))
+    if (!found || (startPos < 0) || (strLen < 0) || (startPos > sourceJsonData.getSourceJSONStrLen()))
         return false;  // Invalid path
 
-    Raft::strFromBuffer((const uint8_t*)(pConfigStr+startPos), strLen, elementStr);
+    Raft::strFromBuffer((const uint8_t*)(pSourceJsonStr+startPos), strLen, elementStr);
     if (elementType != JSMN_ARRAY || size <= 0)
         return true;  // Not an array of option objects - return the element as is
 

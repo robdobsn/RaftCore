@@ -22,11 +22,11 @@ class ConfigBase
 public:
     ConfigBase()
     {
-        _configMaxDataLen = 0;
+        _jsonDataMaxLen = 0;
     }
 
     ConfigBase(int maxDataLen) :
-        _configMaxDataLen(maxDataLen)
+        _jsonDataMaxLen(maxDataLen)
     {
     }
 
@@ -42,36 +42,33 @@ public:
 
     ConfigBase(const ConfigBase& other)
     {
-        _dataStrJSON = other._dataStrJSON;
-        _configMaxDataLen = other._configMaxDataLen;
+        _setConfigData(other.getConfigString().c_str());
+        _jsonDataMaxLen = other._jsonDataMaxLen;
     }
 
     ConfigBase& operator=(const ConfigBase& other)
     {
-        _dataStrJSON = other._dataStrJSON;
-        _configMaxDataLen = other._configMaxDataLen;
+        _setConfigData(other.getConfigString().c_str());
+        _jsonDataMaxLen = other._jsonDataMaxLen;
         return *this;
     }
 
+    // Destructor (must be virtual to allow derived classes to be deleted)
     virtual ~ConfigBase()
     {
+        clear();
     }
 
-    virtual void clear()
-    {
-    }
-
+    // Clear json string including cached parse result
+    virtual void clear();
+ 
+    // Setup
     virtual bool setup()
     {
         return false;
     }
 
-    // Get config raw string
-    virtual String getConfigString() const
-    {
-        return _dataStrJSON;
-    }
-
+    // Write to non-volatile storage
     virtual bool writeConfig(const String& configJSONStr)
     {
         return false;
@@ -85,7 +82,13 @@ public:
     // Get max length
     virtual int getMaxLen() const
     {
-        return _configMaxDataLen;
+        return _jsonDataMaxLen;
+    }
+
+    // Get the JSON string
+    virtual String getConfigString() const
+    {
+        return _dataAndCache.dataStrJSON;
     }
 
     /**
@@ -192,6 +195,42 @@ public:
     }
     
 protected:
+    // Storage for data and cache of parse result
+    class JSONDataAndCache
+    {
+    public:
+        // Data is stored in a single string as JSON
+        String dataStrJSON;
+
+        // Override of String data to allow for data stored in flash (or other static location)
+        // If this value is non-null then it is used instead of dataStrJSON
+        const char* pDataStrJSONStatic = nullptr;
+
+        // Enable caching
+        bool enableCaching = true;
+
+        // Cached parse results
+        mutable void* pCachedParseResult = nullptr;
+        mutable uint32_t cachedParseNumTokens = 0;
+
+        // Pointer to string that cache was based upon
+        mutable const char* pCachedParseStr = nullptr;
+
+        // Helper
+        const char* getSourceJSONStr() const
+        {
+            if (pDataStrJSONStatic)
+                return pDataStrJSONStatic;
+            return dataStrJSON.c_str();
+        }
+        uint32_t getSourceJSONStrLen() const
+        {
+            if (pDataStrJSONStatic)
+                return strlen(pDataStrJSONStatic);
+            return dataStrJSON.length();
+        }
+    };
+
     /**
      * @brief Retrieve a JSON element specified by `dataPath`.
      *
@@ -209,37 +248,38 @@ protected:
      *          default value if the revision switch array is corrupted.
      * @param[out] elementType Type of the retrieved element, if one was found.
      *          Not modified if `dataPath` does not exist. Invalid otherwise.
-     * @param[in]  pConfigStr   Source string.
+     * @param[in]  sourceJsonData   Source data (json) and cache information.
      *
      * @return `true` if `dataPath` exists and either does not point to a revision
      *         switch array or this array is valid and contains a value for the
      *         current HW revision (even if only the default value).
      */
-    static bool _helperGetElement(const char *dataPath, String& elementStr, jsmntype_t& elementType, const char* pConfigStr, const char* pPrefix);
+    static bool _helperGetElement(const char *dataPath, String& elementStr, jsmntype_t& elementType, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
 
     // Set the configuration data directly
     virtual void _setConfigData(const char* configJSONStr);
 
     // Helpers
-    virtual const char* _getConfigCStr() const
+    virtual const JSONDataAndCache& _getSourceJSONDataAndCache() const
     {
-        return _dataStrJSON.c_str();
+        return _dataAndCache;
     }
-    static String _helperGetString(const char *dataPath, const char *defaultValue, const char* sourceStr, const char* pPrefix);
-    static long _helperGetLong(const char *dataPath, long defaultValue, const char* pSourceStr, const char* pPrefix);
-    static bool _helperGetBool(const char *dataPath, bool defaultValue, const char* pSourceStr, const char* pPrefix);
-    static double _helperGetDouble(const char *dataPath, double defaultValue, const char* pSourceStr, const char* pPrefix);
-    static bool _helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const char* pSourceStr, const char* pPrefix);
-    static bool _helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const char* pSourceStr, const char* pPrefix);
-    static bool _helperContains(const char *dataPath, const char* pSourceStr, const char* pPrefix);
-
-    // Data is stored in a single string as JSON
-    String _dataStrJSON;
-
-    // Max length of config data
-    unsigned int _configMaxDataLen;
+    static String _helperGetString(const char *dataPath, const char *defaultValue, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
+    static long _helperGetLong(const char *dataPath, long defaultValue, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
+    static bool _helperGetBool(const char *dataPath, bool defaultValue, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
+    static double _helperGetDouble(const char *dataPath, double defaultValue, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
+    static bool _helperGetArrayElems(const char *dataPath, std::vector<String>& strList, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
+    static bool _helperGetKeys(const char *dataPath, std::vector<String>& keysVector, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
+    static bool _helperContains(const char *dataPath, const JSONDataAndCache& sourceJsonData, const char* pPrefix);
 
     // Hardware revision
     static const int DEFAULT_HARDWARE_REVISION_NUMBER = 1;
     static int _hwRevision;
+
+private:
+    // Configuration data
+    JSONDataAndCache _dataAndCache;
+
+    // Max length of config data
+    unsigned int _jsonDataMaxLen;
 };

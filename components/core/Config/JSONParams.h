@@ -26,11 +26,11 @@ public:
 
     const char* c_str()
     {
-        return _dataStrJSON.c_str();
+        return ConfigBase::getConfigString().c_str();
     }
 
-    const String& configStr()
+    String configStr()
     {
-        return _dataStrJSON;
+        return ConfigBase::getConfigString();
     }
 };
