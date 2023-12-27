@@ -373,6 +373,8 @@ bool ConfigBase::_helperGetElement(const char *dataPath, String& elementStr, jsm
 
     // Get the pointer to the data string (dataStrJson may be overriden)
     const char* pSourceJsonStr = sourceJsonData.getSourceJSONStr();
+    if (!pSourceJsonStr)
+        return false;
 
     // Check if we should use caching
     if (sourceJsonData.enableCaching && ((sourceJsonData.pCachedParseStr == nullptr) || (sourceJsonData.pCachedParseStr == pSourceJsonStr)))

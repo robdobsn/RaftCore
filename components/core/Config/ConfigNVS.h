@@ -32,8 +32,9 @@ public:
     virtual String getConfigString() const override final
     {
         // If the non-volatile store is not valid then return the static config
-        
-        return (!_nonVolatileStoreValid && _pStaticConfig) ? _pStaticConfig : ConfigBase::getConfigString();
+        if (!_nonVolatileStoreValid && _staticConfigData.pDataStrJSONStatic)
+            return _staticConfigData.pDataStrJSONStatic;
+        return ConfigBase::getConfigString();
     }
 
     // Get persisted config

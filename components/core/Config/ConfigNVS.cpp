@@ -209,9 +209,7 @@ String ConfigNVS::getString(const char *dataPath, const char *defaultValue, cons
     // Check source
     if (ConfigBase::contains(dataPath, pPrefix))
         return ConfigBase::getString(dataPath, defaultValue, pPrefix);
-    if (_pStaticConfig)
-        return _helperGetString(dataPath, defaultValue, _pStaticConfig, pPrefix);
-    return defaultValue ? defaultValue : "";
+    return _helperGetString(dataPath, defaultValue, _staticConfigData, pPrefix);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -229,18 +227,11 @@ long ConfigNVS::getLong(const char *dataPath, long defaultValue, const char* pPr
 #endif
         return retVal;
     }
-    if (_pStaticConfig)
-    {
-        long retVal = _helperGetLong(dataPath, defaultValue, _pStaticConfig, pPrefix);
+    long retVal = _helperGetLong(dataPath, defaultValue, _staticConfigData, pPrefix);
 #ifdef DEBUG_NVS_CONFIG_DETAIL
-        LOG_I(MODULE_PREFIX, "getLong not in nvs .. from static %s retVal %ld", dataPath, retVal);
+    LOG_I(MODULE_PREFIX, "getLong not in nvs .. from static %s retVal %ld", dataPath, retVal);
 #endif
-        return retVal;
-    }
-#ifdef DEBUG_NVS_CONFIG_DETAIL
-    LOG_I(MODULE_PREFIX, "getLong default val ret for %s", dataPath);
-#endif
-    return defaultValue;
+    return retVal;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -262,27 +253,29 @@ double ConfigNVS::getDouble(const char *dataPath, double defaultValue, const cha
     // Check source
     if (ConfigBase::contains(dataPath, pPrefix))
         return ConfigBase::getDouble(dataPath, defaultValue, pPrefix);
-    if (_pStaticConfig)
-        return _helperGetDouble(dataPath, defaultValue, _pStaticConfig, pPrefix);
-    return defaultValue;
+    return _helperGetDouble(dataPath, defaultValue, _staticConfigData, pPrefix);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get array elements
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool ConfigNVS::getArrayElems(const char *dataPath, std::vector<String>& strList, const char* pPrefix) const
 {
     // Check source
     if (ConfigBase::contains(dataPath, pPrefix))
         return ConfigBase::getArrayElems(dataPath, strList, pPrefix);
-    if (_pStaticConfig)
-        return _helperGetArrayElems(dataPath, strList, _pStaticConfig, pPrefix);
-    return false;
+    return _helperGetArrayElems(dataPath, strList, _staticConfigData, pPrefix);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Contains
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool ConfigNVS::contains(const char *dataPath, const char* pPrefix) const
 {
     // Check source
     if (ConfigBase::contains(dataPath, pPrefix))
         return true;
-    if (_pStaticConfig)
-        return _helperContains(dataPath, _pStaticConfig, pPrefix);
-    return false;
+    return _helperContains(dataPath, _staticConfigData, pPrefix);
 }

@@ -5,4 +5,7 @@ idf_component_register(SRCS
                     REQUIRES
                         esp_system
                         unity
+                    PRIV_REQUIRES 
+                        RaftCore 
+                        nvs_flash
                     )
