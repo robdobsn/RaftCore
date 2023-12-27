@@ -14,6 +14,7 @@
 #include <RaftJson.h>
 #include <Logger.h>
 #include "unity.h"
+#include "unity_test_runner.h"
 #include <RaftJsmn.h>
 #include <RaftUtils.h>
 

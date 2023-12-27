@@ -1,11 +1,10 @@
-idf_component_register(SRCS 
-                        "test_main.cpp"
-                    INCLUDE_DIRS 
-                        "."
-                    REQUIRES
-                        esp_system
-                        unity
-                    PRIV_REQUIRES 
-                        RaftCore 
-                        nvs_flash
-                    )
+idf_component_register(SRCS
+        SRC_DIRS "."
+        INCLUDE_DIRS "."
+        REQUIRES
+            esp_system
+            unity
+            RaftCore 
+            nvs_flash
+        WHOLE_ARCHIVE
+        )
