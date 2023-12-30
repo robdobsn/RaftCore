@@ -29,27 +29,25 @@ static const char *MODULE_PREFIX = "RaftJson";
 // #define DEBUG_FIND_KEY_IN_JSON_ARRAY
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Constructor and destructor
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RaftJSON::RaftJson(const char *pJsonDoc, bool cache, int maxTokens)
+{
+    // Store the JSON document
+    _jsonDoc = pJsonDoc;
+    _enableCaching = cache;
+    _maxTokens = maxTokens;
+}
+
+RaftJSON::~RaftJson()
+{
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getElement
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * getElement : Get location of element in JSON string
- * 
- * @param  {char*} dataPath       : path to element to return info about
- * @param  {int&} startPos        : [out] start position 
- * @param  {int&} strLen          : [out] length
- * @param  {jsmntype_t&} elemType : [out] element type
- * @param  {int&} elemSize        : [out] element size
- * @param  {char*} pSourceStr     : json string to search for element
- * @param  {void**} pCachedParseResult : [in/out] pointer to cached parse result
- * @param  {uint32_t*} pCachedParseNumTokens : [in/out] pointer to cached parse result
- * @return {bool}                 : true if element found
- * 
- * NOTE: If pCachedParseResult and pCachedParseNumTokens are provided then they must be a pointer to an already
- *      allocated void pointer and pointer to uint32_t respectively. In this case the parse result will be cached
- *      and the caller must call releaseCachedParseResult() with the same pointer as used when creating the cache
- *      to release the cached memory when all uses of this parse result are complete.
- */
 bool RaftJson::getElement(const char *dataPath,
                         int &startPos, int &strLen,
                         jsmntype_t &elemType, int &elemSize,
