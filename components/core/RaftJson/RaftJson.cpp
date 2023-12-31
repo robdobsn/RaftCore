@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // JSON field extraction
-// Many of the methods here support a dataPath parameter. This uses a syntax like a much simplified XPath:
+// Many of the methods here support a pDataPath parameter. This uses a syntax like a much simplified XPath:
 // [0] returns the 0th element of an array
 // / is a separator of nodes
 //
@@ -23,7 +23,7 @@ static const char *MODULE_PREFIX = "RaftJson";
 // #define DEBUG_GET_ARRAY_ELEMS
 // #define DEBUG_EXTRACT_NAME_VALUES
 // #define DEBUG_IS_BOOLEAN
-// Note that the following #defines can define a dataPath in inverted commas to restrict debugging to a specfic key/path
+// Note that the following #defines can define a pDataPath in inverted commas to restrict debugging to a specfic key/path
 // e.g. #define DEBUG_FIND_KEY_IN_JSON "my/path/to/a/key"
 // #define DEBUG_FIND_KEY_IN_JSON
 // #define DEBUG_FIND_KEY_IN_JSON_ARRAY
@@ -32,12 +32,13 @@ static const char *MODULE_PREFIX = "RaftJson";
 // Constructor and destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftJSON::RaftJson(const char *pJsonDoc, bool cache, int maxTokens)
+RaftJSON::RaftJson(const char *pJsonDoc, bool makeCopy, bool cacheParseResults, int16_t maxTokens)
 {
-    // Store the JSON document
-    _jsonDoc = pJsonDoc;
-    _enableCaching = cache;
-    _maxTokens = maxTokens;
+    // Setup the JSON document
+    _docAndCache.setJsonDoc(pJsonDoc, makeCopy);
+
+    // Store parse parameters
+    _docAndCache.setParseParams(cacheParseResults, maxTokens);
 }
 
 RaftJSON::~RaftJson()
@@ -45,62 +46,215 @@ RaftJSON::~RaftJson()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getString
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String RaftJson::getString(const char *pDataPath, const char *defaultValue, 
+            const char* pSourceStr, 
+            const JSONDocAndCache* pDocAndCache = nullptr)
+{
+    // Find the element in the JSON using the pDataPath
+    int startPos = 0, strLen = 0;
+    jsmntype_t elemType = JSMN_UNDEFINED;
+    int elemSize = 0;
+    if ((!pSourceStr && !pDocAndCache) || 
+         !getElement(pDataPath, startPos, strLen, elemType, elemSize, 
+                nullptr,
+                nullptr,
+                pSourceStr,
+                pDocAndCache))
+        return defaultValue ? defaultValue : "";
+
+    // Extract string
+    const char* pStr = pSourceStr ? pSourceStr + startPos : pDocAndCache->getJsonDoc();
+    return String(pStr, strLen);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getDouble
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+double RaftJson::getDouble(const char *pDataPath, double defaultValue, 
+            const char* pSourceStr, 
+            const JSONDocAndCache* pDocAndCache = nullptr)
+{
+    // Find the element in the JSON using the pDataPath
+    int startPos = 0, strLen = 0;
+    jsmntype_t elemType = JSMN_UNDEFINED;
+    int elemSize = 0;
+    if ((!pSourceStr && !pDocAndCache) || 
+         !getElement(pDataPath, startPos, strLen, elemType, elemSize, 
+                nullptr,
+                nullptr,
+                pSourceStr,
+                pDocAndCache))
+        return defaultValue;
+    // Check for booleans
+    int retValue = 0;
+    const char* pStr = pSourceStr ? pSourceStr + startPos : pDocAndCache->getJsonDoc();
+    if (RaftJson::isBoolean(pStr+startPos, strLen, retValue))
+        return retValue;
+    return strtod(pStr + startPos, NULL);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getLong
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+long RaftJson::getLong(const char *pDataPath, long defaultValue, 
+            const char* pSourceStr, 
+            const JSONDocAndCache* pDocAndCache = nullptr)
+{
+    // Find the element in the JSON using the pDataPath
+    int startPos = 0, strLen = 0;
+    jsmntype_t elemType = JSMN_UNDEFINED;
+    int elemSize = 0;
+    if ((!pSourceStr && !pDocAndCache) || 
+         !getElement(pDataPath, startPos, strLen, elemType, elemSize, 
+                nullptr,
+                nullptr,
+                pSourceStr,
+                pDocAndCache))
+        return defaultValue;
+    // Check for booleans
+    int retValue = 0;
+    const char* pStr = pSourceStr ? pSourceStr + startPos : pDocAndCache->getJsonDoc();
+    if (RaftJson::isBoolean(pStr+startPos, strLen, retValue))
+        return retValue;
+    return strtol(pStr + startPos, NULL, 0);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getBool
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftJson::getBool(const char *pDataPath, bool defaultValue,
+            const char* pSourceStr, 
+            const JSONDocAndCache* pDocAndCache = nullptr)
+{
+    return RaftJson::getLong(pDataPath, defaultValue, pSourceStr, pDocAndCache) != 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getType
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+jsmntype_t RaftJson::getType(const char* pDataPath, int &arrayLen,
+            const char* pSourceStr, 
+            const JSONDocAndCache* pDocAndCache = nullptr)
+{
+    // Find the element in the JSON using the pDataPath
+    int startPos = 0, strLen = 0;
+    jsmntype_t elemType = JSMN_UNDEFINED;
+    int elemSize = 0;
+    if ((!pSourceStr && !pDocAndCache) || 
+         !getElement(pDataPath, startPos, strLen, elemType, elemSize, 
+                nullptr,
+                nullptr,
+                pSourceStr,
+                pDocAndCache))
+        return JSMN_UNDEFINED;
+
+    // Check for array
+    if (elemType == JSMN_ARRAY)
+        arrayLen = elemSize;
+    else
+        arrayLen = 0;
+    return elemType;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getKeys
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftJson::getKeys(const char *pDataPath, std::vector<String>& keysVector,
+            const char* pSourceStr, 
+            const JSONDocAndCache* pDocAndCache = nullptr)
+{
+    // Find the element in the JSON using the pDataPath
+    int startPos = 0, strLen = 0;
+    jsmntype_t elemType = JSMN_UNDEFINED;
+    int elemSize = 0;
+    if ((!pSourceStr && !pDocAndCache) || 
+         !getElement(pDataPath, startPos, strLen, elemType, elemSize, 
+                &keysVector,
+                nullptr,
+                pSourceStr,
+                pDocAndCache))
+        return false;
+    return elemType == JSMN_OBJECT;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getElement
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftJson::getElement(const char *dataPath,
+bool RaftJson::getElement(const char *pDataPath,
                         int &startPos, int &strLen,
                         jsmntype_t &elemType, int &elemSize,
-                        const char *pSourceStr,
-                        void** pCachedParseResult,
-                        uint32_t* pCachedParseNumTokens)
+                        std::vector<String>* pKeysVector,
+                        std::vector<String>* pArrayElems,
+                        const char *pSourceStr
+                        const JSONDocAndCache* pDocAndCache = nullptr)
 {
-    // Check if already parsed
+    // Get parsed tokens from cache or by parsing the JSON document
     int numTokens = 0;
     jsmntok_t *pTokens = nullptr;
     bool parseResultRequiresDeletion = false;
-    if (pCachedParseResult && *pCachedParseResult && pCachedParseNumTokens)
+    const char* pJsonDoc = nullptr;
+    if (pDocAndCache)
     {
-        pTokens = (jsmntok_t*)(*pCachedParseResult);
-        numTokens = *pCachedParseNumTokens;
+        if (pDocAndCache->pCachedParseResult)
+        {
+            pTokens = pDocAndCache->pCachedParseResult;
+            numTokens = pDocAndCache->cachedParseNumTokens;
+        }
+        else
+        {
+            // Parse json into tokens
+            pTokens = parseJson(pDocAndCache->getJsonDoc(), numTokens, pDocAndCache->maxTokens);
+            if (pDocAndCache->cacheParseResult)
+            {
+                pDocAndCache->pCachedParseResult = pTokens;
+                pDocAndCache->cachedParseNumTokens = numTokens;
+            }
+            else
+            {
+                parseResultRequiresDeletion = true;
+            }
+        }
+        pJsonDoc = pDocAndCache->getJsonDoc();
+    }
+    else if (pSourceStr)
+    {
+        // Parse json into tokens
+        pTokens = parseJson(pSourceStr, numTokens, RDJSON_MAX_TOKENS);
+        parseResultRequiresDeletion = true;
+        pJsonDoc = pSourceStr;
     }
     else
     {
-        // Check for null source string
-        if (!pSourceStr)
-        {
 #ifdef DEBUG_GET_ELEMENT
-            LOG_I(MODULE_PREFIX, "getElement failed null source %s", dataPath);
+        LOG_I(MODULE_PREFIX, "getElement failed null sources %s", pDataPath);
 #endif
-            return false;
-        }
-
-        // Parse json into tokens
-        pTokens = parseJson(pSourceStr, numTokens);
-        parseResultRequiresDeletion = true;
-
-        // Check if we should cache the parse result
-        if (pCachedParseResult && pCachedParseNumTokens)
-        {
-            *pCachedParseResult = (void*)pTokens;
-            *pCachedParseNumTokens = numTokens;
-            parseResultRequiresDeletion = false;
-        }
+        return false;
     }
 
     // Check valid parse info
     if (pTokens == NULL)
     {
 #ifdef DEBUG_GET_ELEMENT
-        LOG_I(MODULE_PREFIX, "getElement failedParse %s", dataPath);
+        LOG_I(MODULE_PREFIX, "getElement no tokens detected in JSON %s", pDataPath);
 #endif
+        if (parseResultRequiresDeletion)
+            delete[] pTokens;
         return false;
     }
 
     // Find token
     int endTokenIdx = 0;
     int startTokenIdx = findKeyInJson(pSourceStr, pTokens, numTokens, 
-                        dataPath, endTokenIdx);
+                        pDataPath, endTokenIdx);
     if (startTokenIdx >= 0)
     {
         // Extract information on element
@@ -108,11 +262,73 @@ bool RaftJson::getElement(const char *dataPath,
         elemSize = pTokens[startTokenIdx].size;
         startPos = pTokens[startTokenIdx].start;
         strLen = pTokens[startTokenIdx].end - startPos;
+
+        // Check if we should extract the keys of the object
+        if (pKeysVector)
+        {
+            if (elemType == JSMN_OBJECT)
+            {
+                // Number of keys is the size of the object
+                int numKeys = pTokens[startTokenIdx].size;
+                pKeysVector->resize(numKeys);
+                unsigned int tokIdx = startTokenIdx+1;
+                for (int keyIdx = 0; keyIdx < numKeys; keyIdx++)
+                {
+                    // Check valid
+                    if ((tokIdx >= numTokens) || (pTokens[tokIdx].type != JSMN_STRING))
+                        break;
+
+                    // Extract the string
+                    (*pKeysVector)[keyIdx] = String(pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start);
+                    
+                    // Find end of value
+#ifdef DEBUG_GET_KEYS
+                    LOG_I(MODULE_PREFIX, "getKeys Looking for end of tokIdx %d", tokIdx);
+#endif
+                    tokIdx = findElemEnd(pSourceStr, pTokens, numTokens, tokIdx+1);
+#ifdef DEBUG_GET_KEYS
+                    LOG_I(MODULE_PREFIX, "getKeys ............. Found end at tokIdx %d", tokIdx);
+#endif
+                }
+            }
+            else
+            {
+                pKeysVector->clear();
+            }
+        }
+
+        // Check if we should extract array elements
+        if (pArrayElems)
+        {
+            if (elemType == JSMN_ARRAY)
+            {
+                // Number of elements is the size of the array
+                int numElems = pTokens[startTokenIdx].size;
+                pArrayElems->resize(numElems);
+                unsigned int tokIdx = startTokenIdx+1;
+                for (int elemIdx = 0; elemIdx < numElems; elemIdx++)
+                {
+                    // Check valid
+                    if (tokIdx >= numTokens)
+                        break;
+
+                    // Extract the elem
+                    (*pArrayElems)[elemIdx] = String(pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start);
+                    
+                    // Find end of elem
+                    tokIdx = findElemEnd(pSourceStr, pTokens, numTokens, tokIdx);
+                }
+            }
+            else
+            {
+                pArrayElems->clear();
+            }
+        }        
     }
     else
     {
 #ifdef DEBUG_GET_ELEMENT
-        LOG_I(MODULE_PREFIX, "getElement failed findKeyInJson %s", dataPath);
+        LOG_I(MODULE_PREFIX, "getElement failed findKeyInJson %s", pDataPath);
 #endif
     }
 
@@ -124,413 +340,391 @@ bool RaftJson::getElement(const char *dataPath,
     return startTokenIdx >= 0;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getString
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // getString
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * getString : Get a string from the JSON
- * 
- * @param  {char*} dataPath       : path of element to return
- * @param  {char*} defaultValue   : default value to return
- * @param  {bool&} isValid        : [out] true if element found
- * @param  {jsmntype_t&} elemType : [out] type of element found (maybe a primitive or maybe object/array)
- * @param  {int&} elemSize        : [out] size of element found
- * @param  {char*} pSourceStr     : json to search
- * @return {String}               : found string value or default
- */
-String RaftJson::getString(const char *dataPath,
-                         const char *defaultValue, bool &isValid,
-                         jsmntype_t &elemType, int &elemSize,
-                         const char *pSourceStr)
-{
-    // Find the element in the JSON
-    int startPos = 0, strLen = 0;
-    isValid = getElement(dataPath, startPos, strLen, elemType, elemSize, pSourceStr);
-    if (!isValid)
-        return defaultValue ? defaultValue : "";
+// /**
+//  * getString : Get a string from the JSON
+//  * 
+//  * @param  {char*} pDataPath       : path of element to return
+//  * @param  {char*} defaultValue   : default value to return
+//  * @param  {bool&} isValid        : [out] true if element found
+//  * @param  {jsmntype_t&} elemType : [out] type of element found (maybe a primitive or maybe object/array)
+//  * @param  {int&} elemSize        : [out] size of element found
+//  * @param  {char*} pSourceStr     : json to search
+//  * @return {String}               : found string value or default
+//  */
+// String RaftJson::getString(const char *pDataPath,
+//                          const char *defaultValue, bool &isValid,
+//                          jsmntype_t &elemType, int &elemSize,
+//                          const char *pSourceStr)
+// {
+//     // Find the element in the JSON
+//     int startPos = 0, strLen = 0;
+//     isValid = getElement(pDataPath, startPos, strLen, elemType, elemSize, pSourceStr);
+//     if (!isValid)
+//         return defaultValue ? defaultValue : "";
 
-    // Extract string
-    String outStr;
-    char *pStr = safeStringDup(pSourceStr + startPos, strLen,
-                               !(elemType == JSMN_STRING || elemType == JSMN_PRIMITIVE));
-    if (pStr)
-    {
-        outStr = pStr;
-        delete[] pStr;
-    }
+//     // Extract string
+//     String outStr;
+//     char *pStr = safeStringDup(pSourceStr + startPos, strLen,
+//                                !(elemType == JSMN_STRING || elemType == JSMN_PRIMITIVE));
+//     if (pStr)
+//     {
+//         outStr = pStr;
+//         delete[] pStr;
+//     }
 
-    // If the underlying element is a string or primitive value return size as length of string
-    if (elemType == JSMN_STRING || elemType == JSMN_PRIMITIVE)
-        elemSize = outStr.length();
-    return outStr;
-}
+//     // If the underlying element is a string or primitive value return size as length of string
+//     if (elemType == JSMN_STRING || elemType == JSMN_PRIMITIVE)
+//         elemSize = outStr.length();
+//     return outStr;
+// }
 
-/**
- * getString 
- * 
- * @param  {char*} dataPath     : path of element to return
- * @param  {char*} defaultValue : default value
- * @param  {char*} pSourceStr   : json string to search
- * @param  {bool&} isValid      : [out] true if valid
- * @return {String}             : returned value or default
- */
-String RaftJson::getString(const char *dataPath, const char *defaultValue,
-                         const char *pSourceStr, bool &isValid)
-{
-    jsmntype_t elemType = JSMN_UNDEFINED;
-    int elemSize = 0;
-    return getString(dataPath, defaultValue, isValid, elemType, elemSize,
-                     pSourceStr);
-}
+// /**
+//  * getString 
+//  * 
+//  * @param  {char*} pDataPath     : path of element to return
+//  * @param  {char*} defaultValue : default value
+//  * @param  {char*} pSourceStr   : json string to search
+//  * @param  {bool&} isValid      : [out] true if valid
+//  * @return {String}             : returned value or default
+//  */
+// String RaftJson::getString(const char *pDataPath, const char *defaultValue,
+//                          const char *pSourceStr, bool &isValid)
+// {
+//     jsmntype_t elemType = JSMN_UNDEFINED;
+//     int elemSize = 0;
+//     return getString(pDataPath, defaultValue, isValid, elemType, elemSize,
+//                      pSourceStr);
+// }
 
-// Alternate form of getString with fewer parameters
-/**
- * getString 
- * 
- * @param  {char*} dataPath     : path of element to return
- * @param  {char*} defaultValue : default value
- * @param  {char*} pSourceStr   : json string to search
- * @return {String}             : returned value or default
- */
-String RaftJson::getString(const char *dataPath, const char *defaultValue,
-                         const char *pSourceStr)
-{
-    bool isValid = false;
-    jsmntype_t elemType = JSMN_UNDEFINED;
-    int elemSize = 0;
-    return getString(dataPath, defaultValue, isValid, elemType, elemSize,
-                     pSourceStr);
-}
+// // Alternate form of getString with fewer parameters
+// /**
+//  * getString 
+//  * 
+//  * @param  {char*} pDataPath     : path of element to return
+//  * @param  {char*} defaultValue : default value
+//  * @param  {char*} pSourceStr   : json string to search
+//  * @return {String}             : returned value or default
+//  */
+// String RaftJson::getString(const char *pDataPath, const char *defaultValue,
+//                          const char *pSourceStr)
+// {
+//     bool isValid = false;
+//     jsmntype_t elemType = JSMN_UNDEFINED;
+//     int elemSize = 0;
+//     return getString(pDataPath, defaultValue, isValid, elemType, elemSize,
+//                      pSourceStr);
+// }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getDouble
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/**
- * getDouble 
- * 
- * @param  {char*} dataPath      : path of element to return
- * @param  {double} defaultValue : default value
- * @param  {bool&} isValid       : [out] true if valid
- * @param  {char*} pSourceStr    : json string to search
- * @return {double}              : returned value or default
- */
-double RaftJson::getDouble(const char *dataPath,
-                         double defaultValue, bool &isValid,
-                         const char *pSourceStr)
-{
-    // Find the element in the JSON
-    int startPos = 0, strLen = 0;
-    jsmntype_t elemType = JSMN_UNDEFINED;
-    int elemSize = 0;
-    isValid = getElement(dataPath, startPos, strLen, elemType, elemSize, pSourceStr);
-    if (!isValid)
-        return defaultValue;
-    // Check for booleans
-    int retValue = 0;
-    if (RaftJson::isBoolean(pSourceStr+startPos, strLen, retValue))
-        return retValue;
-    return strtod(pSourceStr + startPos, NULL);
-}
-/**
- * getDouble 
- * 
- * @param  {char*} dataPath      : path of element to return
- * @param  {double} defaultValue : default value
- * @param  {char*} pSourceStr    : json string to search
- * @return {double}              : returned value or default
- */
-double RaftJson::getDouble(const char *dataPath, double defaultValue,
-                         const char *pSourceStr)
-{
-    bool isValid = false;
-    return getDouble(dataPath, defaultValue, isValid, pSourceStr);
-}
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // getDouble
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /**
+//  * getDouble 
+//  * 
+//  * @param  {char*} pDataPath      : path of element to return
+//  * @param  {double} defaultValue : default value
+//  * @param  {bool&} isValid       : [out] true if valid
+//  * @param  {char*} pSourceStr    : json string to search
+//  * @return {double}              : returned value or default
+//  */
+// double RaftJson::getDouble(const char *pDataPath,
+//                          double defaultValue, bool &isValid,
+//                          const char *pSourceStr)
+// {
+//     // Find the element in the JSON
+//     int startPos = 0, strLen = 0;
+//     jsmntype_t elemType = JSMN_UNDEFINED;
+//     int elemSize = 0;
+//     isValid = getElement(pDataPath, startPos, strLen, elemType, elemSize, pSourceStr);
+//     if (!isValid)
+//         return defaultValue;
+//     // Check for booleans
+//     int retValue = 0;
+//     if (RaftJson::isBoolean(pSourceStr+startPos, strLen, retValue))
+//         return retValue;
+//     return strtod(pSourceStr + startPos, NULL);
+// }
+// /**
+//  * getDouble 
+//  * 
+//  * @param  {char*} pDataPath      : path of element to return
+//  * @param  {double} defaultValue : default value
+//  * @param  {char*} pSourceStr    : json string to search
+//  * @return {double}              : returned value or default
+//  */
+// double RaftJson::getDouble(const char *pDataPath, double defaultValue,
+//                          const char *pSourceStr)
+// {
+//     bool isValid = false;
+//     return getDouble(pDataPath, defaultValue, isValid, pSourceStr);
+// }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getLong
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // getLong
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * getLong
- * 
- * @param  {char*} dataPath    : path of element to return
- * @param  {long} defaultValue : default value
- * @param  {bool&} isValid     : [out] true if valid
- * @param  {char*} pSourceStr  : json string to search
- * @return {long}              : returned value or default
- */
-long RaftJson::getLong(const char *dataPath,
-                     long defaultValue, bool &isValid,
-                     const char *pSourceStr)
-{
-    // Find the element in the JSON
-    int startPos = 0, strLen = 0;
-    jsmntype_t elemType = JSMN_UNDEFINED;
-    int elemSize = 0;
-    isValid = getElement(dataPath, startPos, strLen, elemType, elemSize, pSourceStr);
-    if (!isValid)
-        return defaultValue;
-    // Check for booleans
-    int retValue = 0;
-    if (RaftJson::isBoolean(pSourceStr+startPos, strLen, retValue))
-        return retValue;
-    return strtol(pSourceStr + startPos, NULL, 0);
-}
+// /**
+//  * getLong
+//  * 
+//  * @param  {char*} pDataPath    : path of element to return
+//  * @param  {long} defaultValue : default value
+//  * @param  {bool&} isValid     : [out] true if valid
+//  * @param  {char*} pSourceStr  : json string to search
+//  * @return {long}              : returned value or default
+//  */
+// long RaftJson::getLong(const char *pDataPath,
+//                      long defaultValue, bool &isValid,
+//                      const char *pSourceStr)
+// {
+//     // Find the element in the JSON
+//     int startPos = 0, strLen = 0;
+//     jsmntype_t elemType = JSMN_UNDEFINED;
+//     int elemSize = 0;
+//     isValid = getElement(pDataPath, startPos, strLen, elemType, elemSize, pSourceStr);
+//     if (!isValid)
+//         return defaultValue;
+//     // Check for booleans
+//     int retValue = 0;
+//     if (RaftJson::isBoolean(pSourceStr+startPos, strLen, retValue))
+//         return retValue;
+//     return strtol(pSourceStr + startPos, NULL, 0);
+// }
 
-/**
- * getLong 
- * 
- * @param  {char*} dataPath    : path of element to return
- * @param  {long} defaultValue : default value
- * @param  {char*} pSourceStr  : json string to search
- * @return {long}              : returned value or default
- */
-long RaftJson::getLong(const char *dataPath, long defaultValue, const char *pSourceStr)
-{
-    bool isValid = false;
-    return getLong(dataPath, defaultValue, isValid, pSourceStr);
-}
+// /**
+//  * getLong 
+//  * 
+//  * @param  {char*} pDataPath    : path of element to return
+//  * @param  {long} defaultValue : default value
+//  * @param  {char*} pSourceStr  : json string to search
+//  * @return {long}              : returned value or default
+//  */
+// long RaftJson::getLong(const char *pDataPath, long defaultValue, const char *pSourceStr)
+// {
+//     bool isValid = false;
+//     return getLong(pDataPath, defaultValue, isValid, pSourceStr);
+// }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getBool
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // getBool
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * getBool
- * 
- * @param  {char*} dataPath    : path of element to return
- * @param  {bool} defaultValue : default value
- * @param  {bool&} isValid     : [out] true if valid
- * @param  {char*} pSourceStr  : json string to search
- * @return {bool}              : returned value or default
- */
-bool RaftJson::getBool(const char *dataPath,
-                     bool defaultValue, bool &isValid,
-                     const char *pSourceStr)
-{
-    return RaftJson::getLong(dataPath, defaultValue, isValid, pSourceStr) != 0;
-}
+// /**
+//  * getBool
+//  * 
+//  * @param  {char*} pDataPath    : path of element to return
+//  * @param  {bool} defaultValue : default value
+//  * @param  {bool&} isValid     : [out] true if valid
+//  * @param  {char*} pSourceStr  : json string to search
+//  * @return {bool}              : returned value or default
+//  */
+// bool RaftJson::getBool(const char *pDataPath,
+//                      bool defaultValue, bool &isValid,
+//                      const char *pSourceStr)
+// {
+//     return RaftJson::getLong(pDataPath, defaultValue, isValid, pSourceStr) != 0;
+// }
 
-/**
- * getBool
- * 
- * @param  {char*} dataPath    : path of element to return
- * @param  {bool} defaultValue : default value
- * @param  {char*} pSourceStr  : json string to search
- * @return {bool}              : returned value or default
- */
-bool RaftJson::getBool(const char *dataPath, bool defaultValue, const char *pSourceStr)
-{
-    return RaftJson::getLong(dataPath, defaultValue, pSourceStr) != 0;
-}
+// /**
+//  * getBool
+//  * 
+//  * @param  {char*} pDataPath    : path of element to return
+//  * @param  {bool} defaultValue : default value
+//  * @param  {char*} pSourceStr  : json string to search
+//  * @return {bool}              : returned value or default
+//  */
+// bool RaftJson::getBool(const char *pDataPath, bool defaultValue, const char *pSourceStr)
+// {
+//     return RaftJson::getLong(pDataPath, defaultValue, pSourceStr) != 0;
+// }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getLong
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // getType of outer element of JSON
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const char *RaftJson::getElemTypeStr(jsmntype_t type)
-{
-    switch (type)
-    {
-    case JSMN_PRIMITIVE:
-        return "PRIMITIVE";
-    case JSMN_STRING:
-        return "STRING";
-    case JSMN_OBJECT:
-        return "OBJECT";
-    case JSMN_ARRAY:
-        return "ARRAY";
-    case JSMN_UNDEFINED:
-        return "UNDEFINED";
-    }
-    return "UNKNOWN";
-}
+// /**
+//  * getType of outer element of JSON 
+//  * 
+//  * @param  {int&} arrayLen    : length of array or object
+//  * @param  {char*} pSourceStr : json string to search
+//  * @return {jsmntype_t}       : returned value is the type of the object
+//  */
+// jsmntype_t RaftJson::getType(int &arrayLen, const char *pSourceStr)
+// {
+//     arrayLen = 0;
+//     // Check for null
+//     if (!pSourceStr)
+//         return JSMN_UNDEFINED;
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getType of outer element of JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//     // Parse json into tokens
+//     int numTokens = 0;
+//     jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+//     if (pTokens == NULL)
+//         return JSMN_UNDEFINED;
 
-/**
- * getType of outer element of JSON 
- * 
- * @param  {int&} arrayLen    : length of array or object
- * @param  {char*} pSourceStr : json string to search
- * @return {jsmntype_t}       : returned value is the type of the object
- */
-jsmntype_t RaftJson::getType(int &arrayLen, const char *pSourceStr)
-{
-    arrayLen = 0;
-    // Check for null
-    if (!pSourceStr)
-        return JSMN_UNDEFINED;
+//     // Get the type of the first token
+//     arrayLen = pTokens->size;
+//     jsmntype_t typ = pTokens->type;
+//     delete pTokens;
+//     return typ;
+// }
 
-    // Parse json into tokens
-    int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
-    if (pTokens == NULL)
-        return JSMN_UNDEFINED;
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // getKeys
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // Get the type of the first token
-    arrayLen = pTokens->size;
-    jsmntype_t typ = pTokens->type;
-    delete pTokens;
-    return typ;
-}
+// /**
+//  * getKeys 
+//  * 
+//  * @param  {char*} pDataPath                 : path of element to return
+//  * @param  {std::vector<String>} keysVector : keys of object to return
+//  * @param  {char*} pSourceStr               : json string to search
+//  * @return {bool}                           : true if valid
+//  */
+// bool RaftJson::getKeys(const char *pDataPath, std::vector<String>& keysVector, const char *pSourceStr)
+// {
+//     // Check for null
+//     if (!pSourceStr)
+//         return false;
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getKeys
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//     // Parse json into tokens
+//     int numTokens = 0;
+//     jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+//     if (pTokens == NULL)
+//     {
+//         return false;
+//     }
 
-/**
- * getKeys 
- * 
- * @param  {char*} dataPath                 : path of element to return
- * @param  {std::vector<String>} keysVector : keys of object to return
- * @param  {char*} pSourceStr               : json string to search
- * @return {bool}                           : true if valid
- */
-bool RaftJson::getKeys(const char *dataPath, std::vector<String>& keysVector, const char *pSourceStr)
-{
-    // Check for null
-    if (!pSourceStr)
-        return false;
+//     // Debug
+//     // debugDumpParseResult(pSourceStr, pTokens, numTokens);
 
-    // Parse json into tokens
-    int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
-    if (pTokens == NULL)
-    {
-        return false;
-    }
+//     // Find token
+//     int endTokenIdx = 0;
+//     int startTokenIdx = findKeyInJson(pSourceStr, pTokens, numTokens, 
+//                         pDataPath, endTokenIdx);
+//     if (startTokenIdx < 0)
+//     {
+//         delete[] pTokens;
+//         return false;
+//     }
 
-    // Debug
-    // debugDumpParseResult(pSourceStr, pTokens, numTokens);
+//     //Debug
+// #ifdef DEBUG_GET_KEYS
+//     LOG_I(MODULE_PREFIX, "Found elem startTok %d endTok %d", startTokenIdx, endTokenIdx);
+// #endif
 
-    // Find token
-    int endTokenIdx = 0;
-    int startTokenIdx = findKeyInJson(pSourceStr, pTokens, numTokens, 
-                        dataPath, endTokenIdx);
-    if (startTokenIdx < 0)
-    {
-        delete[] pTokens;
-        return false;
-    }
+//     // Check its an object
+//     if ((pTokens[startTokenIdx].type != JSMN_OBJECT) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
+//     {
+//         delete[] pTokens;
+//         return false;
+//     }
+//     int numKeys = pTokens[startTokenIdx].size;
 
-    //Debug
-#ifdef DEBUG_GET_KEYS
-    LOG_I(MODULE_PREFIX, "Found elem startTok %d endTok %d", startTokenIdx, endTokenIdx);
-#endif
+//     // Extract the keys of the object
+//     keysVector.resize(numKeys);
+//     unsigned int tokIdx = startTokenIdx+1;
+//     String keyStr;
+//     for (int keyIdx = 0; keyIdx < numKeys; keyIdx++)
+//     {
+//         // Check valid
+//         if ((tokIdx >= numTokens) || (pTokens[tokIdx].type != JSMN_STRING))
+//             break;
 
-    // Check its an object
-    if ((pTokens[startTokenIdx].type != JSMN_OBJECT) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
-    {
-        delete[] pTokens;
-        return false;
-    }
-    int numKeys = pTokens[startTokenIdx].size;
-
-    // Extract the keys of the object
-    keysVector.resize(numKeys);
-    unsigned int tokIdx = startTokenIdx+1;
-    String keyStr;
-    for (int keyIdx = 0; keyIdx < numKeys; keyIdx++)
-    {
-        // Check valid
-        if ((tokIdx >= numTokens) || (pTokens[tokIdx].type != JSMN_STRING))
-            break;
-
-        // Extract the string
-        Raft::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, keyStr);
-        keysVector[keyIdx] = keyStr;
+//         // Extract the string
+//         Raft::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, keyStr);
+//         keysVector[keyIdx] = keyStr;
         
-        // Find end of value
-#ifdef DEBUG_GET_KEYS
-        LOG_I(MODULE_PREFIX, "getKeys Looking for end of tokIdx %d", tokIdx);
-#endif
-        tokIdx = findElemEnd(pSourceStr, pTokens, numTokens, tokIdx+1);
-#ifdef DEBUG_GET_KEYS
-        LOG_I(MODULE_PREFIX, "getKeys ............. Found end at tokIdx %d", tokIdx);
-#endif
-    }
+//         // Find end of value
+// #ifdef DEBUG_GET_KEYS
+//         LOG_I(MODULE_PREFIX, "getKeys Looking for end of tokIdx %d", tokIdx);
+// #endif
+//         tokIdx = findElemEnd(pSourceStr, pTokens, numTokens, tokIdx+1);
+// #ifdef DEBUG_GET_KEYS
+//         LOG_I(MODULE_PREFIX, "getKeys ............. Found end at tokIdx %d", tokIdx);
+// #endif
+//     }
 
-    // Clean up
-    delete[] pTokens;
-    return true;
-}
+//     // Clean up
+//     delete[] pTokens;
+//     return true;
+// }
 
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// getArrayElems
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // getArrayElems
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * getArrayElems 
- * 
- * @param  {char*} dataPath                 : path of element to return
- * @param  {std::vector<String>} arrayElems : elems of array to return
- * @param  {char*} pSourceStr               : json string to search
- * @return {bool}                           : true if valid
- */
-bool RaftJson::getArrayElems(const char *dataPath, std::vector<String>& arrayElems, const char *pSourceStr)
-{
-    // Check for null
-    if (!pSourceStr)
-        return false;
+// /**
+//  * getArrayElems 
+//  * 
+//  * @param  {char*} pDataPath                 : path of element to return
+//  * @param  {std::vector<String>} arrayElems : elems of array to return
+//  * @param  {char*} pSourceStr               : json string to search
+//  * @return {bool}                           : true if valid
+//  */
+// bool RaftJson::getArrayElems(const char *pDataPath, std::vector<String>& arrayElems, const char *pSourceStr)
+// {
+//     // Check for null
+//     if (!pSourceStr)
+//         return false;
 
-    // Parse json into tokens
-    int numTokens = 0;
-    jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
-    if (pTokens == NULL)
-    {
-        return false;
-    }
+//     // Parse json into tokens
+//     int numTokens = 0;
+//     jsmntok_t *pTokens = parseJson(pSourceStr, numTokens);
+//     if (pTokens == NULL)
+//     {
+//         return false;
+//     }
 
-    // Find token
-    int endTokenIdx = 0;
-    int startTokenIdx = findKeyInJson(pSourceStr, pTokens, numTokens, 
-                        dataPath, endTokenIdx);
-    if (startTokenIdx < 0)
-    {
-        delete[] pTokens;
-        return false;
-    }
+//     // Find token
+//     int endTokenIdx = 0;
+//     int startTokenIdx = findKeyInJson(pSourceStr, pTokens, numTokens, 
+//                         pDataPath, endTokenIdx);
+//     if (startTokenIdx < 0)
+//     {
+//         delete[] pTokens;
+//         return false;
+//     }
 
-    //Debug
-#ifdef DEBUG_GET_ARRAY_ELEMS
-    LOG_I(MODULE_PREFIX, "Found elem startTok %d endTok %d", startTokenIdx, endTokenIdx);
-#endif
+//     //Debug
+// #ifdef DEBUG_GET_ARRAY_ELEMS
+//     LOG_I(MODULE_PREFIX, "Found elem startTok %d endTok %d", startTokenIdx, endTokenIdx);
+// #endif
 
-    // Check its an array
-    if ((pTokens[startTokenIdx].type != JSMN_ARRAY) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
-    {
-        delete[] pTokens;
-        return false;
-    }
-    int numElems = pTokens[startTokenIdx].size;
+//     // Check its an array
+//     if ((pTokens[startTokenIdx].type != JSMN_ARRAY) || (pTokens[startTokenIdx].size > MAX_KEYS_TO_RETURN))
+//     {
+//         delete[] pTokens;
+//         return false;
+//     }
+//     int numElems = pTokens[startTokenIdx].size;
 
-    // Extract the array elements as strings (regardless of type)
-    arrayElems.resize(numElems);
-    unsigned int tokIdx = startTokenIdx+1;
-    String elemStr;
-    for (int elemIdx = 0; elemIdx < numElems; elemIdx++)
-    {
-        // Check valid
-        if (tokIdx >= numTokens)
-            break;
+//     // Extract the array elements as strings (regardless of type)
+//     arrayElems.resize(numElems);
+//     unsigned int tokIdx = startTokenIdx+1;
+//     String elemStr;
+//     for (int elemIdx = 0; elemIdx < numElems; elemIdx++)
+//     {
+//         // Check valid
+//         if (tokIdx >= numTokens)
+//             break;
 
-        // Extract the elem
-        Raft::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, elemStr);
-        arrayElems[elemIdx] = elemStr;
+//         // Extract the elem
+//         Raft::strFromBuffer((uint8_t*)pSourceStr+pTokens[tokIdx].start, pTokens[tokIdx].end-pTokens[tokIdx].start, elemStr);
+//         arrayElems[elemIdx] = elemStr;
         
-        // Find end of elem
-        tokIdx = findElemEnd(pSourceStr, pTokens, numTokens, tokIdx);
-    }
+//         // Find end of elem
+//         tokIdx = findElemEnd(pSourceStr, pTokens, numTokens, tokIdx);
+//     }
 
-    // Clean up
-    delete[] pTokens;
-    return true;
-}
+//     // Clean up
+//     delete[] pTokens;
+//     return true;
+// }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // parseJson
@@ -716,120 +910,167 @@ int RaftJson::findArrayElem(const char *jsonOriginal, jsmntok_t tokens[],
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Extract path parts from a path string
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftJson::extractPathParts(const char* pDataPath, std::vector<String>& pathParts, std::vector<int>& arrayIndices)
+{
+    // Check for null path
+    if (pDataPath == NULL)
+        return false;
+
+    // Split path on / characters
+    pathParts.clear();
+    arrayIndices.clear();
+    const char* pDataPathPos = pDataPath;
+    while (*pDataPathPos)
+    {
+        // Find next /
+        const char *pNextPos = strstr(pDataPathPos, "/");
+
+        // Extract part
+        if (pNextPos == NULL)
+        {
+            pathParts.push_back(String(pDataPathPos));
+            break;
+        }
+        else
+        {
+            pathParts.push_back(String(pDataPathPos, pNextPos-pDataPathPos));
+            pDataPathPos = pNextPos+1;
+        }
+    }
+
+    // Check if any parts of path are array indices
+    arrayIndices.resize(pathParts.size());
+    for (auto& pathPart : pathParts)
+    {
+        int indexOfSqBracket = pathPart.indexOf("[");
+        if (indexOfSqBracket >= 0)
+        {
+            // Extract array index
+            int arrayIdx = strtol(pathPart.c_str()+1, NULL, 10);
+            if (arrayIdx >= 0)
+            {
+                arrayIndices.push_back(arrayIdx);
+            }
+            else
+            {
+                arrayIndices.push_back(-1);
+            }
+
+            // Remove the square brackets
+            pathPart.remove(indexOfSqBracket);
+        }
+        else
+        {
+            arrayIndices.push_back(-1);
+        }
+    }
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // findKeyInJson
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * findKeyInJson : find an element in a json string using a search path 
+ * findKeyInJson : find an element in a json document using a search path 
  * 
- * @param  {char*} jsonOriginal     : json string to search
+ * @param  {char*} pJsonDoc         : json document to search
  * @param  {jsmntok_t []} tokens    : tokens from jsmn parser
  * @param  {unsigned int} numTokens : number of tokens
- * @param  {char*} dataPath         : path of searched for element
+ * @param  {char*} pDataPath        : path of searched for element
  * @param  {int} endTokenIdx        : token index to end search
  * @param  {jsmntype_t} keyType     : type of json element to find
  * @return {int}                    : index of found token or -1 if failed
  */
-int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
-                          unsigned int numTokens, const char *dataPath,
-                          int &endTokenIdx,
-                          jsmntype_t keyType)
+int RaftJson::findKeyInJson(const char *pJsonDoc, 
+                    jsmntok_t tokens[],
+                    unsigned int numTokens, 
+                    const char *pDataPath,
+                    int &endTokenIdx,
+                    jsmntype_t keyType)
 {
-    // TODO - fixed size buffer - review to ensure ok
-    const int MAX_SRCH_KEY_LEN = 150;
-    char srchKey[MAX_SRCH_KEY_LEN + 1];
-    const char *pDataPathPos = dataPath;
-    int dataPathLen = strlen(dataPath);
-    // Note that the root element has index 0
+    // Check for null source string
+    if (pJsonDoc == NULL)
+    {
+#ifdef DEBUG_FIND_KEY_IN_JSON
+        LOG_I(MODULE_PREFIX, "findKeyInJson input is NULL");
+#endif
+        return -1;
+    }
+
+    // Check for null path
+    if (pDataPath == NULL)
+    {
+#ifdef DEBUG_FIND_KEY_IN_JSON
+        LOG_I(MODULE_PREFIX, "findKeyInJson path is NULL");
+#endif
+        return -1;
+    }
+
+    // Split path on / characters
+    std::vector<String> pathParts;
+    std::vector<int> arrayIndices;
+    if (!extractPathParts(pDataPath, pathParts, arrayIndices))
+    {
+#ifdef DEBUG_FIND_KEY_IN_JSON
+        LOG_I(MODULE_PREFIX, "findKeyInJson extractPathParts failed");
+#endif
+        return -1;
+    }
+
+    // Find the element in the parsed JSON
     int curTokenIdx = 0;
     int maxTokenIdx = numTokens - 1;
-    bool atNodeLevel = false;
 
-    // Go through the parts of the path to find the whole
-    while (pDataPathPos <= dataPath + dataPathLen)
+    // Iterate through the path elements finding each one
+    for (uint32_t pathPartIdx = 0; pathPartIdx < pathParts.size(); pathPartIdx++)
     {
-        // Get the next part of the path
-        const char *slashPos = strstr(pDataPathPos, "/");
-        if (slashPos == NULL)
-        {
-            safeStringCopy(srchKey, pDataPathPos, MAX_SRCH_KEY_LEN);
-            pDataPathPos += strlen(pDataPathPos) + 1;
-            atNodeLevel = true;
-        }
-        else if (slashPos - pDataPathPos >= MAX_SRCH_KEY_LEN)
-        {
-            safeStringCopy(srchKey, pDataPathPos, MAX_SRCH_KEY_LEN);
-            pDataPathPos = slashPos + 1;
-        }
-        else
-        {
-            safeStringCopy(srchKey, pDataPathPos, slashPos - pDataPathPos);
-            pDataPathPos = slashPos + 1;
-        }
 #ifdef DEBUG_FIND_KEY_IN_JSON
         {
             String testStr = DEBUG_FIND_KEY_IN_JSON "__";
-            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+            if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
             {
-                LOG_I(MODULE_PREFIX, "findKeyInJson slashPos %p, %d, srchKey <%s>", 
-                            slashPos, slashPos-pDataPathPos, srchKey);
+                LOG_I(MODULE_PREFIX, "findKeyInJson pathPart %s arrayIdx %d", pathPart.c_str(), arrayIndices[pathPartIdx]);
             }
         }
 #endif
 
-        // See if search key contains an array reference
-        bool arrayElementReqd = false;
-        int reqdArrayIdx = 0;
-        char *sqBracketPos = strstr(srchKey, "[");
-        if (sqBracketPos != NULL)
-        {
-            // Extract array index
-            long arrayIdx = strtol(sqBracketPos + 1, NULL, 10);
-            if (arrayIdx >= 0)
-            {
-                arrayElementReqd = true;
-                reqdArrayIdx = (int)arrayIdx;
-            }
-            // Truncate the string at the square bracket
-            *sqBracketPos = 0;
-        }
+        // Get path part and see if this is the last part of the path
+        const String& pathPart = pathParts[pathPartIdx];
+        const bool atLastPathPart = pathPartIdx == pathParts.size()-1;
 
-#ifdef DEBUG_FIND_KEY_IN_JSON
-        {
-            String testStr = DEBUG_FIND_KEY_IN_JSON "__";
-            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
-            {
-                LOG_I(MODULE_PREFIX, "findKeyInJson srchKey %s arrayIdx %d", srchKey, reqdArrayIdx);
-            }
-        }
-#endif
         // Iterate over tokens to find key of the right type
-        // If we are already looking at the node level then search for requested type
+        // If we are already looking at the last part then search for requested type
         // Otherwise search for an element that will contain the next level key
-        jsmntype_t keyTypeToFind = atNodeLevel ? keyType : JSMN_STRING;
+        jsmntype_t keyTypeToFind = atLastPathPart ? keyType : JSMN_STRING;
         for (int tokIdx = curTokenIdx; tokIdx <= maxTokenIdx;)
         {
             // See if the key matches - this can either be a string match on an object key or
             // just an array element match (with an empty key)
             jsmntok_t *pTok = tokens + tokIdx;
             bool keyMatchFound = false;
-            if ((pTok->type == JSMN_STRING) && ((int)strlen(srchKey) == pTok->end - pTok->start) && (strncmp(jsonOriginal + pTok->start, srchKey, pTok->end - pTok->start) == 0))
+            if ((pTok->type == JSMN_STRING) && 
+                        (pathPart.length() == pTok->end - pTok->start) && 
+                        (strncmp(pJsonDoc + pTok->start, pathPart.c_str(), pTok->end - pTok->start) == 0))
             {
                 keyMatchFound = true;
                 tokIdx += 1;
                 pTok = tokens + tokIdx;
             }
-            else if (((pTok->type == JSMN_ARRAY) || (pTok->type == JSMN_OBJECT)) && ((int)strlen(srchKey) == 0))
+            else if (((pTok->type == JSMN_ARRAY) || (pTok->type == JSMN_OBJECT)) && (pathPart.length() == 0))
             {
                 keyMatchFound = true;
             }
 #ifdef DEBUG_FIND_KEY_IN_JSON
             {
                 String testStr = DEBUG_FIND_KEY_IN_JSON "__";
-                if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
                 {
-                    LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d Token type %d srchKey %s arrayReqd %d reqdIdx %d matchFound %d", 
-                            tokIdx, pTok->type, srchKey, arrayElementReqd, reqdArrayIdx, keyMatchFound);
+                    LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d Token type %d pathPart %s reqdIdx %d matchFound %d", 
+                            tokIdx, pTok->type, pathPart.c_str(), arrayIndices[pathPartIdx], keyMatchFound);
                 }
             }
 #endif
@@ -839,18 +1080,18 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                 // We have found the matching key so now for the contents ...
 
                 // Check if we were looking for an array element
-                if (arrayElementReqd)
+                if (arrayIndices[pathPartIdx] >= 0)
                 {
                     if (tokens[tokIdx].type == JSMN_ARRAY)
                     {
-                        int newTokIdx = findArrayElem(jsonOriginal, tokens, numTokens, tokIdx, reqdArrayIdx);
+                        int newTokIdx = findArrayElem(pJsonDoc, tokens, numTokens, tokIdx, arrayIndices[pathPartIdx]);
 #ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
                         {
                             String testStr = DEBUG_FIND_KEY_IN_JSON_ARRAY "__";
-                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
                             {
                                 LOG_I(MODULE_PREFIX, "findKeyInJson TokIdxArray inIdx %d, reqdArrayIdx %d, outTokIdx %d", 
-                                            tokIdx, reqdArrayIdx, newTokIdx);
+                                            tokIdx, arrayIndices[pathPartIdx], newTokIdx);
                             }
                         }
 #endif
@@ -862,7 +1103,7 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
 #ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
                         {
                             String testStr = DEBUG_FIND_KEY_IN_JSON_ARRAY "__";
-                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
                             {
                                 LOG_I(MODULE_PREFIX, "findKeyInJson NOT AN ARRAY ELEM");
                             }
@@ -874,12 +1115,12 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
 
                 // atNodeLevel indicates that we are now at the level of the JSON tree that the user requested
                 // - so we should be extracting the value referenced now
-                if (atNodeLevel)
+                if (atLastPathPart)
                 {
                     // LOG_I(MODULE_PREFIX, "findKeyInJson we have got it %d", tokIdx);
                     if ((keyTypeToFind == JSMN_UNDEFINED) || (tokens[tokIdx].type == keyTypeToFind))
                     {
-                        endTokenIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx);
+                        endTokenIdx = findElemEnd(pJsonDoc, tokens, numTokens, tokIdx);
                         return tokIdx;
                     }
 #ifdef DEBUG_FIND_KEY_IN_JSON
@@ -896,12 +1137,12 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
                     if ((tokens[tokIdx].type == JSMN_OBJECT) || (tokens[tokIdx].type == JSMN_ARRAY))
                     {
                         // Continue next level of search in this object
-                        maxTokenIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx);
+                        maxTokenIdx = findElemEnd(pJsonDoc, tokens, numTokens, tokIdx);
                         curTokenIdx = (tokens[tokIdx].type == JSMN_OBJECT) ? tokIdx + 1 : tokIdx;
 #ifdef DEBUG_FIND_KEY_IN_JSON
                         {
                             String testStr = DEBUG_FIND_KEY_IN_JSON "__";
-                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
                             {
                                 LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d max %d next %d", 
                                     tokIdx, maxTokenIdx, curTokenIdx);
@@ -916,7 +1157,7 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
 #ifdef DEBUG_FIND_KEY_IN_JSON
                         {
                             String testStr = DEBUG_FIND_KEY_IN_JSON "__";
-                            if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                            if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
                             {
                                 LOG_I(MODULE_PREFIX, "findKeyInJson FOUND KEY BUT NOT POINTING TO OBJ");
                             }
@@ -929,7 +1170,7 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
             else if (pTok->type == JSMN_STRING)
             {
                 // We're at a key string but it isn't the one we want so skip its contents
-                tokIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx+1);
+                tokIdx = findElemEnd(pJsonDoc, tokens, numTokens, tokIdx+1);
             }
             else if (pTok->type == JSMN_OBJECT)
             {
@@ -938,11 +1179,11 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
             }
             else if (pTok->type == JSMN_ARRAY)
             {
-                // Root level array which doesn't match the dataPath
+                // Root level array which doesn't match the pDataPath
 #ifdef DEBUG_FIND_KEY_IN_JSON
                 {
                     String testStr = DEBUG_FIND_KEY_IN_JSON "__";
-                    if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+                    if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
                     {
                         LOG_I(MODULE_PREFIX, "findKeyInJson UNEXPECTED ARRAY");
                     }
@@ -960,7 +1201,7 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
 #ifdef DEBUG_FIND_KEY_IN_JSON
     {
         String testStr = DEBUG_FIND_KEY_IN_JSON "__";
-        if (testStr.equals(String(dataPath) + "__") || testStr == "__")
+        if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
         {
             LOG_I(MODULE_PREFIX, "findKeyInJson DROPPED OUT");
         }
@@ -968,6 +1209,243 @@ int RaftJson::findKeyInJson(const char *jsonOriginal, jsmntok_t tokens[],
 #endif
     return -1;
 }
+
+
+
+
+//     // TODO - fixed size buffer - review to ensure ok
+//     const int MAX_SRCH_KEY_LEN = 150;
+//     char srchKey[MAX_SRCH_KEY_LEN + 1];
+//     const char *pDataPathPos = pDataPath;
+//     int dataPathLen = strlen(pDataPath);
+//     // Note that the root element has index 0
+//     int curTokenIdx = 0;
+//     int maxTokenIdx = numTokens - 1;
+//     bool atNodeLevel = false;
+
+//     // Go through the parts of the path to find the whole
+//     while (pDataPathPos <= pDataPath + dataPathLen)
+//     {
+//         // Get the next part of the path
+//         const char *slashPos = strstr(pDataPathPos, "/");
+//         if (slashPos == NULL)
+//         {
+//             safeStringCopy(srchKey, pDataPathPos, MAX_SRCH_KEY_LEN);
+//             pDataPathPos += strlen(pDataPathPos) + 1;
+//             atNodeLevel = true;
+//         }
+//         else if (slashPos - pDataPathPos >= MAX_SRCH_KEY_LEN)
+//         {
+//             safeStringCopy(srchKey, pDataPathPos, MAX_SRCH_KEY_LEN);
+//             pDataPathPos = slashPos + 1;
+//         }
+//         else
+//         {
+//             safeStringCopy(srchKey, pDataPathPos, slashPos - pDataPathPos);
+//             pDataPathPos = slashPos + 1;
+//         }
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//         {
+//             String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+//             if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//             {
+//                 LOG_I(MODULE_PREFIX, "findKeyInJson slashPos %p, %d, srchKey <%s>", 
+//                             slashPos, slashPos-pDataPathPos, srchKey);
+//             }
+//         }
+// #endif
+
+//         // See if search key contains an array reference
+//         bool arrayElementReqd = false;
+//         int reqdArrayIdx = 0;
+//         char *sqBracketPos = strstr(srchKey, "[");
+//         if (sqBracketPos != NULL)
+//         {
+//             // Extract array index
+//             long arrayIdx = strtol(sqBracketPos + 1, NULL, 10);
+//             if (arrayIdx >= 0)
+//             {
+//                 arrayElementReqd = true;
+//                 reqdArrayIdx = (int)arrayIdx;
+//             }
+//             // Truncate the string at the square bracket
+//             *sqBracketPos = 0;
+//         }
+
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//         {
+//             String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+//             if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//             {
+//                 LOG_I(MODULE_PREFIX, "findKeyInJson srchKey %s arrayIdx %d", srchKey, reqdArrayIdx);
+//             }
+//         }
+// #endif
+//         // Iterate over tokens to find key of the right type
+//         // If we are already looking at the node level then search for requested type
+//         // Otherwise search for an element that will contain the next level key
+//         jsmntype_t keyTypeToFind = atNodeLevel ? keyType : JSMN_STRING;
+//         for (int tokIdx = curTokenIdx; tokIdx <= maxTokenIdx;)
+//         {
+//             // See if the key matches - this can either be a string match on an object key or
+//             // just an array element match (with an empty key)
+//             jsmntok_t *pTok = tokens + tokIdx;
+//             bool keyMatchFound = false;
+//             if ((pTok->type == JSMN_STRING) && ((int)strlen(srchKey) == pTok->end - pTok->start) && (strncmp(jsonOriginal + pTok->start, srchKey, pTok->end - pTok->start) == 0))
+//             {
+//                 keyMatchFound = true;
+//                 tokIdx += 1;
+//                 pTok = tokens + tokIdx;
+//             }
+//             else if (((pTok->type == JSMN_ARRAY) || (pTok->type == JSMN_OBJECT)) && ((int)strlen(srchKey) == 0))
+//             {
+//                 keyMatchFound = true;
+//             }
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//             {
+//                 String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+//                 if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//                 {
+//                     LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d Token type %d srchKey %s arrayReqd %d reqdIdx %d matchFound %d", 
+//                             tokIdx, pTok->type, srchKey, arrayElementReqd, reqdArrayIdx, keyMatchFound);
+//                 }
+//             }
+// #endif
+
+//             if (keyMatchFound)
+//             {
+//                 // We have found the matching key so now for the contents ...
+
+//                 // Check if we were looking for an array element
+//                 if (arrayElementReqd)
+//                 {
+//                     if (tokens[tokIdx].type == JSMN_ARRAY)
+//                     {
+//                         int newTokIdx = findArrayElem(jsonOriginal, tokens, numTokens, tokIdx, reqdArrayIdx);
+// #ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
+//                         {
+//                             String testStr = DEBUG_FIND_KEY_IN_JSON_ARRAY "__";
+//                             if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//                             {
+//                                 LOG_I(MODULE_PREFIX, "findKeyInJson TokIdxArray inIdx %d, reqdArrayIdx %d, outTokIdx %d", 
+//                                             tokIdx, reqdArrayIdx, newTokIdx);
+//                             }
+//                         }
+// #endif
+//                         tokIdx = newTokIdx;
+//                     }
+//                     else
+//                     {
+//                         // This isn't an array element
+// #ifdef DEBUG_FIND_KEY_IN_JSON_ARRAY
+//                         {
+//                             String testStr = DEBUG_FIND_KEY_IN_JSON_ARRAY "__";
+//                             if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//                             {
+//                                 LOG_I(MODULE_PREFIX, "findKeyInJson NOT AN ARRAY ELEM");
+//                             }
+//                         }
+// #endif
+//                         return -1;
+//                     }
+//                 }
+
+//                 // atNodeLevel indicates that we are now at the level of the JSON tree that the user requested
+//                 // - so we should be extracting the value referenced now
+//                 if (atNodeLevel)
+//                 {
+//                     // LOG_I(MODULE_PREFIX, "findKeyInJson we have got it %d", tokIdx);
+//                     if ((keyTypeToFind == JSMN_UNDEFINED) || (tokens[tokIdx].type == keyTypeToFind))
+//                     {
+//                         endTokenIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx);
+//                         return tokIdx;
+//                     }
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//                     LOG_I(MODULE_PREFIX, "findKeyInJson AT NOTE LEVEL FAIL");
+// #endif
+//                     return -1;
+//                 }
+//                 else
+//                 {
+//                     // Check for an object
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//                     LOG_I(MODULE_PREFIX, "findKeyInJson findElemEnd inside tokIdx %d", tokIdx);
+// #endif
+//                     if ((tokens[tokIdx].type == JSMN_OBJECT) || (tokens[tokIdx].type == JSMN_ARRAY))
+//                     {
+//                         // Continue next level of search in this object
+//                         maxTokenIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx);
+//                         curTokenIdx = (tokens[tokIdx].type == JSMN_OBJECT) ? tokIdx + 1 : tokIdx;
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//                         {
+//                             String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+//                             if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//                             {
+//                                 LOG_I(MODULE_PREFIX, "findKeyInJson tokIdx %d max %d next %d", 
+//                                     tokIdx, maxTokenIdx, curTokenIdx);
+//                             }
+//                         }
+// #endif
+//                         break;
+//                     }
+//                     else
+//                     {
+//                         // Found a key in the path but it didn't point to an object so we can't continue
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//                         {
+//                             String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+//                             if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//                             {
+//                                 LOG_I(MODULE_PREFIX, "findKeyInJson FOUND KEY BUT NOT POINTING TO OBJ");
+//                             }
+//                         }
+// #endif
+//                         return -1;
+//                     }
+//                 }
+//             }
+//             else if (pTok->type == JSMN_STRING)
+//             {
+//                 // We're at a key string but it isn't the one we want so skip its contents
+//                 tokIdx = findElemEnd(jsonOriginal, tokens, numTokens, tokIdx+1);
+//             }
+//             else if (pTok->type == JSMN_OBJECT)
+//             {
+//                 // Move to the first key of the object
+//                 tokIdx++;
+//             }
+//             else if (pTok->type == JSMN_ARRAY)
+//             {
+//                 // Root level array which doesn't match the pDataPath
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//                 {
+//                     String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+//                     if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//                     {
+//                         LOG_I(MODULE_PREFIX, "findKeyInJson UNEXPECTED ARRAY");
+//                     }
+//                 }
+// #endif
+//                 return -1;
+//             }
+//             else
+//             {
+//                 // Shouldn't really get here as all keys are strings
+//                 tokIdx++;
+//             }
+//         }
+//     }
+// #ifdef DEBUG_FIND_KEY_IN_JSON
+//     {
+//         String testStr = DEBUG_FIND_KEY_IN_JSON "__";
+//         if (testStr.equals(String(pDataPath) + "__") || testStr == "__")
+//         {
+//             LOG_I(MODULE_PREFIX, "findKeyInJson DROPPED OUT");
+//         }
+//     }
+// #endif
+//     return -1;
+// }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -998,99 +1476,99 @@ void RaftJson::unescapeString(String &strToUnEsc)
     strToUnEsc.replace("\\n", "\n");
 }
 
-size_t RaftJson::safeStringLen(const char *pSrc,
-                             bool skipJSONWhitespace, size_t maxx)
-{
-    if (maxx == 0)
-        return 0;
-    const char *pS = pSrc;
-    int stringLen = 0;
-    bool insideDoubleQuotes = false;
-    bool insideSingleQuotes = false;
-    size_t charsTakenFromSrc = 0;
-    while (*pS)
-    {
-        char ch = *pS++;
-        charsTakenFromSrc++;
-        if ((ch == '\'') && !insideDoubleQuotes)
-            insideSingleQuotes = !insideSingleQuotes;
-        else if ((ch == '\"') && !insideSingleQuotes)
-            insideDoubleQuotes = !insideDoubleQuotes;
-        else if ((!insideDoubleQuotes) && (!insideSingleQuotes) && skipJSONWhitespace && isspace(ch))
-            continue;
-        stringLen++;
-        if (maxx != LONG_MAX && charsTakenFromSrc >= maxx)
-            return stringLen;
-    }
-    return stringLen;
-}
+// size_t RaftJson::safeStringLen(const char *pSrc,
+//                              bool skipJSONWhitespace, size_t maxx)
+// {
+//     if (maxx == 0)
+//         return 0;
+//     const char *pS = pSrc;
+//     int stringLen = 0;
+//     bool insideDoubleQuotes = false;
+//     bool insideSingleQuotes = false;
+//     size_t charsTakenFromSrc = 0;
+//     while (*pS)
+//     {
+//         char ch = *pS++;
+//         charsTakenFromSrc++;
+//         if ((ch == '\'') && !insideDoubleQuotes)
+//             insideSingleQuotes = !insideSingleQuotes;
+//         else if ((ch == '\"') && !insideSingleQuotes)
+//             insideDoubleQuotes = !insideDoubleQuotes;
+//         else if ((!insideDoubleQuotes) && (!insideSingleQuotes) && skipJSONWhitespace && isspace(ch))
+//             continue;
+//         stringLen++;
+//         if (maxx != LONG_MAX && charsTakenFromSrc >= maxx)
+//             return stringLen;
+//     }
+//     return stringLen;
+// }
 
-void RaftJson::safeStringCopy(char *pDest, const char *pSrc,
-                            size_t maxx, bool skipJSONWhitespace)
-{
-    char *pD = pDest;
-    const char *pS = pSrc;
-    size_t srcStrlen = strlen(pS);
-    size_t stringLen = 0;
-    bool insideDoubleQuotes = false;
-    bool insideSingleQuotes = false;
-    for (size_t i = 0; i < srcStrlen + 1; i++)
-    {
-        char ch = *pS++;
-        if ((ch == '\'') && !insideDoubleQuotes)
-            insideSingleQuotes = !insideSingleQuotes;
-        else if ((ch == '\"') && !insideSingleQuotes)
-            insideDoubleQuotes = !insideDoubleQuotes;
-        else if ((!insideDoubleQuotes) && (!insideSingleQuotes) && skipJSONWhitespace && (isspace(ch) || (ch > 0 && ch < 32) || (ch >= 127)))
-        {
-            continue;
-        }
-        *pD++ = ch;
-        stringLen++;
-        if (stringLen >= maxx)
-        {
-            *pD = 0;
-            break;
-        }
-    }
-}
+// void RaftJson::safeStringCopy(char *pDest, const char *pSrc,
+//                             size_t maxx, bool skipJSONWhitespace)
+// {
+//     char *pD = pDest;
+//     const char *pS = pSrc;
+//     size_t srcStrlen = strlen(pS);
+//     size_t stringLen = 0;
+//     bool insideDoubleQuotes = false;
+//     bool insideSingleQuotes = false;
+//     for (size_t i = 0; i < srcStrlen + 1; i++)
+//     {
+//         char ch = *pS++;
+//         if ((ch == '\'') && !insideDoubleQuotes)
+//             insideSingleQuotes = !insideSingleQuotes;
+//         else if ((ch == '\"') && !insideSingleQuotes)
+//             insideDoubleQuotes = !insideDoubleQuotes;
+//         else if ((!insideDoubleQuotes) && (!insideSingleQuotes) && skipJSONWhitespace && (isspace(ch) || (ch > 0 && ch < 32) || (ch >= 127)))
+//         {
+//             continue;
+//         }
+//         *pD++ = ch;
+//         stringLen++;
+//         if (stringLen >= maxx)
+//         {
+//             *pD = 0;
+//             break;
+//         }
+//     }
+// }
 
-char *RaftJson::safeStringDup(const char *pSrc, size_t maxx,
-                            bool skipJSONWhitespace)
-{
-    size_t toAlloc = safeStringLen(pSrc, skipJSONWhitespace, maxx);
-    char *pDest = new char[toAlloc + 1];
-    if (!pDest)
-        return pDest;
-    pDest[toAlloc] = 0;
-    if (toAlloc == 0)
-        return pDest;
-    char *pD = pDest;
-    const char *pS = pSrc;
-    size_t srcStrlen = strlen(pS);
-    size_t stringLen = 0;
-    bool insideDoubleQuotes = false;
-    bool insideSingleQuotes = false;
-    for (size_t i = 0; i < srcStrlen + 1; i++)
-    {
-        char ch = *pS++;
-        if ((ch == '\'') && !insideDoubleQuotes)
-            insideSingleQuotes = !insideSingleQuotes;
-        else if ((ch == '\"') && !insideSingleQuotes)
-            insideDoubleQuotes = !insideDoubleQuotes;
-        else if ((!insideDoubleQuotes) && (!insideSingleQuotes) && skipJSONWhitespace && isspace(ch))
-            continue;
-        *pD++ = ch;
-        stringLen++;
-        if (stringLen >= maxx || stringLen >= toAlloc)
-        {
-            *pD = 0;
-            break;
-        }
-    }
-    // LOG_D(MODULE_PREFIX, "safeStringDup <%s> %d %d %d %d %d %d %d <%s>", pSrc, maxx, toAlloc, srcStrlen, stringLen, insideDoubleQuotes, insideSingleQuotes, skipJSONWhitespace, pDest);
-    return pDest;
-}
+// char *RaftJson::safeStringDup(const char *pSrc, size_t maxx,
+//                             bool skipJSONWhitespace)
+// {
+//     size_t toAlloc = safeStringLen(pSrc, skipJSONWhitespace, maxx);
+//     char *pDest = new char[toAlloc + 1];
+//     if (!pDest)
+//         return pDest;
+//     pDest[toAlloc] = 0;
+//     if (toAlloc == 0)
+//         return pDest;
+//     char *pD = pDest;
+//     const char *pS = pSrc;
+//     size_t srcStrlen = strlen(pS);
+//     size_t stringLen = 0;
+//     bool insideDoubleQuotes = false;
+//     bool insideSingleQuotes = false;
+//     for (size_t i = 0; i < srcStrlen + 1; i++)
+//     {
+//         char ch = *pS++;
+//         if ((ch == '\'') && !insideDoubleQuotes)
+//             insideSingleQuotes = !insideSingleQuotes;
+//         else if ((ch == '\"') && !insideSingleQuotes)
+//             insideDoubleQuotes = !insideDoubleQuotes;
+//         else if ((!insideDoubleQuotes) && (!insideSingleQuotes) && skipJSONWhitespace && isspace(ch))
+//             continue;
+//         *pD++ = ch;
+//         stringLen++;
+//         if (stringLen >= maxx || stringLen >= toAlloc)
+//         {
+//             *pD = 0;
+//             break;
+//         }
+//     }
+//     // LOG_D(MODULE_PREFIX, "safeStringDup <%s> %d %d %d %d %d %d %d <%s>", pSrc, maxx, toAlloc, srcStrlen, stringLen, insideDoubleQuotes, insideSingleQuotes, skipJSONWhitespace, pDest);
+//     return pDest;
+// }
 
 void RaftJson::debugDumpParseResult(const char* pSourceStr, jsmntok_t* pTokens, int numTokens)
 {
@@ -1252,8 +1730,7 @@ bool RaftJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
 {
     if ((*pBuf == 'f') || (*pBuf == 't'))
     {
-        String elemStr;
-        Raft::strFromBuffer((uint8_t*)pBuf, bufLen, elemStr);
+        String elemStr(pBuf, bufLen);
 #ifdef DEBUG_IS_BOOLEAN
         LOG_I(MODULE_PREFIX, "isBoolean str %s", elemStr.c_str());
 #endif
@@ -1269,17 +1746,6 @@ bool RaftJson::isBoolean(const char* pBuf, uint32_t bufLen, int &retValue)
         }
     }
     return false;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Release cached parse result
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void RaftJson::releaseCachedParseResult(void** pCachedParseResult)
-{
-    if (!pCachedParseResult || !*pCachedParseResult)
-        return;
-    delete[] ((jsmntok_t*)*pCachedParseResult);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
