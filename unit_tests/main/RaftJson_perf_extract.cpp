@@ -13,8 +13,8 @@
 
 static const char* MODULE_PREFIX = "RdJsonPerfTestSmall";
 
-static uint64_t perfStartTimeUs = 0;
-static uint64_t perfTestExtractTestUs = 0;
+// static uint64_t perfStartTimeUs = 0;
+// static uint64_t perfTestExtractTestUs = 0;
 static constexpr int NUM_LOOPS_PERF_TEST = 100;
 
 String testVarName;
@@ -32,7 +32,7 @@ R"("hw":[{"name":"LeftTwist","type":"SmartServo","busName":"I2CA","addr":"0x11",
 
 TEST_CASE("test_json_perf_extract", "[jsonperf]")
 {
-    EVAL_PERF_START();
+    EVAL_PERF_START(perfTestExtractTest);
 
     String elemName = "testElem";
     // Setup the variables
@@ -71,7 +71,8 @@ TEST_CASE("test_json_perf_extract", "[jsonperf]")
         }
     }
 
-    EVAL_PERF_END(perfTestExtractTestUs);
+    EVAL_PERF_END(perfTestExtractTest);
 
-    LOG_I(MODULE_PREFIX, "Loop100Ms %fms", perfTestExtractTestUs/1000.0);
+    EVAL_PERF_LOG(perfTestExtractTest, "ExtractTest", 1);
+    // LOG_I(MODULE_PREFIX, "Loop100Ms %fms", perfTestExtractTestUs/1000.0);
 }

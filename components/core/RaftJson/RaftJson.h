@@ -298,34 +298,6 @@ public:
     // Get HTML query string from JSON
     static String getHTMLQueryFromJSON(const String& jsonStr);
 
-    /**
-     * getElement : Get location of element in JSON string
-     * 
-     * @param  {char*} pSourceStr                       : json string to search for element
-     * @param  {char*} pDataPath                        : path to element to return info about
-     * @param  {int&} startPos                          : [out] start position 
-     * @param  {int&} strLen                            : [out] length
-     * @param  {jsmntype_t&} elemType                   : [out] element type
-     * @param  {int&} elemSize                          : [out] element size
-     * @param  {std::vector<String>*} pKeysVector       : [out] pointer to vector to receive keys (maybe nullptr)
-     * @param  {std::vector<String>*} pArrayElems       : [out] pointer to vector to receive array elements (maybe nullptr)
-     * @param  {const JSONDocAndCache*} pDocAndCache    : [in] pointer to JSON document and cache (maybe nullptr if pSourceStr is provided)
-     * @return {bool}                 : true if element found
-     * 
-     * NOTE: If pSourceStr is provided then pDocAndCache must be nullptr and vice versa. If pSourceStr is provided then
-     *      the parse result is not cached. If pDocAndCache is provided then the parse result maybe cached based on the 
-     *     cacheParseResults flag in the JSONDocAndCache object (if the parse result is not already cached).
-     */
-    // static bool getElement(const char *pSourceStr,
-    //                 const char *pDataPath,
-    //                 const char* pPathPrefix,
-    //                 int &startPos, int &strLen,
-    //                     jsmntype_t &elemType, int &elemSize,
-    //                     std::vector<String>* pKeysVector,
-    //                     std::vector<String>* pArrayElems,
-                        
-    //                     const JSONDocAndCache* pDocAndCache);
-
     static const char* getElemTypeStr(JSON_ELEM_TYPE type)
     {
         switch (type)
@@ -338,17 +310,6 @@ public:
         }
         return "UNKN";
     }
-
-    // String getNextPathElem(const char*& pDataPathPos)
-    // {
-    //     const char* pElemStart = pDataPathPos;
-    //     while (*pDataPathPos && (*pDataPathPos != '/'))
-    //         pDataPathPos++;
-    //     String pathPart = String(pElemStart, pDataPathPos - pElemStart);
-    //     if (*pDataPathPos)
-    //         pDataPathPos++;
-    //     return pathPart;
-    // }
 
     static const char* locateStringElement(const char* pJsonDocPos, const char*& pElemStart, const char*& pElemEnd, bool includeQuotes = false)
     {
@@ -432,26 +393,6 @@ public:
         }
     }
 
-    // const char* locateNthArrayElement(const char* pJsonDocPos, 
-    //             const char*& pElemStart, const char*& pElemEnd,
-    //             int arrayIdx)
-    // {
-    //     // Skip over elements until we get to the one we want
-    //     for (int i = 0; i < arrayIdx; i++)
-    //     {
-    //         pJsonDocPos = skipOverElement(pJsonDocPos, pElemStart, pElemEnd);
-    //         if (!pJsonDocPos)
-    //             return nullptr;
-    //         // Skip whitespace
-    //         while (*pJsonDocPos && (*pJsonDocPos <= ' '))
-    //             pJsonDocPos++;
-    //         // Check for end of array
-    //         if (*pJsonDocPos == ']')
-    //             return nullptr;
-    //     }
-    //     return pJsonDocPos;
-    // }
-
     // Locate value inside element with key
     // The key can be empty in which case the entire object is returned
     // The key can be an array index (e.g. "[0]") in which case the value at that index is returned if the element is an array
@@ -459,17 +400,12 @@ public:
 
     static const char* locateElementValueWithKey(const char* pJsonDocPos,
                 const char* pMaxDocPos,
-                const char*& pReqdKey,
-                const char*& pElemStart, const char*& pElemEnd)
+                const char*& pReqdKey)
     {
         // If key is empty return the entire element
         if (!pReqdKey || !*pReqdKey || (*pReqdKey == '/'))
         {
-            // Skip to end of element
-            pJsonDocPos = skipOverElement(pJsonDocPos, pMaxDocPos, pElemStart, pElemEnd);
-            if (!pJsonDocPos)
-                return nullptr;
-            // Skip whitespace
+            // Skip any whitespace
             while (*pJsonDocPos && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
             // Move key position to next part of path
@@ -539,14 +475,7 @@ public:
                     pJsonDocPos++;
                 if (!*pJsonDocPos)
                     return nullptr;
-            }   
-            // Skip to end of element
-            pJsonDocPos = skipOverElement(pJsonDocPos, pMaxDocPos, pElemStart, pElemEnd);
-            if (!pJsonDocPos)
-                return nullptr;
-            // Skip whitespace
-            while (*pJsonDocPos && (*pJsonDocPos <= ' '))
-                pJsonDocPos++;
+            }
             // Check if this is the key we are looking for
             if (isObject)
             {
@@ -554,6 +483,9 @@ public:
                 uint32_t keyLen = (pKeyEnd - pKeyStart) > (pReqdKeyEnd - pReqdKeyStart) ? (pKeyEnd - pKeyStart) : (pReqdKeyEnd - pReqdKeyStart);
                 if (strncmp(pKeyStart, pReqdKeyStart, keyLen) == 0)
                     return pJsonDocPos;
+                // Skip whitespace
+                while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+                    pJsonDocPos++;
                 // Check for end of object
                 if (*pJsonDocPos == '}')
                     return nullptr;
@@ -563,49 +495,22 @@ public:
                 if (arrayIdx == elemCount)
                     return pJsonDocPos;
                 elemCount++;
+                // Skip whitespace
+                while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+                    pJsonDocPos++;
                 // Check for end of array
                 if (*pJsonDocPos == ']')
                     return nullptr;
             }
+            // Skip to end of element
+            const char* pElemEnd = nullptr;
+            const char* pElemStart = nullptr;
+            pJsonDocPos = skipOverElement(pJsonDocPos, pMaxDocPos, pElemStart, pElemEnd);
+            if (!pJsonDocPos)
+                return nullptr;
         }
         return nullptr;
     }
-
-    // String getCurrentElement(const char*& pJsonDocPos, int arrayIdx, bool& isValid)
-    // {
-    //     // Skip any whitespace
-    //     while (*pJsonDocPos && (*pJsonDocPos <= ' '))
-    //         pJsonDocPos++;
-
-    //     // Check for array
-    //     if (*pJsonDocPos == '[')
-    //     {
-    //         // If we're looking for an array element then return it
-    //         if (arrayIdx >= 0)
-    //             return getNthArrayElement(pJsonDocPos+1, arrayIdx, isValid);
-    //         // Otherwise return failure
-    //         isValid = false;
-    //         return "";
-    //     }
-
-    //     // Check for object
-    //     if (*pJsonDocPos == '{')
-    //     {
-    //         // Return entire element
-    //         return getObjectElement(pJsonDocPos, isValid);
-    //     }
-
-    //     // Check for string
-    //     if (*pJsonDocPos == '"')
-    //     {
-    //         // Return string contents
-    //         return getStringElement(pJsonDocPos, isValid, true);
-    //     }
-
-    //     // Nothing else is valid
-    //     isValid = false;
-    //     return "";
-    // }
 
     static const char* locateElementByPath(const char* pJsonDocPos, 
                 const char* pMaxDocPos,
@@ -617,79 +522,19 @@ public:
         while(true)
         {
             // Locate element
-            pJsonDocPos = locateElementValueWithKey(pJsonDocPos, pMaxDocPos, pPathPos, pElemStart, pElemEnd);
+            pJsonDocPos = locateElementValueWithKey(pJsonDocPos, pMaxDocPos, pPathPos);
             if (!pJsonDocPos)
                 return nullptr;
 
             // Check if we're at the end of the path
             if (!*pPathPos)
+            {
+                // Find the start and end of the element
+                pJsonDocPos = skipOverElement(pJsonDocPos, pMaxDocPos, pElemStart, pElemEnd);
                 return pJsonDocPos;
-
-            // Set search bounds to the object we've just found
-            pJsonDocPos = pElemStart;
-            pMaxDocPos = pElemEnd;
+            }
         }
     }
-
-    // // Get a string from the JSON
-    // String getString(const char* pDataPath,
-    //                     const char* defaultValue, bool& isValid,
-    //                     jsmntype_t& elemType, int& elemSize,
-    //                     const char* pSourceStr);
-
-    // // Alternate form of getString with fewer parameters
-    // String getString(const char* pDataPath, const char* defaultValue,
-    //                     const char* pSourceStr, bool& isValid);
-
-    // // Alternate form of getString with fewer parameters
-    // String getString(const char* pDataPath, const char* defaultValue,
-    //                     const char* pSourceStr);
-
-    // double getDouble(const char* pDataPath,
-    //                     double defaultValue, bool& isValid,
-    //                     const char* pSourceStr);
-
-    // double getDouble(const char* pDataPath, double defaultValue,
-    //                     const char* pSourceStr);
-
-    // long getLong(const char* pDataPath,
-    //                     long defaultValue, bool& isValid,
-    //                     const char* pSourceStr);
-
-    // long getLong(const char* pDataPath, long defaultValue, const char* pSourceStr);
-
-    // bool getBool(const char* pDataPath,
-    //                     bool defaultValue, bool& isValid,
-    //                     const char* pSourceStr);
-
-    // bool getBool(const char* pDataPath, bool defaultValue, const char* pSourceStr);
-
-    // jsmntype_t getType(int& arrayLen, const char* pSourceStr);
-
-    // const int MAX_KEYS_TO_RETURN = 100;
-    // bool getKeys(const char *pDataPath, std::vector<String>& keysVector, const char *pSourceStr);
-    
-    // bool getArrayElems(const char *pDataPath, std::vector<String>& arrayElems, const char *pSourceStr);
-
-    // size_t safeStringLen(const char* pSrc,
-    //                             bool skipJSONWhitespace = false, size_t maxx = LONG_MAX);
-
-    // // Find key in JSON
-    // static int findKeyInJson(const char* pJsonDoc, 
-    //                     const char* pDataPath, 
-    //                     const char* pPathPrefix,
-    //                     jsmntok_t tokens[],
-    //                     unsigned int numTokens, 
-    //                     int& endTokenIdx,
-    //                     jsmntype_t keyType = JSMN_UNDEFINED);
-    // static bool extractPathParts(const char* pDataPath, const char* pPathPrefix, 
-    //         std::vector<String>& pathParts, 
-    //         std::vector<int>& arrayIndices);
-    // static int findElemEnd(const char* jsonOriginal, jsmntok_t tokens[],
-    //                     unsigned int numTokens, int startTokenIdx);
-    // static int findArrayElem(const char *jsonOriginal, jsmntok_t tokens[],
-    //                     unsigned int numTokens, int startTokenIdx, 
-    //                     int arrayElemIdx);
 
 private:
     // JSON string

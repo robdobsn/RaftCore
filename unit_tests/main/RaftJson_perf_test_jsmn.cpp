@@ -23,27 +23,19 @@
 #define DEBUG_RDJSON_PERF_TEST
 
 static const char* MODULE_PREFIX = "RdJsonPerfTestJsmn";
-
-static uint64_t perfStartTimeUs = 0;
-static uint64_t perfParseUs = 0;
-static uint64_t perfFindKeyUs = 0;
-static uint64_t perfGetString1Us = 0;
-
 static constexpr int NUM_LOOPS_PERF_TEST = 100;
 
 TEST_CASE("test_json_perf_small", "[jsonperf]")
 {
+    LOG_I(MODULE_PREFIX, "--------------------------------- free heap %d", esp_get_free_heap_size());
+
     // Parse json into tokens
     int numTokens = 0;
-    EVAL_PERF_START();
+    EVAL_PERF_START(perfParse);
     jsmntok_t *pTokens = RaftJson_jsmn::parseJson(JSON_test_data_small, numTokens);
-    EVAL_PERF_END(perfParseUs);
+    EVAL_PERF_END(perfParse);
 
-    if (pTokens == NULL)
-    {
-        LOG_I(MODULE_PREFIX, "testFindElemEnd parseJson failed");
-        return;
-    }
+    TEST_ASSERT_MESSAGE(pTokens != NULL, "JSMN parseJson failed");
 
     // Debug
     // RaftJson::debugDumpParseResult(testJSON, pTokens, numTokens);
@@ -87,26 +79,24 @@ TEST_CASE("test_json_perf_small", "[jsonperf]")
         { "consts/comarr/[5]/fish", "stew" },
         { "consts/lastly", "elephant" },
     };
-    EVAL_PERF_CLEAR(perfFindKeyUs);
+    EVAL_PERF_START(jsmnFindKey);
     const int FIND_KEY_TESTS_SIZE = sizeof(findKeyTests)/sizeof(findKeyTests[0]);
     for (int testIdx = 0; testIdx < FIND_KEY_TESTS_SIZE; testIdx++)
     {
         String tokStartStr = "testFindElem testkeyIdx=" + String(testIdx);
-        EVAL_PERF_START();
         // testFindKeyInJson(pTokens, numTokens, findKeyTests[testIdx].dataPath, findKeyTests[testIdx].expStr, testJSON);
-
-        EVAL_PERF_ACCUM(perfFindKeyUs);
     }
+    EVAL_PERF_END(jsmnFindKey);
 
     // Cleanup
     delete[] pTokens;
 
     String testJsonHw = R"({"name":"LeftTwist","type":"SmartServo","busName":"I2CA","addr":"0x11","idx":"1","whoAmI":"","serialNo":"4f7aa220974cadc7","versionStr":"0.0.0","commsOk":1,"pos":107.70,"curr":0,"state":0,"velo":-26804})";
     // // Test higher level methods
-    EVAL_PERF_START();
+    EVAL_PERF_START(jsmnGetString);
     for (int i = 0; i < NUM_LOOPS_PERF_TEST; i++)
         RaftJson::getLongStatic(JSON_test_data_small, "idx", 0);
-    EVAL_PERF_END(perfGetString1Us);
+    EVAL_PERF_END(jsmnGetString);
 
     // TEST_ASSERT_MESSAGE(true == testGetString("consts/lastly", "elephant", testJSON), "getString2");
     // TEST_ASSERT_MESSAGE(5 == RaftJson::getLong("consts/comarr/[1]", -1, testJSON), "getLong1");
@@ -121,9 +111,14 @@ TEST_CASE("test_json_perf_small", "[jsonperf]")
 
     // Dump timings
 #ifdef DEBUG_RDJSON_PERF_TEST
-    LOG_I(MODULE_PREFIX, "Parse %fus FindKeyAvg %fus GetStr1 %fus", 
-                perfParseUs/1.0, 
-                perfFindKeyUs/FIND_KEY_TESTS_SIZE/1.0, 
-                perfGetString1Us/NUM_LOOPS_PERF_TEST/1.0);
+    EVAL_PERF_LOG(perfParse, "JSMN Parse", 1);
+    EVAL_PERF_LOG(jsmnFindKey, "JSMN FindKey", 1);
+    EVAL_PERF_LOG(jsmnGetString, "JSMN GetString", NUM_LOOPS_PERF_TEST);
+
+
+    // LOG_I(MODULE_PREFIX, "Parse %fus FindKeyAvg %fus GetStr1 %fus", 
+    //             perfParseUs/1.0, 
+    //             perfFindKeyUs/FIND_KEY_TESTS_SIZE/1.0, 
+    //             perfGetString1Us/NUM_LOOPS_PERF_TEST/1.0);
 #endif
 }

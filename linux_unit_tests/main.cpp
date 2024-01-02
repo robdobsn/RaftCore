@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "utils.h"
 #include "ArduinoWString.h"
-#include "RaftJson_direct.h"
+#include "RaftJson.h"
 
 const char* testJSON = 
     R"([)"
@@ -612,7 +612,7 @@ int main()
     // String t1 = test____getString("SysType", "", "", testJSON);
         // t1 = test____getString("[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", "", "", testJSON);
     // String t1 = RaftJson_direct::getStringStatic(testJSON, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", "", "");
-    int t1 = RaftJson_direct::getLongStatic(testJSON, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", 0, "");
+    int t1 = RaftJson::getLongStatic(testJSON, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", 0, "");
 
     printf("Parse stringGot <<<%d>>>\n", t1);
 }

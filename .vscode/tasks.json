@@ -21,6 +21,7 @@
             "args": [
                 "-I../unit_tests/main",
                 "-I../components/core/ArduinoUtils",
+                "-I../components/core/RaftJson",
                 "-I.",
                 "-fdiagnostics-color=always",
                 "-g",

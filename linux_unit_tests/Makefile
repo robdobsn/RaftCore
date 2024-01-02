@@ -15,7 +15,7 @@ OUTPUT = linux_unit_tests
 
 all: $(OUTPUT)
 
-$(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson_direct.h
+$(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUT) $(SOURCES)
 
 clean:
