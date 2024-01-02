@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include "utils.h"
 #include "ArduinoWString.h"
-#include "JsonDirect.h"
+#include "RaftJson_direct.h"
 
 const char* testJSON = 
-    // R"([)"
+    R"([)"
     R"(    {)"
     R"(        "SysType": "RICMarty2R2",)"
     R"(        "CmdsAtStart": "",)"
@@ -600,17 +600,19 @@ const char* testJSON =
     R"(            })"
     R"(        })"
     R"(    })"
-    // R"(])"
+    R"(])"
     ;
 
 int main()
 {
     // perfTestGetStringUs
-    String t1 = test____getString("Publish", "", "", testJSON);
+    // String t1 = Raft::test____getString("Robot/Buses/[1]", "", "", testJSON);
+    // String t1 = test____getString("Publish/pubList[0]/rates[2]", "", "", testJSON);
     // String t1 = test____getString("SysManager", "", "", testJSON);
     // String t1 = test____getString("SysType", "", "", testJSON);
         // t1 = test____getString("[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", "", "", testJSON);
+    // String t1 = RaftJson_direct::getStringStatic(testJSON, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", "", "");
+    int t1 = RaftJson_direct::getLongStatic(testJSON, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", 0, "");
 
-    printf("Parse stringGot <<<%s>>>\n",
-                t1.c_str());
+    printf("Parse stringGot <<<%d>>>\n", t1);
 }

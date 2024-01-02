@@ -1,15 +1,18 @@
 ROOTDIR = $(realpath $(CURDIR)/..)
 WORKING_DIR = $(realpath $(CURDIR))
-DOCKER ?= docker run --rm -v $(ROOTDIR):$(ROOTDIR) -w $(WORKING_DIR) espressif/idf:v5.1.2
+DOCKER_ESP_IDF ?= docker run --rm -v $(ROOTDIR):$(ROOTDIR) -w $(WORKING_DIR) espressif/idf:v5.1.2
 CMD ?= idf.py -B ./build build
 
 all: buildall
 
-buildall: Makefile $(wildcard ./*) $(wildcard components/core/*)
-	$(DOCKER) $(CMD)
+buildall: Makefile $(wildcard ./*) $(wildcard components/core/*) $(wildcard components/comms/*)
+	$(DOCKER_ESP_IDF) $(CMD)
 
 clean:
-	$(DOCKER) rm -rf build sdkconfig || true
+	$(DOCKER_ESP_IDF) rm -rf build sdkconfig || true
+
+linux: $(wildcard components/core/*) $(wildcard components/comms/*)
+	g++ -std=c++17 -I$(ROOTDIR)/components/core/RaftJson -pthread -o build_linux/test_raft_core_linux main/test_app_main.cpp $(ROOTDIR)/components/core/RaftJson/RaftJson.cpp
 
 PORT ?= COM5
 

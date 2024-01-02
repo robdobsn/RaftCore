@@ -5,7 +5,7 @@ CC = g++
 CFLAGS = -Wall -std=c++20 -lc -g
 
 # Include paths
-INCLUDES = -I../unit_tests/main -I../components/core/ArduinoUtils -I.
+INCLUDES = -I../unit_tests/main -I../components/core/ArduinoUtils -I../components/core/RaftJson -I.
 
 # Source files
 SOURCES = main.cpp utils.cpp ../components/core/ArduinoUtils/ArduinoWString.cpp
@@ -15,7 +15,7 @@ OUTPUT = linux_unit_tests
 
 all: $(OUTPUT)
 
-$(OUTPUT): $(SOURCES) ../unit_tests/main/JsonDirect.h
+$(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson_direct.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUT) $(SOURCES)
 
 clean:

@@ -10,13 +10,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <RaftArduino.h>
-#include <RaftJson.h>
-#include <Logger.h>
 #include "unity.h"
 #include "unity_test_runner.h"
-#include <RaftJsmn.h>
-#include <RaftUtils.h>
+#include "RaftArduino.h"
+#include "RaftJson.h"
+#include "Logger.h"
+#include "RaftUtils.h"
 
 static const char* MODULE_PREFIX = "RaftJsonUnitTest";
 
@@ -35,20 +34,20 @@ static bool testFindElemEnd(jsmntok_t* pTokens, int numTokens, int tokenIdx, int
 }
 
 static bool testFindKeyInJson(jsmntok_t* pTokens, int numTokens, 
-                const char* dataPath, const char* expStr, const char* pSourceStr)
+                const char* pDataPath, const char* expStr, const char* pSourceStr)
 {
     // find key
     int endTokenIdx = 0;
     jsmntype_t keyType = JSMN_UNDEFINED;
-    int foundTokenIdx = RaftJson::findKeyInJson(pSourceStr, pTokens, numTokens, dataPath, endTokenIdx, keyType);
+    int foundTokenIdx = RaftJson::findKeyInJson(pSourceStr, pDataPath, "", pTokens, numTokens, endTokenIdx, keyType);
     String elemStr;
     if (foundTokenIdx >= 0)
-        Raft::strFromBuffer((uint8_t*)pSourceStr + pTokens[foundTokenIdx].start, 
-                pTokens[foundTokenIdx].end - pTokens[foundTokenIdx].start,
+        elemStr = String((uint8_t*)pSourceStr + pTokens[foundTokenIdx].start, 
+                pTokens[foundTokenIdx].end - pTokens[foundTokenIdx].start
                 // ((endTokenIdx < numTokens) && (endTokenIdx >= 0)) ? pTokens[foundTokenIdx].end - pTokens[foundTokenIdx].start : strlen(pSourceStr) - pTokens[foundTokenIdx].start,
-                elemStr);
-    // LOG_I(MODULE_PREFIX, "testFindKeyInJson dataPath %s elemStr %s startTok %d endTok %d", dataPath, elemStr.c_str(), 
-    //                         foundTokenIdx, endTokenIdx);
+                );
+    LOG_I(MODULE_PREFIX, "testFindKeyInJson pDataPath %s elemStr %s startTok %d endTok %d", pDataPath, elemStr.c_str(), 
+                            foundTokenIdx, endTokenIdx);
     if (!elemStr.equals(expStr))
     {
         LOG_I(MODULE_PREFIX, "testFindKeyInJson failed expected %s != %s", expStr, elemStr.c_str());
@@ -57,9 +56,9 @@ static bool testFindKeyInJson(jsmntok_t* pTokens, int numTokens,
     return true;
 }
 
-static bool testGetString(const char* dataPath, const char* expStr, const char* pSourceStr)
+static bool testGetString(const char* pDataPath, const char* expStr, const char* pSourceStr)
 {
-    String val = RaftJson::getString(dataPath, "", pSourceStr);
+    String val = RaftJson::getStringStatic(pDataPath, "", pSourceStr);
     // LOG_I(MODULE_PREFIX, "testGetString dataPath %s val %s", dataPath, val.c_str());
     if (!val.equals(expStr))
     {
@@ -69,11 +68,11 @@ static bool testGetString(const char* dataPath, const char* expStr, const char* 
     return true;
 }
 
-static bool testGetArrayElems(const char* dataPath, const char* expStrs[], int numStrs, const char* pSourceStr)
+static bool testGetArrayElems(const char* pDataPath, const char* expStrs[], int numStrs, const char* pSourceStr)
 {
     std::vector<String> arrayElems;
-    bool isValid = RaftJson::getArrayElems(dataPath, arrayElems, pSourceStr);
-    // LOG_I(MODULE_PREFIX, "testGetArrayElems dataPath %s got len %d", dataPath, arrayElems.size());
+    bool isValid = RaftJson::getArrayElemsStatic(pSourceStr, pDataPath, arrayElems);
+    // LOG_I(MODULE_PREFIX, "testGetArrayElems pDataPath %s got len %d", pDataPath, arrayElems.size());
     if (!isValid)
     {
         LOG_I(MODULE_PREFIX, "testGetArrayElems failed");
@@ -95,11 +94,11 @@ static bool testGetArrayElems(const char* dataPath, const char* expStrs[], int n
     return true;
 }
 
-static bool testGetObjectKeys(const char* dataPath, const char* expStrs[], int numStrs, const char* pSourceStr)
+static bool testGetObjectKeys(const char* pDataPath, const char* expStrs[], int numStrs, const char* pSourceStr)
 {
     std::vector<String> arrayElems;
-    bool isValid = RaftJson::getKeys(dataPath, arrayElems, pSourceStr);
-    // LOG_I(MODULE_PREFIX, "testGetObjectKeys dataPath %s got len %d", dataPath, arrayElems.size());
+    bool isValid = RaftJson::getKeysStatic(pSourceStr, pDataPath, arrayElems);
+    // LOG_I(MODULE_PREFIX, "testGetObjectKeys pDataPath %s got len %d", pDataPath, arrayElems.size());
     if (!isValid)
     {
         LOG_I(MODULE_PREFIX, "testGetObjectKeys failed");
@@ -107,7 +106,7 @@ static bool testGetObjectKeys(const char* dataPath, const char* expStrs[], int n
     }
     if (numStrs != arrayElems.size())
     {
-        LOG_I(MODULE_PREFIX, "testGetObjectKeys failed expected len %d != %d (dataPath %s)", numStrs, arrayElems.size(), dataPath);
+        LOG_I(MODULE_PREFIX, "testGetObjectKeys failed expected len %d != %d (dataPath %s)", numStrs, arrayElems.size(), pDataPath);
         return false;
     }
     for (int i = 0; i < numStrs; i++)
@@ -211,11 +210,11 @@ TEST_CASE("test_rdjson", "[rdjson]")
     delete[] pTokens;
 
     // Test higher level methods
-    TEST_ASSERT_MESSAGE(true == testGetString("consts/oxis/coo[3]/minotaur", "[1,3,4]", testJSON), "getString1");
+    TEST_ASSERT_MESSAGE(true == testGetString("consts/oxis/coo[3]/minotaur", "[1, 3, 4]", testJSON), "getString1");
     TEST_ASSERT_MESSAGE(true == testGetString("consts/lastly", "elephant", testJSON), "getString2");
-    TEST_ASSERT_MESSAGE(5 == RaftJson::getLong("consts/comarr/[1]", -1, testJSON), "getLong1");
-    TEST_ASSERT_MESSAGE(0 == RaftJson::getLong("consts/bool1", -1, testJSON), "getLongBool1");
-    TEST_ASSERT_MESSAGE(1 == RaftJson::getLong("consts/bool2", -1, testJSON), "getLongBool2");
+    TEST_ASSERT_MESSAGE(5 == RaftJson::getLongStatic("consts/comarr/[1]", -1, testJSON), "getLong1");
+    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongStatic("consts/bool1", -1, testJSON), "getLongBool1");
+    TEST_ASSERT_MESSAGE(1 == RaftJson::getLongStatic("consts/bool2", -1, testJSON), "getLongBool2");
 
     // Test array elements
     const char* expectedStrs[] = {"6", "5", "4", "3", "3", "{\"fish\": \"stew\"}"};

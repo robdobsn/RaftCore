@@ -1,6 +1,16 @@
 idf_component_register(SRCS
-        SRC_DIRS "."
-        INCLUDE_DIRS "."
+        # SRC_DIRS "."
+        SRCS
+            "test_app_main.cpp"
+            "RaftJsmn_test.cpp"
+            "RaftJson_perf_test_jsmn.cpp"
+            "RaftJson_perf_test_large.cpp"
+            "RaftJson_perf_extract.cpp"
+            "ForComparison/RaftJsmn.cpp"
+            "ForComparison/RaftJson_jsmn.cpp"
+        INCLUDE_DIRS 
+            "."
+            "ForComparison"
         REQUIRES
             esp_system
             unity
