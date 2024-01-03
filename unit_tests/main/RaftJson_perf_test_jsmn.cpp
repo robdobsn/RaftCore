@@ -18,17 +18,17 @@
 #include "ArduinoJson.h"
 #include "RaftJson_jsmn.h"
 #include "JSON_test_data_small.h"
+#include "JSON_test_data_large.h"
 #include "PerfTestMacros.h"
 
-#define DEBUG_RDJSON_PERF_TEST
+#define DEBUF_RAFTJSON_PERF_TEST
 
-static const char* MODULE_PREFIX = "RdJsonPerfTestJsmn";
+static const char* MODULE_PREFIX = "RaftJsonPerfTestJsmn";
 static constexpr int NUM_LOOPS_PERF_TEST = 100;
+static const int EXPECTED_WORK_Q_MAX_LEN = 50;
 
-TEST_CASE("test_json_perf_small", "[jsonperf]")
+TEST_CASE("test_json_perf_jsmn", "[jsonperf]")
 {
-    LOG_I(MODULE_PREFIX, "--------------------------------- free heap %d", esp_get_free_heap_size());
-
     // Parse json into tokens
     int numTokens = 0;
     EVAL_PERF_START(perfParse);
@@ -95,7 +95,7 @@ TEST_CASE("test_json_perf_small", "[jsonperf]")
     // // Test higher level methods
     EVAL_PERF_START(jsmnGetString);
     for (int i = 0; i < NUM_LOOPS_PERF_TEST; i++)
-        RaftJson::getLongStatic(JSON_test_data_small, "idx", 0);
+        RaftJson::getLong(JSON_test_data_small, "idx", 0);
     EVAL_PERF_END(jsmnGetString);
 
     // TEST_ASSERT_MESSAGE(true == testGetString("consts/lastly", "elephant", testJSON), "getString2");
@@ -109,16 +109,39 @@ TEST_CASE("test_json_perf_small", "[jsonperf]")
     // const char* expectedKeys[] = {"axis", "oxis", "exis", "comarr", "lastly"};
     // TEST_ASSERT_MESSAGE(true == testGetObjectKeys("consts", expectedKeys, sizeof(expectedKeys)/sizeof(expectedKeys[0]), testJSON), "getKeys1");
 
+    // Parse json into tokens
+    numTokens = 0;
+    EVAL_PERF_START(jsmnParseLarge);
+    pTokens = RaftJson_jsmn::parseJson(JSON_test_data_large, numTokens);
+    EVAL_PERF_END(jsmnParseLarge);
+    TEST_ASSERT_MESSAGE(pTokens != NULL, "JSMN parseJsonLarge failed");
+
+    // Find element
+    EVAL_PERF_START(jsmnGetStringLarge);
+    String testStr = RaftJson_jsmn::getString(JSON_test_data_large, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", "");
+    EVAL_PERF_END(jsmnGetStringLarge);
+    TEST_ASSERT_MESSAGE(testStr.equals(String(EXPECTED_WORK_Q_MAX_LEN)), "JSMN getStringLarge failed");
+
+    // Cleanup
+    delete[] pTokens;
+
+    // Use a RaftJson_jsmn object
+    EVAL_PERF_START(jsmnObjGetStringLarge);
+    RaftJson_jsmn jsmnObj(JSON_test_data_large, false);
+    int maxQVal = 0;
+    for (int i = 0; i < NUM_LOOPS_PERF_TEST; i++)
+        maxQVal += (int) jsmnObj.getLong("[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", 0);
+    EVAL_PERF_END(jsmnObjGetStringLarge);
+    // TEST_ASSERT_MESSAGE(testStr2.equals(String(EXPECTED_WORK_Q_MAX_LEN)), "JSMN ObjGetStringLarge failed");
+    LOG_I(MODULE_PREFIX, "maxQLen %d", maxQVal);
+
     // Dump timings
-#ifdef DEBUG_RDJSON_PERF_TEST
-    EVAL_PERF_LOG(perfParse, "JSMN Parse", 1);
-    EVAL_PERF_LOG(jsmnFindKey, "JSMN FindKey", 1);
-    EVAL_PERF_LOG(jsmnGetString, "JSMN GetString", NUM_LOOPS_PERF_TEST);
-
-
-    // LOG_I(MODULE_PREFIX, "Parse %fus FindKeyAvg %fus GetStr1 %fus", 
-    //             perfParseUs/1.0, 
-    //             perfFindKeyUs/FIND_KEY_TESTS_SIZE/1.0, 
-    //             perfGetString1Us/NUM_LOOPS_PERF_TEST/1.0);
+#ifdef DEBUF_RAFTJSON_PERF_TEST
+    EVAL_PERF_LOG(perfParse, "JSMN Parse Small", 1);
+    EVAL_PERF_LOG(jsmnFindKey, "JSMN FindKey Small", 1);
+    EVAL_PERF_LOG(jsmnGetString, "JSMN GetStringStatic Small", NUM_LOOPS_PERF_TEST);
+    EVAL_PERF_LOG(jsmnParseLarge, "JSMN Parse Large", 1);
+    EVAL_PERF_LOG(jsmnGetStringLarge, "JSMN GetStringStatic Large", 1);
+    EVAL_PERF_LOG(jsmnObjGetStringLarge, "JSMN GetString Large", NUM_LOOPS_PERF_TEST);
 #endif
 }

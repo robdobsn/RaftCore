@@ -42,40 +42,40 @@ public:
     RaftJson_jsmn& operator=(const std::string& jsonStr);
 
     // Get values from JSON key/value pairs
-    virtual String getString(const char* pDataPath, const char* defaultValue, const char* pPathPrefix = nullptr) const override
+    virtual String getString(const char* pDataPath, const char* defaultValue) const override
     {
-        return getStringStatic(pDataPath, defaultValue, nullptr, pPathPrefix, &_docAndCache);
+        return getString(nullptr, pDataPath, defaultValue, nullptr, &_docAndCache);
     }
-    virtual double getDouble(const char* pDataPath, double defaultValue, const char* pPathPrefix = nullptr) const override
+    virtual double getDouble(const char* pDataPath, double defaultValue) const override
     {
-        return getDoubleStatic(pDataPath, defaultValue, nullptr, pPathPrefix, &_docAndCache);
+        return getDouble(nullptr, pDataPath, defaultValue, nullptr, &_docAndCache);
     }
-    virtual long getLong(const char* pDataPath, long defaultValue, const char* pPathPrefix = nullptr) const override
+    virtual long getLong(const char* pDataPath, long defaultValue) const override
     {
-        return getLongStatic(pDataPath, defaultValue, nullptr, pPathPrefix, &_docAndCache);
+        return getLong(nullptr, pDataPath, defaultValue, nullptr, &_docAndCache);
     }
-    virtual bool getBool(const char* pDataPath, bool defaultValue, const char* pPathPrefix = nullptr) const override
+    virtual bool getBool(const char* pDataPath, bool defaultValue) const override
     {
-        return getBoolStatic(pDataPath, defaultValue, nullptr, pPathPrefix, &_docAndCache);
+        return getBool(nullptr, pDataPath, defaultValue, nullptr, &_docAndCache);
     }
 
     // Get array elements
-    virtual bool getArrayElems(const char *pDataPath, std::vector<String>& strList, const char* pPathPrefix = nullptr) const override
+    virtual bool getArrayElems(const char *pDataPath, std::vector<String>& strList) const override
     {
-        return getArrayElemsStatic(pDataPath, strList, nullptr, pPathPrefix, &_docAndCache);
+        return getArrayElems(nullptr, pDataPath, strList, nullptr, &_docAndCache);
     }
 
     // Get keys
-    virtual bool getKeys(const char *pDataPath, std::vector<String>& keysVector, const char* pPathPrefix = nullptr) const override
+    virtual bool getKeys(const char *pDataPath, std::vector<String>& keysVector) const override
     {
-        return getKeysStatic(pDataPath, keysVector, nullptr, pPathPrefix, &_docAndCache);
+        return getKeys(nullptr, pDataPath, keysVector, nullptr, &_docAndCache);
     }
 
     // Check if key exists
-    virtual bool contains(const char* pDataPath, const char* pPathPrefix = nullptr) const override
+    virtual bool contains(const char* pDataPath) const override
     {
         int arrayLen = 0;
-        jsmntype_t elemType = getTypeStatic(pDataPath, arrayLen, nullptr, pPathPrefix, &_docAndCache);
+        jsmntype_t elemType = getType(nullptr, pDataPath, arrayLen, nullptr, &_docAndCache);
         return elemType != JSMN_UNDEFINED;
     }
 
@@ -96,39 +96,39 @@ public:
     // Static methods
 
     class JSONDocAndCache;
-    static String getStringStatic(const char* pDataPath, const char* defaultValue,
-            const char* pSourceStr, 
+    static String getString(const char* pJsonDoc, 
+            const char* pDataPath, const char* defaultValue,
             const char* pPathPrefix = nullptr,
             const JSONDocAndCache* pDocAndCache = nullptr);
-    static double getDoubleStatic(const char* pDataPath, double defaultValue,
-            const char* pSourceStr, 
+    static double getDouble(const char* pJsonDoc,
+            const char* pDataPath, double defaultValue,
             const char* pPathPrefix = nullptr,
             const JSONDocAndCache* pDocAndCache = nullptr);
-    static long getLongStatic(const char* pDataPath, long defaultValue,
-            const char* pSourceStr, 
+    static long getLong(const char* pJsonDoc,
+            const char* pDataPath, long defaultValue,
             const char* pPathPrefix = nullptr,
             const JSONDocAndCache* pDocAndCache = nullptr);
-    static bool getBoolStatic(const char* pDataPath, bool defaultValue,
-            const char* pSourceStr, 
+    static bool getBool(const char* pJsonDoc,
+            const char* pDataPath, bool defaultValue,
             const char* pPathPrefix = nullptr,
             const JSONDocAndCache* pDocAndCache = nullptr);
 
     // Get array elements
-    static bool getArrayElemsStatic(const char *pDataPath, std::vector<String>& strList,
-            const char* pSourceStr, 
+    static bool getArrayElems(const char* pJsonDoc,
+            const char *pDataPath, std::vector<String>& strList,
             const char* pPathPrefix = nullptr,
             const JSONDocAndCache* pDocAndCache = nullptr);
 
     // Get keys (static)
-    static bool getKeysStatic(const char *pDataPath, std::vector<String>& keysVector,
-            const char* pSourceStr, 
+    static bool getKeys(const char* pJsonDoc,
+            const char *pDataPath, std::vector<String>& keysVector,
             const char* pPathPrefix = nullptr,
             const JSONDocAndCache* pDocAndCache = nullptr);
 
     // Get type of element (also returns array length if array)
-    static jsmntype_t getTypeStatic(const char* pDataPath,
+    static jsmntype_t getType(const char* pJsonDoc,
+            const char* pDataPath,
             int &arrayLen, 
-            const char* pSourceStr, 
             const char* pPathPrefix = nullptr, 
             const JSONDocAndCache* pDocAndCache = nullptr);
 

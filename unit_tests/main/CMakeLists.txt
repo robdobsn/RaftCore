@@ -3,8 +3,11 @@ idf_component_register(SRCS
         SRCS
             "test_app_main.cpp"
             "RaftJsmn_test.cpp"
+            "RaftJson_test_values.cpp"
+            "RaftJson_jsmn_test.cpp"
             "RaftJson_perf_test_jsmn.cpp"
             "RaftJson_perf_test_large.cpp"
+            "RaftJson_perf_test_small.cpp"
             "RaftJson_perf_extract.cpp"
             "ForComparison/RaftJsmn.cpp"
             "ForComparison/RaftJson_jsmn.cpp"

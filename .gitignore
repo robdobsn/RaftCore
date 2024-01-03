@@ -12,6 +12,7 @@ scripts/config.ini
 .venv
 test/eepromPartitionTest/prewritedata.bin
 test/eepromPartitionTest/readbackdata.bin
+linux_unit_tests/linux_unit_tests
 
 # Generated updater files
 current_version.json

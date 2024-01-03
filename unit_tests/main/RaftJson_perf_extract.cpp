@@ -11,7 +11,7 @@
 #include "RaftJson.h"
 #include "PerfTestMacros.h"
 
-static const char* MODULE_PREFIX = "RdJsonPerfTestSmall";
+static const char* MODULE_PREFIX = "RaftJsonPerfTestSmall";
 
 // static uint64_t perfStartTimeUs = 0;
 // static uint64_t perfTestExtractTestUs = 0;

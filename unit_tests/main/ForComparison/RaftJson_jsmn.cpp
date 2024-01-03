@@ -84,9 +84,8 @@ RaftJson_jsmn& RaftJson_jsmn::operator=(const std::string& jsonStr)
 // getString
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String RaftJson_jsmn::getStringStatic(const char *pDataPath, 
-            const char *defaultValue,
-            const char* pSourceStr, 
+String RaftJson_jsmn::getString(const char* pJsonDoc,
+            const char *pDataPath, const char *defaultValue,
             const char* pPathPrefix,
             const JSONDocAndCache* pDocAndCache)
 {
@@ -94,16 +93,16 @@ String RaftJson_jsmn::getStringStatic(const char *pDataPath,
     int startPos = 0, strLen = 0;
     jsmntype_t elemType = JSMN_UNDEFINED;
     int elemSize = 0;
-    if ((!pSourceStr && !pDocAndCache) || 
+    if ((!pJsonDoc && !pDocAndCache) || 
          !getElement(pDataPath, pPathPrefix, startPos, strLen, elemType, elemSize, 
                 nullptr,
                 nullptr,
-                pSourceStr,
+                pJsonDoc,
                 pDocAndCache))
         return defaultValue ? defaultValue : "";
 
     // Extract string
-    const char* pStr = pSourceStr ? pSourceStr + startPos : pDocAndCache->getJsonDoc();
+    const char* pStr = pJsonDoc ? pJsonDoc + startPos : pDocAndCache->getJsonDoc();
     return String(pStr, strLen);
 }
 
@@ -111,9 +110,8 @@ String RaftJson_jsmn::getStringStatic(const char *pDataPath,
 // getDouble
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-double RaftJson_jsmn::getDoubleStatic(const char *pDataPath, 
-            double defaultValue,
-            const char* pSourceStr, 
+double RaftJson_jsmn::getDouble(const char* pJsonDoc,
+            const char *pDataPath, double defaultValue,
             const char* pPathPrefix, 
             const JSONDocAndCache* pDocAndCache)
 {
@@ -121,16 +119,16 @@ double RaftJson_jsmn::getDoubleStatic(const char *pDataPath,
     int startPos = 0, strLen = 0;
     jsmntype_t elemType = JSMN_UNDEFINED;
     int elemSize = 0;
-    if ((!pSourceStr && !pDocAndCache) || 
+    if ((!pJsonDoc && !pDocAndCache) || 
          !getElement(pDataPath, pPathPrefix, startPos, strLen, elemType, elemSize, 
                 nullptr,
                 nullptr,
-                pSourceStr,
+                pJsonDoc,
                 pDocAndCache))
         return defaultValue;
     // Check for booleans
     int retValue = 0;
-    const char* pStr = pSourceStr ? pSourceStr + startPos : pDocAndCache->getJsonDoc();
+    const char* pStr = pJsonDoc ? pJsonDoc + startPos : pDocAndCache->getJsonDoc();
     if (RaftJson_jsmn::isBoolean(pStr+startPos, strLen, retValue))
         return retValue;
     return strtod(pStr + startPos, NULL);
@@ -140,9 +138,8 @@ double RaftJson_jsmn::getDoubleStatic(const char *pDataPath,
 // getLong
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-long RaftJson_jsmn::getLongStatic(const char *pDataPath, 
-            long defaultValue,
-            const char* pSourceStr, 
+long RaftJson_jsmn::getLong(const char* pJsonDoc,
+            const char *pDataPath, long defaultValue,
             const char* pPathPrefix,
             const JSONDocAndCache* pDocAndCache)
 {
@@ -150,17 +147,17 @@ long RaftJson_jsmn::getLongStatic(const char *pDataPath,
     int startPos = 0, strLen = 0;
     jsmntype_t elemType = JSMN_UNDEFINED;
     int elemSize = 0;
-    if ((!pSourceStr && !pDocAndCache) || 
+    if ((!pJsonDoc && !pDocAndCache) || 
          !getElement(pDataPath, pPathPrefix, startPos, strLen, elemType, elemSize, 
                 nullptr,
                 nullptr,
-                pSourceStr,
+                pJsonDoc,
                 pDocAndCache))
         return defaultValue;
 
     // Check for booleans
     int retValue = 0;
-    const char* pStr = pSourceStr ? pSourceStr : pDocAndCache->getJsonDoc();
+    const char* pStr = pJsonDoc ? pJsonDoc : pDocAndCache->getJsonDoc();
     if (RaftJson_jsmn::isBoolean(pStr+startPos, strLen, retValue))
         return retValue;
     return strtol(pStr + startPos, NULL, 0);
@@ -170,22 +167,20 @@ long RaftJson_jsmn::getLongStatic(const char *pDataPath,
 // getBool
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftJson_jsmn::getBoolStatic(const char *pDataPath, 
-            bool defaultValue,
-            const char* pSourceStr, 
+bool RaftJson_jsmn::getBool(const char* pJsonDoc,
+            const char *pDataPath, bool defaultValue,
             const char* pPathPrefix,
             const JSONDocAndCache* pDocAndCache)
 {
-    return RaftJson_jsmn::getLongStatic(pDataPath, defaultValue, pSourceStr, pPathPrefix, pDocAndCache) != 0;
+    return RaftJson_jsmn::getLong(pJsonDoc, pDataPath, defaultValue, pPathPrefix, pDocAndCache) != 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getArrayElems
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftJson_jsmn::getArrayElemsStatic(const char *pDataPath, 
-            std::vector<String>& strList,
-            const char* pSourceStr, 
+bool RaftJson_jsmn::getArrayElems(const char* pJsonDoc,
+            const char *pDataPath, std::vector<String>& strList,
             const char* pPathPrefix,
             const JSONDocAndCache* pDocAndCache)
 {
@@ -193,11 +188,11 @@ bool RaftJson_jsmn::getArrayElemsStatic(const char *pDataPath,
     int startPos = 0, strLen = 0;
     jsmntype_t elemType = JSMN_UNDEFINED;
     int elemSize = 0;
-    if ((!pSourceStr && !pDocAndCache) || 
+    if ((!pJsonDoc && !pDocAndCache) || 
          !getElement(pDataPath, pPathPrefix, startPos, strLen, elemType, elemSize, 
                 nullptr,
                 &strList,
-                pSourceStr,
+                pJsonDoc,
                 pDocAndCache))
         return false;
     return elemType == JSMN_ARRAY;
@@ -207,9 +202,8 @@ bool RaftJson_jsmn::getArrayElemsStatic(const char *pDataPath,
 // getKeys
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftJson_jsmn::getKeysStatic(const char *pDataPath, 
-            std::vector<String>& keysVector,
-            const char* pSourceStr, 
+bool RaftJson_jsmn::getKeys(const char* pJsonDoc,
+            const char *pDataPath, std::vector<String>& keysVector,
             const char* pPathPrefix,
             const JSONDocAndCache* pDocAndCache)
 {
@@ -217,11 +211,11 @@ bool RaftJson_jsmn::getKeysStatic(const char *pDataPath,
     int startPos = 0, strLen = 0;
     jsmntype_t elemType = JSMN_UNDEFINED;
     int elemSize = 0;
-    if ((!pSourceStr && !pDocAndCache) || 
+    if ((!pJsonDoc && !pDocAndCache) || 
          !getElement(pDataPath, pPathPrefix, startPos, strLen, elemType, elemSize, 
                 &keysVector,
                 nullptr,
-                pSourceStr,
+                pJsonDoc,
                 pDocAndCache))
         return false;
     return elemType == JSMN_OBJECT;
@@ -231,9 +225,8 @@ bool RaftJson_jsmn::getKeysStatic(const char *pDataPath,
 // getType
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-jsmntype_t RaftJson_jsmn::getTypeStatic(const char* pDataPath, 
-            int &arrayLen, 
-            const char* pSourceStr, 
+jsmntype_t RaftJson_jsmn::getType(const char* pJsonDoc,
+            const char* pDataPath, int &arrayLen, 
             const char* pPathPrefix,
             const JSONDocAndCache* pDocAndCache)
 {
@@ -241,11 +234,11 @@ jsmntype_t RaftJson_jsmn::getTypeStatic(const char* pDataPath,
     int startPos = 0, strLen = 0;
     jsmntype_t elemType = JSMN_UNDEFINED;
     int elemSize = 0;
-    if ((!pSourceStr && !pDocAndCache) || 
+    if ((!pJsonDoc && !pDocAndCache) || 
          !getElement(pDataPath, pPathPrefix, startPos, strLen, elemType, elemSize, 
                 nullptr,
                 nullptr,
-                pSourceStr,
+                pJsonDoc,
                 pDocAndCache))
         return JSMN_UNDEFINED;
 
@@ -1731,7 +1724,7 @@ String RaftJson_jsmn::getHTMLQueryFromJSON(const String& jsonStr)
 {
     // Get keys of object
     std::vector<String> keyStrs;
-    RaftJson_jsmn::getKeysStatic("", keyStrs, jsonStr.c_str());
+    RaftJson_jsmn::getKeys(jsonStr.c_str(), "", keyStrs);
     if (keyStrs.size() == 0)
         return "";
 
@@ -1739,7 +1732,7 @@ String RaftJson_jsmn::getHTMLQueryFromJSON(const String& jsonStr)
     String outStr;
     for (String& keyStr : keyStrs)
     {
-        String valStr = getStringStatic(keyStr.c_str(), "", jsonStr.c_str());
+        String valStr = getString(jsonStr.c_str(), keyStr.c_str(), "");
         if (valStr.length() == 0)
             continue;
         if (outStr.length() != 0)
