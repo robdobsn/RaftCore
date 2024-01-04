@@ -39,10 +39,10 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Construct a new RaftJson object
     /// @param pJsonStr 
-    /// @param makeCopy 
-    /// @note When makeCopy is false the string pointer must remain valid for the lifetime of this object
-    /// @note This option is provided to avoid copying strings in flash memory - please don't use it in other cases
-    RaftJson(const char* pJsonStr, bool makeCopy = true)
+    /// @param makeCopy when false the string pointer must remain valid for the lifetime of this object
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+    /// @note The makeCopy option is provided to avoid copying strings in flash memory - please don't use it in other cases
+    RaftJson(const char* pJsonStr, bool makeCopy = true, RaftJsonIF* pChainedRaftJson = nullptr)
     {
         if (makeCopy)
         {
@@ -57,13 +57,15 @@ public:
         {
             _pSourceStr = pJsonStr;
         }
+        _pChainedRaftJson = pChainedRaftJson;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Construct a new RaftJson object from Arduino String
     /// @param pJsonStr
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @note makes a copy
-    RaftJson(const String& jsonStr)
+    RaftJson(const String& jsonStr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
 #ifdef ESP_PLATFORM        
         _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
@@ -71,13 +73,15 @@ public:
         _jsonStr = std::vector<char>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
 #endif
         _pSourceStr = _jsonStr.data();
+        _pChainedRaftJson = pChainedRaftJson;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Construct a new RaftJson object from std::string
     /// @param pJsonStr
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @note makes a copy
-    RaftJson(const std::string& jsonStr)
+    RaftJson(const std::string& jsonStr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
 #ifdef ESP_PLATFORM
         _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
@@ -85,6 +89,7 @@ public:
         _jsonStr = std::vector<char>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
 #endif
         _pSourceStr = _jsonStr.data();
+        _pChainedRaftJson = pChainedRaftJson;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -94,9 +99,9 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Assignment from string types
-    // @param pJsonStr
-    // @note makes a copy
+    /// @brief Assignment from string types
+    /// @param pJsonStr
+    /// @note makes a copy
     RaftJson& operator=(const char* pJsonStr)
     {
 #ifdef ESP_PLATFORM
@@ -129,13 +134,13 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Get string value using the member variable JSON document
-    // @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
-    // @param defaultValue the default value to return if the variable is not found
-    // @return the value of the variable or the default value if not found
+    /// @brief Get string value using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @return the value of the variable or the default value if not found
     virtual String getString(const char* pDataPath, const char* defaultValue) const override
     {
-        return getString(_pSourceStr, pDataPath, defaultValue);
+        return getString(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -145,7 +150,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual double getDouble(const char* pDataPath, double defaultValue) const override
     {
-        return getDouble(_pSourceStr, pDataPath, defaultValue);
+        return getDouble(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -208,15 +213,15 @@ public:
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
-    /// @param pPathPrefix a prefix to add to the path
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
     static String getString(const char* pJsonDoc,
             const char* pDataPath, const char* defaultValue,
-            const char* pPathPrefix = nullptr)
+            RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath);
+        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
@@ -235,15 +240,15 @@ public:
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
-    /// @param pPathPrefix a prefix to add to the path
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
     static double getDouble(const char* pJsonDoc,
             const char* pDataPath, double defaultValue,
-            const char* pPathPrefix = nullptr)
+            RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath);
+        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
@@ -263,15 +268,15 @@ public:
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
-    /// @param pPathPrefix a prefix to add to the path
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
     static long getLong(const char* pJsonDoc,
             const char* pDataPath, long defaultValue,
-            const char* pPathPrefix = nullptr)
+            RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath);
+        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
@@ -291,14 +296,14 @@ public:
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
-    /// @param pPathPrefix a prefix to add to the path
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
     static bool getBool(const char* pJsonDoc, 
             const char* pDataPath, bool defaultValue,
-            const char* pPathPrefix = nullptr)
+            RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Use long method to get value
-        return RaftJson::getLong(pJsonDoc, pDataPath, defaultValue, pPathPrefix) != 0;
+        return RaftJson::getLong(pJsonDoc, pDataPath, defaultValue, pChainedRaftJson) != 0;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -306,15 +311,15 @@ public:
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required array in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param strList a vector which is filled with the array elements
-    /// @param pPathPrefix a prefix to add to the path
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return true if the array was found
     static bool getArrayElems(const char* pJsonDoc,
             const char *pDataPath, std::vector<String>& strList,
-            const char* pPathPrefix = nullptr)
+            RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath);
+        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -352,15 +357,15 @@ public:
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param keysVector a vector which is filled with the keys
-    /// @param pPathPrefix a prefix to add to the path
+    /// @param pChainRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return true if the object was found
     static bool getKeys(const char* pJsonDoc,
             const char *pDataPath, std::vector<String>& keysVector,
-            const char* pPathPrefix = nullptr)
+            RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath);
+        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -401,14 +406,14 @@ public:
     /// @param pJsonDocPos the current position in the JSON document
     /// @param retValue the value of the boolean
     /// @return true if the element is a boolean
-    static bool isBoolean(const char* pBuf, int &retValue)
+    static bool isBoolean(const char* pJsonDocPos, int &retValue)
     {
-        if (strncmp(pBuf, "true", 4) == 0)
+        if (strncmp(pJsonDocPos, "true", 4) == 0)
         {
             retValue = 1;
             return true;
         }
-        if (strncmp(pBuf, "false", 5) == 0)
+        if (strncmp(pJsonDocPos, "false", 5) == 0)
         {
             retValue = 0;
             return true;
@@ -421,15 +426,15 @@ public:
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param arrayLen the length of the array if the element is an array
-    /// @param pPathPrefix a prefix to add to the path
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the type of the element
     static RaftJsonType getType(const char* pJsonDoc,
-            const char* pDataPath, int &arrayLen, 
-            const char* pPathPrefix = nullptr)
+            const char* pDataPath, int &arrayLen,
+            RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath);
+        pJsonDocPos = locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return RAFT_JSON_UNDEFINED;
@@ -502,8 +507,8 @@ public:
     static String getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePairs, bool includeOuterBraces);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Escape a string
-    // @param strToEsc : string in which to replace characters which are invalid in JSON
+    /// @brief Escape a string
+    /// @param strToEsc : string in which to replace characters which are invalid in JSON
     static void escapeString(String& strToEsc);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -512,19 +517,19 @@ public:
     static void unescapeString(String& strToUnEsc);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Convert JSON object to HTML query string syntax
-    // @param jsonStr : JSON string
-    // @return String : HTML query string
+    /// @brief Convert JSON object to HTML query string syntax
+    /// @param jsonStr : JSON string
+    /// @return String : HTML query string
     static String getHTMLQueryFromJSON(const String& jsonStr);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Extract name-value pairs from string
-    // @param inStr : input string
-    // @param pNameValueSep : separator between name and value, e.g. "=" for HTTP
-    // @param pPairDelim : separator between pairs, e.g. "&" for HTTP
-    // @param pPairDelimAlt : alternate separator between pairs (pass 0 if not needed), e.g. ";" for HTTP
-    // @param nameValuePairs : vector of name-value pairs
-    // @return void
+    /// @brief Extract name-value pairs from string
+    /// @param inStr : input string
+    /// @param pNameValueSep : separator between name and value, e.g. "=" for HTTP
+    /// @param pPairDelim : separator between pairs, e.g. "&" for HTTP
+    /// @param pPairDelimAlt : alternate separator between pairs (pass 0 if not needed), e.g. ";" for HTTP
+    /// @param nameValuePairs : vector of name-value pairs
+    /// @return void
     static void extractNameValues(const String& inStr, 
         const char* pNameValueSep, const char* pPairDelim, const char* pPairDelimAlt, 
         std::vector<RaftJson::NameValuePair>& nameValuePairs);
@@ -548,14 +553,24 @@ public:
         return "UNKN";
     }
 
+protected:
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Locate an element in a JSON document using a path
+    /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @return the position of the element or nullptr if not found
+    virtual const char* locateElementByPath(const char* pPath) override
+    {
+        return locateElementByPath(_pSourceStr, pPath, _pChainedRaftJson);
+    }
+
 private:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Locate a string element from the current position in a JSON document
-    // @param pJsonDocPos the current position in the JSON document
-    // @param pElemStart [out] the start of the element
-    // @param pElemEnd [out] the end of the element
-    // @param includeQuotes if true include the quotes in the returned element
-    // @return a position in the document after the end of the element or nullptr if not found
+    /// @brief Locate a string element from the current position in a JSON document
+    /// @param pJsonDocPos the current position in the JSON document
+    /// @param pElemStart [out] the start of the element
+    /// @param pElemEnd [out] the end of the element
+    /// @param includeQuotes if true include the quotes in the returned element
+    /// @return a position in the document after the end of the element or nullptr if not found
     static const char* locateStringElement(const char* pJsonDocPos, const char*& pElemStart, const char*& pElemEnd, bool includeQuotes = false)
     {
         // Skip quote if at start of string
@@ -577,11 +592,11 @@ private:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Locate the bounds of an element in a JSON document
-    // @param pJsonDocPos the current position in the JSON document
-    // @param pElemStart [out] the start of the element
-    // @param pElemEnd [out] the end of the element
-    // @return a position in the document after the end of the element or nullptr if not found
+    /// @brief Locate the bounds of an element in a JSON document
+    /// @param pJsonDocPos the current position in the JSON document
+    /// @param pElemStart [out] the start of the element
+    /// @param pElemEnd [out] the end of the element
+    /// @return a position in the document after the end of the element or nullptr if not found
     static const char* locateElementBounds(const char* pJsonDocPos, const char*& pElemStart, const char*& pElemEnd)
     {
         // Skip whitespace, commas and colons
@@ -650,12 +665,12 @@ private:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Locate an element in a JSON document using a single key (part of a path)
-    // @param pReqdKey the key of the required variable
-    // @return the position of the element or nullptr if not found
-    // @note The key can be empty in which case the entire object is returned
-    // @note The key can be an array index (e.g. "[0]") in which case the value at that index is returned if the element is an array
-    // @note The key can be a string in which case the value for that key is returned if the element is an object
+    /// @brief Locate an element in a JSON document using a single key (part of a path)
+    /// @param pReqdKey the key of the required variable
+    /// @return the position of the element or nullptr if not found
+    /// @note The key can be empty in which case the entire object is returned
+    /// @note The key can be an array index (e.g. "[0]") in which case the value at that index is returned if the element is an array
+    /// @note The key can be a string in which case the value for that key is returned if the element is an object
     static const char* locateElementValueWithKey(const char* pJsonDocPos,
                 const char*& pReqdKey)
     {
@@ -766,11 +781,13 @@ private:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // @brief Locate an element in a JSON document using a path
-    // @param pJsonDocPos the current position in the JSON document
-    // @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
-    // @return the position of the element or nullptr if not found
-    static const char* locateElementByPath(const char* pJsonDocPos, const char* pPath)
+    /// @brief Locate an element in a JSON document using a path
+    /// @param pJsonDocPos the current position in the JSON document
+    /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+    /// @return the position of the element or nullptr if not found
+    static const char* locateElementByPath(const char* pJsonDocPos, const char* pPath,
+                RaftJsonIF* pChainedRaftJson)
     {
         // Iterate over path
         while(true)
@@ -778,7 +795,7 @@ private:
             // Locate element
             pJsonDocPos = locateElementValueWithKey(pJsonDocPos, pPath);
             if (!pJsonDocPos)
-                return nullptr;
+                return pChainedRaftJson ? pChainedRaftJson->locateElementByPath(pPath) : nullptr;
 
             // Check if we're at the end of the path
             if (!*pPath)
@@ -795,8 +812,14 @@ private:
 #endif
 
     // Copy of pointer to JSON string
-    // Note this pointer should NEVER be deleted
+    // Note this pointer should NEVER be deleted by this object
     // Either it is a pointer to a string in flash memory
     // Or it is a pointer to the string in the _jsonStr vector
     const char* _pSourceStr = nullptr;
+
+    // Pointer to an alternate RaftJsonIF implementation
+    // This allows chaining so that if a value is not found in this object
+    // it can be searched for in another object
+    // This pointer should not be deleted by this object
+    RaftJsonIF* _pChainedRaftJson = nullptr;
 };

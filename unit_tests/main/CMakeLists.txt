@@ -11,6 +11,9 @@ idf_component_register(SRCS
             "RaftJson_perf_extract.cpp"
             "ForComparison/RaftJsmn.cpp"
             "ForComparison/RaftJson_jsmn.cpp"
+            "exprCtx_unit_test.cpp"
+            "expressions_unit_test.cpp"
+            "ProtocolOverAscii_test.cpp"
         INCLUDE_DIRS 
             "."
             "ForComparison"

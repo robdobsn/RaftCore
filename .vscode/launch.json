@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python debug UpdateLegacySysTypesJson",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/UpdateLegacySysTypesJson.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "${workspaceFolder}/test_data",
+            ]
+        },
+        {
             "name": "(gdb) G++ build and debug",
             "type": "cppdbg",
             "request": "launch",
