@@ -22,11 +22,20 @@ def objwalk(obj, path=(), memo=None):
 
 def main():
     # Read the SysTypes.json file
-    sysTypesJsonPath = args.sysTypesJsonFolder / "SysTypes.json"
-    sysTypesJson = sysTypesJsonPath.read_text()
+    sysTypesJsonPath_1 = args.sysTypesJsonFolder / "SysTypes_1.json"
+    sysTypesJson_1 = sysTypesJsonPath_1.read_text()
+
+    sysTypesJsonPath_2 = args.sysTypesJsonFolder / "SysTypes_2.json"
+    sysTypesJson_2 = sysTypesJsonPath_2.read_text()
+
+    sysTypesJsonPath_4 = args.sysTypesJsonFolder / "SysTypes_4.json"
+    sysTypesJson_4 = sysTypesJsonPath_4.read_text()
+
+    sysTypesJsonPath_5 = args.sysTypesJsonFolder / "SysTypes_5.json"
+    sysTypesJson_5 = sysTypesJsonPath_5.read_text()
 
     # Parse the Json and check valid
-    sysTypes = json.loads(sysTypesJson)
+    sysTypes = json.loads(sysTypesJson_1)
     if not sysTypes:
         raise ValueError(f"Invalid SysTypes.json: '{sysTypesJsonPath}'")
     
@@ -52,7 +61,7 @@ def main():
     for path, value in objwalk(sysTypes):
         # print(path, value)
         if "__hwRevs__" in path or "__value__" in path:
-            # print(f"Found hwRevs value '{value}' at path '{path}'")
+            #print(f"Found hwRevs value '{value}' at path '{path}'")
             # Add each part of path to set of versioned paths at that level
             pathStr = ""
             for i in range(len(path)):
@@ -70,10 +79,11 @@ def main():
                 if value not in leafNodeHwRevs:
                     leafNodeHwRevs[value] = set()
                 leafNodeHwRevs[value].add(path[:-2])
-                # print(f"Found hwRevs value '{value}' at path '{path}'")
+                print(f"Found hwRevs value '{value}' at path '{path}'")
 
     # Print set of hwRevs
     print(hwRevs)
+    #print(versionedPaths)
 
 
 
