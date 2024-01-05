@@ -8,8 +8,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "ProtocolRICFrame.h"
-#include <CommsChannelMsg.h>
-#include <ConfigBase.h>
+#include "CommsChannelMsg.h"
+#include "RaftJsonIF.h"
 
 // Debug
 // #define DEBUG_PROTOCOL_RIC_FRAME
@@ -24,7 +24,7 @@ static const char* MODULE_PREFIX = "RICFrame";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-ProtocolRICFrame::ProtocolRICFrame(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+ProtocolRICFrame::ProtocolRICFrame(uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                 CommsChannelOutboundHandleMsgFnType msgTxCB, 
                 CommsChannelInboundHandleMsgFnType msgRxCB, 
                 CommsChannelInboundCanAcceptFnType readyToRxCB) :

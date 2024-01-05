@@ -10,17 +10,16 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "SysManager.h"
-#include "SysModBase.h"
-#include "JSONParams.h"
-#include "Logger.h"
-#include "RestAPIEndpointManager.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "Logger.h"
+#include "SysManager.h"
+#include "SysModBase.h"
+#include "RaftJsonNVS.h"
+#include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
-#include "RaftJson.h"
 #include "ESPUtils.h"
 #include "NetworkSystem.h"
 #include "DebugGlobals.h"
@@ -50,15 +49,15 @@ static const char *MODULE_PREFIX = "SysMan";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
-                ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
+SysManager::SysManager(const char* pModuleName,
+                RaftJsonIF& systemConfig,
                 const char* pDefaultFriendlyName,
                 const char* pSystemHWName,
-                uint32_t serialLengthBytes, const String& serialMagicStr)
+                uint32_t serialLengthBytes, 
+                const String& serialMagicStr) :
+                            _systemConfig(systemConfig),
+                            _moduleConfig(systemConfig, pModuleName)
 {
-    // Store mutable config
-    _pMutableConfig = pMutableConfig;
-
     // Set serial length and magic string
     _serialLengthBytes = serialLengthBytes;
     _serialMagicStr = serialMagicStr;
@@ -66,48 +65,40 @@ SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig,
     // Register this manager to all objects derived from SysModBase
     SysModBase::setSysManager(this);
 
+    // Extract system name from root level of config
+    _systemName = _systemConfig.getString("SystemName", pSystemHWName);
+    _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
+
+    // System friendly name
+    _defaultFriendlyName = _moduleConfig.getString("DefaultName", pDefaultFriendlyName);
+
+    // Prime the mutable config info
+    _mutableConfigCache.friendlyName = _moduleConfig.getString("friendlyName", "");
+    _mutableConfigCache.friendlyNameIsSet = _moduleConfig.getBool("nameSet", 0);
+    _mutableConfigCache.serialNo = _moduleConfig.getString("serialNo", "");
+
     // Module name
     _moduleName = pModuleName;
 
-    // Extract info from config
-    _sysModManConfig = pGlobalConfig ? 
-                pGlobalConfig->getString(_moduleName.c_str(), "{}") :
-                defaultConfig.getString(_moduleName.c_str(), "{}");
-
     // Slow SysMod threshold
-    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
-
-    // Extract system name from config
-    _systemName = defaultConfig.getString("SystemName", pSystemHWName);
-    _systemVersion = defaultConfig.getString("SystemVersion", "0.0.0");
+    _slowSysModThresholdUs = _moduleConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
 
     // Monitoring period and monitoring timer
-    _monitorPeriodMs = _sysModManConfig.getLong("monitorPeriodMs", 10000);
+    _monitorPeriodMs = _moduleConfig.getLong("monitorPeriodMs", 10000);
     _monitorTimerMs = millis();
-    _sysModManConfig.getArrayElems("reportList", _monitorReportList);
+    _moduleConfig.getArrayElems("reportList", _monitorReportList);
 
     // System restart flag
     _systemRestartMs = millis();
-
-    // System friendly name
-    _defaultFriendlyName = defaultConfig.getString("DefaultName", pDefaultFriendlyName);
 
     // System unique string - use BT MAC address
     _systemUniqueString = getSystemMACAddressStr(ESP_MAC_BT, "");
 
     // Reboot after N hours
-    _rebootAfterNHours = _sysModManConfig.getLong("rebootAfterNHours", 0);
+    _rebootAfterNHours = _moduleConfig.getLong("rebootAfterNHours", 0);
 
     // Reboot if disconnected for N minutes
-    _rebootIfDiscMins = _sysModManConfig.getLong("rebootIfDiscMins", 0);
-
-    // Prime the mutable config info
-    if (_pMutableConfig)
-    {
-        _mutableConfigCache.friendlyName = _pMutableConfig->getString("friendlyName", "");
-        _mutableConfigCache.friendlyNameIsSet = _pMutableConfig->getLong("nameSet", 0);
-        _mutableConfigCache.serialNo = _pMutableConfig->getString("serialNo", "");
-    }
+    _rebootIfDiscMins = _moduleConfig.getLong("rebootIfDiscMins", 0);
 
     // Get friendly name
     bool friendlyNameIsSet = false;
@@ -203,7 +194,7 @@ void SysManager::setup()
     }
 
     // Check if WiFi to be paused when BLE connected
-    bool pauseWiFiForBLEConn = _sysModManConfig.getLong("pauseWiFiforBLE", 0) != 0;
+    bool pauseWiFiForBLEConn = _moduleConfig.getBool("pauseWiFiforBLE", 0);
     LOG_I(MODULE_PREFIX, "pauseWiFiForBLEConn %s", pauseWiFiForBLEConn ? "YES" : "NO");
     if (pauseWiFiForBLEConn)
     {
@@ -585,9 +576,7 @@ RaftRetCode SysManager::apiReset(const String &reqStr, String& respStr, const AP
 RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get serial number
-    String serialNo;
-    if (_pMutableConfig)
-        serialNo = _pMutableConfig->getString("serialNo", "");
+    String serialNo = _moduleConfig.getString("serialNo", "");
     char versionJson[225];
     snprintf(versionJson, sizeof(versionJson),
              R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
@@ -691,17 +680,11 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         Raft::getHexStrFromBytes(serialNumBuf, _serialLengthBytes, _mutableConfigCache.serialNo);
 
         // Store the serial no
-        String jsonConfig = getMutableConfigJson();
-        if (_pMutableConfig)
-        {
-            _pMutableConfig->writeConfig(jsonConfig);
-        }
+        _moduleConfig.setJsonDoc(getMutableConfigJson().c_str());
     }
 
     // Get serial number from mutable config
-    String serialNo;
-    if (_pMutableConfig)
-        serialNo = _pMutableConfig->getString("serialNo", "");
+    String serialNo = _moduleConfig.getString("serialNo", "");
 
     // Create response JSON
     char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 100];
@@ -731,7 +714,7 @@ RaftRetCode SysManager::apiTestSetLoopDelay(const String &reqStr, String& respSt
     std::vector<String> params;
     std::vector<RaftJson::NameValuePair> nameValues;
     RestAPIEndpointManager::getParamsAndNameValues(reqStr.c_str(), params, nameValues);
-    JSONParams nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
+    RaftJson nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
 
     // Extract values
     _stressTestLoopDelayMs = nameValueParamsJson.getLong("delayMs", 0);
@@ -755,7 +738,7 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
     std::vector<String> params;
     std::vector<RaftJson::NameValuePair> nameValues;
     RestAPIEndpointManager::getParamsAndNameValues(reqStr.c_str(), params, nameValues);
-    JSONParams nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
+    RaftJson nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
 
     // Extract log output interval
     _monitorPeriodMs = nameValueParamsJson.getDouble("interval", _monitorPeriodMs/1000) * 1000;
@@ -873,9 +856,7 @@ String SysManager::getFriendlyName(bool& isSet)
     isSet = getFriendlyNameIsSet();
 
     // Handle default naming
-    String friendlyName;
-    if (_pMutableConfig)
-        friendlyName = _pMutableConfig->getString("friendlyName", "");
+    String friendlyName = _moduleConfig.getString("friendlyName", "");
     if (!isSet || friendlyName.isEmpty())
     {
         friendlyName = _defaultFriendlyName;
@@ -888,9 +869,7 @@ String SysManager::getFriendlyName(bool& isSet)
 
 bool SysManager::getFriendlyNameIsSet()
 {
-    if (_pMutableConfig)
-        return _pMutableConfig->getLong("nameSet", 0);
-    return true;
+    return _moduleConfig.getLong("nameSet", 0);
 }
 
 bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, String& errorStr)
@@ -914,11 +893,7 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
         networkSystem.setHostname(_mutableConfigCache.friendlyName.c_str());
 
     // Store the new name (even if it is blank)
-    String jsonConfig = getMutableConfigJson();
-    if (_pMutableConfig)
-    {
-        _pMutableConfig->writeConfig(jsonConfig);
-    }
+    _moduleConfig.setJsonDoc(getMutableConfigJson().c_str());
     return true;
 }
 
@@ -930,7 +905,7 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
 {
     // Check if WiFi should be paused
     LOG_I(MODULE_PREFIX, "BLE connection change isConn %s", changeToOnline ? "YES" : "NO");
-    bool pauseWiFiForBLEConn = _sysModManConfig.getString("pauseWiFiforBLE", 0);
+    bool pauseWiFiForBLEConn = _moduleConfig.getString("pauseWiFiforBLE", 0);
     if (pauseWiFiForBLEConn)
     {
         networkSystem.pauseWiFi(changeToOnline);

@@ -5,9 +5,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <FileStreamBase.h>
-#include <JSONParams.h>
-#include <RICRESTMsg.h>
+#include "FileStreamBase.h"
+#include "RaftJsonIF.h"
+#include "RICRESTMsg.h"
 
 // Log prefix
 // static const char *MODULE_PREFIX = "FileStreamBase";
@@ -48,7 +48,7 @@ FileStreamBase::~FileStreamBase()
 // Get information from file stream start message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileStreamBase::getFileStreamMsgInfo(const JSONParams& cmdFrame,
+void FileStreamBase::getFileStreamMsgInfo(const RaftJsonIF& cmdFrame,
                 String& fileStreamName, 
                 FileStreamContentType& fileStreamContentType, uint32_t& streamID,
                 String& restAPIEndpointName, uint32_t& fileStreamLength)

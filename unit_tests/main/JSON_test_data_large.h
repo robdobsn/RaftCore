@@ -7,7 +7,7 @@
 static const char* JSON_test_data_large = 
         R"([)"
             R"({)"
-                R"("SysType": "RICMarty2R2",)"
+                R"("SysType": "Test2R2",)"
                 R"("CmdsAtStart": "",)"
                 R"("WebUI": "",)"
                 R"("SysManager": {)"
@@ -235,7 +235,7 @@ static const char* JSON_test_data_large =
                     R"(])"
                 R"(},)"
                 R"("Robot": {)"
-                    R"("Model": "MartyV2",)"
+                    R"("Model": "TestV2",)"
                     R"("StatDisp": {)"
                         R"("pixIdxPower": 0,)"
                         R"("pixIdxConn": 2)"

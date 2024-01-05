@@ -8,8 +8,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "ProtocolRICJSON.h"
-#include <CommsChannelMsg.h>
-#include <ConfigBase.h>
+#include "CommsChannelMsg.h"
+#include "RaftJsonIF.h"
 
 // Debug
 // #define DEBUG_PROTOCOL_RIC_JSON
@@ -23,7 +23,7 @@ static const char* MODULE_PREFIX = "RICJSON";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-ProtocolRICJSON::ProtocolRICJSON(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+ProtocolRICJSON::ProtocolRICJSON(uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                 CommsChannelOutboundHandleMsgFnType msgTxCB, 
                 CommsChannelInboundHandleMsgFnType msgRxCB, 
                 CommsChannelInboundCanAcceptFnType readyToRxCB) :

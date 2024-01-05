@@ -18,21 +18,17 @@ SysManager* SysModBase::_pSysManager = NULL;
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SysModBase::SysModBase(const char *pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig, 
-            const char* pGlobalConfigPrefix, bool mutableConfigIsGlobal)
+SysModBase::SysModBase(const char *pModuleName, 
+            RaftJsonIF& sysConfig,
+            const char* pConfigPrefix, 
+            const char* pMutableConfigNamespace,
+            const char* pMutableConfigPrefix) :
+        _config(sysConfig, pConfigPrefix ? pConfigPrefix : pModuleName)
 {
     // Set sysmod name
     if (pModuleName)
         _sysModName = pModuleName;
     _sysModLogPrefix = _sysModName + ": ";
-
-    // Handle config
-    String moduleConfigPrefix = _sysModName;
-    if (pGlobalConfigPrefix)
-        moduleConfigPrefix = pGlobalConfigPrefix;
-    _combinedConfig.addConfig(&defaultConfig, moduleConfigPrefix.c_str(), false);
-    _combinedConfig.addConfig(pGlobalConfig, moduleConfigPrefix.c_str(), false);
-    _combinedConfig.addConfig(pMutableConfig, mutableConfigIsGlobal ? moduleConfigPrefix.c_str() : "", true);
 
     // Set log level for module if specified
     String logLevel = configGetString("logLevel", "");
@@ -41,6 +37,8 @@ SysModBase::SysModBase(const char *pModuleName, ConfigBase& defaultConfig, Confi
     // Add to system module manager
     if (_pSysManager)
         _pSysManager->add(this);
+
+    // TODO - deal with mutable config
 }
 
 SysModBase::~SysModBase()
@@ -96,37 +94,37 @@ CommsCoreIF* SysModBase::getCommsCore()
 
 long SysModBase::configGetLong(const char *dataPath, long defaultValue)
 {
-    return _combinedConfig.getLong(dataPath, defaultValue);
+    return _config.getLong(dataPath, defaultValue);
 }
 
 double SysModBase::configGetDouble(const char *dataPath, double defaultValue)
 {
-    return _combinedConfig.getDouble(dataPath, defaultValue);
+    return _config.getDouble(dataPath, defaultValue);
 }
 
 bool SysModBase::configGetBool(const char *dataPath, bool defaultValue)
 {
-    return _combinedConfig.getBool(dataPath, defaultValue);
+    return _config.getBool(dataPath, defaultValue);
 }
 
 String SysModBase::configGetString(const char *dataPath, const char* defaultValue)
 {
-    return _combinedConfig.getString(dataPath, defaultValue);
+    return _config.getString(dataPath, defaultValue);
 }
 
 String SysModBase::configGetString(const char *dataPath, const String& defaultValue)
 {
-    return _combinedConfig.getString(dataPath, defaultValue.c_str());
+    return _config.getString(dataPath, defaultValue.c_str());
 }
 
 bool SysModBase::configGetArrayElems(const char *dataPath, std::vector<String>& strList) const
 {
-    return _combinedConfig.getArrayElems(dataPath, strList);
+    return _config.getArrayElems(dataPath, strList);
 }
 
-void SysModBase::configRegisterChangeCallback(ConfigChangeCallbackType configChangeCallback)
+void SysModBase::configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback)
 {
-    _combinedConfig.registerChangeCallback(configChangeCallback);
+    _config.registerChangeCallback(configChangeCallback);
 }
 
 int SysModBase::configGetPin(const char* dataPath, const char* defaultValue)
@@ -137,7 +135,7 @@ int SysModBase::configGetPin(const char* dataPath, const char* defaultValue)
 
 void SysModBase::configSaveData(const String& configStr)
 {
-    _combinedConfig.writeConfig(configStr);
+    _config.setJsonDoc(configStr.c_str());
 }
 
 // Get JSON status of another SysMod

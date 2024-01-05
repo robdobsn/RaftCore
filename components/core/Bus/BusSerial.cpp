@@ -6,16 +6,16 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <Logger.h>
-#include "BusSerial.h"
-#include <BusRequestInfo.h>
-#include <ConfigBase.h>
-#include <ConfigPinMap.h>
-#include <HWElemConsts.h>
-#include <driver/uart.h>
-#include <RaftUtils.h>
-#include <RaftArduino.h>
 #include <esp_err.h>
+#include <driver/uart.h>
+#include "Logger.h"
+#include "BusSerial.h"
+#include "BusRequestInfo.h"
+#include "RaftJsonPrefixed.h"
+#include "ConfigPinMap.h"
+#include "HWElemConsts.h"
+#include "RaftUtils.h"
+#include "RaftArduino.h"
 
 static const char* MODULE_PREFIX = "BusSerial";
 
@@ -50,23 +50,26 @@ BusSerial::~BusSerial()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool BusSerial::setup(ConfigBase& config, const char* pConfigPrefix)
+bool BusSerial::setup(RaftJsonIF& config, const char* pConfigPrefix)
 {
     // Check if already configured
     if (_isInitialised)
         return false;
 
+    // Create a prefixed config
+    RaftJsonPrefixed configPrefixed(config, pConfigPrefix);
+
     // Get bus details
-    _uartNum = config.getLong("uartNum", 0, pConfigPrefix);
-    String pinName = config.getString("rxPin", "", pConfigPrefix);
+    _uartNum = configPrefixed.getLong("uartNum", 0);
+    String pinName = configPrefixed.getString("rxPin", "");
     _rxPin = ConfigPinMap::getPinFromName(pinName.c_str());
-    pinName = config.getString("txPin", "", pConfigPrefix);
+    pinName = configPrefixed.getString("txPin", "");
     _txPin = ConfigPinMap::getPinFromName(pinName.c_str());
-    _baudRate = config.getLong("baudRate", BAUD_RATE_DEFAULT, pConfigPrefix);
-    _busName = config.getString("name", "", pConfigPrefix);
-    _rxBufSize = config.getLong("rxBufSize", RX_BUF_SIZE_DEFAULT, pConfigPrefix);
-    _txBufSize = config.getLong("txBufSize", TX_BUF_SIZE_DEFAULT, pConfigPrefix);
-    _minTimeBetweenSendsMs = config.getLong("minAfterSendMs", 0, pConfigPrefix);
+    _baudRate = configPrefixed.getLong("baudRate", BAUD_RATE_DEFAULT);
+    _busName = configPrefixed.getString("name", "");
+    _rxBufSize = configPrefixed.getLong("rxBufSize", RX_BUF_SIZE_DEFAULT);
+    _txBufSize = configPrefixed.getLong("txBufSize", TX_BUF_SIZE_DEFAULT);
+    _minTimeBetweenSendsMs = configPrefixed.getLong("minAfterSendMs", 0);
 
     // Check valid
     if ((_rxPin < 0) || (_txPin < 0))

@@ -113,11 +113,11 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set new contents for the JSON document
-    /// @param configJSONStr the new JSON document
+    /// @param pJsonDoc the new JSON document
     /// @return true if the JSON document was successfully set
     /// @note This is used by RaftJsonIF implementations that support changes to the JSON document
     ///       Implementations that store to NVS or similar may persist the new JSON document
-    virtual bool setNewContent(const char* pJsonDoc)
+    virtual bool setJsonDoc(const char* pJsonDoc)
     {
         return false;
     }

@@ -14,8 +14,8 @@
 #include "StreamDatagramProtocol.h"
 #include "RestAPIEndpointManager.h"
 #include "RICRESTMsg.h"
-#include <MiniHDLC.h>
-#include <SpiramAwareAllocator.h>
+#include "MiniHDLC.h"
+#include "SpiramAwareAllocator.h"
 
 static const char* MODULE_PREFIX = "FSSess";
 

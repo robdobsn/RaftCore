@@ -8,19 +8,19 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <RaftArduino.h>
 #include <vector>
-#include <ProtocolBase.h>
+#include "RaftArduino.h"
+#include "ProtocolBase.h"
 #include "ProtocolCodecFactoryHelper.h"
 #include "CommsChannel.h"
 #include "SysModBase.h"
 #include "CommsChannelBridge.h"
-#include <CommsCoreIF.h>
+#include "CommsCoreIF.h"
 
 class CommsChannelManager : public SysModBase, public CommsCoreIF
 {
 public:
-    CommsChannelManager(const char *pModuleName, ConfigBase &defaultConfig, ConfigBase *pGlobalConfig, ConfigBase *pMutableConfig);
+    CommsChannelManager(const char *pModuleName, RaftJsonIF& sysConfig);
     virtual ~CommsChannelManager();
 
     // Register as an external message channel

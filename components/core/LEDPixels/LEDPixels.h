@@ -8,14 +8,15 @@
 
 #pragma once
 
-#include <stdint.h>
 #include <vector>
-#include <LEDPixel.h>
-#include <ESP32RMTLedStrip.h>
-#include <LEDPatternBase.h>
+#include <functional>
+#include <stdint.h>
+#include "LEDPixel.h"
+#include "ESP32RMTLedStrip.h"
+#include "LEDPatternBase.h"
 
 class BusBase;
-class ConfigBase;
+class RaftJsonIF;
 class BusRequestResult;
 class NamedValueProvider;
 
@@ -32,7 +33,7 @@ public:
     virtual ~LEDPixels();
 
     // Setup
-    bool setup(const ConfigBase& config, const char* pConfigPrefix);
+    bool setup(const RaftJsonIF& config, const char* pConfigPrefix);
     bool setup(LEDStripConfig& ledStripConfig);
 
     // Service

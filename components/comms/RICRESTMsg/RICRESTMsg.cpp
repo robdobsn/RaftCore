@@ -12,6 +12,7 @@
 #include "CommsChannelMsg.h"
 #include "RaftUtils.h"
 #include "ESPUtils.h"
+#include "RaftJson.h"
 
 // #define DEBUG_RICREST_MSG
 
@@ -68,7 +69,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             uint32_t contentLen = len - RICREST_HEADER_PAYLOAD_POS;
             if (contentLen > _maxRestBodySize)
                 contentLen = _maxRestBodySize;
-            Raft::strFromBuffer(pBuf+RICREST_HEADER_PAYLOAD_POS, contentLen, _req);
+            _req = String(pBuf+RICREST_HEADER_PAYLOAD_POS, contentLen);
             _binaryData.clear();
 
 #ifdef DEBUG_RICREST_MSG
@@ -87,7 +88,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             uint32_t contentLen = len - RICREST_HEADER_PAYLOAD_POS;
             if (contentLen > _maxRestBodySize)
                 contentLen = _maxRestBodySize;
-            Raft::strFromBuffer(pBuf+RICREST_HEADER_PAYLOAD_POS, contentLen, _payloadJson);
+            _payloadJson = String(pBuf+RICREST_HEADER_PAYLOAD_POS, contentLen);
             _binaryData.clear();
 
 #ifdef DEBUG_RICREST_MSG
@@ -95,7 +96,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             Raft::getHexStrFromBytes(pBuf, len, debugStr);
             LOG_I(MODULE_PREFIX, "decode CMDRESPJSON data %s len %d string form %s", debugStr.c_str(), len, _payloadJson.c_str());
 #endif
-            _req = RaftJson::getString("reqStr", "resp", _payloadJson.c_str());
+            _req = RaftJson::getString(_payloadJson.c_str(), "reqStr", "resp");
             break;
         }
         case RICREST_ELEM_CODE_BODY:
@@ -135,7 +136,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             uint32_t contentLen = terminatorFoundIdx < 0 ? len-RICREST_COMMAND_FRAME_PAYLOAD_POS : terminatorFoundIdx-RICREST_COMMAND_FRAME_PAYLOAD_POS;
             if (contentLen > _maxRestBodySize)
                 contentLen = _maxRestBodySize;
-            Raft::strFromBuffer(pBuf+RICREST_COMMAND_FRAME_PAYLOAD_POS, contentLen, _payloadJson);
+            _payloadJson = String(pBuf+RICREST_COMMAND_FRAME_PAYLOAD_POS, contentLen);
 
             // Check for any binary element
             if ((terminatorFoundIdx >= 0) && (len > terminatorFoundIdx + 1))
@@ -144,7 +145,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
 #ifdef DEBUG_RICREST_MSG
             LOG_I(MODULE_PREFIX, "RICREST_CMD_FRAME json %s binaryLen %d", _payloadJson.c_str(), _binaryLen);
 #endif
-            _req = RaftJson::getString("cmdName", "unknown", _payloadJson.c_str());
+            _req = RaftJson::getString(_payloadJson.c_str(), "cmdName", "unknown");
             break;
         }
         case RICREST_ELEM_CODE_FILEBLOCK:
@@ -295,7 +296,7 @@ String RICRESTMsg::debugResp(const CommsChannelMsg& endpointMsg, uint32_t maxByt
             if (endpointMsg.getBufLen() > 1)
             {
                 uint32_t debugLen = endpointMsg.getBufLen()-1 > maxBytesLen ? maxBytesLen : endpointMsg.getBufLen()-1;
-                Raft::strFromBuffer(endpointMsg.getBuf()+1, debugLen, debugStr);
+                debugStr = String(endpointMsg.getBuf()+1, debugLen);
                 if (endpointMsg.getBufLen()-1 > maxBytesLen)
                     debugStr += String("...");
             }

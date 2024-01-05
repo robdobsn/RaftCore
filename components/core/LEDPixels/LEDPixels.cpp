@@ -7,8 +7,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "LEDPixels.h"
-#include <RaftUtils.h>
-#include <ConfigBase.h>
+#include "RaftUtils.h"
+#include "RaftJsonIF.h"
 
 // #define DEBUG_LED_PIXEL_VALUES
 
@@ -32,7 +32,7 @@ LEDPixels::~LEDPixels()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool LEDPixels::setup(const ConfigBase& config, const char* pConfigPrefix)
+bool LEDPixels::setup(const RaftJsonIF& config, const char* pConfigPrefix)
 {
     // LED strip config
     LEDStripConfig ledStripConfig;

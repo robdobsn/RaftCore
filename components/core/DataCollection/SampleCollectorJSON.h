@@ -9,10 +9,10 @@
 
 #pragma once
 
-#include <RaftArduino.h>
-#include <SysModBase.h>
-#include <SpiramAwareAllocator.h>
-#include <APISourceInfo.h>
+#include "RaftArduino.h"
+#include "SysModBase.h"
+#include "SpiramAwareAllocator.h"
+#include "APISourceInfo.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
 #include "FileSystem.h"
@@ -20,8 +20,8 @@
 class SampleCollectorJSON : public SysModBase
 {
 public:
-    SampleCollectorJSON(const char *pModuleName, ConfigBase &defaultConfig, ConfigBase *pGlobalConfig, ConfigBase *pMutableConfig)
-        :   SysModBase(pModuleName, defaultConfig, pGlobalConfig, pMutableConfig)
+    SampleCollectorJSON(const char *pModuleName, RaftJsonIF& sysConfig)
+        :   SysModBase(pModuleName, sysConfig)
     {
     }
     virtual ~SampleCollectorJSON()

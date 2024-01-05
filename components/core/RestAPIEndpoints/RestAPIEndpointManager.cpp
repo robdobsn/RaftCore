@@ -364,7 +364,7 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
             pCurSep = strstr(pElemStart, "=");
             if (!pCurSep)
                 break;
-            Raft::strFromBuffer((uint8_t*)pElemStart, pCurSep-pElemStart, name);
+            name = String((uint8_t*)pElemStart, pCurSep-pElemStart);
         }
         else
         {
@@ -373,7 +373,7 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
             if (!pCurSep)
                 pCurSep = strstr(pElemStart, "&");
             if (pCurSep)
-                Raft::strFromBuffer((uint8_t*)pElemStart, pCurSep-pElemStart, val);
+                val = String((uint8_t*)pElemStart, pCurSep-pElemStart);
             else
                 val = pElemStart;
         }

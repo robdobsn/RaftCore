@@ -10,9 +10,9 @@
 #pragma once
 
 #include <vector>
-#include <Logger.h>
-#include <RaftArduino.h>
-#include <SpiramAwareAllocator.h>
+#include "Logger.h"
+#include "RaftArduino.h"
+#include "SpiramAwareAllocator.h"
 
 static const uint32_t RICREST_ELEM_CODE_POS = 0;
 static const uint32_t RICREST_HEADER_PAYLOAD_POS = 1;

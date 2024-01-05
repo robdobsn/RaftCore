@@ -10,8 +10,8 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <RaftArduino.h>
-#include <RaftUtils.h>
+#include "RaftArduino.h"
+#include "RaftUtils.h"
 
 /*
  * Moving Rate

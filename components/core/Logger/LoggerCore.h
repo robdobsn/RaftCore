@@ -9,8 +9,8 @@
 #pragma once
 
 #include <stdio.h>
-#include "Logger.h"
 #include <vector>
+#include "Logger.h"
 #include "LoggerBase.h"
 
 class LoggerCore

@@ -23,18 +23,18 @@
 
 typedef String (*SysManager_statsCB)();
 
-class ConfigBase;
 class RestAPIEndpointManager;
 
 class SysManager
 {
 public:
     // Constructor
-    SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
-            ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
+    SysManager(const char* pModuleName,
+            RaftJsonIF& systemConfig,
             const char* pDefaultFriendlyName,
             const char* pSystemHWName,
-            uint32_t serialLengthBytes, const String& serialMagicStr);
+            uint32_t serialLengthBytes, 
+            const String& serialMagicStr);
 
     // Setup
     void setup();
@@ -230,11 +230,13 @@ private:
     // Hardware revision number
     uint16_t _hwRevision = 0;
 
-    // Module config
-    ConfigBase _sysModManConfig;
+    // System config
+    RaftJsonIF& _systemConfig;
+
+    // Module config (for this module)
+    RaftJsonPrefixed _moduleConfig;
 
     // Mutable config
-    ConfigBase* _pMutableConfig = nullptr;
     struct
     {
         String friendlyName;

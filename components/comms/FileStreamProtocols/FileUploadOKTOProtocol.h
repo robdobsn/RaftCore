@@ -10,8 +10,6 @@
 
 #include "FileStreamBase.h"
 
-class JSONParams;
-
 class FileUploadOKTOProtocol : public FileStreamBase
 {
 public:

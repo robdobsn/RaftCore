@@ -11,8 +11,8 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <string.h>
 #include "MiniHDLC.h"
-#include "string.h"
 
 #define WARN_ON_HDLC_FRAME_TOO_LONG
 // #define DEBUG_HDLC
@@ -20,7 +20,7 @@
 // #define DEBUG_HDLC_DETAIL
 
 #if defined(DEBUG_HDLC) || defined(DEBUG_HDLC_CRC) || defined(DEBUG_HDLC_DETAIL) || defined(WARN_ON_HDLC_FRAME_TOO_LONG)
-#include <Logger.h>
+#include "Logger.h"
 static const char* MODULE_PREFIX = "MiniHDLC";
 #endif
 

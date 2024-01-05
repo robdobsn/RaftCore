@@ -7,11 +7,11 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <Logger.h>
+#include "Logger.h"
 #include "CommsChannelManager.h"
-#include <CommsChannelMsg.h>
-#include <RaftArduino.h>
-#include <RaftUtils.h>
+#include "CommsChannelMsg.h"
+#include "RaftArduino.h"
+#include "RaftUtils.h"
 
 // TODO - decide on enabling this - or maybe it needs to be more sophisticated?
 // the idea is to avoid swamping the outbound queue with publish messages that end up either
@@ -45,8 +45,8 @@ static const char* MODULE_PREFIX = "CommsMan";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-CommsChannelManager::CommsChannelManager(const char *pModuleName, ConfigBase &defaultConfig, ConfigBase *pGlobalConfig, ConfigBase *pMutableConfig)
-    : SysModBase(pModuleName, defaultConfig, pGlobalConfig, pMutableConfig)
+CommsChannelManager::CommsChannelManager(const char *pModuleName, RaftJsonIF& sysConfig)
+    : SysModBase(pModuleName, sysConfig)
 {
 }
 

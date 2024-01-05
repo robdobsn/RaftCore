@@ -10,8 +10,8 @@
 #pragma once
 
 #include <functional>
-#include <RaftArduino.h>
-#include <CommsChannelMsg.h>
+#include "RaftArduino.h"
+#include "CommsChannelMsg.h"
 
 class ProtocolCodecFactoryHelper;
 class CommsChannelSettings;

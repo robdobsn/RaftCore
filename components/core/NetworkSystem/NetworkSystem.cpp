@@ -7,11 +7,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <Logger.h>
-#include "NetworkSystem.h"
-#include <RaftUtils.h>
-#include <ESPUtils.h>
-#include <RaftArduino.h>
+#include <time.h>
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -22,7 +18,11 @@
 #include "nvs_flash.h"
 #include "esp_private/wifi.h"
 #include "sdkconfig.h"
-#include "time.h"
+#include "Logger.h"
+#include "NetworkSystem.h"
+#include "RaftUtils.h"
+#include "ESPUtils.h"
+#include "RaftArduino.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"

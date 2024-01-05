@@ -9,8 +9,9 @@
 #pragma once
 
 #include <functional>
-#include <RaftArduino.h>
-#include <RaftRetCode.h>
+#include "RaftArduino.h"
+#include "RaftRetCode.h"
+#include "RaftJsonIF.h"
 
 class RICRESTMsg;
 class CommsChannelMsg;
@@ -18,7 +19,6 @@ class CommsCoreIF;
 class SysModBase;
 class FileStreamBlock;
 class FileStreamBlockOwned;
-class JSONParams;
 
 // File/stream callback function types
 typedef std::function<RaftRetCode(FileStreamBlock& fileBlock)> FileStreamBlockWriteFnType;
@@ -92,7 +92,7 @@ public:
     virtual String getDebugJSON(bool includeBraces) = 0;
 
     // Get file/stream message information from header
-    static void getFileStreamMsgInfo(const JSONParams& cmdFrame,
+    static void getFileStreamMsgInfo(const RaftJsonIF& cmdFrame,
                 String& fileStreamName, 
                 FileStreamContentType& fileStreamContentType, uint32_t& streamID,
                 String& restAPIEndpointName, uint32_t& fileStreamLength);

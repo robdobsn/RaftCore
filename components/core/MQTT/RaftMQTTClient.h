@@ -7,10 +7,10 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <RaftArduino.h>
-#include <MQTTProtocol.h>
-#include "stdint.h"
 #include <list>
+#include <stdint.h>
+#include "RaftArduino.h"
+#include "MQTTProtocol.h"
 
 class RaftMQTTClient
 {

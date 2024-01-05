@@ -9,22 +9,24 @@
 
 #pragma once
 
-#include <Logger.h>
-#include <ProtocolBase.h>
-#include <SpiramAwareAllocator.h>
 #include <vector>
+#include "Logger.h"
+#include "ProtocolBase.h"
+#include "SpiramAwareAllocator.h"
+
+class RaftJsonIF;
 
 class ProtocolRICJSON : public ProtocolBase
 {
 public:
-    ProtocolRICJSON(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+    ProtocolRICJSON(uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                     CommsChannelOutboundHandleMsgFnType msgTxCB, 
                     CommsChannelInboundHandleMsgFnType msgRxCB, 
                     CommsChannelInboundCanAcceptFnType readyToRxCB);
     virtual ~ProtocolRICJSON();
 
     // Create instance
-    static ProtocolBase* createInstance(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+    static ProtocolBase* createInstance(uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                     CommsChannelOutboundHandleMsgFnType msgTxCB, 
                     CommsChannelInboundHandleMsgFnType msgRxCB, 
                     CommsChannelInboundCanAcceptFnType readyToRxCB)

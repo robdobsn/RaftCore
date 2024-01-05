@@ -1,36 +1,16 @@
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-// JSON Params
-// Holder for JSON information providing access methods
-//
-// Rob Dobson 2016-2022
-//
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// //
+// // JSON Params
+// // Holder for JSON information providing access methods
+// //
+// // Rob Dobson 2016-2022
+// //
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
+// #pragma once
 
-#include "ConfigBase.h"
+// #include "RaftJson.h"
 
-class JSONParams : public ConfigBase
-{
-public:
-    JSONParams(const char* configStr) :
-        ConfigBase(configStr)
-    {
-    }
-
-    JSONParams(const String& configStr) :
-        ConfigBase(configStr)
-    {
-    }
-
-    const char* c_str()
-    {
-        return ConfigBase::getConfigString().c_str();
-    }
-
-    String configStr()
-    {
-        return ConfigBase::getConfigString();
-    }
-};
+// class JSONParams : public RaftJson
+// {
+// };

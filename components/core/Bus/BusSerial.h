@@ -8,13 +8,14 @@
 
 #pragma once
 
-#include "BusBase.h"
-#include <stdint.h>
-#include <RaftArduino.h>
 #include <list>
+#include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "BusBase.h"
+#include "RaftArduino.h"
+#include "RaftJsonIF.h"
 
 class BusSerial : public BusBase
 {
@@ -24,7 +25,7 @@ public:
     virtual ~BusSerial();
 
     // Setup
-    virtual bool setup(ConfigBase& config, const char* pConfigPrefix) override final;
+    virtual bool setup(RaftJsonIF& config, const char* pConfigPrefix) override final;
 
     // Service
     virtual void service() override final;

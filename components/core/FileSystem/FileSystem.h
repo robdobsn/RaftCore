@@ -9,15 +9,15 @@
 
 #pragma once
 
+#include <list>
+#include <string>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include <RaftArduino.h>
-#include <list>
-#include <RaftUtils.h>
+#include "RaftArduino.h"
+#include "RaftUtils.h"
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
-#include <string>
 
 class FileSystem
 {

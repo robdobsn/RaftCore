@@ -5,8 +5,8 @@
  */
 #pragma once
 
-#include "esp_idf_version.h"
 #include <stdint.h>
+#include "esp_idf_version.h"
 #include "driver/rmt_encoder.h"
 
 #ifdef __cplusplus

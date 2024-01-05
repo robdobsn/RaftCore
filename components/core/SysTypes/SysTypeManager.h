@@ -11,8 +11,9 @@
 
 #include <list>
 #include <functional>
+#include "RaftArduino.h"
 #include "Logger.h"
-#include "ConfigNVS.h"
+#include "RaftJsonNVS.h"
 #include "SpiramAwareAllocator.h"
 #include "RaftRetCode.h"
 
@@ -24,7 +25,7 @@ class SysTypeManager
 {
 public:
     // Constructor
-    SysTypeManager(ConfigNVS& sysTypeConfig);
+    SysTypeManager(RaftJsonNVS& sysTypeConfig);
 
     // Setup
     void setup(const char** pSysTypeConfigArrayStatic, int sysTypeConfigArrayLen);
@@ -53,7 +54,7 @@ private:
     String _curSysTypeName;
 
     // System type configuration
-    ConfigNVS& _sysTypeConfig;
+    RaftJsonNVS& _sysTypeConfig;
 
     // Last post result ok
     bool _lastPostResultOk = false;

@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <RaftArduino.h>
-#include <functional>
-#include <ConfigMulti.h>
 #include <list>
-#include <Logger.h>
-#include <RaftRetCode.h>
+#include <functional>
+#include "Logger.h"
+#include "RaftArduino.h"
+#include "RaftRetCode.h"
+#include "RaftJsonPrefixed.h"
 
 // Forward declarations
 class SysManager;
@@ -35,8 +35,11 @@ typedef std::function<void(const char* stateName, std::vector<uint8_t>& stateHas
 class SysModBase
 {
 public:
-    SysModBase(const char *pModuleName, ConfigBase& defaultConfig, ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig, 
-            const char* pGlobalConfigPrefix = NULL, bool mutableConfigIsGlobal = false);
+    SysModBase(const char *pModuleName, 
+            RaftJsonIF& sysConfig,
+            const char* pConfigPrefix = nullptr, 
+            const char* pMutableConfigNamespace = nullptr,
+            const char* pMutableConfigPrefix = nullptr);
     virtual ~SysModBase();
 
     // Setup
@@ -97,10 +100,10 @@ public:
     virtual String configGetString(const char *dataPath, const String& defaultValue);
     virtual bool configGetArrayElems(const char *dataPath, std::vector<String>& strList) const;
     virtual int configGetPin(const char* dataPath, const char* defaultValue);
-    virtual void configRegisterChangeCallback(ConfigChangeCallbackType configChangeCallback);
-    virtual ConfigBase& configGetConfig()
+    virtual void configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback);
+    virtual RaftJsonIF& configGetConfig()
     {
-        return _combinedConfig;
+        return _config;
     }
 
     // Get JSON status string
@@ -125,6 +128,7 @@ public:
     {
         _pSysManager = pSysManager;
     }
+
     SysManager* getSysManager()
     {
         return _pSysManager;
@@ -223,8 +227,8 @@ public:
     }
 
 protected:
-    // Default, global and mutable configs
-    ConfigMulti _combinedConfig;
+    // Module config
+    RaftJsonPrefixed _config;
 
     // Execute status change callbacks
     void executeStatusChangeCBs(bool changeToOn);

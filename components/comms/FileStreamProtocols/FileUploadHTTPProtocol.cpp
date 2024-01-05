@@ -5,9 +5,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <FileUploadHTTPProtocol.h>
-#include <Logger.h>
-#include <RICRESTMsg.h>
+#include "FileUploadHTTPProtocol.h"
+#include "Logger.h"
+#include "RICRESTMsg.h"
 
 // Log prefix
 static const char *MODULE_PREFIX = "FileUpHTTP";

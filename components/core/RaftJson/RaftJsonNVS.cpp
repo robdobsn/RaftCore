@@ -18,11 +18,11 @@ static const char *MODULE_PREFIX = MODULE_PREFIX;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set new contents for the JSON document
-/// @param configJSONStr the new JSON document
+/// @param pJsonDoc the new JSON document
 /// @return true if the JSON document was successfully set, false if the JSON document was too long
 /// @note This is used by RaftJsonIF implementations that support changes to the JSON document
 ///       Implementations that store to NVS or similar may persist the new JSON document
-bool RaftJsonNVS::setNewContent(const char* pJsonDoc)
+bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
 {
     // Set json doc
     uint32_t jsonDocStrLen = strlen(pJsonDoc);

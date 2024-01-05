@@ -8,8 +8,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <functional>
 #include <vector>
+#include <functional>
 #include <RaftArduino.h>
 #include <RaftJson.h>
 #include "RestAPIEndpoint.h"

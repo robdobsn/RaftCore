@@ -89,6 +89,12 @@ public:
         setSourceStr(jsonStr.c_str(), true, jsonStr.length());
         return *this;
     }
+    virtual bool setJsonDoc(const char* pJsonDoc) override
+    {
+        // Store the source string
+        setSourceStr(pJsonDoc, true, strlen(pJsonDoc));
+        return true;
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get string value using the member variable JSON document

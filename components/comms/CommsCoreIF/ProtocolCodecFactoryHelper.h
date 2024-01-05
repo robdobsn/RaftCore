@@ -8,17 +8,17 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <RaftArduino.h>
-#include <ProtocolBase.h>
+#include "RaftArduino.h"
+#include "ProtocolBase.h"
 
-class ConfigBase;
+class RafJsonIF;
 
 class ProtocolCodecFactoryHelper
 {
 public:
     String protocolName;
     ProtocolCreateFnType createFn;
-    ConfigBase& config;
+    RaftJsonIF& config;
     const char* pConfigPrefix;
     CommsChannelInboundHandleMsgFnType frameRxCB;
     CommsChannelInboundCanAcceptFnType readyToRxCB;

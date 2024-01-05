@@ -6,10 +6,10 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "Logger.h"
 #include "LoggerCore.h"
 #include "RaftArduino.h"
-#include <SpiramAwareAllocator.h>
-#include "Logger.h"
+#include "SpiramAwareAllocator.h"
 
 LoggerCore loggerCore;
 

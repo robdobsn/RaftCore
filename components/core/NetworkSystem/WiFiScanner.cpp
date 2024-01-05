@@ -136,7 +136,7 @@ bool WiFiScanner::getScanResults(WiFiScanResultList& results)
         // Create WiFiScanResult
         static const uint32_t SSID_MAX_LEN = 32;
         WiFiScanResult result;
-        Raft::strFromBuffer(pRecord->ssid, SSID_MAX_LEN, result.ssid);
+        result.ssid = String(pRecord->ssid, SSID_MAX_LEN);
         result.rssi = pRecord->rssi;
         result.primaryChannel = pRecord->primary;
         result.secondaryChannel = pRecord->second;

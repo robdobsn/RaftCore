@@ -52,11 +52,11 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set new contents for the JSON document
-    /// @param configJSONStr the new JSON document
+    /// @param pJsonDoc the new JSON document
     /// @return true if the JSON document was successfully set, false if the JSON document was too long
     /// @note This is used by RaftJsonIF implementations that support changes to the JSON document
     ///       Implementations that store to NVS or similar may persist the new JSON document
-    virtual bool setNewContent(const char* pJsonDoc) override;
+    virtual bool setJsonDoc(const char* pJsonDoc) override;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get max length of JSON document

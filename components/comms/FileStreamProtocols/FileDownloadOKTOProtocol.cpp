@@ -5,13 +5,13 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <JSONParams.h>
-#include <FileDownloadOKTOProtocol.h>
-#include <RICRESTMsg.h>
-#include <FileSystem.h>
-#include <CommsChannelMsg.h>
-#include <CommsCoreIF.h>
-#include <FileStreamBlockOwned.h>
+#include "RaftJson.h"
+#include "FileDownloadOKTOProtocol.h"
+#include "RICRESTMsg.h"
+#include "FileSystem.h"
+#include "CommsChannelMsg.h"
+#include "CommsCoreIF.h"
+#include "FileStreamBlockOwned.h"
 
 // Log prefix
 static const char *MODULE_PREFIX = "FileDnldOKTO";
@@ -126,7 +126,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTRe
             uint32_t channelID)
 {
     // Get params
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     String fileName = cmdFrame.getString("fileName", "");
     String fileType = cmdFrame.getString("fileType", "");
     uint32_t blockSizeFromHost = cmdFrame.getLong("batchMsgSize", -1);
@@ -208,7 +208,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqM
 {
     // Handle file end
 #ifdef DEBUG_RICREST_FILEDOWNLOAD
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     uint32_t blocksSent = cmdFrame.getLong("blockCount", 0);
 #endif
 
@@ -243,7 +243,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqM
 RaftRetCode FileDownloadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Handle file cancel
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     String fileName = cmdFrame.getString("fileName", "");
     String reason = cmdFrame.getString("reason", "");
 
@@ -272,7 +272,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTR
 RaftRetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Handle ack
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     uint32_t oktoFilePos = cmdFrame.getLong("okto", 0);
     if ((oktoFilePos != 0) && (oktoFilePos > _oktoFilePos))
     {

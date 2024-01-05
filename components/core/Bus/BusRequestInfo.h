@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <RaftArduino.h>
 #include <vector>
-#include <HWElemReq.h>
+#include "RaftArduino.h"
+#include "HWElemReq.h"
 
 class BusRequestResult;
 typedef void (*BusRequestCallbackType) (void*, BusRequestResult&);

@@ -8,7 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "SysTypeManager.h"
-#include "RaftJson.h"
+#include "RaftJsonNVS.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
 
@@ -23,7 +23,7 @@ static const char* MODULE_PREFIX = "SysTypeManager";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SysTypeManager::SysTypeManager(ConfigNVS& sysTypeConfig) :
+SysTypeManager::SysTypeManager(RaftJsonNVS& sysTypeConfig) :
         _sysTypeConfig(sysTypeConfig)
 {
 }
@@ -47,16 +47,20 @@ void SysTypeManager::setup(const char** pSysTypeConfigArrayStatic, int sysTypeCo
     // it may still be overridden by config from the non-volatile storage if there is any set
     if (_sysTypesList.size() == 1)
     {
-        // Check JSON is valid
-        int numJsonTokens = 0;
-        if (!RaftJson::validateJson(_sysTypesList.front(), numJsonTokens))
-        {
-            LOG_E(MODULE_PREFIX, "setup JSON from SysType failed to parse");
-            return;
-        }
+        // TODO - decide if JSON should be validated before use
+
+        // // Check JSON is valid
+        // int numJsonTokens = 0;
+        // if (!RaftJson_jsmn::validateJson(_sysTypesList.front(), numJsonTokens))
+        // {
+        //     LOG_E(MODULE_PREFIX, "setup JSON from SysType failed to parse");
+        //     return;
+        // }
+
+        // TODO - set a base config from the first item in the list
 
         // Set config from first item
-        _sysTypeConfig.setStaticConfigData(_sysTypesList.front());
+        // _sysTypeConfig.setStaticConfigData(_sysTypesList.front());
 
         // Debug
 #ifdef DEBUG_SYS_TYPE_CONFIG_DETAIL
@@ -80,7 +84,7 @@ void SysTypeManager::getSysTypesListJSON(String &respStr)
     // Get a JSON formatted list of sysTypes
     respStr = "[";
     bool isFirst = true;
-    for (ConfigBase sysTypeConfig : _sysTypesList)
+    for (RaftJson sysTypeConfig : _sysTypesList)
     {
         // Get name of SysType
         String sysTypeName = sysTypeConfig.getString("SysType", "");
@@ -110,7 +114,7 @@ bool SysTypeManager::getSysTypeConfig(const String& sysTypeName, String &respStr
         _sysTypesList.size());
 
     // Find matching sysType
-    for (ConfigBase sysTypeConfig : _sysTypesList)
+    for (RaftJson sysTypeConfig : _sysTypesList)
     {
         String altSysTypeName = sysTypeConfig.getString("SysType", "");
         // LOG_D(MODULE_PREFIX, "Testing %s against %s", pNameToMatch, sysTypeName.c_str());
@@ -120,7 +124,11 @@ bool SysTypeManager::getSysTypeConfig(const String& sysTypeName, String &respStr
             LOG_I(MODULE_PREFIX, "Config for %s found", nameToMatch.c_str());
             LOG_I(MODULE_PREFIX, "Config str %s", sysTypeConfig.getConfigString().c_str());
 #endif
-            respStr = sysTypeConfig.getConfigString();
+
+            // TODO - decide if JSON should be validated before use
+            // respStr = sysTypeConfig.getConfigString();
+            respStr = "{}";
+            
             return true;
         }
     }
@@ -141,43 +149,27 @@ bool SysTypeManager::setSysSettings(const uint8_t *pData, int len)
 #endif
 
     // Check sensible length
-    if (len + 10 > _sysTypeConfig.getMaxLen())
+    if (len + 10 > _sysTypeConfig.getMaxJsonLenOr0ForNoLimit())
     {
         LOG_W(MODULE_PREFIX, "setSysSettings config too long");
         return false;
     }
 
     // Extract string
-    String configJson;
-    if (Raft::strFromBuffer(pData, len, configJson))
-    {
+    String configJson = String(pData, len);
 #ifdef DEBUG_SYS_TYPE_CONFIG
-        LOG_I(MODULE_PREFIX, "setSystemTypeConfig %s", configJson.c_str());
+    LOG_I(MODULE_PREFIX, "setSystemTypeConfig %s", configJson.c_str());
 #endif
 
-        // Check JSON is valid
-        int numJsonTokens = 0;
-        if (!RaftJson::validateJson(configJson.c_str(), numJsonTokens))
-        {
-            LOG_E(MODULE_PREFIX, "setSysSettings JSON failed to parse %s", configJson.c_str());
-            return false;
-        }
-
-        // Store the configuration permanently
-        // LOG_W(MODULE_PREFIX, "SYS_TYPE_CONFIG currently %s", _sysTypeConfig.getConfigString().c_str());
-        _sysTypeConfig.writeConfig(configJson);
+    // Store the configuration permanently
+    // LOG_W(MODULE_PREFIX, "SYS_TYPE_CONFIG currently %s", _sysTypeConfig.getConfigString().c_str());
+    _sysTypeConfig.setJsonDoc(configJson.c_str());
 #ifdef DEBUG_SYS_TYPE_SETTING_WRITE
-        LOG_I(MODULE_PREFIX, "SYS_TYPE_CONFIG now %s", _sysTypeConfig.getConfigString().c_str());
+    LOG_I(MODULE_PREFIX, "SYS_TYPE_CONFIG now %s", _sysTypeConfig.getConfigString().c_str());
 #endif
 
-        // Get type name
-        _curSysTypeName = _sysTypeConfig.getString("SysType", "");
-    }
-    else
-    {
-        LOG_W(MODULE_PREFIX, "setSysSettings failed to set");
-        return false;
-    }
+    // Get type name
+    _curSysTypeName = _sysTypeConfig.getString("SysType", "");
 
     // Ok
     return true;
@@ -255,15 +247,24 @@ RaftRetCode SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &
 #endif
     if (filterSettings.equalsIgnoreCase("nv") || filterSettings.equalsIgnoreCase("all") || (filterSettings == ""))
     {
-        String sysSettingsJson = _sysTypeConfig.getPersistedConfig();
+        // Get the persisted document
+        const char* pPersistedJsonDoc = _sysTypeConfig.getJsonDoc();
+        settingsResp += String(",\"nv\":") + pPersistedJsonDoc;
 #ifdef DEBUG_GET_POST_SETTINGS
         LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings nv %s", sysSettingsJson.c_str());
 #endif
-        settingsResp += ",\"nv\":" + sysSettingsJson;
     }
     if (filterSettings.equalsIgnoreCase("base") || filterSettings.equalsIgnoreCase("all") || (filterSettings == ""))
     {
-        settingsResp += ",\"base\":" + _sysTypeConfig.getStaticConfig();
+        // Check if there is any chaining of RaftJson objects - if so the first in the chain is
+        // considered the base JSON doc
+        const RaftJsonIF* pBaseRaftJson = _sysTypeConfig.getChainedRaftJson();
+        if (pBaseRaftJson)
+        {
+            // Get the base JSON doc
+            const char* pBaseJsonDoc = pBaseRaftJson->getJsonDoc();
+            settingsResp += String(",\"base\":") + pBaseJsonDoc;
+        }
     }
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, settingsResp.c_str());
 }

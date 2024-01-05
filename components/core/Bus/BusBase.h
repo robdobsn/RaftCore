@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <RaftArduino.h>
-#include "BusConsts.h"
-#include "BusStats.h"
 #include <vector>
 #include <functional>
+#include "RaftArduino.h"
+#include "BusConsts.h"
+#include "BusStats.h"
+#include "RaftJsonIF.h"
 
-class ConfigBase;
 class BusRequestInfo;
 class BusBase;
 
@@ -34,7 +34,7 @@ public:
     }
 
     // Setup
-    virtual bool setup(ConfigBase& config, const char* pConfigPrefix)
+    virtual bool setup(RaftJsonIF& config, const char* pConfigPrefix)
     {
         return false;
     }

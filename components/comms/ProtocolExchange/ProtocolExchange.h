@@ -8,9 +8,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <RaftArduino.h>
 #include <vector>
-#include <ProtocolBase.h>
+#include "RaftArduino.h"
+#include "ProtocolBase.h"
 #include "ProtocolCodecFactoryHelper.h"
 #include "CommsChannel.h"
 #include "SysModBase.h"
@@ -22,7 +22,7 @@ class APISourceInfo;
 class ProtocolExchange : public SysModBase
 {
 public:
-    ProtocolExchange(const char *pModuleName, ConfigBase &defaultConfig, ConfigBase *pGlobalConfig, ConfigBase *pMutableConfig);
+    ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig);
     virtual ~ProtocolExchange();
 
     // Set handlers

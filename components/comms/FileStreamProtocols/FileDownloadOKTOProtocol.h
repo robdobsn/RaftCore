@@ -9,9 +9,7 @@
 #pragma once
 
 #include "FileStreamBase.h"
-#include <ArduinoTime.h>
-
-class JSONParams;
+#include "ArduinoTime.h"
 
 class FileDownloadOKTOProtocol : public FileStreamBase
 {

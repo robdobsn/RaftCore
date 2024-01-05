@@ -2,6 +2,7 @@ idf_component_register(SRCS
         # SRC_DIRS "."
         SRCS
             "test_app_main.cpp"
+            # "RaftJsonNVS_test.cpp"
             "RaftJsmn_test.cpp"
             "RaftJson_test_values.cpp"
             "RaftJson_jsmn_test.cpp"
