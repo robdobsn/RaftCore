@@ -1,0 +1,524 @@
+[
+    {
+        "SysType": "RICMarty2R2",
+        "CmdsAtStart": "",
+        "WebUI": "",
+        "SysManager": {
+            "monitorPeriodMs":10000,
+            "reportList":["NetMan","BLEMan","RobotCtrl","SysMan","ProtExchg","StatsCB"],
+            "pauseWiFiforBLE":1,
+            "slowSysModMs": 100
+        },
+        "ProtExchg": {
+            "RICSerial":{
+                "FrameBound":"0xE7",
+                "CtrlEscape":"0xD7"
+            }
+        },
+        "NetMan": {
+            "wifiSTAEn": 1,
+            "wifiAPEn": 0,
+            "ethEn": 0,
+            "wifiSSID": "",
+            "wifiPW": "",
+            "wifiSTAScanThreshold": "OPEN",
+            "wifiAPSSID": "",
+            "wifiAPPW": "",
+            "wifiAPChannel": 1,
+            "wifiAPMaxConn": 4,
+            "wifiAPAuthMode": "WPA2_PSK",
+            "logLevel": "D",
+            "NTPServer": "pool.ntp.org",
+            "timezone": "UTC"
+        },
+        "ESPOTAUpdate": {
+            "OTADirect": 1
+        },
+        "BLEMan": {
+            "enable": 1,
+            "outQSize": 15,
+            "sendUseInd": 1,
+            "logLevel": "D",
+            "nimLogLev": "E"
+        },
+        "WebServer": {
+            "enable": 1,
+            "webServerPort": 80,
+            "stdRespHeaders": [
+                "Access-Control-Allow-Origin: *"
+            ],
+            "apiPrefix": "api/",
+            "fileServer": 
+            [
+                {
+                    "__hwRevs__": [4],
+                    "__value__": 1
+                }
+            ],
+            "numConnSlots": [
+                {
+                    "__hwRevs__": [4],
+                    "__value__": 12
+                }
+            ],
+            "websockets": [
+                {
+                    "pfix": "ws",
+                    "pcol": "RICSerial",
+                    "maxConn": [
+                        {
+                            "__hwRevs__": [4],
+                            "__value__": 4
+                        }
+                    ],
+                    "txQueueMax": [
+                        {
+                            "__hwRevs__": [4],
+                            "__value__": 20
+                        }
+                    ],
+                    "pingMs": 30000
+                }
+            ],
+            "logLevel": "D",
+            "sendMax": [
+                        {
+                            "__hwRevs__": [4],
+                            "__value__": 5000
+                        }
+                    ],
+            "taskCore": 0,
+            "taskStack": 5000,
+            "taskPriority": 9
+        },
+        "SerialConsole": {
+            "enable": 1,
+            "uartNum": 0,
+            "rxBuf": 5000,
+            "txBuf": 1500,
+            "crlfOnTx": 1,
+            "protocol": "RICSerial",
+            "logLevel": "D"
+        },
+        "CommandSerial": {
+            "logLevel": "D",
+            "ports": [
+                {
+                    "name": "Serial1",
+                    "enable": 1,
+                    "uartNum": 1,
+                    "baudRate": 921600,
+                    "rxBufSize": 8192,
+                    "rxPin": 35,
+                    "txPin": 12,
+                    "protocol": "RICSerial"
+                }
+            ]
+        },
+        "CommandSocket": {
+            "enable": 0,
+            "socketPort": 24,
+            "protocol": "RICSerial",
+            "logLevel": "D"
+        },
+        "FileManager": {
+            "SPIFFSEnabled": 1,
+            "LittleFSEnabled": 1,
+            "LocalFSFormatIfCorrupt": 1,
+            "CacheFileSysInfo": 1,
+            "SDEnabled": 0,
+            "DefaultSD": 0,
+            "SDMOSI": 15,
+            "SDMISO": 4,
+            "SDCLK": 14,
+            "SDCS": 13
+        },
+        "PowerUpLED":{
+            "enable":0,
+            "ledPin":19,
+            "ledVal":"200000",
+            "isPix":1,
+            "pixIdx":0,
+            "usbSnsPin": [{"__hwRevs__": [4], "__value__": 39}],
+            "usbSnsThresh": 500,
+            "usbSnsVal": "000040"
+        },
+        "uPy": {
+            "maxHeapNoSPIRAM": 14000,
+            "taskStackNoSPIRAM": 12000,
+            "maxHeapPCIfSPIRAM": 80,
+            "taskStackIfSPIRAM": 16000,
+            "taskPriority": 20
+        },
+        "Publish": {
+            "pubList": [
+                {
+                    "type": "HW",
+                    "name": "MultiStatus",
+                    "trigger": "Time",
+                    "msgID": "MultiStatus",
+                    "rates": [
+                        {
+                            "if": "BLE",
+                            "protocol": "RICSerial",
+                            "rateHz": 10.0
+                        },
+                        {
+                            "if": "uPy",
+                            "protocol": "RICFrame",
+                            "rateHz": 10.0
+                        }
+                    ]
+                },
+                {
+                    "type": "HW",
+                    "name": "PowerStatus",
+                    "trigger": "Time",
+                    "msgID": "PowerStatus",
+                    "rates": [
+                        {
+                            "if": "BLE",
+                            "protocol": "RICSerial",
+                            "rateHz": 1.0
+                        },
+                        {
+                            "if": "uPy",
+                            "protocol": "RICFrame",
+                            "rateHz": 1.0
+                        }
+                    ]
+                },
+                {
+                    "type": "HW",
+                    "name": "AddOnStatus",
+                    "trigger": "Time",
+                    "msgID": "AddOnStatus",
+                    "rates": [
+                        {
+                            "if": "BLE",
+                            "protocol": "RICSerial",
+                            "rateHz": 10.0
+                        },
+                        {
+                            "if": "uPy",
+                            "protocol": "RICFrame",
+                            "rateHz": 10.0
+                        }
+                    ]
+                }
+            ]
+        },
+        "Robot": {
+            "Model": "MartyV2",
+            "StatDisp": {
+                "pixIdxPower": 0,
+                "pixIdxConn": 2
+            },
+            "Safeties": {
+                "maxMs": 5000,
+                "ffEn": 1,
+                "ocEn": 1,
+                "i2cEn": 1,
+                "sfEn": 1
+            },
+            "PwrMgmt": {
+                "initMotorsOn": 1,
+                "idle5vOffSecs": 1800,
+                "idlePowerDownSecs": 2700,
+                "battFullCapMAH": 2500,
+                "batLevels": [
+                    {
+                        "PC": 0,
+                        "5VOn": 1,
+                        "colr": "002000",
+                        "blnk": "on"
+                    },
+                    {
+                        "PC": 3,
+                        "5VOn": 0,
+                        "colr": "100000",
+                        "blnk": "breathe",
+                        "fullOff": 1
+                    },
+                    {
+                        "PC": 5,
+                        "5VOn": 0,
+                        "colr": "100000",
+                        "blnk": "breathe"
+                    },
+                    {
+                        "PC": 10,
+                        "5VOn": 1,
+                        "colr": "100000",
+                        "blnk": "on"
+                    },
+                    {
+                        "PC": 30,
+                        "5VOn": 1,
+                        "colr": "100400",
+                        "blnk": "on"
+                    },
+                    {
+                        "PC": 100,
+                        "5VOn": 1,
+                        "colr": "002000",
+                        "blnk": "on"
+                    }
+                ],
+                "extLevels": [
+                    {
+                        "PC": 0,
+                        "colr": "000040",
+                        "blnk": "on"
+                    },
+                    {
+                        "PC": 90,
+                        "colr": "000040",
+                        "blnk": "breathe"
+                    },
+                    {
+                        "PC": 100,
+                        "colr": "000040",
+                        "blnk": "on"
+                    }
+                ]
+            },
+            "Events": {
+                "det": [
+                    {
+                        "src": "RicButton0",
+                        "type": "itermenu",
+                        "cancelMs": 100,
+                        "activeMs": 200,
+                        "cancelSound": "no.mp3",
+                        "itermenu": [
+                            {
+                                "sound": "unplugged.mp3",
+                                "colr": "101010",
+                                "url": "filerun/unplugged.api",
+                                "stop": "filerun/unpluggedShutdown.api"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "Buses": [
+                {
+                    "name": "I2CA",
+                    "type": "I2C",
+                    "reqFIFOLen": 10,
+                    "i2cPort": 0,
+                    "sdaPin": "21",
+                    "sclPin": "22",
+                    "i2cFreq": 100000,
+                    "taskCore": 1,
+                    "taskStack": 3000,
+                    "taskPriority": 24,
+                    "lockupDetect": [
+                        
+                        {"__hwRevs__": [4], "__value__": "0x0e"}
+                    ],
+                    "scanBoost": [
+                        {"__hwRevs__": [4], "__value__": ["0x0e","0x55"]}
+                    ]
+                }
+                
+            ],
+            "HWElemDefaults": [
+                {
+                    "type": "SmartServo",
+                    "bus": "I2CA",
+                    "poll": "status",
+                    "pollHz": 20.0,
+                    "ocSafety": 1,
+                    "faultSafety": 1
+                },
+                {
+                    "type": "RSAddOn",
+                    "poll": "status",
+                    "pollRd": 10,
+                    "pollHz": 10.0
+                }
+            ],
+            "HWElems": [
+                {
+                    "name": "LeftHip",
+                    "type": "SmartServo",
+                    "addr": "0x10",
+                    "IDNo": 0
+                },
+                {
+                    "name": "LeftTwist",
+                    "type": "SmartServo",
+                    "addr": "0x11",
+                    "IDNo": 1
+                },
+                {
+                    "name": "LeftKnee",
+                    "type": "SmartServo",
+                    "addr": "0x12",
+                    "IDNo": 2
+                },
+                {
+                    "name": "RightHip",
+                    "type": "SmartServo",
+                    "addr": "0x13",
+                    "IDNo": 3
+                },
+                {
+                    "name": "RightTwist",
+                    "type": "SmartServo",
+                    "addr": "0x14",
+                    "IDNo": 4
+                },
+                {
+                    "name": "RightKnee",
+                    "type": "SmartServo",
+                    "addr": "0x15",
+                    "IDNo": 5
+                },
+                {
+                    "name": "LeftArm",
+                    "type": "SmartServo",
+                    "addr": "0x16",
+                    "IDNo": 6
+                },
+                {
+                    "name": "RightArm",
+                    "type": "SmartServo",
+                    "addr": "0x17",
+                    "IDNo": 7
+                },
+                {
+                    "name": "Eyes",
+                    "type": "SmartServo",
+                    "addr": "0x18",
+                    "IDNo": 8
+                },
+                {
+                    "name": "IMU0",
+                    "type": "IMU",
+                    "addr": [
+                        {"__hwRevs__": [4], "__value__":  "0x0e"}
+                    ],
+                    "chip": [
+                        {"__hwRevs__": [4], "__value__": "KXTJ3"}
+                    ],
+                    "bus": "I2CA",
+                    "poll": "status",
+                    "pollHz": 20.0,
+                    "accIntPin": [
+                        {"__hwRevs__": [4], "__value__": -1}
+                    ],
+                    "IDNo": 19
+                },
+                {
+                    "name": "AudioOut",
+                    "type": "AudioOut",
+                    "I2S_PORT": 0,
+                    "DAC_MODE": [
+                        {"__hwRevs__": [4], "__value__": 0}
+                    ],
+
+                    "I2S_BLCK": [
+                        {"__hwRevs__": [4], "__value__": 26}
+                    ],
+                    "I2S_DOUT": [
+                        {"__hwRevs__": [4], "__value__": 25}
+                    ],
+                    "I2S_LRC": [
+                        {"__hwRevs__": [4], "__value__": 27}
+                    ],
+                    "sampleRate": 44100,
+                    "minIntRAM": 25000
+                },
+                {
+                    "name": "BusPixels0",
+                    "type": "BusPixels",
+                    "pixPin": "19",
+                    "rmtChannel": 0,
+                    "numPix": [
+                        {
+                            "__hwRevs__": [4],
+                            "__value__": 17
+                        }
+                    ],
+                    "statusPix": [
+                        {
+                            "__hwRevs__": [4],
+                            "__value__": [0, 1, 2, 3, 4]
+                        }
+                    ]
+                },
+                {
+                    "name": "RicButton0",
+                    "type": "GPIO",
+                    "pin": "5",
+                    "opMode": "button",
+                    "pull": "up",
+                    "debounceMs": "100",
+                    "repeatMs": "10000"
+                },
+                {
+                    "name": "FuelGauge0",
+                    "type": "FuelGauge",
+                    "bus": "I2CA",
+                    "addr": "0x55",
+                    "poll": "status",
+                    "pollHz": 1.0,
+                    "extPowSnsPin": [{"__hwRevs__": [4], "__value__": 39}],
+                    "extPowSnsThresh": 500
+                },
+                {
+                    "name": "PowerCtrl",
+                    "type": "PowerCtrl",
+                    "batteryPackKey": 23,
+                    "en5V": 2,
+                    "en5VOnLevel": 1,
+                    
+                    "enExtPowerUsePWM": [{"__hwRevs__": [4], "__value__": 1}],
+                    "extPowerInitState": [{"__hwRevs__": [4], "__value__": 1}],
+                    "pwrKeyOffSecs": 0.7,
+                   
+                    "EXT_POWER": [{"__hwRevs__": [4], "__value__": 18}]
+                }
+            ],
+            "AddOns": [],
+            "Traj": {
+                "init": {
+                    "moveTimeMin": 400,
+                    "hipAngleMax": 30,
+                    "stepLengthMax": 50,
+                    "leanMultMax": 1,
+                    "DIR_FORWARDS": 1,
+                    "DIR_BACKWARDS": -1,
+                    "DIR_LEFT": -1,
+                    "DIR_RIGHT": 1,
+                    "moveTime": 1500,
+                    "leanAmount": 27,
+                    "hipPosEqThreshold": 8.5,
+                    "stepLength": 15,
+                    "turn": 0,
+                    "leanAngle": 35,
+                    "liftAngle": 65
+                },
+                "hwVars": [],
+                "maxKeyPt": 20,
+                "maxTrajReps": 100,
+                "maxProcQLen": 10
+            },
+            "WorkMgr": {
+                "WorkQ": {
+                    "maxLen": [
+                        {
+                            "__hwRevs__": [4],
+                            "__value__": 250
+                        }
+                    ],
+                    "lowMemThreshK": 15,
+                    "lowMemMaxLen": 10
+                }
+            }
+        }
+    }
+]
