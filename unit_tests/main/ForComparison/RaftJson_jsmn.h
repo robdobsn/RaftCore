@@ -79,6 +79,26 @@ public:
         return elemType != JSMN_UNDEFINED;
     }
 
+    // Get type
+    virtual RaftJsonType getType(const char* pDataPath, int &arrayLen) const override
+    {
+        jsmntype_t jsmntype = getType(nullptr, pDataPath, arrayLen, nullptr, &_docAndCache);
+        switch (jsmntype)
+        {
+        case JSMN_PRIMITIVE:
+            return RaftJsonType::RAFT_JSON_NUMBER;
+        case JSMN_STRING:
+            return RaftJsonType::RAFT_JSON_STRING;
+        case JSMN_OBJECT:
+            return RaftJsonType::RAFT_JSON_OBJECT;
+        case JSMN_ARRAY:
+            return RaftJsonType::RAFT_JSON_ARRAY;
+        case JSMN_UNDEFINED:
+            return RaftJsonType::RAFT_JSON_UNDEFINED;
+        }
+        return RaftJsonType::RAFT_JSON_UNDEFINED;
+    }
+
     // Access to JSON document
     virtual const char* getJsonDoc() const
     {

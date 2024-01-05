@@ -24,18 +24,6 @@
 class RaftJson : public RaftJsonIF
 {
 public:
-    // Element type
-    typedef enum
-    {
-        RAFT_JSON_UNDEFINED = 0,
-        RAFT_JSON_OBJECT = 1,
-        RAFT_JSON_ARRAY = 2,
-        RAFT_JSON_STRING = 3,
-        RAFT_JSON_BOOLEAN = 4,
-        RAFT_JSON_NUMBER = 5,
-        RAFT_JSON_NULL = 6
-    } RaftJsonType;
-
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Construct a new RaftJson object
     /// @param pJsonStr 
@@ -44,19 +32,8 @@ public:
     /// @note The makeCopy option is provided to avoid copying strings in flash memory - please don't use it in other cases
     RaftJson(const char* pJsonStr, bool makeCopy = true, RaftJsonIF* pChainedRaftJson = nullptr)
     {
-        if (makeCopy)
-        {
-#ifdef ESP_PLATFORM
-            _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pJsonStr, pJsonStr + strlen(pJsonStr) + 1);
-#else
-            _jsonStr = std::vector<char>(pJsonStr, pJsonStr + strlen(pJsonStr) + 1);
-#endif
-            _pSourceStr = _jsonStr.data();
-        }
-        else
-        {
-            _pSourceStr = pJsonStr;
-        }
+        // Store the source string
+        setSourceStr(pJsonStr, makeCopy, strlen(pJsonStr));
         _pChainedRaftJson = pChainedRaftJson;
     }
 
@@ -67,12 +44,8 @@ public:
     /// @note makes a copy
     RaftJson(const String& jsonStr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
-#ifdef ESP_PLATFORM        
-        _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#else
-        _jsonStr = std::vector<char>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#endif
-        _pSourceStr = _jsonStr.data();
+        // Store the source string
+        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
         _pChainedRaftJson = pChainedRaftJson;
     }
 
@@ -83,12 +56,8 @@ public:
     /// @note makes a copy
     RaftJson(const std::string& jsonStr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
-#ifdef ESP_PLATFORM
-        _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#else
-        _jsonStr = std::vector<char>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#endif
-        _pSourceStr = _jsonStr.data();
+        // Store the source string
+        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
         _pChainedRaftJson = pChainedRaftJson;
     }
 
@@ -104,32 +73,20 @@ public:
     /// @note makes a copy
     RaftJson& operator=(const char* pJsonStr)
     {
-#ifdef ESP_PLATFORM
-        _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pJsonStr, pJsonStr + strlen(pJsonStr) + 1);
-#else
-        _jsonStr = std::vector<char>(pJsonStr, pJsonStr + strlen(pJsonStr) + 1);
-#endif
-        _pSourceStr = _jsonStr.data();
+        // Store the source string
+        setSourceStr(pJsonStr, true, strlen(pJsonStr));
         return *this;
     }
     RaftJson& operator=(const String& jsonStr)
     {
-#ifdef ESP_PLATFORM
-        _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#else
-        _jsonStr = std::vector<char>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#endif
-        _pSourceStr = _jsonStr.data();
+        // Store the source string
+        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
         return *this;
     }
     RaftJson& operator=(const std::string& jsonStr)
     {
-#ifdef ESP_PLATFORM
-        _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#else
-        _jsonStr = std::vector<char>(jsonStr.c_str(), jsonStr.c_str() + jsonStr.length() + 1);
-#endif
-        _pSourceStr = _jsonStr.data();
+        // Store the source string
+        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
         return *this;
     }
 
@@ -202,6 +159,16 @@ public:
         int arrayLen = 0;
         RaftJsonType elemType = getType(_pSourceStr, pDataPath, arrayLen);
         return elemType != RAFT_JSON_UNDEFINED;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get type of element from a JSON document at the specified path
+    /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param arrayLen the length of the array if the element is an array
+    /// @return the type of the element
+    virtual RaftJsonType getType(const char* pDataPath, int &arrayLen) const override
+    {
+        return getType(_pSourceStr, pDataPath, arrayLen);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -408,6 +375,8 @@ public:
     /// @return true if the element is a boolean
     static bool isBoolean(const char* pJsonDocPos, int &retValue)
     {
+        if (!pJsonDocPos)
+            return false;
         if (strncmp(pJsonDocPos, "true", 4) == 0)
         {
             retValue = 1;
@@ -553,6 +522,22 @@ public:
         return "UNKN";
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get JSON doc contents
+    /// @return const char* : JSON doc contents
+    const char* getJsonDoc() const override
+    {
+        return _pSourceStr;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get chained RaftJson object
+    /// @return RaftJsonIF* : chained RaftJson object (may be null if no chaining)
+    const RaftJsonIF* getChainedRaftJson() const override
+    {
+        return _pChainedRaftJson;
+    }
+
 protected:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a path
@@ -674,6 +659,9 @@ private:
     static const char* locateElementValueWithKey(const char* pJsonDocPos,
                 const char*& pReqdKey)
     {
+        // Check valid
+        if (!pJsonDocPos)
+            return nullptr;
         // If key is empty return the entire element
         if (!pReqdKey || !*pReqdKey || (*pReqdKey == '/'))
         {
@@ -803,6 +791,37 @@ private:
         }
     }
 
+protected:
+    // Protected constructor which does not set the source string
+    RaftJson()
+    {
+    }
+
+    // Helpers
+    void setSourceStr(const char* pSourceStr, bool makeCopy, uint32_t sourceStrLen)
+    {
+        // Check valid
+        if (!pSourceStr)
+            return;
+
+        // Make copy if required
+        if (makeCopy)
+        {
+#ifdef ESP_PLATFORM
+            _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pSourceStr, pSourceStr + sourceStrLen + 1);
+#else
+            _jsonStr = std::vector<char>(pSourceStr, pSourceStr + sourceStrLen + 1);
+#endif
+            // Reference the copy
+            _pSourceStr = _jsonStr.data();
+        }
+        else
+        {
+            // Reference the source string
+            _pSourceStr = pSourceStr;
+        }
+    }
+
 private:
     // JSON document string
 #ifdef ESP_PLATFORM
@@ -811,11 +830,15 @@ private:
     std::vector<char> _jsonStr;
 #endif
 
+    // Empty JSON document
+    static const char* EMPTY_JSON_DOCUMENT;
+
     // Copy of pointer to JSON string
     // Note this pointer should NEVER be deleted by this object
-    // Either it is a pointer to a string in flash memory
-    // Or it is a pointer to the string in the _jsonStr vector
-    const char* _pSourceStr = nullptr;
+    // It may be a pointer to a string in flash memory
+    // Or it may be a pointer to the string in the _jsonStr vector
+    // Or it may be a pointer to a static string which contains the empty JSON document {}
+    const char* _pSourceStr = EMPTY_JSON_DOCUMENT;
 
     // Pointer to an alternate RaftJsonIF implementation
     // This allows chaining so that if a value is not found in this object

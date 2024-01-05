@@ -70,6 +70,40 @@ public:
     virtual bool contains(const char* pDataPath) const = 0;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// JSON element type codes
+    // Element type
+    typedef enum
+    {
+        RAFT_JSON_UNDEFINED = 0,
+        RAFT_JSON_OBJECT = 1,
+        RAFT_JSON_ARRAY = 2,
+        RAFT_JSON_STRING = 3,
+        RAFT_JSON_BOOLEAN = 4,
+        RAFT_JSON_NUMBER = 5,
+        RAFT_JSON_NULL = 6
+    } RaftJsonType;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get type of element from a JSON document at the specified path
+    /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param arrayLen the length of the array if the element is an array
+    /// @return the type of the element
+    virtual RaftJsonType getType(const char* pDataPath, int &arrayLen) const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get JSON doc contents
+    /// @return const char* : JSON doc contents
+    virtual const char* getJsonDoc() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get chained RaftJson object
+    /// @return RaftJsonIF* : chained RaftJson object (may be null if there is no chaining)
+    virtual const RaftJsonIF* getChainedRaftJson() const
+    {
+        return nullptr;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Register a callback for JSON change - used by RaftJsonIF implementations that support
     ///        changes to the JSON document
     /// @param jsonChangeCallback the callback to be called when the JSON document changes
@@ -96,5 +130,4 @@ public:
     {
         return nullptr;
     }
-
 };

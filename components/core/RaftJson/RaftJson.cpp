@@ -13,12 +13,18 @@
 #include "RaftJson.h"
 #include "RaftUtils.h"
 
+#define DEBUG_EXTRACT_NAME_VALUES
+
 static const char *MODULE_PREFIX = "RaftJson";
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Empty JSON document
+const char* RaftJson::EMPTY_JSON_DOCUMENT = "{}";
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // @brief Escape a string
 // @param strToEsc : string in which to replace characters which are invalid in JSON
-void RaftJson_jsmn::escapeString(String &strToEsc)
+void RaftJson::escapeString(String &strToEsc)
 {
     // Replace characters which are invalid in JSON
     strToEsc.replace("\\", "\\\\");
@@ -29,7 +35,7 @@ void RaftJson_jsmn::escapeString(String &strToEsc)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Unescape a string
 /// @param strToUnEsc : string in which to restore characters which are invalid in JSON
-void RaftJson_jsmn::unescapeString(String &strToUnEsc)
+void RaftJson::unescapeString(String &strToUnEsc)
 {
     // Replace characters which are invalid in JSON
     strToUnEsc.replace("\\\"", "\"");
@@ -42,7 +48,7 @@ void RaftJson_jsmn::unescapeString(String &strToUnEsc)
 // @param nameValuePairs : vector of name:value pairs
 // @param includeOuterBraces : true to include outer braces
 // @return String : JSON string
-String RaftJson_jsmn::getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePairs, bool includeOuterBraces)
+String RaftJson::getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePairs, bool includeOuterBraces)
 {
     // Calculate length for efficiency
     uint32_t reserveLen = 0;
@@ -70,11 +76,11 @@ String RaftJson_jsmn::getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePa
 // @brief Convert JSON object to HTML query string syntax
 // @param jsonStr : JSON string
 // @return String : HTML query string
-String RaftJson_jsmn::getHTMLQueryFromJSON(const String& jsonStr)
+String RaftJson::getHTMLQueryFromJSON(const String& jsonStr)
 {
     // Get keys of object
     std::vector<String> keyStrs;
-    RaftJson_jsmn::getKeys(jsonStr.c_str(), "", keyStrs);
+    RaftJson::getKeys(jsonStr.c_str(), "", keyStrs);
     if (keyStrs.size() == 0)
         return "";
 
@@ -100,9 +106,9 @@ String RaftJson_jsmn::getHTMLQueryFromJSON(const String& jsonStr)
 // @param pPairDelimAlt : alternate separator between pairs (pass 0 if not needed), e.g. ";" for HTTP
 // @param nameValuePairs : vector of name-value pairs
 // @return void
-void RaftJson_jsmn::extractNameValues(const String& inStr, 
+void RaftJson::extractNameValues(const String& inStr, 
         const char* pNameValueSep, const char* pPairDelim, const char* pPairDelimAlt, 
-        std::vector<RaftJson_jsmn::NameValuePair>& nameValuePairs)
+        std::vector<RaftJson::NameValuePair>& nameValuePairs)
 {
    // Count the pairs
     uint32_t pairCount = 0;
@@ -174,7 +180,7 @@ void RaftJson_jsmn::extractNameValues(const String& inStr,
 
 #ifdef DEBUG_EXTRACT_NAME_VALUES
     // Debug
-    for (RaftJson_jsmn::NameValuePair& pair : nameValuePairs)
+    for (RaftJson::NameValuePair& pair : nameValuePairs)
         LOG_I(MODULE_PREFIX, "extractNameValues name %s val %s", pair.name.c_str(), pair.value.c_str());
 #endif
 }
