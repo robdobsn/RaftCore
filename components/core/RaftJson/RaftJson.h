@@ -25,6 +25,12 @@ class RaftJson : public RaftJsonIF
 {
 public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Construct an empty RaftJson object
+    RaftJson()
+    {
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Construct a new RaftJson object
     /// @param pJsonStr 
     /// @param makeCopy when false the string pointer must remain valid for the lifetime of this object
@@ -123,7 +129,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual long getLong(const char* pDataPath, long defaultValue) const override
     {
-        return getLong(_pSourceStr, pDataPath, defaultValue);
+        return getLong(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +139,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual bool getBool(const char* pDataPath, bool defaultValue) const override
     {
-        return getBool(_pSourceStr, pDataPath, defaultValue);
+        return getBool(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +149,7 @@ public:
     /// @return true if the array was found
     virtual bool getArrayElems(const char *pDataPath, std::vector<String>& strList) const override
     {
-        return getArrayElems(_pSourceStr, pDataPath, strList);
+        return getArrayElems(_pSourceStr, pDataPath, strList, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +159,7 @@ public:
     /// @return true if the object was found
     virtual bool getKeys(const char *pDataPath, std::vector<String>& keysVector) const override
     {
-        return getKeys(_pSourceStr, pDataPath, keysVector);
+        return getKeys(_pSourceStr, pDataPath, keysVector, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -163,7 +169,7 @@ public:
     virtual bool contains(const char* pDataPath) const override
     {
         int arrayLen = 0;
-        RaftJsonType elemType = getType(_pSourceStr, pDataPath, arrayLen);
+        RaftJsonType elemType = getType(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
         return elemType != RAFT_JSON_UNDEFINED;
     }
 
@@ -174,7 +180,7 @@ public:
     /// @return the type of the element
     virtual RaftJsonType getType(const char* pDataPath, int &arrayLen) const override
     {
-        return getType(_pSourceStr, pDataPath, arrayLen);
+        return getType(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -190,7 +196,7 @@ public:
     /// @return the value of the variable or the default value if not found
     static String getString(const char* pJsonDoc,
             const char* pDataPath, const char* defaultValue,
-            RaftJsonIF* pChainedRaftJson = nullptr)
+            const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
@@ -217,7 +223,7 @@ public:
     /// @return the value of the variable or the default value if not found
     static double getDouble(const char* pJsonDoc,
             const char* pDataPath, double defaultValue,
-            RaftJsonIF* pChainedRaftJson = nullptr)
+            const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
@@ -245,7 +251,7 @@ public:
     /// @return the value of the variable or the default value if not found
     static long getLong(const char* pJsonDoc,
             const char* pDataPath, long defaultValue,
-            RaftJsonIF* pChainedRaftJson = nullptr)
+            const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
@@ -273,7 +279,7 @@ public:
     /// @return the value of the variable or the default value if not found
     static bool getBool(const char* pJsonDoc, 
             const char* pDataPath, bool defaultValue,
-            RaftJsonIF* pChainedRaftJson = nullptr)
+            const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Use long method to get value
         return RaftJson::getLong(pJsonDoc, pDataPath, defaultValue, pChainedRaftJson) != 0;
@@ -288,7 +294,7 @@ public:
     /// @return true if the array was found
     static bool getArrayElems(const char* pJsonDoc,
             const char *pDataPath, std::vector<String>& strList,
-            RaftJsonIF* pChainedRaftJson = nullptr)
+            const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
@@ -334,7 +340,7 @@ public:
     /// @return true if the object was found
     static bool getKeys(const char* pJsonDoc,
             const char *pDataPath, std::vector<String>& keysVector,
-            RaftJsonIF* pChainedRaftJson = nullptr)
+            const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
@@ -405,7 +411,7 @@ public:
     /// @return the type of the element
     static RaftJsonType getType(const char* pJsonDoc,
             const char* pDataPath, int &arrayLen,
-            RaftJsonIF* pChainedRaftJson = nullptr)
+            const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
@@ -544,12 +550,49 @@ public:
         return _pChainedRaftJson;
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set chained RaftJson object
+    /// @param pChainedRaftJson chained RaftJson object (may be null if chaining is to be disabled)
+    virtual void setChainedRaftJson(const RaftJsonIF* pChainedRaftJson) override
+    {
+        _pChainedRaftJson = pChainedRaftJson;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set source string - the main JSON doc string used by this object
+    /// @param pSourceStr source string
+    /// @param makeCopy when false the string pointer must remain valid for the lifetime of this object
+    /// @param sourceStrLen length of source string
+    void setSourceStr(const char* pSourceStr, bool makeCopy, uint32_t sourceStrLen)
+    {
+        // Check valid
+        if (!pSourceStr)
+            return;
+
+        // Make copy if required
+        if (makeCopy)
+        {
+#ifdef ESP_PLATFORM
+            _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pSourceStr, pSourceStr + sourceStrLen + 1);
+#else
+            _jsonStr = std::vector<char>(pSourceStr, pSourceStr + sourceStrLen + 1);
+#endif
+            // Reference the copy
+            _pSourceStr = _jsonStr.data();
+        }
+        else
+        {
+            // Reference the source string
+            _pSourceStr = pSourceStr;
+        }
+    }
+
 protected:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a path
     /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @return the position of the element or nullptr if not found
-    virtual const char* locateElementByPath(const char* pPath) override
+    virtual const char* locateElementByPath(const char* pPath) const override
     {
         return locateElementByPath(_pSourceStr, pPath, _pChainedRaftJson);
     }
@@ -657,7 +700,7 @@ private:
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a single key (part of a path)
-    /// @param pReqdKey the key of the required variable
+    /// @param pReqdKey [in/out] the key of the required variable (note this is modified by the function)
     /// @return the position of the element or nullptr if not found
     /// @note The key can be empty in which case the entire object is returned
     /// @note The key can be an array index (e.g. "[0]") in which case the value at that index is returned if the element is an array
@@ -668,6 +711,7 @@ private:
         // Check valid
         if (!pJsonDocPos)
             return nullptr;
+
         // If key is empty return the entire element
         if (!pReqdKey || !*pReqdKey || (*pReqdKey == '/'))
         {
@@ -781,52 +825,7 @@ private:
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the position of the element or nullptr if not found
     static const char* locateElementByPath(const char* pJsonDocPos, const char* pPath,
-                RaftJsonIF* pChainedRaftJson)
-    {
-        // Iterate over path
-        while(true)
-        {
-            // Locate element
-            pJsonDocPos = locateElementValueWithKey(pJsonDocPos, pPath);
-            if (!pJsonDocPos)
-                return pChainedRaftJson ? pChainedRaftJson->locateElementByPath(pPath) : nullptr;
-
-            // Check if we're at the end of the path
-            if (!*pPath)
-                return pJsonDocPos;
-        }
-    }
-
-protected:
-    // Protected constructor which does not set the source string
-    RaftJson()
-    {
-    }
-
-    // Helpers
-    void setSourceStr(const char* pSourceStr, bool makeCopy, uint32_t sourceStrLen)
-    {
-        // Check valid
-        if (!pSourceStr)
-            return;
-
-        // Make copy if required
-        if (makeCopy)
-        {
-#ifdef ESP_PLATFORM
-            _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pSourceStr, pSourceStr + sourceStrLen + 1);
-#else
-            _jsonStr = std::vector<char>(pSourceStr, pSourceStr + sourceStrLen + 1);
-#endif
-            // Reference the copy
-            _pSourceStr = _jsonStr.data();
-        }
-        else
-        {
-            // Reference the source string
-            _pSourceStr = pSourceStr;
-        }
-    }
+                const RaftJsonIF* pChainedRaftJson);
 
 private:
     // JSON document string
@@ -850,5 +849,5 @@ private:
     // This allows chaining so that if a value is not found in this object
     // it can be searched for in another object
     // This pointer should not be deleted by this object
-    RaftJsonIF* _pChainedRaftJson = nullptr;
+    const RaftJsonIF* _pChainedRaftJson = nullptr;
 };

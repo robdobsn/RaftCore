@@ -51,6 +51,8 @@
         "ratio": "cpp",
         "thread": "cpp",
         "cinttypes": "cpp",
-        "compare": "cpp"
+        "compare": "cpp",
+        "concepts": "cpp",
+        "numbers": "cpp"
     }
 }

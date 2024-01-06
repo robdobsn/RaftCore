@@ -27,7 +27,7 @@ static bool testFindElemEnd(jsmntok_t* pTokens, int numTokens, int tokenIdx, int
     // LOG_I(MODULE_PREFIX, "testFindElemEnd startTok %d endTok %d", tokenIdx, endPos);
     if (expEndPos != endPos)
     {
-        LOG_I(MODULE_PREFIX, "testFindElemEnd endPos expected %d != %d, tokenIdx %d", expEndPos, endPos, tokenIdx);
+        LOG_W(MODULE_PREFIX, "testFindElemEnd endPos expected %d != %d, tokenIdx %d", expEndPos, endPos, tokenIdx);
         return false;
     }
     return true;
@@ -46,11 +46,11 @@ static bool testFindKeyInJson(jsmntok_t* pTokens, int numTokens,
                 pTokens[foundTokenIdx].end - pTokens[foundTokenIdx].start
                 // ((endTokenIdx < numTokens) && (endTokenIdx >= 0)) ? pTokens[foundTokenIdx].end - pTokens[foundTokenIdx].start : strlen(pSourceStr) - pTokens[foundTokenIdx].start,
                 );
-    LOG_I(MODULE_PREFIX, "testFindKeyInJson pDataPath %s elemStr %s startTok %d endTok %d", pDataPath, elemStr.c_str(), 
-                            foundTokenIdx, endTokenIdx);
+    // LOG_I(MODULE_PREFIX, "testFindKeyInJson pDataPath %s elemStr %s startTok %d endTok %d", pDataPath, elemStr.c_str(), 
+    //                         foundTokenIdx, endTokenIdx);
     if (!elemStr.equals(expStr))
     {
-        LOG_I(MODULE_PREFIX, "testFindKeyInJson failed expected %s != %s", expStr, elemStr.c_str());
+        LOG_W(MODULE_PREFIX, "testFindKeyInJson failed expected %s != %s", expStr, elemStr.c_str());
         return false;
     }
     return true;
@@ -59,10 +59,10 @@ static bool testFindKeyInJson(jsmntok_t* pTokens, int numTokens,
 static bool testGetString(const char* pSourceStr, const char* pDataPath, const char* expStr)
 {
     String val = RaftJson_jsmn::getString(pSourceStr, pDataPath, "");
-    LOG_I(MODULE_PREFIX, "testGetString dataPath %s val %s", pDataPath, val.c_str());
+    // LOG_I(MODULE_PREFIX, "testGetString dataPath %s val %s", pDataPath, val.c_str());
     if (!val.equals(expStr))
     {
-        LOG_I(MODULE_PREFIX, "testGetString failed expected %s != %s", expStr, val.c_str());
+        LOG_W(MODULE_PREFIX, "testGetString failed expected %s != %s", expStr, val.c_str());
         return false;
     }
     return true;
@@ -75,19 +75,19 @@ static bool testGetArrayElems(const char* pSourceStr, const char* pDataPath, con
     // LOG_I(MODULE_PREFIX, "testGetArrayElems pDataPath %s got len %d", pDataPath, arrayElems.size());
     if (!isValid)
     {
-        LOG_I(MODULE_PREFIX, "testGetArrayElems failed");
+        LOG_W(MODULE_PREFIX, "testGetArrayElems failed");
         return false;
     }
     if (numStrs != arrayElems.size())
     {
-        LOG_I(MODULE_PREFIX, "testGetArrayElems failed expected len %d != %d", numStrs, arrayElems.size());
+        LOG_W(MODULE_PREFIX, "testGetArrayElems failed expected len %d != %d", numStrs, arrayElems.size());
         return false;
     }
     for (int i = 0; i < numStrs; i++)
     {
         if (!arrayElems[i].equals(expStrs[i]))
         {
-            LOG_I(MODULE_PREFIX, "testGetArrayElems failed idx %d expected %s != %s", i, expStrs[i], arrayElems[i].c_str());
+            LOG_W(MODULE_PREFIX, "testGetArrayElems failed idx %d expected %s != %s", i, expStrs[i], arrayElems[i].c_str());
             return false;
         }
     }
@@ -101,19 +101,19 @@ static bool testGetObjectKeys(const char* pSourceStr, const char* pDataPath, con
     // LOG_I(MODULE_PREFIX, "testGetObjectKeys pDataPath %s got len %d", pDataPath, arrayElems.size());
     if (!isValid)
     {
-        LOG_I(MODULE_PREFIX, "testGetObjectKeys failed");
+        LOG_W(MODULE_PREFIX, "testGetObjectKeys failed");
         return false;
     }
     if (numStrs != arrayElems.size())
     {
-        LOG_I(MODULE_PREFIX, "testGetObjectKeys failed expected len %d != %d (dataPath %s)", numStrs, arrayElems.size(), pDataPath);
+        LOG_W(MODULE_PREFIX, "testGetObjectKeys failed expected len %d != %d (dataPath %s)", numStrs, arrayElems.size(), pDataPath);
         return false;
     }
     for (int i = 0; i < numStrs; i++)
     {
         if (!arrayElems[i].equals(expStrs[i]))
         {
-            LOG_I(MODULE_PREFIX, "testGetObjectKeys failed idx %d expected %s != %s", i, expStrs[i], arrayElems[i].c_str());
+            LOG_W(MODULE_PREFIX, "testGetObjectKeys failed idx %d expected %s != %s", i, expStrs[i], arrayElems[i].c_str());
             return false;
         }
     }

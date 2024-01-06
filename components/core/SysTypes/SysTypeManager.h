@@ -11,11 +11,13 @@
 
 #include <list>
 #include <functional>
+#include <vector>
 #include "RaftArduino.h"
 #include "Logger.h"
 #include "RaftJsonNVS.h"
 #include "SpiramAwareAllocator.h"
 #include "RaftRetCode.h"
+#include "SysTypeInfoRec.h"
 
 class RestAPIEndpointManager;
 class APISourceInfo;
@@ -24,48 +26,120 @@ class SysManager;
 class SysTypeManager
 {
 public:
-    // Constructor
-    SysTypeManager(RaftJsonNVS& sysTypeConfig);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Constructor
+    /// @param systemConfig system configuration (based on a JSON document)
+    /// @note The system configuration is the main JSON document that is used to configure the system
+    ///       It comprises an element that is stored in non-volatile storage that may be empty or contain
+    ///       a JSON document. If this document contains a key called "SysType" then the value of this key
+    ///       is used to select the SysType from the list of SysTypes passed into setup on startup or after
+    ///       the SysTypeInfoRecs have been changed. An addition use for the non-volatile JSON document is that
+    ///       it will be searched first for any key requested (so can be used to override configuration settings).
+    ///       The second element of the system configuration is a chained JSON document that contains the
+    ///       configuration for the selected SysType. This is not stored in non-volatile storage and is
+    ///       MUST be available throughout the lifetime of this object. A pointer to this chained document 
+    ///       is set on startup, after hardware revision detection, after the SysTypeInfoRecs have been changed and 
+    ///       when an API is used to select a different SysType.
+    SysTypeManager(RaftJsonIF& systemConfig, RaftJson& baseSysTypesJson);
 
-    // Setup
-    void setup(const char** pSysTypeConfigArrayStatic, int sysTypeConfigArrayLen);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set the base SysTypes to be selected from
+    /// @param pSysTypeInfoRecs pointer to a vector of SysTypeInfoRec records
+    /// @note The SysTypeInfoRec records are not copied and must remain valid for the lifetime of this object
+    void setBaseSysTypes(const std::vector<SysTypeInfoRec>* pSysTypeInfoRecs);
 
-    // Add endpoints
-    void addRestAPIEndpoints(RestAPIEndpointManager& endpointManager);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get current SysType name
+    /// @return SysType name - if the SysType key exists in JSON non-volatile storage it is used, otherwise the
+    ///         last selected SysType name is returned
+    String getCurrentSysTypeName();
 
-    // Handling of SysTypes list
-    void getSysTypesListJSON(String& sysTypesListJSON);
-    bool getSysTypeConfig(const String& sysTypeName, String& sysTypeConfig);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set hardware revision
+    /// @param hwRev hardware revision
+    void setHardwareRevision(uint32_t hwRev);
 
-    // Set SysSettings which are generally non-volatile and contain one of the SysType values
-    bool setSysSettings(const uint8_t *pData, int len);
-
-    // Set system restart callback
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set callback for system restart
+    /// @param systemRestartCallback callback to restart system
     void setSystemRestartCallback(std::function<void()> systemRestartCallback)
     {
         _systemRestartCallback = systemRestartCallback;
     }
 
+    // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // /// @brief Form the SysType name for a base SysType record
+    // /// @param sysTypeInfoRecIdx index of the SysType record
+    // /// @return SysType name
+    // /// @note the list is generated from the SysTypeInfoRec records passed into setup
+    // String getBaseSysTypeName(int sysTypeInfoRecIdx)
+    // {
+    //     if ((sysTypeInfoRecIdx < 0) || (sysTypeInfoRecIdx >= (int)_pSysTypeInfoRecs->size()))
+    //         return "";
+    //     SysTypeInfoRec& infoRec = (*_pSysTypeInfoRecs)[sysTypeInfoRecIdx];
+    //     return infoRec.pSysTypeName;
+    // }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get a list of SysTypes as a JSON list
+    /// @return JSON document containing just a list of SysTypes
+    /// @note the list is generated from the SysTypeInfoRec records passed into setup. The list returned will only
+    ///       include those SysTypes that are valid for the current hardware revision
+    String getBaseSysTypesListAsJson();
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the JSON document for a base SysType (SysTypes are used for configuration defined by the JSON doc)
+    /// @param pSysTypeName name of the SysType (if this is nullptr or empty then the current SysType doc is returned)
+    ///                     the information returned will be for the SysType record relating to the current hardware 
+    ///                     revision
+    /// @param outJsonDoc JSON document to return content in
+    /// @param append true if the JSON document should be appended to
+    /// @return bool true if the JSON document was found
+    bool getBaseSysTypeContent(const char* pSysTypeName, String& outJsonDoc, bool append);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set the non-volatile document contents
+    /// @param pJsonDoc JSON document
+    /// @return bool true if the JSON document was successfully set
+    /// @note This is the JSON document that is stored in non-volatile storage and is used 
+    ///       override configuration settings
+    bool setNonVolatileDocContents(const char* pJsonDoc);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Add REST API endpoints
+    /// @param endpointManager endpoint manager
+    void addRestAPIEndpoints(RestAPIEndpointManager& endpointManager);
+
 private:
-    // List of sysTypes
-    std::list<const char*> _sysTypesList;
+    // SysType information records
+    const std::vector<SysTypeInfoRec>* _pSysTypeInfoRecs = nullptr;
 
-    // Current sysType name
-    String _curSysTypeName;
+    // System configuration
+    RaftJsonIF& _systemConfig;
 
-    // System type configuration
-    RaftJsonNVS& _sysTypeConfig;
+    // Chained JSON document used for access to the base SysType
+    RaftJson& _baseSysTypeConfig;
+
+    // Hardware revision
+    uint32_t _hwRev = 0;
+
+    // Index of last SysTypeInfoRec selected
+    int _currentlySysTypeInfoRecIdx = -1;
 
     // Last post result ok
     bool _lastPostResultOk = false;
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _postResultBuf;
+    std::vector<char, SpiramAwareAllocator<char>> _postResultBuf;
 
     // System reset callback
     std::function<void()> _systemRestartCallback = nullptr;
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Select the most appropriate SysType based on requested SysType name and hardware revision
+    void selectMostAppropriateSysType();
+
     // API System type
     RaftRetCode apiGetSysTypes(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
-    RaftRetCode apiGetSysTypeConfig(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiGetSysTypeContent(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
 
     // API System settings
     RaftRetCode apiSysTypeGetSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);

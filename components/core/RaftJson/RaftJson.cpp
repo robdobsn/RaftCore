@@ -13,13 +13,47 @@
 #include "RaftJson.h"
 #include "RaftUtils.h"
 
-#define DEBUG_EXTRACT_NAME_VALUES
+// #define DEBUG_EXTRACT_NAME_VALUES
+// #define DEBUG_CHAINED_RAFT_JSON
 
 static const char *MODULE_PREFIX = "RaftJson";
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Empty JSON document
 const char* RaftJson::EMPTY_JSON_DOCUMENT = "{}";
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Locate an element in a JSON document using a path
+/// @param pJsonDocPos the current position in the JSON document
+/// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+/// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+/// @return the position of the element or nullptr if not found
+const char* RaftJson::locateElementByPath(const char* pJsonDocPos, const char* pPath,
+            const RaftJsonIF* pChainedRaftJson)
+{
+    // Iterate over path
+    const char* pOriginalPath = pPath;
+#ifdef DEBUG_CHAINED_RAFT_JSON
+    const char* pOriginalDoc = pJsonDocPos;
+#endif
+    while(true)
+    {
+        // Locate element (note that pPath is modified by each call)
+        pJsonDocPos = locateElementValueWithKey(pJsonDocPos, pPath);
+        if (!pJsonDocPos)
+        {
+#ifdef DEBUG_CHAINED_RAFT_JSON
+            LOG_I(MODULE_PREFIX, "locateElementByPath path %s not found, chainedPtr %p originalDoc %s", 
+                        pOriginalPath, pChainedRaftJson, pOriginalDoc ? pOriginalDoc : "null");
+#endif
+            return pChainedRaftJson ? pChainedRaftJson->locateElementByPath(pOriginalPath) : nullptr;
+        }
+
+        // Check if we're at the end of the path
+        if (!*pPath)
+            return pJsonDocPos;
+    }
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // @brief Escape a string

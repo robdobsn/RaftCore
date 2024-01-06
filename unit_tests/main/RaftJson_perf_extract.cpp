@@ -26,9 +26,9 @@ void testAddVar(const char* varName, double val)
 }
 
 String testJSONHWElem = 
-R"("hw":[{"name":"LeftTwist","type":"SmartServo","busName":"I2CA","addr":"0x11","idx":1,
+R"({"hw":[{"name":"LeftTwist","type":"SmartServo","busName":"I2CA","addr":"0x11","idx":1,
 "whoAmI":"","serialNo":"4f7aa220974cadc7","versionStr":"0.0.0","commsOk":1,
-"pos":107.40,"curr":0,"state":0,"velo":-26804}])";
+"pos":107.40,"curr":0,"state":0,"velo":-26804}]})";
 
 TEST_CASE("test_json_perf_extract", "[jsonperf]")
 {
@@ -38,7 +38,7 @@ TEST_CASE("test_json_perf_extract", "[jsonperf]")
     // Setup the variables
     for (int i = 0; i < NUM_LOOPS_PERF_TEST; i++)
     {
-        // Extract important info from each element and add to variables
+        // Extract info from each element and add to variables
         RaftJson elemConf = testJSONHWElem;
         RaftJson elemHw = elemConf.getString("hw[0]", "{}");
 
@@ -73,6 +73,6 @@ TEST_CASE("test_json_perf_extract", "[jsonperf]")
 
     EVAL_PERF_END(perfTestExtractTest);
 
-    EVAL_PERF_LOG(perfTestExtractTest, "ExtractTest", 1);
+    EVAL_PERF_LOG(perfTestExtractTest, "ExtractTest", NUM_LOOPS_PERF_TEST);
     // LOG_I(MODULE_PREFIX, "Loop100Ms %fms", perfTestExtractTestUs/1000.0);
 }

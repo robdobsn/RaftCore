@@ -131,5 +131,4 @@ private:
 
     // Stats on calls to getStrFromNVS
     mutable uint32_t _statsCallsToGetNVStr = 0;
-
 };

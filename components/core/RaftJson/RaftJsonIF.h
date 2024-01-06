@@ -104,6 +104,13 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set chained RaftJson object
+    /// @param pChainedRaftJson chained RaftJson object (may be null if chaining is to be disabled)
+    virtual void setChainedRaftJson(const RaftJsonIF* pChainedRaftJson)
+    {
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Register a callback for JSON change - used by RaftJsonIF implementations that support
     ///        changes to the JSON document
     /// @param jsonChangeCallback the callback to be called when the JSON document changes
@@ -126,7 +133,7 @@ public:
     /// @brief Locate an element in a JSON document using a path
     /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @return the position of the element or nullptr if not found
-    virtual const char* locateElementByPath(const char* pPath)
+    virtual const char* locateElementByPath(const char* pPath) const
     {
         return nullptr;
     }

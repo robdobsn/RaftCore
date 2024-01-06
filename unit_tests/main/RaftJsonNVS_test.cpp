@@ -10,8 +10,10 @@
 #include "Logger.h"
 #include "RaftJsonNVS.h"
 #include "RaftArduino.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-static const char* MODULE_PREFIX = "RaftJsonNVS_unit_test";
+// static const char* MODULE_PREFIX = "RaftJsonNVS_unit_test";
 
 // static bool testGetString(const char* dataPath, const char* expectedStr, const char* pSourceStr)
 // {
@@ -322,13 +324,13 @@ const char* testJsonDoc =
 
 static void save_config_and_reset(void)
 {
-    printf("Writing JSON into NVS\n")
+    printf("Writing JSON into NVS\n");
     // Create RaftJsonNVS
     RaftJsonNVS raftJsonNVS("test", 10000);
 
     // Set the JSON
     // This should write to NVS
-    raftJsonNVS.setNewContent(testJsonDoc);
+    raftJsonNVS.setJsonDoc(testJsonDoc);
 
     printf("Restarting\n");
     vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -346,9 +348,19 @@ static void check_nvs_contents(void)
 
     // Compare JSON with expected
     String jsonStr = raftJsonNVS.getJsonDoc();
-
-    printf("Found %" PRIu32 " memory errors\n", error_count);
-    TEST_ASSERT(error_count == 0);
+    bool match = false;
+    if (jsonStr.equals(testJsonDoc))
+    {
+        printf("JSON matches\n");
+        match = true;
+    }
+    else
+    {
+        printf("JSON does not match\n");
+        printf("Expected:\n%s\n", testJsonDoc);
+        printf("Actual:\n%s\n", jsonStr.c_str());
+    }
+    TEST_ASSERT(match);
 }
 
-TEST_CASE_MULTIPLE_STAGES("Spiram test noinit memory", "[psram][ld]", save_config_and_reset, check_nvs_contents);
+TEST_CASE_MULTIPLE_STAGES("RaftJsonNVS test", "[jsonnvs]", save_config_and_reset, check_nvs_contents);

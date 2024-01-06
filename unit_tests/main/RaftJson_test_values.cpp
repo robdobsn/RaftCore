@@ -22,7 +22,7 @@ static const char* MODULE_PREFIX = "RaftJsonValuesTest";
 static bool testGetString(const char* pSourceStr, const char* pDataPath, const char* expStr)
 {
     String val = RaftJson::getString(pSourceStr, pDataPath, "");
-    LOG_I(MODULE_PREFIX, "testGetString dataPath %s val %s", pDataPath, val.c_str());
+    // LOG_I(MODULE_PREFIX, "testGetString dataPath %s val %s", pDataPath, val.c_str());
     if (!val.equals(expStr))
     {
         LOG_I(MODULE_PREFIX, "testGetString failed expected %s != %s", expStr, val.c_str());
@@ -38,19 +38,19 @@ static bool testGetArrayElems(const char* pSourceStr, const char* pDataPath, con
     // LOG_I(MODULE_PREFIX, "testGetArrayElems pDataPath %s got len %d", pDataPath, arrayElems.size());
     if (!isValid)
     {
-        LOG_I(MODULE_PREFIX, "testGetArrayElems failed");
+        LOG_W(MODULE_PREFIX, "testGetArrayElems failed");
         return false;
     }
     if (numStrs != arrayElems.size())
     {
-        LOG_I(MODULE_PREFIX, "testGetArrayElems failed expected len %d != %d", numStrs, arrayElems.size());
+        LOG_W(MODULE_PREFIX, "testGetArrayElems failed expected len %d != %d", numStrs, arrayElems.size());
         return false;
     }
     for (int i = 0; i < numStrs; i++)
     {
         if (!arrayElems[i].equals(expStrs[i]))
         {
-            LOG_I(MODULE_PREFIX, "testGetArrayElems failed idx %d expected %s != %s", i, expStrs[i], arrayElems[i].c_str());
+            LOG_W(MODULE_PREFIX, "testGetArrayElems failed idx %d expected %s != %s", i, expStrs[i], arrayElems[i].c_str());
             return false;
         }
     }
@@ -64,19 +64,19 @@ static bool testGetObjectKeys(const char* pSourceStr, const char* pDataPath, con
     // LOG_I(MODULE_PREFIX, "testGetObjectKeys pDataPath %s got len %d", pDataPath, objectKeys.size());
     if (!isValid)
     {
-        LOG_I(MODULE_PREFIX, "testGetObjectKeys failed");
+        LOG_W(MODULE_PREFIX, "testGetObjectKeys failed");
         return false;
     }
     if (numStrs != objectKeys.size())
     {
-        LOG_I(MODULE_PREFIX, "testGetObjectKeys failed expected len %d != %d (dataPath %s)", numStrs, objectKeys.size(), pDataPath);
+        LOG_W(MODULE_PREFIX, "testGetObjectKeys failed expected len %d != %d (dataPath %s)", numStrs, objectKeys.size(), pDataPath);
         return false;
     }
     for (int i = 0; i < numStrs; i++)
     {
         if (!objectKeys[i].equals(expStrs[i]))
         {
-            LOG_I(MODULE_PREFIX, "testGetObjectKeys failed idx %d expected %s != %s", i, expStrs[i], objectKeys[i].c_str());
+            LOG_W(MODULE_PREFIX, "testGetObjectKeys failed idx %d expected %s != %s", i, expStrs[i], objectKeys[i].c_str());
             return false;
         }
     }
@@ -87,15 +87,15 @@ static bool testObjectType(const char* pSourceStr, const char* pDataPath, RaftJs
 {
     int arrayLen = 0;
     RaftJson::RaftJsonType objType = RaftJson::getType(pSourceStr, pDataPath, arrayLen);
-    LOG_I(MODULE_PREFIX, "testObjectType pDataPath %s got type %s arrayLen %d", pDataPath, RaftJson::getElemTypeStr(objType), arrayLen);
+    // LOG_I(MODULE_PREFIX, "testObjectType pDataPath %s got type %s arrayLen %d", pDataPath, RaftJson::getElemTypeStr(objType), arrayLen);
     if (objType != expType)
     {
-        LOG_I(MODULE_PREFIX, "testObjectType failed expected type %d != %d", expType, objType);
+        LOG_W(MODULE_PREFIX, "testObjectType failed expected type %d != %d", expType, objType);
         return false;
     }
     if ((objType == RaftJson::RAFT_JSON_ARRAY) && (expArrayLen != arrayLen))
     {
-        LOG_I(MODULE_PREFIX, "testObjectType failed expected arrayLen %d != %d", expArrayLen, arrayLen);
+        LOG_W(MODULE_PREFIX, "testObjectType failed expected arrayLen %d != %d", expArrayLen, arrayLen);
         return false;
     }
     return true;

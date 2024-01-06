@@ -9,12 +9,13 @@
 
 #include "RaftJsonNVS.h"
 
-static const char *MODULE_PREFIX = MODULE_PREFIX;
+static const char *MODULE_PREFIX = "RaftJsonNVS";
 
-// #define WARN_ON_NVS_JSON_DOC_TOO_SHORT
-// #define WARN_ON_NVS_JSON_DOC_TOO_LONG
-// #define WARN_ON_NVS_ACCESS_FAILURES
-// #define DEBUG_NVS_CONFIG_READ_WRITE
+#define WARN_ON_NVS_JSON_DOC_TOO_SHORT
+#define WARN_ON_NVS_JSON_DOC_TOO_LONG
+#define WARN_ON_NVS_ACCESS_FAILURES
+#define DEBUG_NVS_READ_WRITE_OPERATIONS
+// #define WARN_ON_NVS_NAMESPACE_NOT_FOUND_FAILURES
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set new contents for the JSON document
@@ -47,30 +48,33 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     // Write the value to NVS
     uint32_t nvsHandle = 0;
     esp_err_t err = nvs_open(_nvsNamespace.c_str(), NVS_READWRITE, &nvsHandle);
-    if (err)
+    if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_open FAIL ns %s error %s", _nvsNamespace.c_str(), nvs_error(err));
+        LOG_W(MODULE_PREFIX, "nvs_open FAIL ns %s error %s", 
+                        _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         return false;
     }
 
     // Set the new string into the NVS handle
     err = nvs_set_str(nvsHandle, KEY_NAME_FOR_JSON_DOC, pJsonDoc);
-    if (err)
+    if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_set_str FAIL ns %s error %s", _nvsNamespace.c_str(), nvs_error(err));
+        LOG_W(MODULE_PREFIX, "nvs_set_str FAIL ns %s error %d", 
+                        _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         return false;
     }
 
     // Commit
     err = nvs_commit(nvsHandle);
-    if (err)
+    if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_E(MODULE_PREFIX, "nvs_commit FAIL ns %s error %s", _nvsNamespace.c_str(), nvs_error(err));
+        LOG_E(MODULE_PREFIX, "nvs_commit FAIL ns %s error %s", 
+                        _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         return false;
     }
@@ -87,8 +91,8 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
         }
     }
 
-#ifdef DEBUG_NVS_CONFIG_READ_WRITE
-    LOG_W(MODULE_PREFIX, "setNewContent OK namespace %s len %d maxlen %d",
+#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
+    LOG_I(MODULE_PREFIX, "setNewContent OK namespace %s len %d maxlen %d",
                 _nvsNamespace.c_str(), jsonDocStrLen, _jsonMaxlen);
 #endif
 
@@ -104,10 +108,11 @@ void RaftJsonNVS::readJsonDocFromNVS()
     // Open NVS
     uint32_t nvsHandle = 0;
     esp_err_t err = nvs_open(_nvsNamespace.c_str(), NVS_READONLY, &nvsHandle);
-    if (err)
+    if (err != ESP_OK)
     {
-#ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_open FAIL ns %s %s", _nvsNamespace.c_str(), nvs_error(err));
+#ifdef WARN_ON_NVS_NAMESPACE_NOT_FOUND_FAILURES
+        LOG_W(MODULE_PREFIX, "nvs_open FAIL ns %s error %s", 
+                        _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         return;
     }
@@ -118,11 +123,11 @@ void RaftJsonNVS::readJsonDocFromNVS()
     // Call nvs_get_str twice, first to get length
     size_t stringLen = 0;
     err = nvs_get_str(nvsHandle, KEY_NAME_FOR_JSON_DOC, nullptr, &stringLen);
-    if (err)
+    if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
         LOG_W(MODULE_PREFIX, "nvs_get_str len FAILED ns %s error %s", 
-                    _nvsNamespace.c_str(), nvs_error(err));
+                        _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         nvs_close(nvsHandle);
         return;
@@ -132,11 +137,11 @@ void RaftJsonNVS::readJsonDocFromNVS()
     jsonDoc.resize(stringLen);
     stringLen = jsonDoc.size();
     err = nvs_get_str(nvsHandle, KEY_NAME_FOR_JSON_DOC, jsonDoc.data(), &stringLen);
-    if (err)
+    if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
         LOG_W(MODULE_PREFIX, "nvs_get_str data FAILED ns %s error %s", 
-                    _nvsNamespace.c_str(), nvs_error(err));
+                        _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         nvs_close(nvsHandle);
         return;
@@ -151,9 +156,9 @@ void RaftJsonNVS::readJsonDocFromNVS()
     // Stats
     _statsCallsToGetNVStr++;
 
-#ifdef DEBUG_NVS_CONFIG_READ_WRITE
+#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
     // Debug
-    LOG_W(MODULE_PREFIX, "getStrFromNVS OK ns %s len %d maxlen %d statsCallsToGetNVStr %d", 
+    LOG_I(MODULE_PREFIX, "getStrFromNVS OK ns %s len %d maxlen %d statsCallsToGetNVStr %d", 
                 _nvsNamespace.c_str(), jsonDoc.size(), _jsonMaxlen, _statsCallsToGetNVStr);
 #endif
 }
@@ -181,7 +186,7 @@ void RaftJsonNVS::setJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
     }
 
     // Check if the string is too long
-    if (jsonDocStrLen > _jsonMaxlen)
+    if ((_jsonMaxlen != 0) && (jsonDocStrLen > _jsonMaxlen))
     {
 #ifdef WARN_ON_NVS_JSON_DOC_TOO_SHORT
         LOG_W(MODULE_PREFIX, "setJsonDocFromNVS TOO_LONG namespace %s read: len(%d) maxlen %d", 
