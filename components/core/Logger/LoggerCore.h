@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <stdio.h>
 #include <vector>
 #include "Logger.h"
 #include "LoggerBase.h"

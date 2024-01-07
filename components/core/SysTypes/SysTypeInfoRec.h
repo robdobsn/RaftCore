@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "RaftArduino.h"
+
 class SysTypeInfoRec
 {
 public:

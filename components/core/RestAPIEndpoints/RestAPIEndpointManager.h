@@ -10,8 +10,8 @@
 #pragma once
 #include <vector>
 #include <functional>
-#include <RaftArduino.h>
-#include <RaftJson.h>
+#include "RaftArduino.h"
+#include "RaftJson.h"
 #include "RestAPIEndpoint.h"
 
 // Collection of endpoints

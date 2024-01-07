@@ -7,9 +7,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <cstring>
+#include <string.h>
 #include <cstddef>
-#include <cstdlib>
+#include <stdlib.h>
 #include "ConfigPinMap.h"
 #include "RaftJsonIF.h"
 #include "Logger.h"

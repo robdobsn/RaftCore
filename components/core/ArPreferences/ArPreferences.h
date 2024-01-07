@@ -14,7 +14,7 @@
 #ifndef _AR_PREFERENCES_H_
 #define _AR_PREFERENCES_H_
 
-#include <cmath>
+#include <math.h>
 #include "RaftArduino.h"
 
 class ArPreferences {

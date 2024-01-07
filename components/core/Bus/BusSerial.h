@@ -25,7 +25,7 @@ public:
     virtual ~BusSerial();
 
     // Setup
-    virtual bool setup(RaftJsonIF& config, const char* pConfigPrefix) override final;
+    virtual bool setup(const RaftJsonIF& config) override final;
 
     // Service
     virtual void service() override final;

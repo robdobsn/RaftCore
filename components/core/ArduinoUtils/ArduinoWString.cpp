@@ -23,7 +23,7 @@
 
 #ifndef ARDUINO
 
-#include <cstdio>
+#include <stdio.h>
 #include <stdlib.h>
 #include "ArduinoWString.h"
 #include "ArduinoStdlibNonISO.h"

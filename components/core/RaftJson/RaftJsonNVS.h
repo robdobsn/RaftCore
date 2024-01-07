@@ -66,49 +66,6 @@ public:
         return _jsonMaxlen;
     }
 
-
-//     // Set the config data from a static source - note that only the
-//     // pointer is stored so this data MUST be statically allocated
-//     void setStaticConfigData(const char* pStaticJSONConfigStr)
-//     {
-//         _staticConfigData.pDataStrJSONStatic = pStaticJSONConfigStr;
-// #ifdef FEATURE_NO_CACHE_FLASH_CONFIG_STR
-//         _staticConfigData.enableCaching = false;
-// #endif
-//     }
-
-//     // Get config raw string
-//     virtual String getConfigString() const override final
-//     {
-//         // If the non-volatile store is not valid then return the static config
-//         if (!_nonVolatileStoreValid && _staticConfigData.pDataStrJSONStatic)
-//             return _staticConfigData.pDataStrJSONStatic;
-//         return ConfigBase::getConfigString();
-//     }
-
-//     // Get persisted config
-//     String getPersistedConfig() const
-//     {
-//         if (_nonVolatileStoreValid)
-//             if (ConfigBase::getConfigString().length() > 0)
-//                 return ConfigBase::getConfigString();
-//         return "{}";
-//     }
-
-//     // Get static config
-//     String getStaticConfig() const
-//     {
-//         if (_staticConfigData.pDataStrJSONStatic)
-//             return _staticConfigData.pDataStrJSONStatic;
-//         return "{}";
-//     }
-
-    // // Clear
-    // virtual void clear() override final;
-
-    // // Initialise
-    // virtual bool setup() override final;
-
 private:
     // Key name in NVS
     const char* KEY_NAME_FOR_JSON_DOC = "JSON";

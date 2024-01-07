@@ -6,8 +6,8 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <esp_err.h>
-#include <driver/uart.h>
+#include "esp_err.h"
+#include "driver/uart.h"
 #include "Logger.h"
 #include "BusSerial.h"
 #include "BusRequestInfo.h"
@@ -50,26 +50,23 @@ BusSerial::~BusSerial()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool BusSerial::setup(RaftJsonIF& config, const char* pConfigPrefix)
+bool BusSerial::setup(const RaftJsonIF& config)
 {
     // Check if already configured
     if (_isInitialised)
         return false;
 
-    // Create a prefixed config
-    RaftJsonPrefixed configPrefixed(config, pConfigPrefix);
-
     // Get bus details
-    _uartNum = configPrefixed.getLong("uartNum", 0);
-    String pinName = configPrefixed.getString("rxPin", "");
+    _uartNum = config.getLong("uartNum", 0);
+    String pinName = config.getString("rxPin", "");
     _rxPin = ConfigPinMap::getPinFromName(pinName.c_str());
-    pinName = configPrefixed.getString("txPin", "");
+    pinName = config.getString("txPin", "");
     _txPin = ConfigPinMap::getPinFromName(pinName.c_str());
-    _baudRate = configPrefixed.getLong("baudRate", BAUD_RATE_DEFAULT);
-    _busName = configPrefixed.getString("name", "");
-    _rxBufSize = configPrefixed.getLong("rxBufSize", RX_BUF_SIZE_DEFAULT);
-    _txBufSize = configPrefixed.getLong("txBufSize", TX_BUF_SIZE_DEFAULT);
-    _minTimeBetweenSendsMs = configPrefixed.getLong("minAfterSendMs", 0);
+    _baudRate = config.getLong("baudRate", BAUD_RATE_DEFAULT);
+    _busName = config.getString("name", "");
+    _rxBufSize = config.getLong("rxBufSize", RX_BUF_SIZE_DEFAULT);
+    _txBufSize = config.getLong("txBufSize", TX_BUF_SIZE_DEFAULT);
+    _minTimeBetweenSendsMs = config.getLong("minAfterSendMs", 0);
 
     // Check valid
     if ((_rxPin < 0) || (_txPin < 0))

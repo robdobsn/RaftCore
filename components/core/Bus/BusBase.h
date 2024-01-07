@@ -34,7 +34,7 @@ public:
     }
 
     // Setup
-    virtual bool setup(RaftJsonIF& config, const char* pConfigPrefix)
+    virtual bool setup(const RaftJsonIF& config)
     {
         return false;
     }

@@ -99,7 +99,6 @@ idf_component_register(
     "components/core/ArduinoUtils"
     "components/core/ArPreferences"
     "components/core/Bus"
-    "components/core/Config"
     "components/core/ConfigPinMap"
     "components/core/DataCollection"
     "components/core/DebounceButton"
