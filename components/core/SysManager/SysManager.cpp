@@ -236,8 +236,12 @@ void SysManager::service()
     if (_monitorTimerStarted)
     {
         // Check if monitor period is up
-        if (Raft::isTimeout(millis(), _monitorTimerMs, _monitorPeriodMs))
+        if (Raft::isTimeout(millis(), _monitorTimerMs, _monitorPeriodMs) || !_monitorShownFirstTime)
         {
+            // Wait until next period
+            _monitorTimerMs = millis();
+            _monitorShownFirstTime = true;
+            
             // Calculate supervisory stats
             _supervisorStats.calculate();
 
@@ -246,9 +250,6 @@ void SysManager::service()
 
             // Clear stats for start of next monitor period
             _supervisorStats.clear();
-
-            // Wait until next period
-            _monitorTimerMs = millis();
         }
     }
     else

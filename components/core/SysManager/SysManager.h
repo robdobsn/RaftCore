@@ -210,6 +210,7 @@ private:
     unsigned long _monitorPeriodMs = 0;
     unsigned long _monitorTimerMs = 0;
     bool _monitorTimerStarted = false;
+    bool _monitorShownFirstTime = false;
     std::vector<String> _monitorReportList;
 
     // Stats available callback
