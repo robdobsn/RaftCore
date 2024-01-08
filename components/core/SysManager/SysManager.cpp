@@ -236,7 +236,8 @@ void SysManager::service()
     if (_monitorTimerStarted)
     {
         // Check if monitor period is up
-        if (Raft::isTimeout(millis(), _monitorTimerMs, _monitorPeriodMs) || !_monitorShownFirstTime)
+        if (Raft::isTimeout(millis(), _monitorTimerMs, 
+                            _monitorShownFirstTime ? _monitorPeriodMs :MONITOR_PERIOD_FIRST_SHOW_MS))
         {
             // Wait until next period
             _monitorTimerMs = millis();
