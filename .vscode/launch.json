@@ -41,10 +41,10 @@
             ]
         },
         {
-            "name": "(gdb) Launch",
+            "name": "(gdb) Linux unit tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/linux_unit_tests/a.out",
+            "program": "${workspaceFolder}/linux_unit_tests/linux_unit_tests",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

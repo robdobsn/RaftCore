@@ -86,9 +86,9 @@ TEST_CASE("test_json_large", "[jsonperf]")
     int raftJsonSafetiesMaxMs = 0;
     for (int i = 0; i < NUM_LOOPS_PERF_TEST; i++)
     {
-        raftJsonQMaxLen += RaftJson::getLong(JSON_test_data_large, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", -1);
-        raftJsonMonitorPeriodMs += RaftJson::getLong(JSON_test_data_large, "[0]/SysManager/monitorPeriodMs", -1);
-        raftJsonSafetiesMaxMs += RaftJson::getLong(JSON_test_data_large, "[0]/Robot/Safeties/maxMs", -1);
+        raftJsonQMaxLen += RaftJson::getLongIm(JSON_test_data_large, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", -1);
+        raftJsonMonitorPeriodMs += RaftJson::getLongIm(JSON_test_data_large, "[0]/SysManager/monitorPeriodMs", -1);
+        raftJsonSafetiesMaxMs += RaftJson::getLongIm(JSON_test_data_large, "[0]/Robot/Safeties/maxMs", -1);
     }
     EVAL_PERF_END(raftJsonDirectGetInt);
     TEST_ASSERT_MESSAGE(raftJsonQMaxLen == EXPECTED_WORK_Q_MAX_LEN * NUM_LOOPS_PERF_TEST, "RaftJson failed to extract element");

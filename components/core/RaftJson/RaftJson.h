@@ -109,7 +109,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual String getString(const char* pDataPath, const char* defaultValue) const override
     {
-        return getString(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getStringIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +119,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual double getDouble(const char* pDataPath, double defaultValue) const override
     {
-        return getDouble(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getDoubleIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +129,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual long getLong(const char* pDataPath, long defaultValue) const override
     {
-        return getLong(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getLongIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +139,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual bool getBool(const char* pDataPath, bool defaultValue) const override
     {
-        return getBool(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getBoolIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -149,7 +149,7 @@ public:
     /// @return true if the array was found
     virtual bool getArrayElems(const char *pDataPath, std::vector<String>& strList) const override
     {
-        return getArrayElems(_pSourceStr, pDataPath, strList, _pChainedRaftJson);
+        return getArrayElemsIm(_pSourceStr, pDataPath, strList, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -159,7 +159,7 @@ public:
     /// @return true if the object was found
     virtual bool getKeys(const char *pDataPath, std::vector<String>& keysVector) const override
     {
-        return getKeys(_pSourceStr, pDataPath, keysVector, _pChainedRaftJson);
+        return getKeysIm(_pSourceStr, pDataPath, keysVector, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -169,7 +169,7 @@ public:
     virtual bool contains(const char* pDataPath) const override
     {
         int arrayLen = 0;
-        RaftJsonType elemType = getType(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
+        RaftJsonType elemType = getTypeIm(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
         return elemType != RAFT_JSON_UNDEFINED;
     }
 
@@ -180,7 +180,7 @@ public:
     /// @return the type of the element
     virtual RaftJsonType getType(const char* pDataPath, int &arrayLen) const override
     {
-        return getType(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
+        return getTypeIm(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -188,13 +188,13 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief gets a string from a JSON document
+    /// @brief gets a string from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static String getString(const char* pJsonDoc,
+    static String getStringIm(const char* pJsonDoc,
             const char* pDataPath, const char* defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
@@ -215,13 +215,13 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief gets a double from a JSON document
+    /// @brief gets a double from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static double getDouble(const char* pJsonDoc,
+    static double getDoubleIm(const char* pJsonDoc,
             const char* pDataPath, double defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
@@ -231,25 +231,27 @@ public:
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
-        // Check if it's a boolean
+        // Check if it's a boolean or null
         int retValue = 0;
-        if (RaftJson::isBoolean(pJsonDocPos, retValue))
+        if (RaftJson::isBooleanIm(pJsonDocPos, retValue))
             return retValue;
+        if (RaftJson::isNullIm(pJsonDocPos))
+            return defaultValue;
         // Check for a string value - if so skip quotes
-        if (*pJsonDocPos == '"')
+        if ((*pJsonDocPos == '"') && RAFT_JSON_TREAT_STRINGS_AS_NUMBERS)
             pJsonDocPos++;
         // Convert to double
         return strtod(pJsonDocPos, NULL);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief gets a long from a JSON document
+    /// @brief gets a long from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static long getLong(const char* pJsonDoc,
+    static long getLongIm(const char* pJsonDoc,
             const char* pDataPath, long defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
@@ -259,40 +261,42 @@ public:
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
-        // Check if it's a boolean
+        // Check if it's a boolean or null
         int retValue = 0;
-        if (RaftJson::isBoolean(pJsonDocPos, retValue))
+        if (RaftJson::isBooleanIm(pJsonDocPos, retValue))
             return retValue;
+        if (RaftJson::isNullIm(pJsonDocPos))
+            return defaultValue;
         // Check for a string value - if so skip quotes
-        if (*pJsonDocPos == '"')
+        if ((*pJsonDocPos == '"') && RAFT_JSON_TREAT_STRINGS_AS_NUMBERS)
             pJsonDocPos++;
         // Convert to long
         return strtol(pJsonDocPos, NULL, 0);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief gets a boolean from a JSON document
+    /// @brief gets a boolean from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static bool getBool(const char* pJsonDoc, 
+    static bool getBoolIm(const char* pJsonDoc, 
             const char* pDataPath, bool defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Use long method to get value
-        return RaftJson::getLong(pJsonDoc, pDataPath, defaultValue, pChainedRaftJson) != 0;
+        return RaftJson::getLongIm(pJsonDoc, pDataPath, defaultValue, pChainedRaftJson) != 0;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief gets the elements of an array from the JSON document
+    /// @brief gets the elements of an array from the JSON (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required array in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param strList a vector which is filled with the array elements
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return true if the array was found
-    static bool getArrayElems(const char* pJsonDoc,
+    static bool getArrayElemsIm(const char* pJsonDoc,
             const char *pDataPath, std::vector<String>& strList,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
@@ -332,13 +336,13 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief gets the keys of an object from the JSON document
+    /// @brief gets the keys of an object from the JSON (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param keysVector a vector which is filled with the keys
     /// @param pChainRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return true if the object was found
-    static bool getKeys(const char* pJsonDoc,
+    static bool getKeysIm(const char* pJsonDoc,
             const char *pDataPath, std::vector<String>& keysVector,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
@@ -381,11 +385,11 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Check if element at the current position in a JSON document is a boolean value
+    /// @brief Check if element at the current position in a JSON document is a boolean value (static)
     /// @param pJsonDocPos the current position in the JSON document
     /// @param retValue the value of the boolean
     /// @return true if the element is a boolean
-    static bool isBoolean(const char* pJsonDocPos, int &retValue)
+    static bool isBooleanIm(const char* pJsonDocPos, int &retValue)
     {
         if (!pJsonDocPos)
             return false;
@@ -403,13 +407,28 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if element at the current position in a JSON document is a null value (static)
+    /// @param pJsonDocPos the current position in the JSON document
+    /// @return true if the element is a null
+    static bool isNullIm(const char* pJsonDocPos)
+    {
+        if (!pJsonDocPos)
+            return false;
+        if (strncmp(pJsonDocPos, "null", 4) == 0)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get type of element from a JSON document at the specified path
     /// @param pJsonDoc the JSON document (string)
     /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param arrayLen the length of the array if the element is an array
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the type of the element
-    static RaftJsonType getType(const char* pJsonDoc,
+    static RaftJsonType getTypeIm(const char* pJsonDoc,
             const char* pDataPath, int &arrayLen,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
@@ -453,14 +472,14 @@ public:
             return RAFT_JSON_STRING;
         // Check if it's a boolean
         int retValue = 0;
-        if (RaftJson::isBoolean(pJsonDocPos, retValue))
+        if (RaftJson::isBooleanIm(pJsonDocPos, retValue))
             return RAFT_JSON_BOOLEAN;
+        // Check for null
+        if (RaftJson::isNullIm(pJsonDocPos))
+            return RAFT_JSON_NULL;
         // Check if it's a number
         if ((*pJsonDocPos >= '0') && (*pJsonDocPos <= '9'))
             return RAFT_JSON_NUMBER;
-        // Check if it's null
-        if (strncmp(pJsonDocPos, "null", 4) == 0)
-            return RAFT_JSON_NULL;
         // Must be undefined
         return RAFT_JSON_UNDEFINED;
     }
@@ -587,6 +606,10 @@ public:
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Treat strings as numbers
+    static bool RAFT_JSON_TREAT_STRINGS_AS_NUMBERS;
+
 protected:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a path
@@ -631,72 +654,7 @@ private:
     /// @param pElemStart [out] the start of the element
     /// @param pElemEnd [out] the end of the element
     /// @return a position in the document after the end of the element or nullptr if not found
-    static const char* locateElementBounds(const char* pJsonDocPos, const char*& pElemStart, const char*& pElemEnd)
-    {
-        // Skip whitespace, commas and colons
-        while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',') || (*pJsonDocPos == ':')))
-            pJsonDocPos++;
-        if (!*pJsonDocPos)
-            return nullptr;
-        pElemStart = pJsonDocPos;
-            
-        // Check for kind of element
-        if ((*pJsonDocPos == '{') || (*pJsonDocPos == '['))
-        {
-            // Find end of object
-            char braceChar = *pJsonDocPos;
-            int numBraces = 1;
-            pJsonDocPos++;
-            // Skip to end of object
-            bool insideString = false;
-            while (*pJsonDocPos && (numBraces > 0))
-            {
-                if (*pJsonDocPos == '"')
-                    insideString = !insideString;
-                if (!insideString)
-                {
-                    if (*pJsonDocPos == braceChar)
-                        numBraces++;
-                    else if (*pJsonDocPos == ((braceChar == '{') ? '}' : ']'))
-                        numBraces--;
-                }
-                pJsonDocPos++;
-            }
-            if (!*pJsonDocPos)
-                return nullptr;
-            pElemEnd = pJsonDocPos;
-            // Skip whitespace and commas
-            while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
-                pJsonDocPos++;
-            return pJsonDocPos;
-        }
-        else if (*pJsonDocPos == '"')
-        {
-            // Find end of string
-            pJsonDocPos++;
-            while (*pJsonDocPos && (*pJsonDocPos != '"'))
-                pJsonDocPos++;
-            if (!*pJsonDocPos)
-                return nullptr;
-            pElemEnd = pJsonDocPos;
-            pJsonDocPos++;
-            // Skip whitespace and commas
-            while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
-                pJsonDocPos++;
-            return pJsonDocPos;
-        }
-        else
-        {
-            // Find end of element
-            while (*pJsonDocPos && (*pJsonDocPos > ' ') && (*pJsonDocPos != ',') && (*pJsonDocPos != '}') && (*pJsonDocPos != ']'))
-                pJsonDocPos++;
-            pElemEnd = pJsonDocPos;
-            // Skip whitespace and commas
-            while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
-                pJsonDocPos++;
-            return pJsonDocPos;
-        }
-    }
+    static const char* locateElementBounds(const char* pJsonDocPos, const char*& pElemStart, const char*& pElemEnd);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a single key (part of a path)
@@ -705,118 +663,7 @@ private:
     /// @note The key can be empty in which case the entire object is returned
     /// @note The key can be an array index (e.g. "[0]") in which case the value at that index is returned if the element is an array
     /// @note The key can be a string in which case the value for that key is returned if the element is an object
-    static const char* locateElementValueWithKey(const char* pJsonDocPos,
-                const char*& pReqdKey)
-    {
-        // Check valid
-        if (!pJsonDocPos)
-            return nullptr;
-
-        // If key is empty return the entire element
-        if (!pReqdKey || !*pReqdKey || (*pReqdKey == '/'))
-        {
-            // Skip any whitespace
-            while (*pJsonDocPos && (*pJsonDocPos <= ' '))
-                pJsonDocPos++;
-            // Move key position to next part of path
-            if (pReqdKey && (*pReqdKey == '/'))
-                pReqdKey++;
-            return pJsonDocPos;
-        }
-
-        // Skip any whitespace
-        while (*pJsonDocPos && (*pJsonDocPos <= ' '))
-            pJsonDocPos++;
-        if ((*pJsonDocPos != '{') && (*pJsonDocPos != '['))
-            return nullptr;
-
-        // Check for the type of element - object or array
-        const char* pReqdKeyStart = pReqdKey;
-        const char* pReqdKeyEnd = nullptr;
-        bool isObject = true;
-        uint32_t arrayIdx = 0;
-        uint32_t elemCount = 0;
-        if (*pJsonDocPos == '[')
-        {
-            isObject = false;
-            // Check the key is an array index
-            if (*pReqdKey != '[')
-                return nullptr;
-            pReqdKey++;
-            // Extract array index from key
-            arrayIdx = atoi(pReqdKey);
-            // Move key position to next part of path
-            while (*pReqdKey && (*pReqdKey != '/'))
-                pReqdKey++;
-        }
-        else
-        {
-            // Find the end of this part of the key path
-            while (*pReqdKey && (*pReqdKey != '/') && (*pReqdKey != '['))
-                pReqdKey++;
-            pReqdKeyEnd = pReqdKey;
-        }
-        // Move past the used part of the key path
-        if (*pReqdKey == '/')
-            pReqdKey++;
-
-        // Move into the object or array
-        pJsonDocPos++;
-
-        // Skip over elements until we get to the one we want
-        const char* pKeyStart = pJsonDocPos;
-        const char* pKeyEnd = nullptr;
-        while (*pJsonDocPos)
-        {
-            // Check for object - in which case what comes first is the key
-            if (isObject)
-            {
-                // Skip to start of key
-                while (*pJsonDocPos && (*pJsonDocPos != '"'))
-                    pJsonDocPos++;
-                if (!*pJsonDocPos)
-                    return nullptr;
-                // Extract key string
-                pJsonDocPos = locateStringElement(pJsonDocPos, pKeyStart, pKeyEnd, false);
-                if (!pJsonDocPos)
-                    return nullptr;
-                // Skip over any whitespace and colons
-                while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ':')))
-                    pJsonDocPos++;
-                if (!*pJsonDocPos)
-                    return nullptr;
-                // Check for longer of key and path part
-                uint32_t keyLen = (pKeyEnd - pKeyStart) > (pReqdKeyEnd - pReqdKeyStart) ? (pKeyEnd - pKeyStart) : (pReqdKeyEnd - pReqdKeyStart);
-                if (strncmp(pKeyStart, pReqdKeyStart, keyLen) == 0)
-                    return pJsonDocPos;
-                // Skip whitespace
-                while (*pJsonDocPos && (*pJsonDocPos <= ' '))
-                    pJsonDocPos++;
-                // Check for end of object
-                if (*pJsonDocPos == '}')
-                    return nullptr;
-            }
-            else
-            {
-                if (arrayIdx == elemCount)
-                    return pJsonDocPos;
-                elemCount++;
-                // Skip whitespace
-                while (*pJsonDocPos && (*pJsonDocPos <= ' '))
-                    pJsonDocPos++;
-                // Check for end of array
-                if (*pJsonDocPos == ']')
-                    return nullptr;
-            }
-            // Skip to end of element
-            const char* pElemEnd = nullptr;
-            const char* pElemStart = nullptr;
-            pJsonDocPos = locateElementBounds(pJsonDocPos, pElemStart, pElemEnd);
-            if (!pJsonDocPos)
-                return nullptr;
-        }
-        return nullptr;
-    }
+    static const char* locateElementValueWithKey(const char* pJsonDocPos, const char*& pReqdKey);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a path

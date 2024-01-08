@@ -6,11 +6,11 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <cmath>
+#include <math.h>
 #include <limits.h>
 #include "unity.h"
-#include <ExpressionEval.h>
-#include <Logger.h>
+#include "ExpressionEval.h"
+#include "Logger.h"
 
 // #define DEBUG_EXPRESSIONS
 

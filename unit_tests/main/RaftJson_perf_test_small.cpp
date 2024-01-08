@@ -85,9 +85,9 @@ TEST_CASE("test_json_small", "[jsonperf]")
     int raftJsonComarr = 0;
     for (int i = 0; i < NUM_LOOPS_PERF_TEST; i++)
     {
-        raftJsonConstsAxis += RaftJson::getLong(JSON_test_data_small, "consts/axis", -1);
-        raftJsonMinotaur += RaftJson::getLong(JSON_test_data_small, "consts/oxis/coo[3]/minotaur[2]", -1);
-        raftJsonComarr += RaftJson::getLong(JSON_test_data_small, "consts/comarr[4]", -1);
+        raftJsonConstsAxis += RaftJson::getLongIm(JSON_test_data_small, "consts/axis", -1);
+        raftJsonMinotaur += RaftJson::getLongIm(JSON_test_data_small, "consts/oxis/coo[3]/minotaur[2]", -1);
+        raftJsonComarr += RaftJson::getLongIm(JSON_test_data_small, "consts/comarr[4]", -1);
     }
     EVAL_PERF_END(raftJsonDirectGetInt);
     TEST_ASSERT_MESSAGE(raftJsonConstsAxis == EXPECTED_CONSTS_AXIS * NUM_LOOPS_PERF_TEST, "RaftJson failed to extract element");
