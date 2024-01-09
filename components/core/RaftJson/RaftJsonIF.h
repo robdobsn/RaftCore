@@ -29,36 +29,6 @@ public:
     virtual String getString(const char* pDataPath, const char* pDefaultValue) const = 0;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get string value using the member variable JSON document
-    /// @param dataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
-    /// @param pDefaultValue the default value to return if the variable is not found
-    /// @return the value of the variable or the default value if not found
-    virtual String getString(const String& dataPath, const char* pDefaultValue)
-    {
-        return getString(dataPath.c_str(), defaultValue);
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get string value using the member variable JSON document
-    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
-    /// @param defaultValue the default value to return if the variable is not found
-    /// @return the value of the variable or the default value if not found
-    virtual String getString(const char* pDataPath, const String& defaultValue)
-    {
-        return getString(pDataPath, defaultValue.c_str());
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get string value using the member variable JSON document
-    /// @param dataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
-    /// @param defaultValue the default value to return if the variable is not found
-    /// @return the value of the variable or the default value if not found
-    virtual String getString(const String& dataPath, const String& defaultValue)
-    {
-        return getString(dataPath.c_str(), defaultValue.c_str());
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get double value using the member variable JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
