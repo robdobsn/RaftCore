@@ -62,7 +62,7 @@ NetworkSystem networkSystem;
 // #define DEBUG_NETWORK_EVENTS
 // #define DEBUG_NETWORK_EVENTS_DETAIL
 
-#ifdef ETHERNET_HARDWARE_OLIMEX
+#ifdef FEATURE_ETHERNET_HARDWARE_OLIMEX
 #define ETHERNET_IS_SUPPORTED
 #define ETH_PHY_LAN87XX
 #endif
@@ -692,7 +692,7 @@ bool NetworkSystem::startEthernet()
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &networkEventHandler, nullptr, nullptr);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &networkEventHandler, nullptr, nullptr);
 
-#ifdef ETHERNET_HARDWARE_OLIMEX
+#ifdef FEATURE_ETHERNET_HARDWARE_OLIMEX
 
     // Debug
     LOG_I(MODULE_PREFIX, "startEthernet - Olimex hardware lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
