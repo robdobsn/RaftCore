@@ -19,6 +19,11 @@ public:
         _prefix(pPrefix ? pPrefix + String("/") : "")
     {
     }
+    RaftJsonPrefixed(const RaftJsonIF& raftJsonIF, const String& prefix) :
+        _raftJsonIF(raftJsonIF),
+        _prefix(prefix + String("/"))
+    {
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get string value using the member variable JSON document

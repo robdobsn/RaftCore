@@ -20,6 +20,7 @@
 #include "RestAPIEndpointManager.h"
 #include "RaftArduino.h"
 #include "CommsCoreIF.h"
+#include "RaftJsonNVS.h"
 
 typedef String (*SysManager_statsCB)();
 
@@ -225,6 +226,9 @@ private:
     unsigned long _systemRestartMs = 0;
     static const int SYSTEM_RESTART_DELAY_MS = 1000;
 
+    // Pause WiFi for BLE
+    bool _pauseWiFiForBLE = false;
+
     // System name and version
     String _systemName;
     String _systemVersion;
@@ -235,8 +239,8 @@ private:
     // System config
     RaftJsonIF& _systemConfig;
 
-    // Module config (for this module)
-    RaftJsonPrefixed _moduleConfig;
+    // Mutable (NVS) config (for this module)
+    RaftJsonNVS _mutableConfig;
 
     // Mutable config
     struct

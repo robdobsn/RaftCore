@@ -56,8 +56,11 @@ SysManager::SysManager(const char* pModuleName,
                 uint32_t serialLengthBytes, 
                 const String& serialMagicStr) :
                             _systemConfig(systemConfig),
-                            _moduleConfig(systemConfig, pModuleName)
+                            _mutableConfig(pModuleName)
 {
+    // Module name
+    _moduleName = pModuleName;
+
     // Set serial length and magic string
     _serialLengthBytes = serialLengthBytes;
     _serialMagicStr = serialMagicStr;
@@ -69,24 +72,24 @@ SysManager::SysManager(const char* pModuleName,
     _systemName = _systemConfig.getString("SystemName", pSystemHWName);
     _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
 
+    // System config for this module
+    RaftJsonPrefixed sysManConfig(_systemConfig, pModuleName);
+
     // System friendly name
-    _defaultFriendlyName = _moduleConfig.getString("DefaultName", pDefaultFriendlyName);
+    _defaultFriendlyName = sysManConfig.getString("DefaultName", pDefaultFriendlyName);
 
     // Prime the mutable config info
-    _mutableConfigCache.friendlyName = _moduleConfig.getString("friendlyName", "");
-    _mutableConfigCache.friendlyNameIsSet = _moduleConfig.getBool("nameSet", 0);
-    _mutableConfigCache.serialNo = _moduleConfig.getString("serialNo", "");
-
-    // Module name
-    _moduleName = pModuleName;
+    _mutableConfigCache.friendlyName = _mutableConfig.getString("friendlyName", "");
+    _mutableConfigCache.friendlyNameIsSet = _mutableConfig.getBool("nameSet", 0);
+    _mutableConfigCache.serialNo = _mutableConfig.getString("serialNo", "");
 
     // Slow SysMod threshold
-    _slowSysModThresholdUs = _moduleConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
+    _slowSysModThresholdUs = sysManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
 
     // Monitoring period and monitoring timer
-    _monitorPeriodMs = _moduleConfig.getLong("monitorPeriodMs", 10000);
+    _monitorPeriodMs = sysManConfig.getLong("monitorPeriodMs", 10000);
     _monitorTimerMs = millis();
-    _moduleConfig.getArrayElems("reportList", _monitorReportList);
+    sysManConfig.getArrayElems("reportList", _monitorReportList);
 
     // System restart flag
     _systemRestartMs = millis();
@@ -95,10 +98,13 @@ SysManager::SysManager(const char* pModuleName,
     _systemUniqueString = getSystemMACAddressStr(ESP_MAC_BT, "");
 
     // Reboot after N hours
-    _rebootAfterNHours = _moduleConfig.getLong("rebootAfterNHours", 0);
+    _rebootAfterNHours = sysManConfig.getLong("rebootAfterNHours", 0);
 
     // Reboot if disconnected for N minutes
-    _rebootIfDiscMins = _moduleConfig.getLong("rebootIfDiscMins", 0);
+    _rebootIfDiscMins = sysManConfig.getLong("rebootIfDiscMins", 0);
+
+    // Pause WiFi for BLE
+    _pauseWiFiForBLE = sysManConfig.getBool("pauseWiFiforBLE", 0);
 
     // Get friendly name
     bool friendlyNameIsSet = false;
@@ -194,9 +200,8 @@ void SysManager::setup()
     }
 
     // Check if WiFi to be paused when BLE connected
-    bool pauseWiFiForBLEConn = _moduleConfig.getBool("pauseWiFiforBLE", 0);
-    LOG_I(MODULE_PREFIX, "pauseWiFiForBLEConn %s", pauseWiFiForBLEConn ? "YES" : "NO");
-    if (pauseWiFiForBLEConn)
+    LOG_I(MODULE_PREFIX, "pauseWiFiForBLEConn %s", _pauseWiFiForBLE ? "YES" : "NO");
+    if (_pauseWiFiForBLE)
     {
         // Hook status change on BLE
         setStatusChangeCB("BLEMan", 
@@ -578,7 +583,7 @@ RaftRetCode SysManager::apiReset(const String &reqStr, String& respStr, const AP
 RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get serial number
-    String serialNo = _moduleConfig.getString("serialNo", "");
+    String serialNo = _mutableConfig.getString("serialNo", "");
     char versionJson[225];
     snprintf(versionJson, sizeof(versionJson),
              R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
@@ -682,11 +687,11 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         Raft::getHexStrFromBytes(serialNumBuf, _serialLengthBytes, _mutableConfigCache.serialNo);
 
         // Store the serial no
-        _moduleConfig.setJsonDoc(getMutableConfigJson().c_str());
+        _mutableConfig.setJsonDoc(getMutableConfigJson().c_str());
     }
 
     // Get serial number from mutable config
-    String serialNo = _moduleConfig.getString("serialNo", "");
+    String serialNo = _mutableConfig.getString("serialNo", "");
 
     // Create response JSON
     char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 100];
@@ -822,7 +827,11 @@ void SysManager::statsShow()
 {
     // Generate stats
     char statsStr[200];
-    snprintf(statsStr, sizeof(statsStr), R"({"n":"%s","v":"%s","r":%d,"hpInt":%d,"hpMin":%d,"hpAll":%d)", 
+    String friendlyNameStr;
+    if (_mutableConfigCache.friendlyNameIsSet)
+        friendlyNameStr = "\"f\":\"" + _mutableConfigCache.friendlyName + "\",";
+    snprintf(statsStr, sizeof(statsStr), R"({%s"n":"%s","v":"%s","r":%d,"hpInt":%d,"hpMin":%d,"hpAll":%d)", 
+                friendlyNameStr.c_str(),
                 _systemName.c_str(),
                 _systemVersion.c_str(),
                 _hwRevision,
@@ -858,7 +867,7 @@ String SysManager::getFriendlyName(bool& isSet)
     isSet = getFriendlyNameIsSet();
 
     // Handle default naming
-    String friendlyName = _moduleConfig.getString("friendlyName", "");
+    String friendlyName = _mutableConfig.getString("friendlyName", "");
     if (!isSet || friendlyName.isEmpty())
     {
         friendlyName = _defaultFriendlyName;
@@ -871,7 +880,7 @@ String SysManager::getFriendlyName(bool& isSet)
 
 bool SysManager::getFriendlyNameIsSet()
 {
-    return _moduleConfig.getLong("nameSet", 0);
+    return _mutableConfig.getLong("nameSet", 0);
 }
 
 bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, String& errorStr)
@@ -895,7 +904,7 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
         networkSystem.setHostname(_mutableConfigCache.friendlyName.c_str());
 
     // Store the new name (even if it is blank)
-    _moduleConfig.setJsonDoc(getMutableConfigJson().c_str());
+    _mutableConfig.setJsonDoc(getMutableConfigJson().c_str());
     return true;
 }
 
@@ -907,10 +916,8 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
 {
     // Check if WiFi should be paused
     LOG_I(MODULE_PREFIX, "BLE connection change isConn %s", changeToOnline ? "YES" : "NO");
-    bool pauseWiFiForBLEConn = _moduleConfig.getString("pauseWiFiforBLE", 0);
-    if (pauseWiFiForBLEConn)
+    if (_pauseWiFiForBLE)
     {
         networkSystem.pauseWiFi(changeToOnline);
     }
 }
-

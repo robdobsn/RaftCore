@@ -117,6 +117,11 @@ String SysModBase::configGetString(const char *dataPath, const String& defaultVa
     return _config.getString(dataPath, defaultValue.c_str());
 }
 
+RaftJsonIF::RaftJsonType SysModBase::configGetType(const char *dataPath, int& arrayLen)
+{
+    return _config.getType(dataPath, arrayLen);
+}
+
 bool SysModBase::configGetArrayElems(const char *dataPath, std::vector<String>& strList) const
 {
     return _config.getArrayElems(dataPath, strList);
