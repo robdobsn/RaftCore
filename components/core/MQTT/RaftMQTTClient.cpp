@@ -17,11 +17,11 @@
 #include "RaftUtils.h"
 
 // Debug
-#define DEBUG_MQTT_GENERAL
-#define DEBUG_MQTT_CONNECTION
-#define DEBUG_SEND_DATA
-#define DEBUG_MQTT_CLIENT_RX
-#define DEBUG_MQTT_TOPIC_DETAIL
+// #define DEBUG_MQTT_GENERAL
+// #define DEBUG_MQTT_CONNECTION
+// #define DEBUG_SEND_DATA
+// #define DEBUG_MQTT_CLIENT_RX
+// #define DEBUG_MQTT_TOPIC_DETAIL
 
 // Log prefix
 static const char *MODULE_PREFIX = "MQTTClient";
