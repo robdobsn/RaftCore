@@ -54,9 +54,10 @@ SysManager::SysManager(const char* pModuleName,
                 const char* pDefaultFriendlyName,
                 const char* pSystemHWName,
                 uint32_t serialLengthBytes, 
-                const String& serialMagicStr) :
+            const String& serialMagicStr,
+            const char* pSysManagerNVSNamespace) :
                             _systemConfig(systemConfig),
-                            _mutableConfig(pModuleName)
+                            _mutableConfig(pSysManagerNVSNamespace)
 {
     // Module name
     _moduleName = pModuleName;

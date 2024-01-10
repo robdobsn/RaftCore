@@ -35,7 +35,8 @@ public:
             const char* pDefaultFriendlyName,
             const char* pSystemHWName,
             uint32_t serialLengthBytes, 
-            const String& serialMagicStr);
+            const String& serialMagicStr,
+            const char* pSysManagerNVSNamespace);
 
     // Setup
     void setup();
