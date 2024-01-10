@@ -7,6 +7,8 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <vector>
+#include <list>
 #include "RaftJsonNVS.h"
 
 static const char *MODULE_PREFIX = "RaftJsonNVS";
@@ -42,8 +44,8 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
         }
     }
 
-    // Set the document
-    setJsonDoc(pJsonDoc, jsonDocStrLen);
+    // Update the document
+    updateJsonDoc(pJsonDoc, jsonDocStrLen);
 
     // Write the value to NVS
     uint32_t nvsHandle = 0;
@@ -105,69 +107,96 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
 /// @return void
 void RaftJsonNVS::readJsonDocFromNVS()
 {
+    std::vector<char, SpiramAwareAllocator<char>> jsonDoc;
+
+    // Read the value from NVS
+    if (RaftJsonNVS::getStrFromNVS(_nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC, jsonDoc))
+    {
+
+        // Update the base class JSON doc (note that this handles 0 length strings)
+        updateJsonDoc(jsonDoc.data(), jsonDoc.size() > 0 ? jsonDoc.size() - 1 : 0);
+
+#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
+        // Debug
+        LOG_I(MODULE_PREFIX, "readJsonDocFromNVS OK ns %s key %s len %d maxlen %d", 
+                    _nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC, jsonDoc.size(), _jsonMaxlen);
+#endif
+    }
+    else
+    {
+        // Update the base class JSON doc (note that this handles 0 length strings)
+        updateJsonDoc(nullptr, 0);
+    
+#ifdef WARN_ON_NVS_ACCESS_FAILURES
+        // Debug
+        LOG_W(MODULE_PREFIX, "readJsonDocFromNVS FAIL ns %s key %s", 
+                    _nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC);
+#endif
+    }
+
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the string value of an NVS entry
+/// @param pKey the key
+/// @param strVec the vector to store the string in
+/// @return true if the string was successfully retrieved
+bool RaftJsonNVS::getStrFromNVS(const char* pNamespace, const char* pKey, 
+                std::vector<char, SpiramAwareAllocator<char>>& strVec)
+{
     // Open NVS
     uint32_t nvsHandle = 0;
-    esp_err_t err = nvs_open(_nvsNamespace.c_str(), NVS_READONLY, &nvsHandle);
+    esp_err_t err = nvs_open(pNamespace, NVS_READONLY, &nvsHandle);
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_NAMESPACE_NOT_FOUND_FAILURES
         LOG_W(MODULE_PREFIX, "nvs_open FAIL ns %s error %s", 
-                        _nvsNamespace.c_str(), esp_err_to_name(err));
+                        pNamespace, esp_err_to_name(err));
 #endif
-        return;
+        return false;
     }
-
-    // Vector for string
-    std::vector<char, SpiramAwareAllocator<char>> jsonDoc;
 
     // Call nvs_get_str twice, first to get length
     size_t stringLen = 0;
-    err = nvs_get_str(nvsHandle, KEY_NAME_FOR_JSON_DOC, nullptr, &stringLen);
+    err = nvs_get_str(nvsHandle, pKey, nullptr, &stringLen);
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
         LOG_W(MODULE_PREFIX, "nvs_get_str len FAILED ns %s error %s", 
-                        _nvsNamespace.c_str(), esp_err_to_name(err));
+                        pNamespace, esp_err_to_name(err));
 #endif
         nvs_close(nvsHandle);
-        return;
+        return false;
     }
 
     // Allocate space (the value returned by nvs_get_str includes the null terminator)
-    jsonDoc.resize(stringLen);
-    stringLen = jsonDoc.size();
-    err = nvs_get_str(nvsHandle, KEY_NAME_FOR_JSON_DOC, jsonDoc.data(), &stringLen);
+    strVec.resize(stringLen);
+    stringLen = strVec.size();
+    err = nvs_get_str(nvsHandle, pKey, strVec.data(), &stringLen);
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
         LOG_W(MODULE_PREFIX, "nvs_get_str data FAILED ns %s error %s", 
-                        _nvsNamespace.c_str(), esp_err_to_name(err));
+                        pNamespace, esp_err_to_name(err));
 #endif
         nvs_close(nvsHandle);
-        return;
+        return false;
     }
+
+    // Ensure string is null-terminated
+    if (strVec.size() > 0)
+        strVec[strVec.size() - 1] = 0;
 
     // Close NVS
     nvs_close(nvsHandle);
-
-    // Set the base class JSON doc
-    setJsonDoc(jsonDoc.data(), jsonDoc.size() > 0 ? jsonDoc.size() - 1 : 0);
-
-    // Stats
-    _statsCallsToGetNVStr++;
-
-#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
-    // Debug
-    LOG_I(MODULE_PREFIX, "getStrFromNVS OK ns %s len %d maxlen %d statsCallsToGetNVStr %d", 
-                _nvsNamespace.c_str(), jsonDoc.size(), _jsonMaxlen, _statsCallsToGetNVStr);
-#endif
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Set the JSON document into the base class
+/// @brief Update the JSON document into the base class
 /// @param pJsonDoc the JSON document
 /// @param jsonDocStrLen the length of the JSON document (excludes terminator)
-void RaftJsonNVS::setJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
+void RaftJsonNVS::updateJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
 {
     // Empty JSON doc
     const char* pEmptyJsonDoc = "{}";
@@ -176,9 +205,8 @@ void RaftJsonNVS::setJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
     if (jsonDocStrLen < 2)
     {
 #ifdef WARN_ON_NVS_JSON_DOC_TOO_SHORT
-        LOG_W(MODULE_PREFIX, "setJsonDocFromNVS TOO_SHORT namespace %s read: len(%d) <<<%s>>> maxlen %d", 
-                    _nvsNamespace.c_str(), jsonDocStrLen, 
-                    pJsonDoc, _jsonMaxlen);
+        LOG_W(MODULE_PREFIX, "updateJsonDoc TOO_SHORT namespace %s read: len(%d) maxlen %d", 
+                    _nvsNamespace.c_str(), jsonDocStrLen, _jsonMaxlen);
 #endif
         // Set to an empty JSON object
         pJsonDoc = pEmptyJsonDoc;
@@ -186,10 +214,10 @@ void RaftJsonNVS::setJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
     }
 
     // Check if the string is too long
-    if ((_jsonMaxlen != 0) && (jsonDocStrLen > _jsonMaxlen))
+    else if ((_jsonMaxlen != 0) && (jsonDocStrLen > _jsonMaxlen))
     {
 #ifdef WARN_ON_NVS_JSON_DOC_TOO_SHORT
-        LOG_W(MODULE_PREFIX, "setJsonDocFromNVS TOO_LONG namespace %s read: len(%d) maxlen %d", 
+        LOG_W(MODULE_PREFIX, "updateJsonDoc TOO_LONG namespace %s read: len(%d) maxlen %d", 
                     _nvsNamespace.c_str(), jsonDocStrLen, _jsonMaxlen);
 #endif
         // Set to an empty JSON object
@@ -199,4 +227,83 @@ void RaftJsonNVS::setJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
 
     // Store value in parent object (makes a copy of the string)
     setSourceStr(pJsonDoc, true, jsonDocStrLen);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Debug function to show information about NVS keys
+void RaftJsonNVS::debugShowNVSInfo(bool showContents)
+{
+    std::list<nvs_entry_info_t> nvsEntries;
+    nvs_iterator_t it = NULL;
+    esp_err_t res = nvs_entry_find("nvs", nullptr, NVS_TYPE_ANY, &it);
+    while (res == ESP_OK)
+    {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info); // Can omit error check if parameters are guaranteed to be non-NULL
+        LOG_I(MODULE_PREFIX, "debugShowNVSInfo namespace %.*s key %.*s type %s (%d)", 
+                    NVS_NS_NAME_MAX_SIZE, info.namespace_name, 
+                    NVS_KEY_NAME_MAX_SIZE, info.key, 
+                    getNVSTypeName(info.type), info.type);
+        // Extract strings if required
+        if (showContents)
+            nvsEntries.push_back(info);
+        res = nvs_entry_next(&it);
+    }
+    nvs_release_iterator(it);
+
+    LOG_I(MODULE_PREFIX, "debugShowNVSInfo namespace %s", "DONE");
+    delay(1000);
+
+    // Show strings
+    if (showContents)
+    {
+        for (auto it = nvsEntries.begin(); it != nvsEntries.end(); ++it)
+        {
+            nvs_entry_info_t info = *it;
+            if (info.type == NVS_TYPE_STR)
+            {
+                std::vector<char, SpiramAwareAllocator<char>> strVec;
+                if (RaftJsonNVS::getStrFromNVS(info.namespace_name, info.key, strVec))
+                {
+                    LOG_I(MODULE_PREFIX, "debugShowNVSInfo STR namespace %.*s key %.*s value %s", 
+                                NVS_NS_NAME_MAX_SIZE, info.namespace_name, 
+                                NVS_KEY_NAME_MAX_SIZE, info.key, 
+                                strVec.data());
+                }
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the string name of the type of an NVS entry
+/// @param nvsType the NVS type enumeration
+/// @return the string name of the type
+const char* RaftJsonNVS::getNVSTypeName(nvs_type_t nvsType)
+{
+    switch (nvsType)
+    {
+        case NVS_TYPE_I8:
+            return "NVS_TYPE_I8";
+        case NVS_TYPE_U8:
+            return "NVS_TYPE_U8";
+        case NVS_TYPE_I16:
+            return "NVS_TYPE_I16";
+        case NVS_TYPE_U16:
+            return "NVS_TYPE_U16";
+        case NVS_TYPE_I32:
+            return "NVS_TYPE_I32";
+        case NVS_TYPE_U32:
+            return "NVS_TYPE_U32";
+        case NVS_TYPE_I64:
+            return "NVS_TYPE_I64";
+        case NVS_TYPE_U64:
+            return "NVS_TYPE_U64";
+        case NVS_TYPE_STR:
+            return "NVS_TYPE_STR";
+        case NVS_TYPE_BLOB:
+            return "NVS_TYPE_BLOB";
+        default:
+            return "NVS_TYPE_UNKNOWN";
+    }
 }

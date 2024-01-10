@@ -17,11 +17,11 @@
 #include "RaftUtils.h"
 
 // Debug
-// #define DEBUG_MQTT_GENERAL
-// #define DEBUG_MQTT_CONNECTION
-// #define DEBUG_SEND_DATA
-// #define DEBUG_MQTT_CLIENT_RX
-// #define DEBUG_MQTT_TOPIC_DETAIL
+#define DEBUG_MQTT_GENERAL
+#define DEBUG_MQTT_CONNECTION
+#define DEBUG_SEND_DATA
+#define DEBUG_MQTT_CLIENT_RX
+#define DEBUG_MQTT_TOPIC_DETAIL
 
 // Log prefix
 static const char *MODULE_PREFIX = "MQTTClient";
@@ -309,6 +309,7 @@ void RaftMQTTClient::socketConnect()
     addrInfo.ai_socktype = SOCK_STREAM;
     addrInfo.ai_protocol = IPPROTO_TCP;
     String portStr = String(_brokerPort);
+    uint64_t microsStart = micros();
     int err = getaddrinfo(_brokerHostname.c_str(), portStr.c_str(), &addrInfo, &pFoundAddrs);
     if (err != 0)
     {
@@ -319,8 +320,17 @@ void RaftMQTTClient::socketConnect()
         }
         return;
     }
+    else if (Raft::isTimeout(micros(), microsStart, 1000))
+    {
+        if (Raft::isTimeout(millis(), _internalAddrLookupSlowLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        {
+            _internalAddrLookupSlowLastTime = millis();
+            LOG_W(MODULE_PREFIX, "socketConnect broker lookup slow %s time %d", _brokerHostname.c_str(), int(micros() - microsStart));
+        }
+    }
     for(struct addrinfo *pAddr = pFoundAddrs; pAddr != nullptr; pAddr = pAddr->ai_next)
     {
+        microsStart = micros();
         _clientHandle = socket(pAddr->ai_family, pAddr->ai_socktype, pAddr->ai_protocol);
         if (_clientHandle == -1)
         {
@@ -371,6 +381,16 @@ void RaftMQTTClient::socketConnect()
 #endif
             _connState = MQTT_STATE_SOCK_CONN_REQD;
             break;
+        }
+
+        // Check connect time
+        if (Raft::isTimeout(micros(), microsStart, 1000))
+        {
+            if (Raft::isTimeout(millis(), _internalSocketCreateSlowLastTime , INTERNAL_ERROR_LOG_MIN_GAP_MS))
+            {
+                _internalSocketCreateSlowLastTime  = millis();
+                LOG_W(MODULE_PREFIX, "socketConnect create slow %s time %d", _brokerHostname.c_str(), int(micros() - microsStart));
+            }
         }
 
         // Close socket if failed

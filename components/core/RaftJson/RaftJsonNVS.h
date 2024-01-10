@@ -66,13 +66,18 @@ public:
         return _jsonMaxlen;
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Debug function to show information about NVS keys
+    /// @param showContents if true then show the contents of the NVS keys
+    static void debugShowNVSInfo(bool showContents);
+
 private:
     // Key name in NVS
     const char* KEY_NAME_FOR_JSON_DOC = "JSON";
 
     // Helpers
     void readJsonDocFromNVS();
-    void setJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen);
+    void updateJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen);
 
     // Namespace used for NVS library
     String _nvsNamespace;
@@ -86,6 +91,16 @@ private:
     // Max length of JSON document
     uint32_t _jsonMaxlen = 0;
 
-    // Stats on calls to getStrFromNVS
-    mutable uint32_t _statsCallsToGetNVStr = 0;
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the string value of an NVS entry
+    /// @param pKey the key
+    /// @param strVec the vector to store the string in
+    /// @return true if the string was successfully retrieved
+    static bool getStrFromNVS(const char* pNamespace, const char* pKey, std::vector<char, SpiramAwareAllocator<char>>& strVec);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the string name of the type of an NVS entry
+    /// @param nvsType the NVS type enumeration
+    /// @return the string name of the type
+    static const char* getNVSTypeName(nvs_type_t nvsType);
 };
