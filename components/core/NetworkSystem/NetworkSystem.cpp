@@ -62,11 +62,6 @@ NetworkSystem networkSystem;
 // #define DEBUG_NETWORK_EVENTS
 // #define DEBUG_NETWORK_EVENTS_DETAIL
 
-#ifdef FEATURE_ETHERNET_HARDWARE_OLIMEX
-#define ETHERNET_IS_SUPPORTED
-#define ETH_PHY_LAN87XX
-#endif
-
 #ifdef DEBUG_NETWORK_EVENTS
 #define LOG_NETWORK_EVENT_INFO( tag, format, ... ) LOG_I( tag, format, ##__VA_ARGS__ )
 #else
@@ -692,7 +687,7 @@ bool NetworkSystem::startEthernet()
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &networkEventHandler, nullptr, nullptr);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &networkEventHandler, nullptr, nullptr);
 
-#ifdef FEATURE_ETHERNET_HARDWARE_OLIMEX
+#ifdef CONFIG_ETH_ENABLED
 
     // Debug
     LOG_I(MODULE_PREFIX, "startEthernet - Olimex hardware lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
@@ -744,17 +739,17 @@ bool NetworkSystem::startEthernet()
         mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
         esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
 #endif
-#if defined(ETH_PHY_IP101)
+#if defined(HW_ETH_PHY_IP101)
         esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
-#elif defined(ETH_PHY_RTL8201)
+#elif defined(HW_ETH_PHY_RTL8201)
         esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
-#elif defined(ETH_PHY_LAN87XX)
+#elif defined(HW_ETH_PHY_LAN87XX)
         esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
-#elif defined(ETH_PHY_DP83848)
+#elif defined(HW_ETH_PHY_DP83848)
         esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
-#elif defined(ETH_PHY_KSZ8041)
+#elif defined(HW_ETH_PHY_KSZ8041)
         esp_eth_phy_t *phy = esp_eth_phy_new_ksz8041(&phy_config);
-#elif defined(ETH_PHY_KSZ8081)
+#elif defined(HW_ETH_PHY_KSZ8081)
         esp_eth_phy_t *phy = esp_eth_phy_new_ksz8081(&phy_config);
 #endif
         esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
