@@ -27,7 +27,6 @@
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
-#include "esp_eth_netif_glue.h"
 
 // This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
 #define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(servers_in_list, list_of_servers)   {   \
@@ -147,12 +146,14 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
         startWifi();
     }
 
+#ifdef CONFIG_ETH_ENABLED
     // Start ethernet if required
     if (_networkSettings.enableEthernet)
     {
         // Start Ethernet
         startEthernet();
     }
+#endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     // SNTP server
@@ -305,10 +306,12 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
         jsonStr += R"("eth":{"en":)" + String(_networkSettings.enableEthernet);
+#ifdef CONFIG_ETH_ENABLED
         if (_networkSettings.enableEthernet)
             jsonStr += R"(,"conn":)" + String(isEthConnectedWithIP()) +
                         R"(,"IP":")" + _ethIPV4Addr +
                         R"(","MAC":")" + _ethMACAddress + R"(")";
+#endif
         jsonStr += R"(})";
     }
     // Add braces if required
@@ -335,10 +338,12 @@ void NetworkSystem::networkEventHandler(void *arg, esp_event_base_t event_base,
     {
         networkSystem.ipEventHandler(arg, event_id, pEventData);
     }
+#ifdef CONFIG_ETH_ENABLED
     else if (event_base == ETH_EVENT)
     {
         networkSystem.ethEventHandler(arg, event_id, pEventData);
     }
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -681,13 +686,13 @@ void NetworkSystem::setLogLevel(esp_log_level_t logLevel)
 // Start ethernet
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef CONFIG_ETH_ENABLED
+
 bool NetworkSystem::startEthernet()
 {
     esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &networkEventHandler, nullptr, nullptr);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &networkEventHandler, nullptr, nullptr);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &networkEventHandler, nullptr, nullptr);
-
-#ifdef CONFIG_ETH_ENABLED
 
     // Debug
     LOG_I(MODULE_PREFIX, "startEthernet - Olimex hardware lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
@@ -795,9 +800,9 @@ bool NetworkSystem::startEthernet()
         LOG_I(MODULE_PREFIX, "setup Ethernet OK");
         return true;
     }
-#endif
     return false;
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle WiFi events
@@ -918,6 +923,8 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
 // Ethernet Event handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef CONFIG_ETH_ENABLED
+
 void NetworkSystem::ethEventHandler(void *arg, int32_t event_id, void *pEventData)
 {
     switch (event_id)
@@ -950,6 +957,8 @@ void NetworkSystem::ethEventHandler(void *arg, int32_t event_id, void *pEventDat
         break;
     }
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // Handle IP events
@@ -987,6 +996,7 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     case IP_EVENT_GOT_IP6:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station/AP IPv6 preferred");
         break;
+#ifdef CONFIG_ETH_ENABLED
     case IP_EVENT_ETH_GOT_IP:
     {
         // Get IP address string
@@ -1004,6 +1014,7 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet lost IP");
         break;
     }
+#endif
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
         break;

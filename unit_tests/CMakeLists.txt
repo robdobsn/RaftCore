@@ -11,5 +11,5 @@ add_compile_definitions(JSMN_STRICT)
 
 # Standard project configuration stuff
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(test_raft_core)
+project(unittests)
 
