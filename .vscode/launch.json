@@ -5,14 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python debug UpdateLegacySysTypesJson",
+            "name": "Python test SysTypes1 GenerateSysTypesCpp.py",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/scripts/UpdateLegacySysTypesJson.py",
+            "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "${workspaceFolder}/test_data",
+                "${workspaceFolder}/test_data/SysTypes1/SysTypes.json",
+                "${workspaceFolder}/test_data/SysTypes1/SysTypesInfo.cpp",
+                "--cpp_template",
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfoTemplate.txt"
+            ]
+        },
+        {
+            "name": "Python test SysTypes2 GenerateSysTypesCpp.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "${workspaceFolder}/test_data/SysTypes2/SysTypes.json",
+                "${workspaceFolder}/test_data/SysTypes2/SysTypesInfo.cpp",
+                "--cpp_template",
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfoTemplate.txt"
             ]
         },
         {

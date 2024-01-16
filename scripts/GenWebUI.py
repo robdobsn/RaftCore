@@ -97,6 +97,10 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, deleteFirst, npmInstall
 
 def main():
     args = parseArgs()
+    # Check the source folder contains a package.json file
+    if not os.path.isfile(os.path.join(args.source, "package.json")):
+        _log.error(f"GenWebUI source folder {args.source} does not contain a package.json file")
+        return 0
     return generateWebUI(args.source, args.dest, args.gzipContent, args.deleteFirst, args.npmInstall)
 
 if __name__ == '__main__':

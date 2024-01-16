@@ -20,11 +20,18 @@ public:
         return "";
     }
 
+    // Get SysType key
+    String getSysTypeKey() const {
+        if (pSysTypeKey)
+            return pSysTypeKey;
+        return "";
+    }
+
     // SysType name
     const char* pSysTypeName = nullptr;
 
     // Hardware revision
-    int hwRev = 0;
+    const char* pSysTypeKey = nullptr;
 
     // SysType JSON document
     const char* pSysTypeJSONDoc = nullptr;
