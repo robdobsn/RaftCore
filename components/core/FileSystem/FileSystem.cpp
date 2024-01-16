@@ -20,7 +20,7 @@
 #include "ConfigPinMap.h"
 #include "Logger.h"
 #include "SpiramAwareAllocator.h"
-#ifdef FEATURE_LITTLEFS_SUPPORT
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 #include "esp_littlefs.h"
 #endif
 
@@ -44,36 +44,35 @@ FileSystem fileSystem;
 // #define DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor
+// Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FileSystem::FileSystem()
 {
-    // Vars
-    _localFSIsLittleFS = false;
-    _cacheFileSystemInfo = false;
-    _defaultToSDIfAvailable = true;
-    _pSDCard = NULL;
     _fileSysMutex = xSemaphoreCreateMutex();
+}
+
+FileSystem::~FileSystem()
+{
+    if (_fileSysMutex)
+        vSemaphoreDelete(_fileSysMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileSystem::setup(bool enableSPIFFS, bool enableLittleFS, bool localFsFormatIfCorrupt, bool enableSD, 
+void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsFormatIfCorrupt, bool enableSD, 
         int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin, bool defaultToSDIfAvailable,
         bool cacheFileSystemInfo)
 {
     // Init
-    _localFsCache.isUsed = false;
-    _localFsCache.fsName.clear();
-    _sdFsCache.isUsed = false;
+    _localFsType = localFsDefaultType;
     _cacheFileSystemInfo = cacheFileSystemInfo;
     _defaultToSDIfAvailable = defaultToSDIfAvailable;
 
     // Setup local file system
-    localFileSystemSetup(enableSPIFFS, enableLittleFS, localFsFormatIfCorrupt);
+    localFileSystemSetup(localFsFormatIfCorrupt);
 
     // Setup SD file system
     sdFileSystemSetup(enableSD, sdMOSIPin, sdMISOPin, sdCLKPin, sdCSPin);
@@ -101,6 +100,13 @@ void FileSystem::service()
 
 bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool force)
 {
+    // Check for file system disabled
+    if (_localFsType == LOCAL_FS_DISABLE)
+    {
+        LOG_W(MODULE_PREFIX, "reformat local file system disabled");
+        return false;
+    }
+
     // Check file system supported
     String nameOfFS;
     if (!force && !checkFileSystem(fileSystemStr, nameOfFS))
@@ -126,8 +132,8 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isFileInfoSetup = false;
     esp_err_t ret = ESP_FAIL;
-#ifdef FEATURE_LITTLEFS_SUPPORT
-    if (_localFSIsLittleFS)
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+    if (_localFsType == LOCAL_FS_LITTLEFS)
         ret = esp_littlefs_format(LOCAL_FILE_SYSTEM_PARTITION_LABEL);
     else
 #endif
@@ -882,49 +888,81 @@ bool FileSystem::fileSeek(FILE* pFile, uint32_t seekPos)
 // Setup local file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileSystem::localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bool formatIfCorrupt)
+void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
 {
     // Check enabled
-    if (!enableSPIFFS && !enableLittleFS)
+    if (_localFsType == LOCAL_FS_DISABLE)
     {
         LOG_I(MODULE_PREFIX, "localFileSystemSetup local file system disabled");
         return;
     }
 
-    // Check if SPIFFS if enabled
-    if (enableSPIFFS)
+    // Try LittleFS first (with format if corrupt false)
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+    // Init LittleFS file system (format if required)
+    if (localFileSystemSetupLittleFS(false))
     {
-        // Format SPIFFS file system if required - this will fail if the partition is not
-        // in SPIFFS format and formatting will only be done if enabled and LittleFS is not
-        // enabled
-        if (localFileSystemSetupSPIFFS(!enableLittleFS && formatIfCorrupt))
+        LOG_I(MODULE_PREFIX, "localFileSystemSetup LittleFS initialised ok");
+        return;
+    }
+#endif
+
+    // Try SPIFFS next (with format if corrupt false)
+    if (localFileSystemSetupSPIFFS(false))
+    {
+        LOG_I(MODULE_PREFIX, "localFileSystemSetup SPIFFS initialised ok");
+        return;
+    }
+
+    // If format if corrupt is false then we are done and FS can't be mounted
+    if (!formatIfCorrupt)
+    {
+        _localFsType = LOCAL_FS_DISABLE;
+        LOG_I(MODULE_PREFIX, "localFileSystemSetup no file system found");
             return;
     }
 
-    // Init LittleFS if enabled
-#ifdef FEATURE_LITTLEFS_SUPPORT
-    if (enableLittleFS)
+    // Now try default FS with format if corrupt true
+    if (_localFsType == LOCAL_FS_SPIFFS)
     {
-        // Init LittleFS file system (format if required)
-        if (localFileSystemSetupLittleFS(formatIfCorrupt))
+        if (localFileSystemSetupSPIFFS(true))
+        {
+            LOG_I(MODULE_PREFIX, "localFileSystemSetup SPIFFS formmatted ok");
+            return;
+        }
+    }
+    else
+    {
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+        if (localFileSystemSetupLittleFS(true))
+        {
+            LOG_I(MODULE_PREFIX, "localFileSystemSetup LittleFS formmatted ok");
             return;
     }
+    }
 #endif
+
+    // Failed
+    _localFsType = LOCAL_FS_DISABLE;
+    LOG_W(MODULE_PREFIX, "localFileSystemSetup failed to initialise file system");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup local file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef FEATURE_LITTLEFS_SUPPORT
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 {
     // Using ESP IDF virtual file system
     esp_vfs_littlefs_conf_t conf = {
         .base_path = LOCAL_FILE_SYSTEM_BASE_PATH,
         .partition_label = LOCAL_FILE_SYSTEM_PARTITION_LABEL,
+        .partition = NULL,
         .format_if_mount_failed = formatIfCorrupt,
+        .read_only = false,
         .dont_mount = false,
+        .grow_on_mount = false,
     };        
     // Use settings defined above to initialize and mount LittleFS filesystem.
     // Note: esp_vfs_littlefs_register is an all-in-one convenience function.
@@ -961,8 +999,7 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
     LOG_I(MODULE_PREFIX, "setup LittleFS partition size total %d, used %d", total, used);
     
     // Local file system is ok
-    _localFSIsLittleFS = true;
-    _localFsCache.isUsed = true;
+    _localFsType = LOCAL_FS_LITTLEFS;
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isSizeInfoValid = false;
     _localFsCache.isFileInfoSetup = false;
@@ -1021,7 +1058,7 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     LOG_I(MODULE_PREFIX, "setup SPIFFS partition size total %d, used %d", total, used);
 
     // Local file system is ok
-    _localFSIsLittleFS = false;
+    _localFsType = LOCAL_FS_SPIFFS;
     _localFsCache.isUsed = true;
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isSizeInfoValid = false;
@@ -1282,6 +1319,13 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 
 bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr)
 {
+    // Check if file-system is disabled
+    if (!cachedFs.isUsed)
+    {
+        Raft::setJsonErrorResult(req, respStr, "fsinvalid");
+        return false;
+    }
+
     // Take mutex
     if (xSemaphoreTake(_fileSysMutex, 0) != pdTRUE)
     {
@@ -1296,8 +1340,8 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
     {
         size_t sizeBytes = 0, usedBytes = 0;
         esp_err_t ret = ESP_FAIL;
-#ifdef FEATURE_LITTLEFS_SUPPORT
-        if (_localFSIsLittleFS)
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+        if (_localFsType == LOCAL_FS_LITTLEFS)
             ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &sizeBytes, &usedBytes);
         else
 #endif

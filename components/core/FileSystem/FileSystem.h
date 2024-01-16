@@ -19,13 +19,23 @@
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
 
+#define FILE_SYSTEM_SUPPORTS_LITTLEFS
+
 class FileSystem
 {
 public:
     FileSystem();
+    virtual ~FileSystem();
+
+    // Local file system types
+    typedef enum {
+        LOCAL_FS_DISABLE,
+        LOCAL_FS_SPIFFS,
+        LOCAL_FS_LITTLEFS,
+    } LocalFileSystemType;
 
     // Setup 
-    void setup(bool enableSPIFFS, bool enableLittleFS, bool localFsFormatIfCorrupt, bool enableSD, 
+    void setup(LocalFileSystemType localFsType, bool localFsFormatIfCorrupt, bool enableSD, 
         int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin, bool defaultToSDIfAvailable,
         bool cacheFileSystemInfo);
 
@@ -108,61 +118,47 @@ public:
     
 private:
 
-    // File system controls
-    bool _localFSIsLittleFS;
-    bool _defaultToSDIfAvailable;
-    bool _sdIsOk;
-    bool _cacheFileSystemInfo;
+    // File system settings
+    LocalFileSystemType _localFsType = LOCAL_FS_DISABLE;
+    bool _defaultToSDIfAvailable = false;
+    bool _sdIsOk = false;
+    bool _cacheFileSystemInfo = false;
 
     // SD card
-    void* _pSDCard;
+    void* _pSDCard = nullptr;
 
     // Cached file info
     class CachedFileInfo
     {
     public:
-        CachedFileInfo()
-        {
-            fileSize = 0;
-            isValid = false;
-        }
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fileName;
-        uint32_t fileSize;
-        bool isValid;
+        uint32_t fileSize = 0;
+        bool isValid = false;
     };
     class CachedFileSystem
     {
     public:
-        CachedFileSystem()
-        {
-            fsSizeBytes = 0;
-            fsUsedBytes = 0;
-            isSizeInfoValid = false;
-            isFileInfoValid = false;
-            isFileInfoSetup = false;
-            isUsed = false;
-        }
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fsName;
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fsBase;
         std::list<CachedFileInfo, SpiramAwareAllocator<CachedFileInfo>> cachedRootFileList;
-        uint32_t fsSizeBytes;
-        uint32_t fsUsedBytes;
-        bool isSizeInfoValid;
-        bool isFileInfoValid;
-        bool isFileInfoSetup;
-        bool isUsed;
+        uint32_t fsSizeBytes = 0;
+        uint32_t fsUsedBytes = 0;
+        bool isSizeInfoValid = false;
+        bool isFileInfoValid = false;
+        bool isFileInfoSetup = false;
+        bool isUsed = false;
     };
     CachedFileSystem _sdFsCache;
     CachedFileSystem _localFsCache;
 
     // Mutex controlling access to file system
-    SemaphoreHandle_t _fileSysMutex;
+    SemaphoreHandle_t _fileSysMutex = nullptr;
 
 private:
     bool checkFileSystem(const String& fileSystemStr, String& fsName) const;
     String getFilePath(const String& nameOfFS, const String& filename) const;
-    void localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bool formatIfCorrupt);
-#ifdef FEATURE_LITTLEFS_SUPPORT
+    void localFileSystemSetup(bool formatIfCorrupt);
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
     bool localFileSystemSetupLittleFS(bool formatIfCorrupt);
 #endif
     bool localFileSystemSetupSPIFFS(bool formatIfCorrupt);

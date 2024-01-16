@@ -28,6 +28,10 @@
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
 
+#ifdef CONFIG_ETH_ENABLED
+#include "esp_eth_netif_glue.h"
+#endif
+
 // This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
 #define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(servers_in_list, list_of_servers)   {   \
             .smooth_sync = false,                   \
@@ -695,30 +699,30 @@ bool NetworkSystem::startEthernet()
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &networkEventHandler, nullptr, nullptr);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "startEthernet - Olimex hardware lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
+    LOG_I(MODULE_PREFIX, "startEthernet - lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
                 _networkSettings.ethLanChip, _networkSettings.phyAddr, _networkSettings.phyRstPin,
                 _networkSettings.smiMDCPin, _networkSettings.smiMDIOPin, _networkSettings.powerPin);
                 
-    if (_networkSettings.enableEthernet &&  
-        (_networkSettings.ethLanChip != NetworkSettings::ETH_CHIP_TYPE_NONE) && (_networkSettings.powerPin != -1))
+    if (!_networkSettings.enableEthernet || (_networkSettings.ethLanChip == NetworkSettings::ETH_CHIP_TYPE_NONE))
     {
-        // Create ethernet event loop that running in background
-        esp_netif_t *pEthNetif = nullptr;
-        _ethernetHandle = nullptr;
-        // Create new default instance of esp-netif for Ethernet
-        esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
-        pEthNetif = esp_netif_new(&cfg);
+        LOG_I(MODULE_PREFIX, "startEthernet - ethernet disabled");
+        return false;
+    }
 
-        // Set hostname
-        if (pEthNetif && !_hostname.isEmpty())
-            esp_netif_set_hostname(pEthNetif, _hostname.c_str());
+    // Create ethernet event loop that running in background
+    esp_netif_t *pEthNetif = nullptr;
+    _ethernetHandle = nullptr;
+    // Create new default instance of esp-netif for Ethernet
+    esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+    pEthNetif = esp_netif_new(&cfg);
 
-        // Init MAC and PHY configs to default
-        eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
-        eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    // Set hostname
+    if (pEthNetif && !_hostname.isEmpty())
+        esp_netif_set_hostname(pEthNetif, _hostname.c_str());
 
-        phy_config.phy_addr = _networkSettings.phyAddr;
-        phy_config.reset_gpio_num = _networkSettings.phyRstPin;
+    // Handle power pin
+    if (_networkSettings.powerPin >= 0)
+    {
         gpio_config_t powerPinConfig(
         {
             .pin_bit_mask = (1ULL << _networkSettings.powerPin),
@@ -730,77 +734,93 @@ bool NetworkSystem::startEthernet()
         gpio_config(&powerPinConfig);
         gpio_set_level((gpio_num_t) _networkSettings.powerPin, 1);
         vTaskDelay(pdMS_TO_TICKS(10));
-
-        // Create Ethernet driver
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-        // Init vendor specific MAC config to default
-        eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
-        esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
-        esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
-        // Create new ESP32 Ethernet MAC instance
-        esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#else
-        mac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
-        mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
-        esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
-#endif
-#if defined(HW_ETH_PHY_IP101)
-        esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
-#elif defined(HW_ETH_PHY_RTL8201)
-        esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
-#elif defined(HW_ETH_PHY_LAN87XX)
-        esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
-#elif defined(HW_ETH_PHY_DP83848)
-        esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
-#elif defined(HW_ETH_PHY_KSZ8041)
-        esp_eth_phy_t *phy = esp_eth_phy_new_ksz8041(&phy_config);
-#elif defined(HW_ETH_PHY_KSZ8081)
-        esp_eth_phy_t *phy = esp_eth_phy_new_ksz8081(&phy_config);
-#endif
-        esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
-
-        // Install Ethernet driver
-        esp_err_t err = esp_eth_driver_install(&config, &_ethernetHandle);
-
-        // Check driver ok
-        if (err != ESP_OK)
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to install eth driver");
-        }
-        else if (pEthNetif)
-        {
-            // Attach Ethernet driver to Ethernet netif
-            err = esp_netif_attach(pEthNetif, esp_eth_new_netif_glue(_ethernetHandle));
-        }
-        else
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to create netif for ethernet");
-            err = ESP_FAIL;
-        }
-
-        // Check event handler ok
-        if (err != ESP_OK)
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
-        }
-        if (err == ESP_OK)
-        {
-            // Start Ethernet driver state machine
-            err = esp_eth_start(_ethernetHandle);
-        }
-
-        // Check for error
-        if (err != ESP_OK)
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
-            return false;
-        }
-
-        // Debug
-        LOG_I(MODULE_PREFIX, "setup Ethernet OK");
-        return true;
     }
-    return false;
+
+    // Init MAC and PHY configs to default
+    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+
+    // Create Ethernet driver
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    // Init vendor specific MAC config to default
+    eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+    esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
+    esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    // Create new ESP32 Ethernet MAC instance
+    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#else
+    mac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
+    mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+#endif
+
+    // Any phy hw?
+#if defined(HW_ETH_PHY_IP101) || defined(HW_ETH_PHY_RTL8201) || defined(HW_ETH_PHY_LAN87XX) || \
+        defined(HW_ETH_PHY_DP83848) || defined(HW_ETH_PHY_KSZ8041) || defined(HW_ETH_PHY_KSZ8081)
+    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    phy_config.phy_addr = _networkSettings.phyAddr;
+    phy_config.reset_gpio_num = _networkSettings.phyRstPin;
+#endif
+
+    // Create Ethernet PHY instance
+    esp_eth_phy_t *phy = nullptr;
+#if defined(HW_ETH_PHY_IP101)
+    phy = esp_eth_phy_new_ip101(&phy_config);
+#elif defined(HW_ETH_PHY_RTL8201)
+    phy = esp_eth_phy_new_rtl8201(&phy_config);
+#elif defined(HW_ETH_PHY_LAN87XX)
+    phy = esp_eth_phy_new_lan87xx(&phy_config);
+#elif defined(HW_ETH_PHY_DP83848)
+    phy = esp_eth_phy_new_dp83848(&phy_config);
+#elif defined(HW_ETH_PHY_KSZ8041)
+    phy = esp_eth_phy_new_ksz8041(&phy_config);
+#elif defined(HW_ETH_PHY_KSZ8081)
+    phy = esp_eth_phy_new_ksz8081(&phy_config);
+#endif
+    if (!phy)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to create phy");
+        return false;
+    }
+
+    // Ethernet config
+    esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
+
+    // Install Ethernet driver
+    esp_err_t err = esp_eth_driver_install(&config, &_ethernetHandle);
+
+    // Check driver ok
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to install eth driver");
+        return false;
+    }
+
+    if (!pEthNetif)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to create netif for ethernet");
+        return false;
+    }
+
+    // Attach Ethernet driver to Ethernet netif
+    err = esp_netif_attach(pEthNetif, esp_eth_new_netif_glue(_ethernetHandle));
+    // Check event handler ok
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to attach eth driver");
+        return false;
+    }
+
+    // Start Ethernet driver state machine
+    err = esp_eth_start(_ethernetHandle);
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
+        return false;
+    }
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "setup ethernet OK");
+    return true;
 }
 #endif
 

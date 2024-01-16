@@ -3,6 +3,7 @@
 build
 builds
 sdkconfig
+managed_components
 compile_commands_win.json
 *.pyc
 logs/
