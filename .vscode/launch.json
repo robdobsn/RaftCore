@@ -15,7 +15,7 @@
                 "${workspaceFolder}/test_data/SysTypes1/SysTypes.json",
                 "${workspaceFolder}/test_data/SysTypes1/SysTypesInfo.cpp",
                 "--cpp_template",
-                "${workspaceFolder}/components/core/SysTypes/SysTypesInfoTemplate.txt"
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfo.cpp.template"
             ]
         },
         {
@@ -29,7 +29,7 @@
                 "${workspaceFolder}/test_data/SysTypes2/SysTypes.json",
                 "${workspaceFolder}/test_data/SysTypes2/SysTypesInfo.cpp",
                 "--cpp_template",
-                "${workspaceFolder}/components/core/SysTypes/SysTypesInfoTemplate.txt"
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfo.cpp.template"
             ]
         },
         {
