@@ -33,13 +33,15 @@ public:
     ///       It comprises an element that is stored in non-volatile storage that may be empty or contain
     ///       a JSON document. If this document contains a key called "SysType" then the value of this key
     ///       is used to select the SysType from the list of SysTypes passed into setup on startup or after
-    ///       the SysTypeInfoRecs have been changed. An addition use for the non-volatile JSON document is that
+    ///       the SysTypeInfoRecs have been changed. An additional use for the non-volatile JSON document is that
     ///       it will be searched first for any key requested (so can be used to override configuration settings).
     ///       The second element of the system configuration is a chained JSON document that contains the
-    ///       configuration for the selected SysType. This is not stored in non-volatile storage and is
+    ///       configuration for the selected SysType. This is not stored in non-volatile storage and it
     ///       MUST be available throughout the lifetime of this object. A pointer to this chained document 
-    ///       is set on startup, after hardware revision detection, after the SysTypeInfoRecs have been changed and 
-    ///       when an API is used to select a different SysType.
+    ///       is set at the folliowing times: (a) startup, (b) when a different version of the configuration is
+    ///       selected (for instance this can be used to implement different configurations for different hardware
+    ///       revisions), (c) after the SysTypeInfoRecs have been changed and (d) when API is used to select a
+    ///       different SysType.
     SysTypeManager(RaftJsonIF& systemConfig, RaftJson& baseSysTypesJson);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -55,9 +57,9 @@ public:
     String getCurrentSysTypeName();
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Set hardware revision
-    /// @param hwRev hardware revision
-    void setHardwareRevision(uint32_t hwRev);
+    /// @brief Set version of base SysType
+    /// @param hwRev versionString
+    void setBaseSysTypeVersion(const char* pVersionStr);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set callback for system restart
@@ -66,19 +68,6 @@ public:
     {
         _systemRestartCallback = systemRestartCallback;
     }
-
-    // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // /// @brief Form the SysType name for a base SysType record
-    // /// @param sysTypeInfoRecIdx index of the SysType record
-    // /// @return SysType name
-    // /// @note the list is generated from the SysTypeInfoRec records passed into setup
-    // String getBaseSysTypeName(int sysTypeInfoRecIdx)
-    // {
-    //     if ((sysTypeInfoRecIdx < 0) || (sysTypeInfoRecIdx >= (int)_pSysTypeInfoRecs->size()))
-    //         return "";
-    //     SysTypeInfoRec& infoRec = (*_pSysTypeInfoRecs)[sysTypeInfoRecIdx];
-    //     return infoRec.pSysTypeName;
-    // }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get a list of SysTypes as a JSON list
@@ -120,8 +109,8 @@ private:
     // Chained JSON document used for access to the base SysType
     RaftJson& _baseSysTypeConfig;
 
-    // Hardware revision
-    uint32_t _hwRev = 0;
+    // Base SysType version
+    String _baseSysTypeVersion;
 
     // Index of last SysTypeInfoRec selected
     int _currentlySysTypeInfoRecIdx = -1;

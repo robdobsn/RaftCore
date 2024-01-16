@@ -151,8 +151,8 @@ void SysManager::setup()
                 std::bind(&SysManager::apiSerialNumber, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Serial number");
         _pRestAPIEndpointManager->addEndpoint("hwrevno", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
-                std::bind(&SysManager::apiHwRevisionNumber, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                "HW revision number");
+                std::bind(&SysManager::apiHwRevision, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                "HW revision");
         _pRestAPIEndpointManager->addEndpoint("testsetloopdelay", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiTestSetLoopDelay, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Set a loop delay to test resilience, e.g. ?delayMs=10&skipCount=1, applies 10ms delay to alternate loops");
@@ -586,16 +586,17 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
     // Get serial number
     String serialNo = _mutableConfig.getString("serialNo", "");
     char versionJson[225];
+    // Hardware revision Json
+    String hwRevJson = getHardwareRevisionJson();
     snprintf(versionJson, sizeof(versionJson),
              R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
-             R"("MAC":"%s","RicHwRevNo":%d,"HwRev":%d})",
+            R"("MAC":"%s",%s})",
              reqStr.c_str(), 
              _systemName.c_str(), 
              _systemVersion.c_str(), 
              serialNo.c_str(),
              _systemUniqueString.c_str(),
-             _hwRevision,
-             _hwRevision);
+            hwRevJson.c_str());
     respStr = versionJson;
 
 #ifdef DEBUG_API_ENDPOINTS
@@ -701,15 +702,13 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// HW revision number
+// HW revision
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode SysManager::apiHwRevisionNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiHwRevision(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Create response JSON
-    char jsonOut[50];
-    snprintf(jsonOut, sizeof(jsonOut), R"("RicHwRevNo":%d,"HwRevNo":%d)", _hwRevision, _hwRevision);
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, jsonOut);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, getHardwareRevisionJson().c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -831,11 +830,11 @@ void SysManager::statsShow()
     String friendlyNameStr;
     if (_mutableConfigCache.friendlyNameIsSet)
         friendlyNameStr = "\"f\":\"" + _mutableConfigCache.friendlyName + "\",";
-    snprintf(statsStr, sizeof(statsStr), R"({%s"n":"%s","v":"%s","r":%d,"hpInt":%d,"hpMin":%d,"hpAll":%d)", 
+    snprintf(statsStr, sizeof(statsStr), R"({%s"n":"%s","v":"%s","r":"%s","hpInt":%d,"hpMin":%d,"hpAll":%d)", 
                 friendlyNameStr.c_str(),
                 _systemName.c_str(),
                 _systemVersion.c_str(),
-                _hwRevision,
+                _hardwareRevision.c_str(),
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_free_size(MALLOC_CAP_8BIT));
@@ -921,4 +920,27 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
     {
         networkSystem.pauseWiFi(changeToOnline);
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get hardware revision JSON
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String SysManager::getHardwareRevisionJson()
+{
+    // Get hardware revision string (if all digits then set in JSON as a number for backward compatibility)
+    String hwRevStr = _hardwareRevision;
+    bool allDigits = true;
+    for (int i = 0; i < hwRevStr.length(); i++)
+    {
+        if (!isdigit(hwRevStr.charAt(i)))
+        {
+            allDigits = false;
+            break;
+        }
+    }
+    if (!allDigits)
+        hwRevStr = "\"" + hwRevStr + "\"";
+    // Form JSON
+    return "\"HwRev\":\"" + _hardwareRevision + "\",\"RicHwRevNo\":" + hwRevStr;
 }

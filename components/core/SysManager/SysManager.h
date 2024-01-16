@@ -59,16 +59,16 @@ public:
         return _systemVersion;
     }
 
-    // Set hardware revision number
-    void setHwRevision(uint16_t hwRevNo)
+    // Set hardware revision
+    void setHwRevision(const char* pHwRevStr)
     {
-        _hwRevision = hwRevNo;
+        _hardwareRevision = pHwRevStr;
     }
 
-    // Get hardware revision number
-    uint16_t getHwRevision()
+    // Get hardware revision
+    String getHwRevision()
     {
-        return _hwRevision;
+        return _hardwareRevision;
     }
 
     // Get friendly name
@@ -234,8 +234,8 @@ private:
     String _systemName;
     String _systemVersion;
 
-    // Hardware revision number
-    uint16_t _hwRevision = 0;
+    // Hardware revision
+    String _hardwareRevision;
 
     // System config
     RaftJsonIF& _systemConfig;
@@ -294,8 +294,8 @@ private:
     // Serial no
     RaftRetCode apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
-    // Hardware (RIC) revision number
-    RaftRetCode apiHwRevisionNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    // Hardware revision
+    RaftRetCode apiHwRevision(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // SysMod info and debug
     RaftRetCode apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
@@ -315,5 +315,8 @@ private:
 
     // Mutable config
     String getMutableConfigJson();
+
+    // Get hardware revision JSON
+    String getHardwareRevisionJson();
 
 };

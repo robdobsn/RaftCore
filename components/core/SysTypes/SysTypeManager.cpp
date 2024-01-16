@@ -56,15 +56,16 @@ void SysTypeManager::setBaseSysTypes(const std::vector<SysTypeInfoRec>* pSysType
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Set hardware revision
-/// @param hwRev hardware revision
-/// @note Setting the hardware revision will cause the system type to be re-selected based on the
-///       best match to the hardware revision and SysType specified in the non-volatile JSON document
+/// @brief Set version of base SysType
+/// @param hwRev versionString
+/// @note Setting the base SysType version will cause the base SysType to be re-selected based on the
+///       best match to the version string and SysType specified in the non-volatile JSON document
 ///       (if it exists)
-void SysTypeManager::setHardwareRevision(uint32_t hwRev)
+void SysTypeManager::setBaseSysTypeVersion(const char* pVersionStr)
 {
-    // Set the hardware revision
-    _hwRev = hwRev;
+    // Set the version
+    if (pVersionStr)
+        _baseSysTypeVersion = pVersionStr;
 
     // Set the system type to the most appropriate one
     selectMostAppropriateSysType();
@@ -96,7 +97,8 @@ String SysTypeManager::getCurrentSysTypeName()
 /// @brief Get a list of SysTypes as a JSON list
 /// @return JSON document containing just a list of SysTypes
 /// @note the list is generated from the SysTypeInfoRec records passed into setup. The list returned will only
-///       include those SysTypes that are valid for the current hardware revision
+///       include those SysTypes that are valid for the current base SysType version string (unless there is
+///       only 1 base SysType in which case it will be returned)
 String SysTypeManager::getBaseSysTypesListAsJson()
 {
     // Get a JSON formatted list of sysTypes
@@ -113,11 +115,11 @@ String SysTypeManager::getBaseSysTypesListAsJson()
             if (recName.length() == 0)
                 continue;
 
-            // Get hwRev
-            int recHwRev = sysTypeInfoRec.hwRev;
+            // Get version
+            String recVersion = sysTypeInfoRec.getSysTypeVersion();
 
-            // Check if valid for this hwRev
-            if (recHwRev != _hwRev)
+            // Check if valid for this version
+            if (!recVersion.equals(_baseSysTypeVersion) && (_pSysTypeInfoRecs->size() != 1))
                 continue;
 
             // Add comma if needed
@@ -137,8 +139,8 @@ String SysTypeManager::getBaseSysTypesListAsJson()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get the JSON document for a base SysType (SysTypes are used for configuration defined by the JSON doc)
 /// @param pSysTypeName name of the SysType (if this is nullptr or empty then the current SysType doc is returned)
-///                     the information returned will be for the SysType record relating to the current hardware 
-///                     revision
+///                     the information returned will be for the SysType record relating to the current base
+///                     base SysType version
 /// @param outJsonDoc JSON document to return content in
 /// @param append true if the JSON document should be appended to
 /// @return bool true if the JSON document was found
@@ -173,12 +175,14 @@ bool SysTypeManager::getBaseSysTypeContent(const char* pSysTypeName, String& out
     }
 
     // Find the requested SysType in the SysTypeInfoRecs - it needs to match both the name and
-    // the hardware revision
+    // the base SysType version
     for (const SysTypeInfoRec& sysTypeInfoRec : *_pSysTypeInfoRecs)
     {
         String recName = sysTypeInfoRec.getSysTypeName();
-        int recHwRev = sysTypeInfoRec.hwRev;
-        if (recName.equals(pSysTypeName) && (recHwRev == _hwRev) && sysTypeInfoRec.pSysTypeJSONDoc)
+        String recVersion = sysTypeInfoRec.getSysTypeVersion();
+        if (recName.equals(pSysTypeName) && 
+                (recVersion.equals(_baseSysTypeVersion) || (_pSysTypeInfoRecs->size() == 1)) && 
+                sysTypeInfoRec.pSysTypeJSONDoc)
         {
             // Get the JSON doc
             if (!append)
@@ -269,7 +273,7 @@ RaftRetCode SysTypeManager::apiGetSysTypes(const String &reqStr, String &respStr
 /// @param reqStr request string
 /// @param respStr response string
 /// @param sourceInfo source information
-/// @note The systype content matching the current hardware revision and requested name will be returned
+/// @note The systype content matching the base SysType version and requested name will be returned
 RaftRetCode SysTypeManager::apiGetSysTypeContent(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
 #ifdef DEBUG_SYS_TYPE_MANAGER_API
@@ -296,8 +300,8 @@ RaftRetCode SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &
     // Basic response is the current system type
     String settingsResp = "\"sysType\":\"" + getCurrentSysTypeName() + "\"";
 #ifdef DEBUG_SYS_TYPE_MANAGER_API
-    LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings filter %s sysType %s hardwRev %d", 
-                filterSettings.c_str(), getCurrentSysTypeName().c_str(), _hwRev);
+    LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings filter %s sysType %s baseSysTypeVersion %s", 
+                filterSettings.c_str(), getCurrentSysTypeName().c_str(), _baseSysTypeVersion.c_str());
 #endif
     if (filterSettings.equalsIgnoreCase("nv") || filterSettings.equalsIgnoreCase("all") || (filterSettings == ""))
     {
@@ -419,14 +423,14 @@ RaftRetCode SysTypeManager::apiSysTypeClearSettings(const String &reqStr, String
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief set the most appropriate system type based on the requested system type name and hardware revision
+/// @brief set the most appropriate system type based on the requested system type name and base SysType version
 void SysTypeManager::selectMostAppropriateSysType()
 {
     // This method sets a pointer to the JSON doc for a base SysType (from the SysTypeInfoRecs) into the chained
     // RaftJson object in the system config.
-    // A SysType info rec will only be selected if it matches the current hardware revision (if no SysType
-    // info rec matches the hardware revision then a nullptr will be set into the chained RaftJson object)
-    // Assuming one or more SysType info recs match the hardware revision then the one chosen will either be
+    // A SysType info rec will only be selected if it matches the base SysType version or if there is only 
+    // one base SysType (otherwise, a nullptr will be set into the chained RaftJson object)
+    // Assuming one or more SysType info recs match the base SysType version then the one chosen will either be
     // the one matching the SysType key in the non-volatile JSON document or the first one in the list
 
     // Initially remove the chained document so SysType can only come from the non-volatile JSON document
@@ -441,9 +445,9 @@ void SysTypeManager::selectMostAppropriateSysType()
     {
         const SysTypeInfoRec& sysTypeInfoRec = (*_pSysTypeInfoRecs)[sysTypeInfoRecIdx];
         String recName = sysTypeInfoRec.getSysTypeName();
-        int recHwRev = sysTypeInfoRec.hwRev;
-        // Check hardware revision matches first
-        if (recHwRev != _hwRev)
+        String recVersion = sysTypeInfoRec.getSysTypeVersion();
+        // Check version matches first
+        if (!recVersion.equals(_baseSysTypeVersion) && (_pSysTypeInfoRecs->size() != 1))
             continue;
         // Check if this is first match
         if (bestValidSysTypeInfoRecIdx < 0)
@@ -475,8 +479,8 @@ void SysTypeManager::selectMostAppropriateSysType()
     _currentlySysTypeInfoRecIdx = bestValidSysTypeInfoRecIdx;
 
 #ifdef DEBUG_SYS_TYPE_SET_MOST_APPROPRIATE
-    LOG_I(MODULE_PREFIX, "selectMostAppropriateSysType selected recName %s recHwRev %d currentHwRev %d jsonDocPtr %p chainedPtr %p chainedJsonDoc %s", 
-                sysTypeInfoRec.getSysTypeName().c_str(), sysTypeInfoRec.hwRev, _hwRev, 
+    LOG_I(MODULE_PREFIX, "selectMostAppropriateSysType selected recName %s recVersion %s curBaseVersion %s jsonDocPtr %p chainedPtr %p chainedJsonDoc %s", 
+                sysTypeInfoRec.getSysTypeName().c_str(), sysTypeInfoRec.getSysTypeVersion(), _baseSysTypeVersion.c_str(), 
                 sysTypeInfoRec.pSysTypeJSONDoc,
                 _systemConfig.getChainedRaftJson(),
                 _systemConfig.getChainedRaftJson() ? _systemConfig.getChainedRaftJson()->getJsonDoc() : "null"

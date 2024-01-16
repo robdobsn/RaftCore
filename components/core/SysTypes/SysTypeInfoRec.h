@@ -20,18 +20,18 @@ public:
         return "";
     }
 
-    // Get SysType key
-    String getSysTypeKey() const {
-        if (pSysTypeKey)
-            return pSysTypeKey;
+    // Get SysType version
+    String getSysTypeVersion() const {
+        if (pSysTypeVersion)
+            return pSysTypeVersion;
         return "";
     }
 
     // SysType name
     const char* pSysTypeName = nullptr;
 
-    // Hardware revision
-    const char* pSysTypeKey = nullptr;
+    // SysType version
+    const char* pSysTypeVersion = nullptr;
 
     // SysType JSON document
     const char* pSysTypeJSONDoc = nullptr;
