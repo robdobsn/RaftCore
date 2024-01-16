@@ -2,9 +2,6 @@
 cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
-# Include ESP-IDF build system
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-
 # Get build configuration folder
 get_filename_component(_build_config_name ${CMAKE_BINARY_DIR} NAME)
 
@@ -17,6 +14,9 @@ endif()
 # Use sdkconfig for the selected build configuration
 set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
 set(SDKCONFIG "${BUILD_CONFIG_DIR}/sdkconfig")
+
+# Include ESP-IDF build system
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Configure build config specific features (options, flags, etc).
 include(${BUILD_CONFIG_DIR}/features.cmake)
