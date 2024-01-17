@@ -2,11 +2,6 @@
 cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
-# Set CONFIG_IDF_TARGET from IDF_TARGET if not already set
-if(NOT DEFINED CONFIG_IDF_TARGET)
-  set(CONFIG_IDF_TARGET ${IDF_TARGET})
-endif()
-
 # Get build configuration folder
 get_filename_component(_build_config_name ${CMAKE_BINARY_DIR} NAME)
 
@@ -28,11 +23,16 @@ if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
   endif()
 endif()
 
-# Include ESP-IDF build system
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-
 # Configure build config specific features (options, flags, etc).
 include(${BUILD_CONFIG_DIR}/features.cmake)
+
+# Set CONFIG_IDF_TARGET from IDF_TARGET if not already set
+if(NOT DEFINED CONFIG_IDF_TARGET)
+  set(CONFIG_IDF_TARGET ${IDF_TARGET})
+endif()
+
+# Include ESP-IDF build system (must be done after setting CONFIG_IDF_TARGET)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Set the firmware image name (if not already set)
 if(NOT DEFINED FW_IMAGE_NAME)
