@@ -26,6 +26,9 @@ endif()
 # Configure build config specific features (options, flags, etc).
 include(${BUILD_CONFIG_DIR}/features.cmake)
 
+# System naming
+add_compile_definitions(PROJECT_BASENAME="${PROJECT_BASENAME}")
+
 # Set CONFIG_IDF_TARGET from IDF_TARGET if not already set
 if(NOT DEFINED CONFIG_IDF_TARGET)
   set(CONFIG_IDF_TARGET ${IDF_TARGET})

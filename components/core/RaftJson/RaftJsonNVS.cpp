@@ -10,6 +10,7 @@
 #include <vector>
 #include <list>
 #include "RaftJsonNVS.h"
+#include "nvs_flash.h"
 
 static const char *MODULE_PREFIX = "RaftJsonNVS";
 
@@ -127,7 +128,7 @@ void RaftJsonNVS::readJsonDocFromNVS()
         // Update the base class JSON doc (note that this handles 0 length strings)
         updateJsonDoc(nullptr, 0);
     
-#ifdef WARN_ON_NVS_ACCESS_FAILURES
+#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
         // Debug
         LOG_W(MODULE_PREFIX, "readJsonDocFromNVS FAIL ns %s key %s", 
                     _nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC);
@@ -306,4 +307,39 @@ const char* RaftJsonNVS::getNVSTypeName(nvs_type_t nvsType)
         default:
             return "NVS_TYPE_UNKNOWN";
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Initialise Non-Volatile Storage
+/// @param eraseIfCorrupt if true then erase the NVS if it is corrupt
+/// @return true if the NVS was initialised successfully
+bool RaftJsonNVS::initNVS(bool eraseIfCorrupt)
+{
+    // Initialize NVS
+    esp_err_t nvsInitResult = nvs_flash_init();
+    if (nvsInitResult == ESP_OK)
+        return true;
+
+    // Error message
+    ESP_LOGE(MODULE_PREFIX, "nvs_flash_init() failed with error %s (%d)", esp_err_to_name(nvsInitResult), nvsInitResult);
+
+    // Clear flash if required
+    if (eraseIfCorrupt && ((nvsInitResult == ESP_ERR_NVS_NO_FREE_PAGES) || (nvsInitResult == ESP_ERR_NVS_NEW_VERSION_FOUND)))
+    {
+        esp_err_t flashEraseResult = nvs_flash_erase();
+        if (flashEraseResult != ESP_OK)
+        {
+            ESP_LOGE(MODULE_PREFIX, "nvs_flash_erase() failed with error %s (%d)", 
+                            esp_err_to_name(flashEraseResult), flashEraseResult);
+        }
+        nvsInitResult = nvs_flash_init();
+        if (nvsInitResult != ESP_OK)
+        {
+            // Error message
+            ESP_LOGW(MODULE_PREFIX, "nvs_flash_init() failed a second time with error %s (%d)", 
+                            esp_err_to_name(nvsInitResult), nvsInitResult);
+            return false;
+        }
+    }
+    return nvsInitResult == ESP_OK;
 }

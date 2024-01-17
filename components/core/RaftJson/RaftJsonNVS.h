@@ -71,6 +71,12 @@ public:
     /// @param showContents if true then show the contents of the NVS keys
     static void debugShowNVSInfo(bool showContents);
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Initialise Non-Volatile Storage
+    /// @param eraseIfCorrupt if true then erase the NVS if it is corrupt
+    /// @return true if the NVS was initialised successfully
+    static bool initNVS(bool eraseIfCorrupt);
+
 private:
     // Key name in NVS
     const char* KEY_NAME_FOR_JSON_DOC = "JSON";

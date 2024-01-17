@@ -20,6 +20,7 @@ endif()
 
 idf_component_register(
   SRCS
+    "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypesInfo.cpp"
     "components/comms/CommsChannels/CommsChannel.cpp"
     "components/comms/CommsChannels/CommsChannelManager.cpp"
     "components/comms/CommsChannelMsg/CommsChannelMsg.cpp"
@@ -63,6 +64,7 @@ idf_component_register(
     "components/core/MQTT/RaftMQTTClient.cpp"
     "components/core/NetworkSystem/NetworkSystem.cpp"
     "components/core/NetworkSystem/WiFiScanner.cpp"
+    "components/core/RaftCoreApp/RaftCoreApp.cpp"
     "components/core/RaftJson/RaftJson.cpp"
     "components/core/RaftJson/RaftJsonNVS.cpp"
     "components/core/RestAPIEndpoints/RestAPIEndpointManager.cpp"
@@ -106,6 +108,7 @@ idf_component_register(
     "components/core/NamedValueProvider"
     "components/core/NetworkSystem"
     "components/core/NumericalFilters"
+    "components/core/RaftCoreApp"
     "components/core/RaftJson"
     "components/core/RestAPIEndpoints"
     "components/core/RingBuffer"

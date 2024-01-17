@@ -32,11 +32,11 @@ public:
     // Constructor
     SysManager(const char* pModuleName,
             RaftJsonIF& systemConfig,
-            const char* pDefaultFriendlyName,
-            const char* pSystemHWName,
-            uint32_t serialLengthBytes, 
-            const String& serialMagicStr,
-            const char* pSysManagerNVSNamespace);
+            const String sysManagerNVSNamespace,
+            const char* pSystemHWName = nullptr,
+            const char* pDefaultFriendlyName = nullptr,
+            uint32_t serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES, 
+            const char* pSerialMagicStr = nullptr);
 
     // Setup
     void setup();
@@ -173,14 +173,17 @@ public:
         return _isSystemStreaming;
     }
 
+    // Defaults
+    static const uint32_t DEFAULT_SERIAL_LEN_BYTES = 16;
+
 private:
 
     // Name of this module
     String _moduleName;
 
-    // Serial set magic string
-    uint32_t _serialLengthBytes = 16;
-    String _serialMagicStr = "SerialMagic";
+    // Serial length and set magic string
+    uint32_t _serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES;
+    String _serialMagicStr;
 
     // Service loop supervisor
     void supervisorSetup();

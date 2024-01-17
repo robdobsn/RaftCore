@@ -85,8 +85,7 @@
         "logLevel": "D"
     },
     "FileManager": {
-        "SPIFFSEnabled": 0,
-        "LittleFSEnabled": 1,
+        "LocalFsDefault": "littlefs",
         "LocalFSFormatIfCorrupt": 1,
         "CacheFileSysInfo": 0,
         "SDEnabled": 0,

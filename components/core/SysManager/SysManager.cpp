@@ -51,33 +51,42 @@ static const char *MODULE_PREFIX = "SysMan";
 
 SysManager::SysManager(const char* pModuleName,
                 RaftJsonIF& systemConfig,
+            const String sysManagerNVSNamespace,
+            const char* pSystemName,
                 const char* pDefaultFriendlyName,
-                const char* pSystemHWName,
                 uint32_t serialLengthBytes, 
-            const String& serialMagicStr,
-            const char* pSysManagerNVSNamespace) :
+            const char* pSerialMagicStr) :
                             _systemConfig(systemConfig),
-                            _mutableConfig(pSysManagerNVSNamespace)
+                _mutableConfig(sysManagerNVSNamespace.c_str())
 {
     // Module name
     _moduleName = pModuleName;
 
     // Set serial length and magic string
     _serialLengthBytes = serialLengthBytes;
-    _serialMagicStr = serialMagicStr;
+    if (pSerialMagicStr)
+        _serialMagicStr = pSerialMagicStr;
 
     // Register this manager to all objects derived from SysModBase
     SysModBase::setSysManager(this);
 
     // Extract system name from root level of config
-    _systemName = _systemConfig.getString("SystemName", pSystemHWName);
+    String sysTypeName = systemConfig.getString("SysTypeName", pSystemName ? pSystemName : 
+#ifdef PROJECT_BASENAME
+            PROJECT_BASENAME
+#else
+            "Unknown"
+#endif
+    );
+    _systemName = _systemConfig.getString("SystemName", sysTypeName.c_str());
     _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
 
     // System config for this module
     RaftJsonPrefixed sysManConfig(_systemConfig, pModuleName);
 
     // System friendly name
-    _defaultFriendlyName = sysManConfig.getString("DefaultName", pDefaultFriendlyName);
+    _defaultFriendlyName = sysManConfig.getString("DefaultName", 
+                    pDefaultFriendlyName ? pDefaultFriendlyName : _systemName.c_str());
 
     // Prime the mutable config info
     _mutableConfigCache.friendlyName = _mutableConfig.getString("friendlyName", "");
@@ -112,7 +121,9 @@ SysManager::SysManager(const char* pModuleName,
     String friendlyName = getFriendlyName(friendlyNameIsSet);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "friendlyName %s rebootAfterNHours %d rebootIfDiscMins %d slowSysModUs %d serialNo %s (defaultFriendlyName %s)",
+    LOG_I(MODULE_PREFIX, "nvsNamespace %s systemName %s friendlyName %s rebootAfterNHours %d rebootIfDiscMins %d slowSysModUs %d serialNo %s (defaultFriendlyName %s)",
+                sysManagerNVSNamespace.c_str(),
+                _systemName.c_str(),
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
                 _rebootAfterNHours, _rebootIfDiscMins,
                 _slowSysModThresholdUs,
@@ -678,7 +689,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
         {
             magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
-            if (!magicString.equals(_serialMagicStr))
+            if (!magicString.equals(_serialMagicStr) && !_serialMagicStr.isEmpty())
             {
                 Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
                 return RaftRetCode::RAFT_INVALID_DATA;
