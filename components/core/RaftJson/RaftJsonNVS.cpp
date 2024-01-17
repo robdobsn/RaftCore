@@ -13,10 +13,10 @@
 
 static const char *MODULE_PREFIX = "RaftJsonNVS";
 
-#define WARN_ON_NVS_JSON_DOC_TOO_SHORT
-#define WARN_ON_NVS_JSON_DOC_TOO_LONG
+// #define WARN_ON_NVS_JSON_DOC_TOO_SHORT
+// #define WARN_ON_NVS_JSON_DOC_TOO_LONG
 #define WARN_ON_NVS_ACCESS_FAILURES
-#define DEBUG_NVS_READ_WRITE_OPERATIONS
+// #define DEBUG_NVS_READ_WRITE_OPERATIONS
 // #define WARN_ON_NVS_NAMESPACE_NOT_FOUND_FAILURES
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -216,7 +216,7 @@ void RaftJsonNVS::updateJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
     // Check if the string is too long
     else if ((_jsonMaxlen != 0) && (jsonDocStrLen > _jsonMaxlen))
     {
-#ifdef WARN_ON_NVS_JSON_DOC_TOO_SHORT
+#ifdef WARN_ON_NVS_JSON_DOC_TOO_LONG
         LOG_W(MODULE_PREFIX, "updateJsonDoc TOO_LONG namespace %s read: len(%d) maxlen %d", 
                     _nvsNamespace.c_str(), jsonDocStrLen, _jsonMaxlen);
 #endif

@@ -155,5 +155,4 @@ int main()
         printf("testPrimitives FAILED %d tests\n", failCount);
     else
         printf("testPrimitives all tests passed\n");
-
 }
