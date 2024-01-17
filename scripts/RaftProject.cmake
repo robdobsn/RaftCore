@@ -17,10 +17,14 @@ set(SDKCONFIG "${BUILD_CONFIG_DIR}/sdkconfig")
 
 # Check if the sdkconfig file is older than the sdkconfig.defaults file and delete it if so
 if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
-  if(${SDKCONFIG} IS_NEWER_THAN ${SDKCONFIG_DEFAULTS})
+  if(${SDKCONFIG_DEFAULTS} IS_NEWER_THAN ${SDKCONFIG})
     message(STATUS "Deleting ${SDKCONFIG} as it is older than ${SDKCONFIG_DEFAULTS}")
     file(REMOVE ${SDKCONFIG})
+  else()
+    message(STATUS "Not deleting ${SDKCONFIG} as it is newer than ${SDKCONFIG_DEFAULTS}")
   endif()
+else()
+  message(STATUS "Not deleting ${SDKCONFIG} as it does not exist (or ${SDKCONFIG_DEFAULTS} does not exist)")
 endif()
 
 # Configure build config specific features (options, flags, etc).
