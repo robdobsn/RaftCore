@@ -2,6 +2,11 @@
 cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
+# Set CONFIG_IDF_TARGET from IDF_TARGET if not already set
+if(NOT DEFINED CONFIG_IDF_TARGET)
+  set(CONFIG_IDF_TARGET ${IDF_TARGET})
+endif()
+
 # Get build configuration folder
 get_filename_component(_build_config_name ${CMAKE_BINARY_DIR} NAME)
 
@@ -14,6 +19,14 @@ endif()
 # Use sdkconfig for the selected build configuration
 set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
 set(SDKCONFIG "${BUILD_CONFIG_DIR}/sdkconfig")
+
+# Check if the sdkconfig file is older than the sdkconfig.defaults file and delete it if so
+if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
+  if(${SDKCONFIG} IS_NEWER_THAN ${SDKCONFIG_DEFAULTS})
+    message(STATUS "Deleting ${SDKCONFIG} as it is older than ${SDKCONFIG_DEFAULTS}")
+    file(REMOVE ${SDKCONFIG})
+  endif()
+endif()
 
 # Include ESP-IDF build system
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
