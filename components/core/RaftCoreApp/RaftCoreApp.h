@@ -33,6 +33,13 @@ public:
     /// @brief Chain default system config
     void chainDefaultSystemConfig();
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Register a SysMod
+    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn)
+    {
+        _sysManager.registerSysMod(pSysModClassName, pSysModCreateFn);
+    }
+
 private:
     // System configuration
     RaftJsonNVS _systemConfig;

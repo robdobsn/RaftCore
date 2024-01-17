@@ -21,6 +21,7 @@
 #include "RaftArduino.h"
 #include "CommsCoreIF.h"
 #include "RaftJsonNVS.h"
+#include "SysModFactory.h"
 
 typedef String (*SysManager_statsCB)();
 
@@ -44,8 +45,11 @@ public:
     // Service
     void service();
 
-    // Manage machines
-    void add(SysModBase* pSysMod);
+    // Register SysMod with the SysMod factory
+    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn);
+
+    // Add a pre-constructed SysMod to the managed list
+    void addManagedSysMod(SysModBase* pSysMod);
 
     // Get system name
     String getSystemName()
@@ -180,6 +184,9 @@ private:
 
     // Name of this module
     String _moduleName;
+
+    // SysMod factory
+    SysModFactory _sysModFactory;
 
     // Serial length and set magic string
     uint32_t _serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES;
