@@ -28,7 +28,7 @@
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
 
-#ifdef CONFIG_ETH_ENABLED
+#ifdef ETHERNET_IS_ENABLED
 #include "esp_eth_netif_glue.h"
 #endif
 
@@ -150,7 +150,7 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
         startWifi();
     }
 
-#ifdef CONFIG_ETH_ENABLED
+#ifdef ETHERNET_IS_ENABLED
     // Start ethernet if required
     if (_networkSettings.enableEthernet)
     {
@@ -310,7 +310,7 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
         jsonStr += R"("eth":{"en":)" + String(_networkSettings.enableEthernet);
-#ifdef CONFIG_ETH_ENABLED
+#ifdef ETHERNET_IS_ENABLED
         if (_networkSettings.enableEthernet)
             jsonStr += R"(,"conn":)" + String(isEthConnectedWithIP()) +
                         R"(,"IP":")" + _ethIPV4Addr +
@@ -342,7 +342,7 @@ void NetworkSystem::networkEventHandler(void *arg, esp_event_base_t event_base,
     {
         networkSystem.ipEventHandler(arg, event_id, pEventData);
     }
-#ifdef CONFIG_ETH_ENABLED
+#ifdef ETHERNET_IS_ENABLED
     else if (event_base == ETH_EVENT)
     {
         networkSystem.ethEventHandler(arg, event_id, pEventData);
@@ -690,7 +690,7 @@ void NetworkSystem::setLogLevel(esp_log_level_t logLevel)
 // Start ethernet
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef CONFIG_ETH_ENABLED
+#ifdef ETHERNET_IS_ENABLED
 
 bool NetworkSystem::startEthernet()
 {
@@ -943,7 +943,7 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
 // Ethernet Event handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef CONFIG_ETH_ENABLED
+#ifdef ETHERNET_IS_ENABLED
 
 void NetworkSystem::ethEventHandler(void *arg, int32_t event_id, void *pEventData)
 {
@@ -1016,7 +1016,7 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     case IP_EVENT_GOT_IP6:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station/AP IPv6 preferred");
         break;
-#ifdef CONFIG_ETH_ENABLED
+#ifdef ETHERNET_IS_ENABLED
     case IP_EVENT_ETH_GOT_IP:
     {
         // Get IP address string

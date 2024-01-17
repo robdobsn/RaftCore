@@ -25,8 +25,8 @@ public:
     ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig);
     virtual ~ProtocolExchange();
 
-    // Set handlers
-    void setHandlers(SysModBase* pFirmwareUpdater)
+    // Set firmware update handler
+    void setFWUpdateHandler(SysModBase* pFirmwareUpdater)
     {
         _pFirmwareUpdater = pFirmwareUpdater;
     }

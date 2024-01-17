@@ -14,31 +14,37 @@
 class SysModBase;
 
 // SysMod create function
-typedef SysModBase* (*SysModCreateFn)(const char* pSysModName);
+typedef SysModBase* (*SysModCreateFn)(const char* pSysModName, RaftJsonIF& sysConfig);
 
 class SysModFactory
 {
 public:
-    SysModFactory();
-    ~SysModFactory();
-
     // Register a SysMod
-    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn);
-
-private:
+    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn, uint8_t priority1to10, bool defaultEn)
+    {
+        sysModClassDefs.push_back(SysModClassDef(pSysModClassName, pSysModCreateFn, priority1to10, defaultEn));
+    }
 
     class SysModClassDef
     {
     public:
-        SysModClassDef(const char* pSysModClassName, SysModCreateFn pSysModCreateFn)
+        SysModClassDef(const char* pSysModClassName, SysModCreateFn pSysModCreateFn, uint8_t priority1to10, bool defaultEn)
         {
-            _sysModClassName = pSysModClassName;
-            _pSysModCreateFn = pSysModCreateFn;
+            name = pSysModClassName;
+            pCreateFn = pSysModCreateFn;
+            defaultEnabled = defaultEn;
+            this->priority1to10 = priority1to10;
         }
-        String _sysModClassName;
-        SysModCreateFn _pSysModCreateFn;
+        String name;
+        SysModCreateFn pCreateFn = nullptr;
+        bool defaultEnabled = false;
+        uint8_t priority1to10 = 0;
     };
 
     // List of SysMod classes
-    std::list<SysModClassDef> _sysModClassDefs;
+    std::list<SysModClassDef> sysModClassDefs;
+
+    // Priority values
+    static const uint8_t PRIORITY_HIGHEST = 1;
+    static const uint8_t PRIORITY_LOWEST = 10;
 };

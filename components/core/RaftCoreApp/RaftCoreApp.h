@@ -34,10 +34,10 @@ public:
     void chainDefaultSystemConfig();
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Register a SysMod
-    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn)
+    /// @brief Get SysManager
+    SysManager& getSysManager()
     {
-        _sysManager.registerSysMod(pSysModClassName, pSysModCreateFn);
+        return _sysManager;
     }
 
 private:

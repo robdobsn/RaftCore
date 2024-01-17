@@ -22,6 +22,7 @@
 #include "CommsCoreIF.h"
 #include "RaftJsonNVS.h"
 #include "SysModFactory.h"
+#include "ProtocolExchange.h"
 
 typedef String (*SysManager_statsCB)();
 
@@ -46,7 +47,7 @@ public:
     void service();
 
     // Register SysMod with the SysMod factory
-    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn);
+    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn, uint8_t priority1to10 = 10, bool defaultEn = false);
 
     // Add a pre-constructed SysMod to the managed list
     void addManagedSysMod(SysModBase* pSysMod);
@@ -140,10 +141,19 @@ public:
     {
         _pCommsCore = pCommsCore;
     }
-
     CommsCoreIF* getCommsCore()
     {
         return _pCommsCore;
+    }
+
+    // Protocol exchange
+    void setProtocolExchange(ProtocolExchange* pProtocolExchange)
+    {
+        _pProtocolExchange = pProtocolExchange;
+    }
+    ProtocolExchange* getProtocolExchange()
+    {
+        return _pProtocolExchange;
     }
 
     // Get supervisor stats
@@ -175,6 +185,12 @@ public:
     bool isSystemStreaming()
     {
         return _isSystemStreaming;
+    }
+
+    // Get SysConfig
+    RaftJsonIF& getSysConfig()
+    {
+        return _systemConfig;
     }
 
     // Defaults
@@ -291,6 +307,9 @@ private:
 
     // Comms core
     CommsCoreIF* _pCommsCore = nullptr;
+
+    // Protocol exchange
+    ProtocolExchange* _pProtocolExchange = nullptr;
 
     // API to reset system
     RaftRetCode apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);

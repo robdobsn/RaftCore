@@ -174,7 +174,29 @@ void SysManager::setup()
 
     // Short delay here to allow logging output to complete as some hardware configurations
     // require changes to serial uarts and this disturbs the logging flow
-    delay(100);
+    delay(20);
+
+    // Go through priority values for SysMod factory
+    for (uint8_t priority = SysModFactory::PRIORITY_HIGHEST; priority < SysModFactory::PRIORITY_LOWEST; priority++)
+    {
+        // Work through the SysMods in the factory and create those that are enabled in the SysConfig
+        for (SysModFactory::SysModClassDef& sysModClassDef : _sysModFactory.sysModClassDefs)
+        {
+            // Check priority
+            if (sysModClassDef.priority1to10 != priority)
+                continue;
+
+            // Get enabled flag from SysConfig
+            bool isEnabled = _systemConfig.getBool((sysModClassDef.name + "/enable").c_str(), sysModClassDef.defaultEnabled);
+
+            // Check if enabled
+            if (!isEnabled)
+                continue;
+
+            // Create the SysMod (it registers itself with the SysManager)
+            sysModClassDef.pCreateFn(sysModClassDef.name.c_str(), _systemConfig);
+        }
+    }
 
     // Now call setup on system modules
     for (SysModBase* pSysMod : _sysModuleList)
@@ -184,6 +206,7 @@ void SysManager::setup()
 #endif
         if (pSysMod)
             pSysMod->setup();
+
 #ifdef DEBUG_SYSMOD_MEMORY_USAGE
         uint32_t heapAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         ESP_LOGI(MODULE_PREFIX, "%s setup heap before %d after %d diff %d", 
@@ -381,9 +404,9 @@ void SysManager::service()
 // Register SysMod with the SysMod factory
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::registerSysMod(const char* pSysModName, SysModFactoryFn sysModFactoryFn)
+void SysManager::registerSysMod(const char* pSysModName, SysModCreateFn sysModCreateFn, uint8_t priority1to10, bool defaultEn)
 {
-    _sysModFactory.registerSysMod(pSysModName, sysModFactoryFn);
+    _sysModFactory.registerSysMod(pSysModName, sysModCreateFn, priority1to10, defaultEn);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -58,7 +58,7 @@ execute_process(
 )
 
 # List of dependencies of main project
-set(ADDED_PROJECT_DEPENDENCIES "reftcore")
+set(ADDED_PROJECT_DEPENDENCIES "raftcore")
 set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR})
 
 # Iterate over list of raft components

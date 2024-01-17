@@ -36,7 +36,7 @@ SysModBase::SysModBase(const char *pModuleName,
 
     // Add to system module manager
     if (_pSysManager)
-        _pSysManager->add(this);
+        _pSysManager->addManagedSysMod(this);
 
     // TODO - deal with mutable config
 }

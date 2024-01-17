@@ -84,11 +84,10 @@ RaftCoreApp::RaftCoreApp() :
     // SysTypeManager endpoints
     _sysTypeManager.addRestAPIEndpoints(_restAPIEndpointManager);
 
-    // API Endpoints
+    // Setup SysManager
     _sysManager.setRestAPIEndpoints(_restAPIEndpointManager);
-
-    // Comms Channel Manager
     _sysManager.setCommsCore(&_commsChannelManager);
+    _sysManager.setProtocolExchange(&_protocolExchange);
 
     // Log out system info
     ESP_LOGI(MODULE_PREFIX, PROJECT_BASENAME " " SYSTEM_VERSION " (built " __DATE__ " " __TIME__ ") Heap %d", 
