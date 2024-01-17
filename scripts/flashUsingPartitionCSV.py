@@ -34,11 +34,16 @@ def parse_args():
     parser.add_argument('port',
                         help="Serial port")
     parser.add_argument('targetChip',
-                        help="Target chip: esp32 or esp32s3")
+                        # Optional so we can extract from sdkconfig
+                        nargs='?',
+                        default=None,
+                        help="Target chip: esp32, esp32s3, esp32c3, esp32c6")
     parser.add_argument('-b', '--baud', default='2000000',
                         help="Baud rate for serial port")
     parser.add_argument('-f', '--filesysimage', default='',
                         help="Name of the file system image (excluding path)")
+    parser.add_argument('-s', '--sdkconfig', default='',
+                        help="Name of the sdkconfig file to extract CONFIG_IDF_TARGET from (full path)")
     return parser.parse_args()
 
 def parse_partitions_csv(partitions_csv_file):
@@ -79,6 +84,26 @@ def main():
     # Parse partitions file
     partitions = parse_partitions_csv(args.partitions_csv)
     # print(partitions)
+
+    # Check if target chip is valid
+    if args.targetChip is None:
+        # Try to extract target chip from sdkconfig file
+        if args.sdkconfig is not None and len(args.sdkconfig) > 0:
+            sdkconfig_file = Path(args.sdkconfig)
+            if sdkconfig_file.exists():
+                with open(sdkconfig_file, 'r') as f:
+                    cmakeFileLines = f.readlines()
+                    for line in cmakeFileLines:
+                        if line.startswith("CONFIG_IDF_TARGET="):
+                            args.targetChip = line.split("=")[1].strip()
+                            print(f"Extracted target chip {args.targetChip} from sdkconfig file {args.sdkconfig}")
+                            # Remove quotes
+                            if args.targetChip[0] == '"':
+                                args.targetChip = args.targetChip[1:-1]
+                            break
+
+    if args.targetChip is None:
+        raise ValueError(f"Target chip not specified and not found in cmake file {args.cmakefilewithidftarget}")
 
     # Flash files and offsets
     filesToFlash = [
