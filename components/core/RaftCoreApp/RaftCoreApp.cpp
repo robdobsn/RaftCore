@@ -75,6 +75,10 @@ RaftCoreApp::RaftCoreApp() :
     // Init NVS
     RaftJsonNVS::initNVS(true);
 
+    // Chain the default config to the SysType so that it is used as a fallback
+    // if no SysTypes are specified
+    _sysTypeConfig.setChainedRaftJson(&_defaultSystemConfig);
+
     // Set base types in SysTypeManager
     _sysTypeManager.setBaseSysTypes(&sysTypesInfo);
 
@@ -99,15 +103,6 @@ RaftCoreApp::RaftCoreApp() :
 /// @brief Destructor
 RaftCoreApp::~RaftCoreApp()
 {
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Chain default system config
-void RaftCoreApp::chainDefaultSystemConfig()
-{
-    // Chain the default config to the SysType so that it is used as a fallback
-    // if no SysTypes are specified
-    _sysTypeConfig.setChainedRaftJson(&_defaultSystemConfig);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

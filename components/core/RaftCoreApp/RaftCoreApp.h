@@ -30,8 +30,11 @@ public:
     void service();
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Chain default system config
-    void chainDefaultSystemConfig();
+    /// @brief Unchain default system config - call this if you don't want to use the default config
+    void unchainDefaultSystemConfig()
+    {
+        _sysTypeConfig.setChainedRaftJson(nullptr);
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get SysManager
