@@ -47,7 +47,10 @@ public:
     void service();
 
     // Register SysMod with the SysMod factory
-    void registerSysMod(const char* pSysModClassName, SysModCreateFn pSysModCreateFn, uint8_t priority1to10 = 10, bool defaultEn = false);
+    void registerSysMod(const char* pClassName, SysModCreateFn pCreateFn, bool alwaysEnable = false, const char* pDependencyListCSV = nullptr)
+    {
+        _sysModFactory.registerSysMod(pClassName, pCreateFn, alwaysEnable, pDependencyListCSV);
+    }
 
     // Add a pre-constructed SysMod to the managed list
     void addManagedSysMod(SysModBase* pSysMod);
@@ -348,4 +351,6 @@ private:
     // Get hardware revision JSON
     String getHardwareRevisionJson();
 
+    // Check SysMod dependency satisfied
+    bool checkSysModDependenciesSatisfied(const SysModFactory::SysModClassDef& sysModClassDef);
 };

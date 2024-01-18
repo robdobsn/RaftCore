@@ -44,6 +44,7 @@ static const char *MODULE_PREFIX = "SysMan";
 // #define DEBUG_SEND_CMD_JSON_PERF
 // #define DEBUG_REGISTER_MSG_GEN_CB
 // #define DEBUG_API_ENDPOINTS
+// #define DEBUG_SYSMOD_FACTORY
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -121,14 +122,17 @@ SysManager::SysManager(const char* pModuleName,
     String friendlyName = getFriendlyName(friendlyNameIsSet);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "nvsNamespace %s systemName %s friendlyName %s rebootAfterNHours %d rebootIfDiscMins %d slowSysModUs %d serialNo %s (defaultFriendlyName %s)",
-                sysManagerNVSNamespace.c_str(),
+    LOG_I(MODULE_PREFIX, "systemName %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
                 _systemName.c_str(),
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
-                _rebootAfterNHours, _rebootIfDiscMins,
-                _slowSysModThresholdUs,
+                _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
-                _defaultFriendlyName.c_str());
+                sysManagerNVSNamespace.c_str());
+    LOG_I(MODULE_PREFIX, "slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d",
+                _slowSysModThresholdUs,
+                _monitorPeriodMs,
+                _rebootAfterNHours, 
+                _rebootIfDiscMins);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -176,25 +180,62 @@ void SysManager::setup()
     // require changes to serial uarts and this disturbs the logging flow
     delay(20);
 
-    // Go through priority values for SysMod factory
-    for (uint8_t priority = SysModFactory::PRIORITY_HIGHEST; priority < SysModFactory::PRIORITY_LOWEST; priority++)
+    // Work through the SysMods in the factory and create those that are enabled
+    // We may loop multiple times here to ensure that a SysMod is not created unless all it's dependencies
+    // have been created
+    bool anySysModsCreated = true;
+    while (anySysModsCreated)
     {
-        // Work through the SysMods in the factory and create those that are enabled in the SysConfig
+        anySysModsCreated = false;
         for (SysModFactory::SysModClassDef& sysModClassDef : _sysModFactory.sysModClassDefs)
         {
-            // Check priority
-            if (sysModClassDef.priority1to10 != priority)
+            // Check if already created
+            bool alreadyCreated = false;
+            for (SysModBase* pSysMod : _sysModuleList)
+            {
+                if (pSysMod && pSysMod->modNameStr().equals(sysModClassDef.name))
+                {
+                    alreadyCreated = true;
+                    break;
+                }
+            }
+            if (alreadyCreated)
                 continue;
 
             // Get enabled flag from SysConfig
-            bool isEnabled = _systemConfig.getBool((sysModClassDef.name + "/enable").c_str(), sysModClassDef.defaultEnabled);
+            bool isEnabled = _systemConfig.getBool((sysModClassDef.name + "/enable").c_str(), sysModClassDef.alwaysEnable);
+
+#ifdef DEBUG_SYSMOD_FACTORY
+            {
+                String depListStrCSV;
+                for (const String& dep : sysModClassDef.dependencyList)
+                {
+                    if (!depListStrCSV.isEmpty())
+                        depListStrCSV += ",";
+                    depListStrCSV += dep;
+                }
+                LOG_I(MODULE_PREFIX, "SysMod %s isEnabled %s (alwaysEnable %s) deps <<<%s>>> depsSatisfied %s", 
+                            sysModClassDef.name.c_str(), 
+                            isEnabled ? "YES" : "NO",
+                            sysModClassDef.alwaysEnable ? "YES" : "NO",
+                            depListStrCSV.c_str(),
+                            checkSysModDependenciesSatisfied(sysModClassDef) ? "YES" : "NO");
+            }
+#endif
 
             // Check if enabled
             if (!isEnabled)
                 continue;
 
+            // Check if dependencies are met
+            if (!checkSysModDependenciesSatisfied(sysModClassDef))
+                continue;
+
             // Create the SysMod (it registers itself with the SysManager)
             sysModClassDef.pCreateFn(sysModClassDef.name.c_str(), _systemConfig);
+
+            // Set flag to indicate we created a SysMod
+            anySysModsCreated = true;
         }
     }
 
@@ -398,15 +439,6 @@ void SysManager::service()
             esp_restart();
         }
     }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Register SysMod with the SysMod factory
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void SysManager::registerSysMod(const char* pSysModName, SysModCreateFn sysModCreateFn, uint8_t priority1to10, bool defaultEn)
-{
-    _sysModFactory.registerSysMod(pSysModName, sysModCreateFn, priority1to10, defaultEn);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -910,14 +942,20 @@ String SysManager::getFriendlyName(bool& isSet)
     isSet = getFriendlyNameIsSet();
 
     // Handle default naming
-    String friendlyName = _mutableConfig.getString("friendlyName", "");
+    String friendlyNameNVS = _mutableConfig.getString("friendlyName", "");
+    String friendlyName = friendlyNameNVS;
     if (!isSet || friendlyName.isEmpty())
     {
         friendlyName = _defaultFriendlyName;
-        LOG_I(MODULE_PREFIX, "getFriendlyName default %s uniqueStr %s", _defaultFriendlyName.c_str(), _systemUniqueString.c_str());
         if (_systemUniqueString.length() >= 6)
             friendlyName += "_" + _systemUniqueString.substring(_systemUniqueString.length()-6);
     }
+    LOG_I(MODULE_PREFIX, "getFriendlyName %s (isSet %s nvsStr %s default %s uniqueStr %s)", 
+                friendlyName.c_str(), 
+                isSet ? "Y" : "N",
+                friendlyNameNVS.c_str(),
+                _defaultFriendlyName.c_str(), 
+                _systemUniqueString.c_str());
     return friendlyName;
 }
 
@@ -986,4 +1024,29 @@ String SysManager::getHardwareRevisionJson()
         hwRevStr = "\"" + hwRevStr + "\"";
     // Form JSON
     return "\"HwRev\":\"" + _hardwareRevision + "\",\"RicHwRevNo\":" + hwRevStr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check SysMod dependencies satisfied
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool SysManager::checkSysModDependenciesSatisfied(const SysModFactory::SysModClassDef& sysModClassDef)
+{
+    // Check if all dependencies are satisfied
+    for (auto& dependency : sysModClassDef.dependencyList)
+    {
+        // See if the sysmod is in the list of SysMods
+        bool found = false;
+        for (SysModBase* pSysMod : _sysModuleList)
+        {
+            if (pSysMod->modNameStr().equals(dependency))
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+    }
+    return true;
 }
