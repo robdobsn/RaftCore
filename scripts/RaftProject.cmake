@@ -11,6 +11,9 @@ get_filename_component(_build_config_name ${CMAKE_BINARY_DIR} NAME)
 # Debug
 message (STATUS "------------------ RaftCore BuildConfig ${_build_config_name} ------------------")
 
+# Set the base project name
+set(PROJECT_BASENAME "${_build_config_name}")
+
 # Check config dir exists
 set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/buildConfigs/${_build_config_name}")
 if((NOT EXISTS ${BUILD_CONFIG_DIR}) OR (NOT IS_DIRECTORY ${BUILD_CONFIG_DIR}))
