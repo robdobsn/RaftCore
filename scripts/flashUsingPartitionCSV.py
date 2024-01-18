@@ -96,7 +96,7 @@ def main():
                     for line in cmakeFileLines:
                         if line.startswith("CONFIG_IDF_TARGET="):
                             args.targetChip = line.split("=")[1].strip()
-                            print(f"Extracted target chip {args.targetChip} from sdkconfig file {args.sdkconfig}")
+                            _log.info(f"Extracted target chip {args.targetChip} from sdkconfig file {args.sdkconfig}")
                             # Remove quotes
                             if args.targetChip[0] == '"':
                                 args.targetChip = args.targetChip[1:-1]

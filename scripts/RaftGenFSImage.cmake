@@ -1,4 +1,8 @@
 # Generate file system images
+# Rob Dobson 2024
+
+message (STATUS "------------------ Generating file system image for ${FS_TYPE} ------------------")
+
 if (FS_TYPE STREQUAL "littlefs")
 
   # Fetch the littlefs image build tool

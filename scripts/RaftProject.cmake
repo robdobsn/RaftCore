@@ -1,9 +1,15 @@
+# RaftCore build system
+# Rob Dobson 2024
+
 # Ensure CMake supports FetchContent
 cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
 # Get build configuration folder
 get_filename_component(_build_config_name ${CMAKE_BINARY_DIR} NAME)
+
+# Debug
+message (STATUS "------------------ RaftCore BuildConfig ${_build_config_name} ------------------")
 
 # Check config dir exists
 set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/buildConfigs/${_build_config_name}")
@@ -18,13 +24,13 @@ set(SDKCONFIG "${BUILD_CONFIG_DIR}/sdkconfig")
 # Check if the sdkconfig file is older than the sdkconfig.defaults file and delete it if so
 if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
   if(${SDKCONFIG_DEFAULTS} IS_NEWER_THAN ${SDKCONFIG})
-    message(STATUS "Deleting ${SDKCONFIG} as it is older than ${SDKCONFIG_DEFAULTS}")
+    message(STATUS "------------------ Deleting sdkconfig as sdkconfig.defaults CHANGED ------------------")
     file(REMOVE ${SDKCONFIG})
   else()
-    message(STATUS "Not deleting ${SDKCONFIG} as it is newer than ${SDKCONFIG_DEFAULTS}")
+    message(STATUS "------------------ Not deleting sdkconfig as sdkconfig.defaults NOT_CHANGED ------------------")
   endif()
 else()
-  message(STATUS "Not deleting ${SDKCONFIG} as it does not exist (or ${SDKCONFIG_DEFAULTS} does not exist)")
+  message(STATUS "------------------ Not deleting sdkconfig as sdkconfig.defaults NOT_FOUND ------------------")
 endif()
 
 # Configure build config specific features (options, flags, etc).
@@ -47,7 +53,7 @@ if(NOT DEFINED FW_IMAGE_NAME)
 endif()
 
 # Configuration message
-message(STATUS "Configuring a build system for ${_build_config_name} from ${BUILD_CONFIG_DIR} FW_IMAGE_NAME ${FW_IMAGE_NAME}")
+message(STATUS "------------------ Configuring ${_build_config_name} firmware image name ${FW_IMAGE_NAME} ------------------")
 
 # Set the build artefacts directory
 set(RAFT_BUILD_ARTEFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artefacts")
@@ -94,6 +100,7 @@ endforeach()
 set(_systypes_cpp "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypesInfo.cpp")
 set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
 set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypesInfo.cpp.template")
+message(STATUS "------------------ Generating SysTypesInfo.cpp ------------------")
 message(STATUS "Generating ${_systypes_cpp} from file ${_systypes_json}")
 execute_process(
     COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypesCpp.py ${_systypes_json} ${_systypes_cpp} --cpp_template ${_systypes_template}
@@ -102,6 +109,7 @@ execute_process(
 # Copy the FS image source folder to the build artefacts directory
 set(_full_fs_source_image_path "${BUILD_CONFIG_DIR}/${FS_IMAGE_PATH}")
 set(_full_fs_dest_image_path "${RAFT_BUILD_ARTEFACTS_FOLDER}/FSImage")
+message(STATUS "------------------ Copying FS Image ------------------")
 message(STATUS "Copying ${_full_fs_source_image_path} to ${_full_fs_dest_image_path}")
 execute_process(
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
@@ -113,6 +121,7 @@ execute_process(
 
 # Process WebUI files into the dest FS image folder
 set(_full_web_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
+message(STATUS "------------------ Generating WebUI ------------------")
 message(STATUS "Generating WebUI from ${_full_web_ui_source_path} to ${_full_fs_dest_image_path}")
 execute_process(
     COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenWebUI.py ${WEB_UI_GEN_FLAGS} ${_full_web_ui_source_path} ${_full_fs_dest_image_path}
