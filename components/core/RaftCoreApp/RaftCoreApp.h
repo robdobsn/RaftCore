@@ -67,9 +67,6 @@ private:
     // Default system config
     RaftJson _defaultSystemConfig;
 
-    // System Module Manager;
-    SysManager _sysManager;
-    
     // REST API endpoint manager
     RestAPIEndpointManager _restAPIEndpointManager;
 
@@ -78,4 +75,10 @@ private:
 
     // ProtocolExchange
     ProtocolExchange _protocolExchange;
+
+    // System Module Manager;
+    SysManager _sysManager;
+
+    // SysManager is setup
+    bool _sysManagerSetupDone = false;
 };

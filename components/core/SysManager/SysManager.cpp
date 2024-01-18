@@ -60,8 +60,16 @@ SysManager::SysManager(const char* pModuleName,
                             _systemConfig(systemConfig),
                 _mutableConfig(sysManagerNVSNamespace.c_str())
 {
-    // Module name
+    // Save params (some of these may be overriden later from config)
     _moduleName = pModuleName;
+    _systemName = pSystemName ? pSystemName : 
+#ifdef PROJECT_BASENAME
+            PROJECT_BASENAME
+#else
+            "Unknown"
+#endif
+            ;
+    _defaultFriendlyName = pDefaultFriendlyName ? pDefaultFriendlyName : _systemName;
 
     // Set serial length and magic string
     _serialLengthBytes = serialLengthBytes;
@@ -71,23 +79,26 @@ SysManager::SysManager(const char* pModuleName,
     // Register this manager to all objects derived from SysModBase
     SysModBase::setSysManager(this);
 
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Pre-Setup
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SysManager::preSetup()
+{
     // Extract system name from root level of config
-    String sysTypeName = systemConfig.getString("SysTypeName", pSystemName ? pSystemName : 
-#ifdef PROJECT_BASENAME
-            PROJECT_BASENAME
-#else
-            "Unknown"
-#endif
-    );
+    String sysTypeName = _systemConfig.getString("SysTypeName", _systemName.c_str());
+
+    // Override system name if it is specified in the config
     _systemName = _systemConfig.getString("SystemName", sysTypeName.c_str());
     _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
 
     // System config for this module
-    RaftJsonPrefixed sysManConfig(_systemConfig, pModuleName);
+    RaftJsonPrefixed sysManConfig(_systemConfig, _moduleName.c_str());
 
-    // System friendly name
-    _defaultFriendlyName = sysManConfig.getString("DefaultName", 
-                    pDefaultFriendlyName ? pDefaultFriendlyName : _systemName.c_str());
+    // System friendly name (may be overridden by config)
+    _defaultFriendlyName = sysManConfig.getString("DefaultName", _defaultFriendlyName.c_str());
 
     // Prime the mutable config info
     _mutableConfigCache.friendlyName = _mutableConfig.getString("friendlyName", "");
@@ -127,7 +138,7 @@ SysManager::SysManager(const char* pModuleName,
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
                 _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
-                sysManagerNVSNamespace.c_str());
+                _mutableConfig.getNVSNamespace().c_str());
     LOG_I(MODULE_PREFIX, "slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d",
                 _slowSysModThresholdUs,
                 _monitorPeriodMs,
@@ -139,7 +150,7 @@ SysManager::SysManager(const char* pModuleName,
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::setup()
+void SysManager::postSetup()
 {
     // Clear status change callbacks for sysmods (they are added again in postSetup)
     clearAllStatusChangeCBs();

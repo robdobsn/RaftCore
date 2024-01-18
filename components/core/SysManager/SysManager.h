@@ -40,8 +40,11 @@ public:
             uint32_t serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES, 
             const char* pSerialMagicStr = nullptr);
 
-    // Setup
-    void setup();
+    // Pre-setup - called before all other modules setup
+    void preSetup();
+
+    // Post-setup - called after other modules setup (and to setup SysMods)
+    void postSetup();
 
     // Service
     void service();

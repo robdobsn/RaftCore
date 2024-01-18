@@ -68,9 +68,9 @@ RaftCoreApp::RaftCoreApp() :
     _sysTypeConfig("sysType"),
     _sysTypeManager(_systemConfig, _sysTypeConfig),
     _defaultSystemConfig(defaultConfigJSON, false),
-    _sysManager("SysManager", _systemConfig, "system"),
     _commsChannelManager("CommsMan", _systemConfig),
-    _protocolExchange("ProtExchg", _systemConfig)
+    _protocolExchange("ProtExchg", _systemConfig),
+    _sysManager("SysManager", _systemConfig, "system")
 {
     // Init NVS
     RaftJsonNVS::initNVS(true);
@@ -92,11 +92,16 @@ RaftCoreApp::RaftCoreApp() :
     _sysManager.setRestAPIEndpoints(_restAPIEndpointManager);
     _sysManager.setCommsCore(&_commsChannelManager);
     _sysManager.setProtocolExchange(&_protocolExchange);
+    _sysManager.preSetup();
+
+    // Get the app version (maybe overridden by SysType)
+    String appVersion = _systemConfig.getString("SystemVersion", SYSTEM_VERSION);
 
     // Log out system info
-    ESP_LOGI(MODULE_PREFIX, PROJECT_BASENAME " " SYSTEM_VERSION " (built " __DATE__ " " __TIME__ ") Heap %d", 
+    ESP_LOGI(MODULE_PREFIX, PROJECT_BASENAME " %s (built " __DATE__ " " __TIME__ ") Heap (int) %d (all) %d", 
+                        appVersion.c_str(),
+                        heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                         heap_caps_get_free_size(MALLOC_CAP_8BIT));
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,20 +111,16 @@ RaftCoreApp::~RaftCoreApp()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Setup
-/// @note Called after other modules have been setup
-void RaftCoreApp::setup()
-{
-    // Initialise the system module manager here so that API endpoints are registered
-    // before file system ones
-    _sysManager.setup();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Service
 /// @note Called from main loop
 void RaftCoreApp::service()
 {
+    if (!_sysManagerSetupDone)
+    {
+        // Initialise the system manager here so that SysMods are created
+        _sysManagerSetupDone = true;
+        _sysManager.postSetup();
+    }
     // Service all the system modules
     _sysManager.service();
 }

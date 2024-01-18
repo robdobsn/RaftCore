@@ -30,7 +30,7 @@ if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
     message(STATUS "------------------ Not deleting sdkconfig as sdkconfig.defaults NOT_CHANGED ------------------")
   endif()
 else()
-  message(STATUS "------------------ Not deleting sdkconfig as sdkconfig.defaults NOT_FOUND ------------------")
+  message(STATUS "------------------ Not deleting sdkconfig as NOT_FOUND ------------------")
 endif()
 
 # Configure build config specific features (options, flags, etc).

@@ -77,6 +77,14 @@ public:
     /// @return true if the NVS was initialised successfully
     static bool initNVS(bool eraseIfCorrupt);
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the NVS namespace
+    /// @return the NVS namespace
+    const String& getNVSNamespace() const
+    {
+        return _nvsNamespace;
+    }
+
 private:
     // Key name in NVS
     const char* KEY_NAME_FOR_JSON_DOC = "JSON";
