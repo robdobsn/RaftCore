@@ -18,13 +18,10 @@
 class LEDStripHwConfig
 {
 public:
-    bool setup(const RaftJsonIF& config, const char* pConfigPrefix = nullptr)
+    bool setup(const RaftJsonIF& config)
     {
-        // Create prefixed config
-        RaftJsonPrefixed configPrefixed(config, pConfigPrefix);
-
         // Get data pin for LED strip
-        ledDataPin = configPrefixed.getLong("pin", -1);
+        ledDataPin = config.getLong("pin", -1);
         if (ledDataPin < 0)
         {
             LOG_W("LEDStripConfig", "setup invalid pixelDataPin");
@@ -32,22 +29,22 @@ public:
         }
 
         // Get number of pixels
-        numPixels = configPrefixed.getLong("num", DEFAULT_NUM_PIXELS);
+        numPixels = config.getLong("num", DEFAULT_NUM_PIXELS);
         if (numPixels > MAX_NUM_PIXELS)
             numPixels = MAX_NUM_PIXELS;
 
         // RMT resolution
-        rmtResolutionHz = configPrefixed.getLong("rmtResolutionHz", rmtResolutionHz);
+        rmtResolutionHz = config.getLong("rmtResolutionHz", rmtResolutionHz);
 
         // LED speed parameters
-        bit0Duration0Us = configPrefixed.getDouble("bit0Duration0Us", bit0Duration0Us);
-        bit0Duration1Us = configPrefixed.getDouble("bit0Duration1Us", bit0Duration1Us);
-        bit1Duration0Us = configPrefixed.getDouble("bit1Duration0Us", bit1Duration0Us);
-        bit1Duration1Us = configPrefixed.getDouble("bit1Duration1Us", bit1Duration1Us);
-        resetDurationUs = configPrefixed.getDouble("resetDurationUs", resetDurationUs);
+        bit0Duration0Us = config.getDouble("bit0Duration0Us", bit0Duration0Us);
+        bit0Duration1Us = config.getDouble("bit0Duration1Us", bit0Duration1Us);
+        bit1Duration0Us = config.getDouble("bit1Duration0Us", bit1Duration0Us);
+        bit1Duration1Us = config.getDouble("bit1Duration1Us", bit1Duration1Us);
+        resetDurationUs = config.getDouble("resetDurationUs", resetDurationUs);
 
         // MSB first
-        msbFirst = configPrefixed.getBool("msbFirst", msbFirst);
+        msbFirst = config.getBool("msbFirst", msbFirst);
         return true;
     }
 
@@ -82,28 +79,25 @@ public:
     LEDStripConfig()
     {
     }
-    bool setup(const RaftJsonIF& config, const char* pConfigPrefix)
+    bool setup(const RaftJsonIF& config)
     {
-        // Create prefixed config
-        RaftJsonPrefixed configPrefixed(config, pConfigPrefix);
-
         // Colour order
         String colourOrderStr = config.getString("colourOrder", "GRB");
         colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
 
         // Get pattern
-        initialPattern = configPrefixed.getString("pattern", "");
+        initialPattern = config.getString("pattern", "");
 
         // Brightness percent
-        pixelBrightnessFactor = configPrefixed.getDouble("brightnessPC", pixelBrightnessFactor*100.0) / 100.0;
+        pixelBrightnessFactor = config.getDouble("brightnessPC", pixelBrightnessFactor*100.0) / 100.0;
 
         // Startup first pixel colour
-        String startupFirstPixelStr = configPrefixed.getString("startupFirstPixel", "000000");
+        String startupFirstPixelStr = config.getString("startupFirstPixel", "000000");
         startupFirstPixelColour = Raft::getRGBFromHex(startupFirstPixelStr);
 
         // Strip hardware configs
         std::vector<String> stripHwConfigStrs;
-        configPrefixed.getArrayElems("strips", stripHwConfigStrs);
+        config.getArrayElems("strips", stripHwConfigStrs);
 
         // Check strip hardware config size
         if (stripHwConfigStrs.size() == 0)

@@ -29,6 +29,14 @@ public:
     /// @note Called from main loop
     void service();
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set base SysType version
+    /// @param pVersionStr - version string
+    void setBaseSysTypeVersion(const char* pVersionStr)
+    {
+        _sysTypeManager.setBaseSysTypeVersion(pVersionStr);
+    }
+    
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Unchain default system config - call this if you don't want to use the default config
     void unchainDefaultSystemConfig()

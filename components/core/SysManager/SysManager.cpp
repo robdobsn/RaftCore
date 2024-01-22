@@ -53,12 +53,14 @@ static const char *MODULE_PREFIX = "SysMan";
 SysManager::SysManager(const char* pModuleName,
                 RaftJsonIF& systemConfig,
             const String sysManagerNVSNamespace,
+            SysTypeManager& sysTypeManager,
             const char* pSystemName,
                 const char* pDefaultFriendlyName,
                 uint32_t serialLengthBytes, 
             const char* pSerialMagicStr) :
                             _systemConfig(systemConfig),
-                _mutableConfig(sysManagerNVSNamespace.c_str())
+                    _mutableConfig(sysManagerNVSNamespace.c_str()),
+                    _sysTypeManager(sysTypeManager)
 {
     // Save params (some of these may be overriden later from config)
     _moduleName = pModuleName;
@@ -177,7 +179,7 @@ void SysManager::postSetup()
                 std::bind(&SysManager::apiSerialNumber, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Serial number");
         _pRestAPIEndpointManager->addEndpoint("hwrevno", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
-                std::bind(&SysManager::apiHwRevision, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                std::bind(&SysManager::apiBaseSysTypeVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "HW revision");
         _pRestAPIEndpointManager->addEndpoint("testsetloopdelay", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiTestSetLoopDelay, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
@@ -673,7 +675,7 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
     String serialNo = _mutableConfig.getString("serialNo", "");
     char versionJson[225];
     // Hardware revision Json
-    String hwRevJson = getHardwareRevisionJson();
+    String hwRevJson = getBaseSysVersJson();
     snprintf(versionJson, sizeof(versionJson),
              R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
             R"("MAC":"%s",%s})",
@@ -791,10 +793,10 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
 // HW revision
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode SysManager::apiHwRevision(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiBaseSysTypeVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Create response JSON
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, getHardwareRevisionJson().c_str());
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, getBaseSysVersJson().c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1018,23 +1020,24 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
 // Get hardware revision JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String SysManager::getHardwareRevisionJson()
+String SysManager::getBaseSysVersJson()
 {
     // Get hardware revision string (if all digits then set in JSON as a number for backward compatibility)
-    String hwRevStr = _hardwareRevision;
+    String baseSysTypeVersStr = _sysTypeManager.getBaseSysTypeVersion();
+    String ricHWRevStr = _sysTypeManager.getBaseSysTypeVersion();
     bool allDigits = true;
-    for (int i = 0; i < hwRevStr.length(); i++)
+    for (int i = 0; i < ricHWRevStr.length(); i++)
     {
-        if (!isdigit(hwRevStr.charAt(i)))
+        if (!isdigit(ricHWRevStr.charAt(i)))
         {
             allDigits = false;
             break;
         }
     }
     if (!allDigits)
-        hwRevStr = "\"" + hwRevStr + "\"";
+        ricHWRevStr = "\"" + ricHWRevStr + "\"";
     // Form JSON
-    return "\"HwRev\":\"" + _hardwareRevision + "\",\"RicHwRevNo\":" + hwRevStr;
+    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"RicHwRevNo\":" + ricHWRevStr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

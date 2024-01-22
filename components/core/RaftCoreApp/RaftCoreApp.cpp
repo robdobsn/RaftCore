@@ -70,7 +70,7 @@ RaftCoreApp::RaftCoreApp() :
     _defaultSystemConfig(defaultConfigJSON, false),
     _commsChannelManager("CommsMan", _systemConfig),
     _protocolExchange("ProtExchg", _systemConfig),
-    _sysManager("SysManager", _systemConfig, "system")
+    _sysManager("SysManager", _systemConfig, "system", _sysTypeManager)
 {
     // Init NVS
     RaftJsonNVS::initNVS(true);

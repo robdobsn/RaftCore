@@ -33,7 +33,7 @@ public:
     virtual ~LEDPixels();
 
     // Setup
-    bool setup(const RaftJsonIF& config, const char* pConfigPrefix);
+    bool setup(const RaftJsonIF& config);
     bool setup(LEDStripConfig& ledStripConfig);
 
     // Service

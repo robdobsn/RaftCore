@@ -23,6 +23,7 @@
 #include "RaftJsonNVS.h"
 #include "SysModFactory.h"
 #include "ProtocolExchange.h"
+#include "SysTypeManager.h"
 
 typedef String (*SysManager_statsCB)();
 
@@ -35,6 +36,7 @@ public:
     SysManager(const char* pModuleName,
             RaftJsonIF& systemConfig,
             const String sysManagerNVSNamespace,
+            SysTypeManager& sysTypeManager,
             const char* pSystemHWName = nullptr,
             const char* pDefaultFriendlyName = nullptr,
             uint32_t serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES, 
@@ -70,16 +72,16 @@ public:
         return _systemVersion;
     }
 
-    // Set hardware revision
-    void setHwRevision(const char* pHwRevStr)
+    // Set base SysType version
+    void setBaseSysTypeVersion(const char* pVersionStr)
     {
-        _hardwareRevision = pHwRevStr;
+        _sysTypeManager.setBaseSysTypeVersion(pVersionStr);
     }
 
-    // Get hardware revision
-    String getHwRevision()
+    // Get base SysType version
+    String getBaseSysTypeVersion()
     {
-        return _hardwareRevision;
+        return _sysTypeManager.getBaseSysTypeVersion();
     }
 
     // Get friendly name
@@ -275,6 +277,9 @@ private:
     // Mutable (NVS) config (for this module)
     RaftJsonNVS _mutableConfig;
 
+    // SysTypeManager
+    SysTypeManager& _sysTypeManager;
+
     // Mutable config
     struct
     {
@@ -329,8 +334,8 @@ private:
     // Serial no
     RaftRetCode apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
-    // Hardware revision
-    RaftRetCode apiHwRevision(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+    // Base SysType version
+    RaftRetCode apiBaseSysTypeVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
     // SysMod info and debug
     RaftRetCode apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
@@ -351,8 +356,8 @@ private:
     // Mutable config
     String getMutableConfigJson();
 
-    // Get hardware revision JSON
-    String getHardwareRevisionJson();
+    // Get base SysType version JSON
+    String getBaseSysVersJson();
 
     // Check SysMod dependency satisfied
     bool checkSysModDependenciesSatisfied(const SysModFactory::SysModClassDef& sysModClassDef);
