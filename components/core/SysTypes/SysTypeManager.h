@@ -61,6 +61,14 @@ public:
     /// @param hwRev versionString
     void setBaseSysTypeVersion(const char* pVersionStr);
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get version of base SysType
+    /// @return versionString
+    String getBaseSysTypeVersion()
+    {
+        return _baseSysTypeVersion;
+    }
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set callback for system restart
     /// @param systemRestartCallback callback to restart system

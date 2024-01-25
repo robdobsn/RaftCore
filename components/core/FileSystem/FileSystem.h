@@ -96,7 +96,7 @@ public:
             uint32_t lineMaxLen, uint32_t& fileCurPos);
 
     // Open file
-    FILE* fileOpen(const String& fileSystemStr, const String& filename, bool writeMode, uint32_t seekToPos);
+    FILE* fileOpen(const String& fileSystemStr, const String& filename, bool writeMode, uint32_t seekToPos, bool seekFromEnd = false);
 
     // Close file
     bool fileClose(FILE* pFile, const String& fileSystemStr, const String& filename, bool fileModified);
@@ -115,6 +115,9 @@ public:
     
     // Get temporary file name
     String getTempFileName();
+
+    // Get file system size
+    bool getFileSystemSize(const String& fileSystemStr, uint32_t& fsSizeBytes, uint32_t& fsUsedBytes);
     
 private:
 

@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "sdkconfig.h"
+#include "esp_idf_version.h"
+
 #ifdef ARDUINO
 #include "Arduino.h"
 #else

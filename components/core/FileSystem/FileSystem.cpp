@@ -222,7 +222,7 @@ bool FileSystem::getFilesJSON(const char* req, const String& fileSystemStr, cons
 
     // Check if cached information can be used
     CachedFileSystem& cachedFs = nameOfFS.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
-    if (_cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
+    if (cachedFs.isUsed && _cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
     {
         LOG_I(MODULE_PREFIX, "getFilesJSON using cached info");
         return fileInfoCacheToJSON(req, cachedFs, "/", respStr);
@@ -672,7 +672,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename, 
-                    bool writeMode, uint32_t seekToPos)
+                    bool writeMode, uint32_t seekToPos, bool seekFromEnd)
 {
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t startMs = millis();
@@ -703,15 +703,17 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     startMs = millis();
 #endif
 
-    FILE* pFile = fopen(rootFilename.c_str(), writeMode ? "wb" : "rb");
+    FILE* pFile = fopen(rootFilename.c_str(), writeMode ? ((seekToPos != 0) || seekFromEnd ? "ab" : "wb") : "rb");
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t fopenMs = millis() - startMs;
     startMs = millis();
 #endif
 
-    if (pFile && (seekToPos != 0))
-        fseek(pFile, seekToPos, SEEK_SET);
+    if (pFile && ((seekToPos != 0) || seekFromEnd))
+    {
+        fseek(pFile, seekToPos, seekFromEnd ? SEEK_END : SEEK_SET);
+    }
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t fseekMs = millis() - startMs;
@@ -1222,11 +1224,6 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
 bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr)
 {
     // Check if file-system info is valid
-    if (!cachedFs.isUsed)
-    {
-        Raft::setJsonErrorResult(req, respStr, "fsinvalid");
-        return false;
-    }
     if (!cachedFs.isSizeInfoValid)
     {
         if (!fileSysInfoUpdateCache(req, cachedFs, respStr))
@@ -1319,13 +1316,6 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 
 bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr)
 {
-    // Check if file-system is disabled
-    if (!cachedFs.isUsed)
-    {
-        Raft::setJsonErrorResult(req, respStr, "fsinvalid");
-        return false;
-    }
-
     // Take mutex
     if (xSemaphoreTake(_fileSysMutex, 0) != pdTRUE)
     {
@@ -1391,12 +1381,16 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
 
 void FileSystem::markFileCacheDirty(const String& fsName, const String& filename)
 {
+    // Get file system info
+    CachedFileSystem& cachedFs = fsName.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
+
+    // Set FS info invalid
+    cachedFs.isFileInfoValid = false;
+    cachedFs.isSizeInfoValid = false;
+
     // Check caching enabled
     if (!_cacheFileSystemInfo)
         return;
-
-    // Get file system info
-    CachedFileSystem& cachedFs = fsName.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
 
     // Check valid
     if (!cachedFs.isFileInfoSetup)
@@ -1425,8 +1419,6 @@ void FileSystem::markFileCacheDirty(const String& fsName, const String& filename
         newFileInfo.isValid = false;
         cachedFs.cachedRootFileList.push_back(newFileInfo);
     }
-    cachedFs.isFileInfoValid = false;
-    cachedFs.isSizeInfoValid = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

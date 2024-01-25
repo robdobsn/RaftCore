@@ -211,7 +211,9 @@ public:
         // Skip quotes
         if (*pElemStart == '"')
             pElemStart++;
-        return String(pElemStart, pElemEnd - pElemStart);
+        String outStr = String(pElemStart, pElemEnd - pElemStart);
+        unescapeString(outStr);
+        return outStr;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -636,8 +638,12 @@ private:
 
         // Find end of string
         pElemStart = pJsonDocPos;
-        while (*pJsonDocPos && (*pJsonDocPos != '"'))
+        bool isEscaped = false;
+        while (*pJsonDocPos && (isEscaped || (*pJsonDocPos != '"')))
+        {
+            isEscaped = (*pJsonDocPos == '\\');
             pJsonDocPos++;
+        }
 
         // Return string start and end
         if (*pJsonDocPos == '"')

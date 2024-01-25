@@ -154,7 +154,10 @@ RaftRetCode RestAPIEndpointManager::handleApiRequest(const char *requestStr, Str
 
     // Check valid
     if (!pEndpoint)
+    {
+        Raft::setJsonErrorResult(requestStr, retStr, "failUnknownAPI");
         return RAFT_INVALID_DATA;
+    }
 
     // Call endpoint
     String reqStr(requestStr);

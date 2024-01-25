@@ -62,6 +62,21 @@ public:
             previousInputs[i] = 0;
     }
 
+    double getVariance()
+    {
+        if (numEntries == 0)
+            return 0;
+        double mean = getAverage();
+        double variance = 0;
+        for (uint8_t i = 0; i < numEntries; i++)
+        {
+            double diff = previousInputs[i] - mean;
+            variance += diff * diff;
+        }
+        variance /= numEntries;
+        return variance;
+    }    
+
 private:
     uint16_t index = 0;
     uint16_t numEntries = 0;

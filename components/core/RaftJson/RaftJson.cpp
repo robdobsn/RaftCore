@@ -297,8 +297,12 @@ const char* RaftJson::locateElementBounds(const char* pJsonDocPos, const char*& 
 #endif
         // Find end of string
         pJsonDocPos++;
-        while (*pJsonDocPos && (*pJsonDocPos != '"'))
+        bool isEscaped = false;
+        while (*pJsonDocPos && (isEscaped || (*pJsonDocPos != '"')))
+        {
+            isEscaped = (*pJsonDocPos == '\\');
             pJsonDocPos++;
+        }
         if (!*pJsonDocPos)
         {
 #ifdef DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
