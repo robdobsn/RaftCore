@@ -16,6 +16,17 @@
     regular keys cannot contain the '##' separator. A versioned key can contain more than one version
     name.  For example, the key 'key' with versions 'NEW_HARDWARE' and 'OLD_HARDWARE' would be written as
     'key##NEW_HARDWARE##OLD_HARDWARE'.
+
+    Alternate versioning of JSON
+
+    An alternative versioning scheme is to use an array of alternate values. This can be used to replace
+    any value in the JSON whether it is the value for a key, part of an array or a primitive value.  The
+    array of alternate values is just a regular array but inside it each option is an object with a pair
+    of keys __hwRevs__ and __value__.  The __hwRevs__ key is a list of version numbers and the __value__ key
+    is the value to use if the version number is in the list. For example, the key 'key' with versions
+    1,2 (value "A") and 3 (value "B") would be written as 'key' with value 
+    [{"__hwRevs__":[1,2],"__value__":"A"},{"__hwRevs__":[3],"__value__":"B"}]
+
 """
 
 import argparse
@@ -46,8 +57,8 @@ def parseArgs():
                         help="C++ template file")
     return parser.parse_args()
 
-# Recurse through a JSON obect and find all the versioned keys
-def find_versioned_keys(json_obj: Union[Dict, List], versioned_keys: Set[str], 
+# Recurse through a JSON obect and find all the hashhash keys
+def find_hashhash_keys(json_obj: Union[Dict, List], versioned_keys: Set[str], 
                                 sys_type_name_prefix: str, sys_type_names: Dict) -> None:
     if isinstance(json_obj, dict):
         for key, val in json_obj.items():
@@ -58,14 +69,14 @@ def find_versioned_keys(json_obj: Union[Dict, List], versioned_keys: Set[str],
                     for sys_type in key.split('##')[1:]:
                         sys_type_names[sys_type] = val
             if isinstance(val, dict) or isinstance(val, list):
-                find_versioned_keys(val, versioned_keys, sys_type_name_prefix, sys_type_names)
+                find_hashhash_keys(val, versioned_keys, sys_type_name_prefix, sys_type_names)
     elif isinstance(json_obj, list):
         for val in json_obj:
             if isinstance(val, dict) or isinstance(val, list):
-                find_versioned_keys(val, versioned_keys, sys_type_name_prefix, sys_type_names)
+                find_hashhash_keys(val, versioned_keys, sys_type_name_prefix, sys_type_names)
 
-# Recurse through the JSON object and remove all versioned keys that don't match the version name
-def remove_versioned_keys(json_obj: Union[Dict, List], version_name: str) -> bool:
+# Recurse through the JSON object and remove all hashhash keys that don't match the version name
+def remove_hashhash_keys(json_obj: Union[Dict, List], version_name: str) -> bool:
     if isinstance(json_obj, dict):
         for key, val in json_obj.items():
             if re.search(r'##', key):
@@ -79,13 +90,66 @@ def remove_versioned_keys(json_obj: Union[Dict, List], version_name: str) -> boo
                     del json_obj[key]
                     return True
             if isinstance(val, dict) or isinstance(val, list):
-                if remove_versioned_keys(val, version_name):
+                if remove_hashhash_keys(val, version_name):
                     return True
     elif isinstance(json_obj, list):
         for val in json_obj:
             if isinstance(val, dict) or isinstance(val, list):
-                if remove_versioned_keys(val, version_name):
+                if remove_hashhash_keys(val, version_name):
                     return True
+
+def is_hwrev_list(elem):
+    if type(elem) == list:
+        return len(elem) > 0 and all(type(item) == dict and "__hwRevs__" in item and "__value__" in item for item in elem)
+    return False
+
+# Recurse through a JSON obect and find all the __hwrev__ keys
+def find_hwrev_keys(json_obj: Union[Dict, List], versioned_keys: Set[str]) -> None:
+    if isinstance(json_obj, dict):
+        for key, val in json_obj.items():
+            if is_hwrev_list(val):
+                for item in val:
+                    versioned_keys.update(item["__hwRevs__"])
+            else:
+                find_hwrev_keys(val, versioned_keys)
+    elif isinstance(json_obj, list):
+        for val in json_obj:
+            if is_hwrev_list(val):
+                for item in val:
+                    versioned_keys.update(item["__hwRevs__"])
+            else:
+                find_hwrev_keys(val, versioned_keys)
+
+def replace_revisioned_values(json_data, target_revision):
+    """
+    Recursively process the JSON data to replace or remove hardware revisioned sections
+    with the value for a specific hardware revision, or remove them if the revision
+    is not present.
+    """
+    if isinstance(json_data, dict):
+        for key, value in list(json_data.items()):  # list() is used to create a copy of items
+            if is_hwrev_list(value):
+                for item in value:
+                    if target_revision in item["__hwRevs__"]:
+                        json_data[key] = item["__value__"]
+                        break
+                else:
+                    del json_data[key]
+            else:
+                json_data[key] = replace_revisioned_values(value, target_revision)
+    elif isinstance(json_data, list):
+        for i in range(len(json_data)):
+            if is_hwrev_list(json_data[i]):
+                for item in json_data[i]:
+                    if target_revision in item["__hwRevs__"]:
+                        json_data[i] = item["__value__"]
+                        break
+                else:
+                    del json_data[i]
+            else:
+                json_data[i] = replace_revisioned_values(json_data[i], target_revision)
+
+    return json_data
 
 def genCppFileFromJSON(inFile, outFile, template) -> None:
     # Generate cpp from JSON
@@ -94,11 +158,15 @@ def genCppFileFromJSON(inFile, outFile, template) -> None:
         # Read in the JSON file
         sys_type_json = json.load(inFile)
 
+        # If the top-level element is a list then extract the first element
+        if isinstance(sys_type_json, list):
+            sys_type_json = sys_type_json[0]
+
         # Find all the versioned keys
         versioned_keys = set()
         sys_type_names = {}
-        find_versioned_keys(sys_type_json, versioned_keys, "SysTypeName", sys_type_names)
-        # print(f"Versioned keys: {versioned_keys}")
+        find_hashhash_keys(sys_type_json, versioned_keys, "SysTypeName", sys_type_names)
+        print(f"HashHash Versioned keys: {versioned_keys}")
 
         # Extract unique version names
         version_names = set()
@@ -106,10 +174,22 @@ def genCppFileFromJSON(inFile, outFile, template) -> None:
             version_names.add(key.split('##')[1])
         # print(f"Version names: {version_names}")
 
+        # If there are no hashhash keys then look for alternate versioning
+        isHashHash = len(versioned_keys) > 0
+        if not isHashHash:
+
+            # Find all the versioned keys
+            find_hwrev_keys(sys_type_json, versioned_keys)
+            print(f"HWREV Versioned keys: {versioned_keys}")
+
+            # Extract unique version names
+            for key in versioned_keys:
+                version_names.add(key)
+
         # Set sys_type_names entry for keys that don't have a SysTypeName
         for key in version_names:
             if key not in sys_type_names:
-                sys_type_names[key] = key
+                sys_type_names[key] = "HWRev_" + str(key)
         # print(f"SysType names: {sys_type_names}")
                 
         # Check if there are no versioned keys
@@ -150,8 +230,11 @@ def genCppFileFromJSON(inFile, outFile, template) -> None:
             unversioned_sys_type_json = copy.deepcopy(sys_type_json)
 
             # Remove all versioned keys that don't match the version name
-            while remove_versioned_keys(unversioned_sys_type_json, version_name):
-                pass
+            if isHashHash:
+                while remove_hashhash_keys(unversioned_sys_type_json, version_name):
+                    pass
+            else:
+                unversioned_sys_type_json = replace_revisioned_values(unversioned_sys_type_json, version_name)
 
             # # Debug write the json object to a debug file
             # with open(f"sys_type_{version_name}.json", 'w') as debug_file:

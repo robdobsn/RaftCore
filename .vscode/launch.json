@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python test SysTypes1 GenerateSysTypesCpp.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
             "console": "integratedTerminal",
@@ -20,7 +20,7 @@
         },
         {
             "name": "Python test SysTypes2 GenerateSysTypesCpp.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
             "console": "integratedTerminal",
@@ -28,6 +28,20 @@
             "args": [
                 "${workspaceFolder}/test_data/SysTypes2/SysTypes.json",
                 "${workspaceFolder}/test_data/SysTypes2/SysTypesInfo.cpp",
+                "--cpp_template",
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfo.cpp.template"
+            ]
+        },
+        {
+            "name": "Python test SysTypes3 GenerateSysTypesCpp.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "${workspaceFolder}/test_data/SysTypes3/SysTypes.json",
+                "${workspaceFolder}/test_data/SysTypes3/SysTypesInfo.cpp",
                 "--cpp_template",
                 "${workspaceFolder}/components/core/SysTypes/SysTypesInfo.cpp.template"
             ]
