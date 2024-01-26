@@ -11,16 +11,15 @@
 #include "esp_log.h"
 #include "RaftCoreApp.h"
 #include "RaftJsonNVS.h"
+#include "SysTypeInfoRec.h"
+
+#if __has_include("SysTypeInfoRecs.h")
 #include "SysTypeInfoRecs.h"
+#else
+static constexpr const SysTypeInfoRec sysTypeInfoRecs[] = {};
+#endif
 
 static const char *MODULE_PREFIX = "RaftCoreApp";
-
-// C, ESP32 and RTOS
-// #include "nvs_flash.h"
-// #include "esp_event.h"
-// #include "esp_task_wdt.h"
-// #include "esp_heap_caps.h"
-// #include "freertos/FreeRTOS.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Default system config

@@ -16,7 +16,7 @@ static const char* MODULE_PREFIX = "SysTypeManagerTest";
 
 TEST_CASE("systype_manager_test", "[systypemanager]")
 {
-    static const std::vector<SysTypeInfoRec> sysTypeInfoRecs = {
+    static const SysTypeInfoRec sysTypeInfoRecs[] = {
         {
             "TestSysType1",
             "0",
@@ -47,7 +47,7 @@ TEST_CASE("systype_manager_test", "[systypemanager]")
     RaftJsonNVS systemConfig("SysTypeManTest");
     RaftJson sysTypeConfig;
     SysTypeManager sysTypeManager(systemConfig, sysTypeConfig);
-    sysTypeManager.setBaseSysTypes(&sysTypeInfoRecs);
+    sysTypeManager.setBaseSysTypes(sysTypeInfoRecs, sizeof(sysTypeInfoRecs)/sizeof(SysTypeInfoRec));
 
     // Check if this test has been run before
     String sysTypeDoc = systemConfig.getJsonDoc();
