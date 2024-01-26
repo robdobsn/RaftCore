@@ -2,10 +2,10 @@
 
 """ Raft system configuration files contain JSON
 
-    A common SysTypes.json file can be present in the buildConfigs/<specific-build-type> folder and this 
-    file can include versioned keys (see below for details of versioning)
+    SysTypes.json file(s) are present in a folder containing details of the system configuration.
+    The SysTypes.json file can include versioned keys (see below for details of versioning)
 
-    This script converts the JSON file in that folder into a C++ file that can be included in the
+    This script converts the SysTypes.json into a C++ file that can be included in the
     main project
 
     Versioning of JSON

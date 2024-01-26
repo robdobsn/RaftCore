@@ -14,11 +14,6 @@ logging.basicConfig(format="[%(asctime)s] %(levelname)s:%(name)s: %(message)s",
                     level=logging.INFO)
 _log = logging.getLogger(__name__ if __name__ != '__main__' else Path(__file__).name)
 
-CONFIG_DIRS_PATH = "buildConfigs"
-REPO_ROOT = Path(__file__).parent.resolve()
-BUILD_CONFIGS_DIR = REPO_ROOT / CONFIG_DIRS_PATH
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Flash firmware elements using partitions.csv"

@@ -15,7 +15,7 @@ message (STATUS "------------------ RaftCore BuildConfig ${_build_config_name} -
 set(PROJECT_BASENAME "${_build_config_name}")
 
 # Check config dir exists
-set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/buildConfigs/${_build_config_name}")
+set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/systypes/${_build_config_name}")
 if((NOT EXISTS ${BUILD_CONFIG_DIR}) OR (NOT IS_DIRECTORY ${BUILD_CONFIG_DIR}))
     message(FATAL_ERROR "Config directory ${BUILD_CONFIG_DIR} not found.")
 endif()
@@ -62,7 +62,7 @@ message(STATUS "------------------ Configuring ${_build_config_name} firmware im
 set(RAFT_BUILD_ARTEFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artefacts")
 file(MAKE_DIRECTORY ${RAFT_BUILD_ARTEFACTS_FOLDER})
 
-# Copy the partitions.csv file from the specific buildConfigs folder to the build artefacts directory
+# Copy the partitions.csv file from the specific systypes folder to the build artefacts directory
 # It should not go into the build_config_dir as the sdkconfig.defaults file must reference a fixed folder
 set(_partitions_csv_file "${RAFT_BUILD_ARTEFACTS_FOLDER}/partitions.csv")
 message(STATUS "Copying ${BUILD_CONFIG_DIR}/partitions.csv to ${_partitions_csv_file}")
