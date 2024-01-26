@@ -40,7 +40,7 @@ SysTypeManager::SysTypeManager(RaftJsonIF& systemConfig, RaftJson& sysTypeConfig
 ///       the JSON non-volatile storage (if it exists) or the first SysType in the SysTypeInfoRecs
 ///       (if there is only one SysType) or the SysType that matches the base SysType version string
 ///       if it is not empty
-void SysTypeManager::setBaseSysTypes(const std::vector<SysTypeInfoRec>* pSysTypeInfoRecs)
+void SysTypeManager::setBaseSysTypes(const SysTypeInfoRec* pSysTypeInfoRecs, uint16_t numSysTypeInfoRecs)
 {
     // Check valid
     if (!pSysTypeInfoRecs)
@@ -51,6 +51,7 @@ void SysTypeManager::setBaseSysTypes(const std::vector<SysTypeInfoRec>* pSysType
 
     // Store the SysType information records
     _pSysTypeInfoRecs = pSysTypeInfoRecs;
+    _numSysTypeInfoRecs = numSysTypeInfoRecs;
 
     // Set the system type to the most appropriate one
     selectMostAppropriateSysType();
@@ -87,11 +88,11 @@ String SysTypeManager::getCurrentSysTypeName()
 
     // Check if a SysTypeInfoRec has been selected
     if (!_pSysTypeInfoRecs || (_currentlySysTypeInfoRecIdx < 0) || 
-                (_currentlySysTypeInfoRecIdx >= (int)_pSysTypeInfoRecs->size()))
+                (_currentlySysTypeInfoRecIdx >= (int)_numSysTypeInfoRecs))
         return "";
 
     // Return SysType name from the selected SysTypeInfoRec
-    return (*_pSysTypeInfoRecs)[_currentlySysTypeInfoRecIdx].getSysTypeName();
+    return _pSysTypeInfoRecs[_currentlySysTypeInfoRecIdx].getSysTypeName();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,8 +114,11 @@ String SysTypeManager::getBaseSysTypesListAsJson()
     if (_pSysTypeInfoRecs)
     {
         bool isFirst = true;
-        for (const SysTypeInfoRec& sysTypeInfoRec : *_pSysTypeInfoRecs)
+        for (uint16_t sysTypeIdx = 0; sysTypeIdx < _numSysTypeInfoRecs; sysTypeIdx++)
         {
+            // Get SysType info record
+            const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[sysTypeIdx];
+
             // Get base name
             String recName = sysTypeInfoRec.getSysTypeName();
             if (recName.length() == 0)
@@ -124,7 +128,7 @@ String SysTypeManager::getBaseSysTypesListAsJson()
             String recVersion = sysTypeInfoRec.getSysTypeVersion();
 
             // Check if valid for this version
-            if (!recVersion.equals(_baseSysTypeVersion) && (_pSysTypeInfoRecs->size() != 1) && (_baseSysTypeVersion.length() != 0))
+            if (!recVersion.equals(_baseSysTypeVersion) && (_numSysTypeInfoRecs != 1) && (_baseSysTypeVersion.length() != 0))
                 continue;
 
             // Check if this SysType is already in the list
@@ -197,12 +201,13 @@ bool SysTypeManager::getBaseSysTypeContent(const char* pSysTypeName, String& out
 
     // Find the requested SysType in the SysTypeInfoRecs - it needs to match both the name and
     // the base SysType version
-    for (const SysTypeInfoRec& sysTypeInfoRec : *_pSysTypeInfoRecs)
+    for (uint16_t sysTypeIdx = 0; sysTypeIdx < _numSysTypeInfoRecs; sysTypeIdx++)
     {
+        const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[sysTypeIdx];
         String recName = sysTypeInfoRec.getSysTypeName();
         String recVersion = sysTypeInfoRec.getSysTypeVersion();
         if (recName.equals(pSysTypeName) && 
-                (recVersion.equals(_baseSysTypeVersion) || (_pSysTypeInfoRecs->size() == 1)) && 
+                (recVersion.equals(_baseSysTypeVersion) || (_numSysTypeInfoRecs == 1)) && 
                 sysTypeInfoRec.pSysTypeJSONDoc)
         {
             // Get the JSON doc
@@ -462,13 +467,13 @@ void SysTypeManager::selectMostAppropriateSysType()
 
     // Find matching sysType
     int bestValidSysTypeInfoRecIdx = -1;
-    for (int sysTypeInfoRecIdx = 0; sysTypeInfoRecIdx < (int)_pSysTypeInfoRecs->size(); sysTypeInfoRecIdx++)
+    for (int sysTypeInfoRecIdx = 0; sysTypeInfoRecIdx < (int)_numSysTypeInfoRecs; sysTypeInfoRecIdx++)
     {
-        const SysTypeInfoRec& sysTypeInfoRec = (*_pSysTypeInfoRecs)[sysTypeInfoRecIdx];
+        const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[sysTypeInfoRecIdx];
         String recName = sysTypeInfoRec.getSysTypeName();
         String recVersion = sysTypeInfoRec.getSysTypeVersion();
         // Check version matches first
-        if (!recVersion.equals(_baseSysTypeVersion) && (_pSysTypeInfoRecs->size() != 1) && (_baseSysTypeVersion.length() != 0))
+        if (!recVersion.equals(_baseSysTypeVersion) && (_numSysTypeInfoRecs != 1) && (_baseSysTypeVersion.length() != 0))
             continue;
         // Check if this is first match
         if (bestValidSysTypeInfoRecIdx < 0)
@@ -488,7 +493,7 @@ void SysTypeManager::selectMostAppropriateSysType()
     }
 
     // Get the SysType info rec
-    const SysTypeInfoRec& sysTypeInfoRec = (*_pSysTypeInfoRecs)[bestValidSysTypeInfoRecIdx];
+    const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[bestValidSysTypeInfoRecIdx];
 
     // Set into the main document of the chained RaftJson object
     _baseSysTypeConfig.setSourceStr(sysTypeInfoRec.pSysTypeJSONDoc, false, strlen(sysTypeInfoRec.pSysTypeJSONDoc));

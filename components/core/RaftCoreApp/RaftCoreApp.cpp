@@ -10,8 +10,8 @@
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "RaftCoreApp.h"
-#include "SysTypesInfo.h"
 #include "RaftJsonNVS.h"
+#include "SysTypeInfoRecs.h"
 
 static const char *MODULE_PREFIX = "RaftCoreApp";
 
@@ -80,7 +80,7 @@ RaftCoreApp::RaftCoreApp() :
     _sysTypeConfig.setChainedRaftJson(&_defaultSystemConfig);
 
     // Set base types in SysTypeManager
-    _sysTypeManager.setBaseSysTypes(&sysTypesInfo);
+    _sysTypeManager.setBaseSysTypes(sysTypeInfoRecs, sizeof(sysTypeInfoRecs)/sizeof(SysTypeInfoRec));
 
     // Add the system restart callback to the SysTypeManager
     _sysTypeManager.setSystemRestartCallback([this] { _sysManager.systemRestart(); });

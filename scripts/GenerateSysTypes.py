@@ -43,7 +43,7 @@ logging.basicConfig(format="[%(asctime)s] %(levelname)s:%(name)s: %(message)s",
 _log = logging.getLogger(__name__ if __name__ != '__main__' else os.path.basename(__file__))
 
 def parseArgs():
-    parser = argparse.ArgumentParser(description="Convert JSON to CPP with key versioning")
+    parser = argparse.ArgumentParser(description="Convert JSON to C with key versioning")
     parser.add_argument('inFile',
                         type=argparse.FileType('r'),
                         help="JSON input file")
@@ -166,7 +166,7 @@ def genCppFileFromJSON(inFile, outFile, template) -> None:
         versioned_keys = set()
         sys_type_names = {}
         find_hashhash_keys(sys_type_json, versioned_keys, "SysTypeName", sys_type_names)
-        print(f"HashHash Versioned keys: {versioned_keys}")
+        # print(f"HashHash Versioned keys: {versioned_keys}")
 
         # Extract unique version names
         version_names = set()
@@ -180,7 +180,7 @@ def genCppFileFromJSON(inFile, outFile, template) -> None:
 
             # Find all the versioned keys
             find_hwrev_keys(sys_type_json, versioned_keys)
-            print(f"HWREV Versioned keys: {versioned_keys}")
+            # print(f"HWREV Versioned keys: {versioned_keys}")
 
             # Extract unique version names
             for key in versioned_keys:
@@ -241,7 +241,7 @@ def genCppFileFromJSON(inFile, outFile, template) -> None:
             #     json.dump(unversioned_sys_type_json, debug_file, indent=4)
 
             # Debug
-            print(f"... Generating SysTypes cpp with version {version_name}")
+            _log.info(f"... Generating SysTypes cpp with version {version_name}")
 
             # If this is not the first then add a comma to the output
             if not isFirst:

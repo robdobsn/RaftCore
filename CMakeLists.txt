@@ -20,7 +20,6 @@ endif()
 
 idf_component_register(
   SRCS
-    "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypesInfo.cpp"
     "components/comms/CommsChannels/CommsChannel.cpp"
     "components/comms/CommsChannels/CommsChannelManager.cpp"
     "components/comms/CommsChannelMsg/CommsChannelMsg.cpp"
@@ -64,7 +63,6 @@ idf_component_register(
     "components/core/NetworkSystem/NetworkSystem.cpp"
     "components/core/NetworkSystem/WiFiScanner.cpp"
     "components/core/RaftCoreApp/RaftCoreApp.cpp"
-    "components/core/RaftJson/RaftJson.cpp"
     "components/core/RaftJson/RaftJsonNVS.cpp"
     "components/core/RestAPIEndpoints/RestAPIEndpointManager.cpp"
     "components/core/StatusIndicator/StatusIndicator.cpp"
@@ -115,6 +113,7 @@ idf_component_register(
     "components/core/SysManager"
     "components/core/SysMod"
     "components/core/SysTypes"
+    "${RAFT_BUILD_ARTEFACTS_FOLDER}"
     "components/core/ThreadSafeQueue"
     "components/core/Utils"
   REQUIRES

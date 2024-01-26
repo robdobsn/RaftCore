@@ -9,6 +9,7 @@
 
 #include <vector>
 #include <list>
+#include "Logger.h"
 #include "RaftJsonNVS.h"
 #include "nvs_flash.h"
 

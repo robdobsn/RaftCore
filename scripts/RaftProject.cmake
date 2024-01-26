@@ -100,13 +100,13 @@ foreach(_raft_component ${RAFT_COMPONENTS})
 endforeach()
 
 # Make sure the SysTypes header is generated before compiling this component (main) if needed
-set(_systypes_cpp "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypesInfo.cpp")
+set(_systypes_h "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypeInfoRecs.h")
 set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
-set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypesInfo.cpp.template")
-message(STATUS "------------------ Generating SysTypesInfo.cpp ------------------")
+set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
+message(STATUS "------------------ Generating SysTypeInfoRecs.h ------------------")
 message(STATUS "Generating ${_systypes_cpp} from file ${_systypes_json}")
 execute_process(
-    COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypesCpp.py ${_systypes_json} ${_systypes_cpp} --cpp_template ${_systypes_template}
+    COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_h} --cpp_template ${_systypes_template}
 )
 
 # Copy the FS image source folder to the build artefacts directory

@@ -3,9 +3,6 @@
 
 #pragma once
 
-#include "sdkconfig.h"
-#include "esp_idf_version.h"
-
 #ifdef ARDUINO
 #include "Arduino.h"
 #else
@@ -13,4 +10,8 @@
 #include "ArduinoGPIO.h"
 #include "ArduinoTime.h"
 #include "ArduinoWString.h"
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#include "esp_idf_version.h"
+#endif
 #endif

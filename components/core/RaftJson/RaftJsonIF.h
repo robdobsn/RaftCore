@@ -10,7 +10,11 @@
 
 #include <vector>
 #include <functional>
+#if __has_include("RaftArduino.h")
 #include "RaftArduino.h"
+#else
+#include "WString.h"
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Callback type for JSON change - used by RaftJsonIF implementations that support 
@@ -94,6 +98,11 @@ public:
     /// @brief Get JSON doc contents
     /// @return const char* : JSON doc contents
     virtual const char* getJsonDoc() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get JSON doc (alternative to getJsonDoc)
+    /// @return const char* : JSON doc contents
+    const char* c_str() const { return getJsonDoc(); }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get chained RaftJson object

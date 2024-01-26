@@ -48,7 +48,7 @@ public:
     /// @brief Set the base SysTypes to be selected from
     /// @param pSysTypeInfoRecs pointer to a vector of SysTypeInfoRec records
     /// @note The SysTypeInfoRec records are not copied and must remain valid for the lifetime of this object
-    void setBaseSysTypes(const std::vector<SysTypeInfoRec>* pSysTypeInfoRecs);
+    void setBaseSysTypes(const SysTypeInfoRec* pSysTypeInfoRecs, uint16_t numSysTypeInfoRecs);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get current SysType name
@@ -109,7 +109,8 @@ public:
 
 private:
     // SysType information records
-    const std::vector<SysTypeInfoRec>* _pSysTypeInfoRecs = nullptr;
+    const SysTypeInfoRec* _pSysTypeInfoRecs = nullptr;
+    uint16_t _numSysTypeInfoRecs = 0;
 
     // System configuration
     RaftJsonIF& _systemConfig;

@@ -2,13 +2,14 @@
 //
 // SysTypes Information
 //
-// Rob Dobson 2020-2024
+// Rob Dobson 2024
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
-
-#include <vector>
 #include "SysTypeInfoRec.h"
 
-extern const std::vector<SysTypeInfoRec> sysTypesInfo;
+static constexpr const SysTypeInfoRec sysTypeInfoRecs[] = 
+{
+{{GENERATED_CODE}}
+
+};
