@@ -16,6 +16,7 @@
 #if __has_include("SysTypeInfoRecs.h")
 #include "SysTypeInfoRecs.h"
 #else
+#pragma message("SysTypeInfoRecs.h not found - using empty json")
 static constexpr const SysTypeInfoRec sysTypeInfoRecs[] = {};
 #endif
 

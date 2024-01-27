@@ -485,10 +485,8 @@ void SysTypeManager::selectBest()
     // Check if a valid SysType was found
     if (bestValidSysTypeInfoRecIdx < 0)
     {
-#ifdef DEBUG_SYS_TYPE_SET_MOST_APPROPRIATE
-        LOG_I(MODULE_PREFIX, "selectBest no valid SysType found - numSysTypeInfoRecs %d baseSysTypeVersion %s sysTypeName from NVS %s", 
+        LOG_W(MODULE_PREFIX, "selectBest no valid SysType found - numSysTypeInfoRecs %d baseSysTypeVersion %s sysTypeName from NVS %s", 
                     _numSysTypeInfoRecs, _baseSysTypeVersion.c_str(), sysTypeName.c_str());
-#endif
         return;
     }
 
