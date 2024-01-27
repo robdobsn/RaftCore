@@ -35,11 +35,17 @@ def parseArgs():
                         help='npm install in the source folder first')
     parser.add_argument('--distFolder', default='dist',
                         help='folder that npm run build builds into (relative to source folder)')
+    parser.add_argument('--incmap', action='store_true', dest='includemapfiles',
+                        help='include js source map files')
     return parser.parse_args()
 
-def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall):
+def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall, includemapfiles):
 
-    _log.info("GenWebUI source '%s' dest '%s' gzip %s", sourceFolder, destFolder, "Y" if gzipContent else "N")
+    _log.info("GenWebUI source '%s' dest '%s' gzip %s map %s", 
+                        sourceFolder, 
+                        destFolder, 
+                        "Y" if gzipContent else "N",
+                        "Y" if includemapfiles else "N")
 
     # If npmInstall is true, execute npm install in the source folder
     if npmInstall:
@@ -58,9 +64,17 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall)
     
     # Locate the npm run build output folder
     buildFolder = os.path.join(sourceFolder, distFolder)
+
+    # Files to include in the destination folder
+    extensions_to_include = ['.html', '.js', '.css']
+    extensions_to_zip = ['html', '.js', '.css']
+    if includemapfiles:
+        extensions_to_include.append('.map')
+        extensions_to_zip.append('.map')
     for fname in os.listdir(buildFolder):
-        if fname.endswith('.html') or fname.endswith('.js') or fname.endswith('.css'):
-            if gzipContent:
+        lower_case_fname = fname.lower()
+        if lower_case_fname.endswith(tuple(extensions_to_include)):
+            if lower_case_fname.endswith(tuple(extensions_to_zip)):
                 with open(os.path.join(buildFolder, fname), 'rb') as f:
                     renderedStr = f.read()
                 with gzip.open(os.path.join(destFolder, fname + '.gz'), 'wb') as f:
@@ -68,10 +82,7 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall)
                 _log.info(f"GenWebUI created Web UI from {fname} to {fname}.gz")
             else:
                 os.rename(os.path.join(buildFolder, fname), os.path.join(destFolder, fname))
-                # _log.info(f"GenWebUI created Web UI from {fname} to {fname}")
-        else:
-            os.rename(os.path.join(buildFolder, fname), os.path.join(destFolder, fname))
-            # _log.info(f"GenWebUI created Web UI from {fname} to {fname}")
+                _log.info(f"GenWebUI created Web UI from {fname} to {fname}")
     return 0
 
 def main():
@@ -80,7 +91,8 @@ def main():
     if not os.path.isfile(os.path.join(args.source, "package.json")):
         _log.error(f"GenWebUI source folder {args.source} does not contain a package.json file")
         return 0
-    return generateWebUI(args.source, args.dest, args.gzipContent, args.distFolder, args.npmInstall)
+    return generateWebUI(args.source, args.dest, args.gzipContent, args.distFolder, 
+                            args.npmInstall, args.includemapfiles)
 
 if __name__ == '__main__':
     rslt = main()
