@@ -105,6 +105,9 @@ private:
     // Max length of JSON document
     uint32_t _jsonMaxlen = 0;
 
+    // NVS initialised
+    static bool _nvsInitialised;
+
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get the string value of an NVS entry
     /// @param pKey the key

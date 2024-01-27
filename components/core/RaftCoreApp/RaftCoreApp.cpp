@@ -72,9 +72,6 @@ RaftCoreApp::RaftCoreApp() :
     _commsChannelManager("CommsMan", _systemConfig),
     _protocolExchange("ProtExchg", _systemConfig)
 {
-    // Init NVS
-    RaftJsonNVS::initNVS(true);
-
     // Chain the default config to the SysType so that it is used as a fallback
     // if no SysTypes are specified
     _sysTypeConfig.setChainedRaftJson(&_defaultSystemConfig);

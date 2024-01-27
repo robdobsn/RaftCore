@@ -19,7 +19,12 @@ static const char *MODULE_PREFIX = "RaftJsonNVS";
 // #define WARN_ON_NVS_JSON_DOC_TOO_LONG
 #define WARN_ON_NVS_ACCESS_FAILURES
 // #define DEBUG_NVS_READ_WRITE_OPERATIONS
+// #define DEBUG_NVS_READ_WRITE_OPERATIONS_VERBOSE
 // #define WARN_ON_NVS_NAMESPACE_NOT_FOUND_FAILURES
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Statics
+bool RaftJsonNVS::_nvsInitialised = RaftJsonNVS::initNVS(true);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set new contents for the JSON document
@@ -39,7 +44,7 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
         if (jsonDocStrLen > _jsonMaxlen)
         {
 #ifdef WARN_ON_NVS_JSON_DOC_TOO_LONG
-            LOG_W(MODULE_PREFIX, "setNewContent TOO_LONG namespace %s read: len(%d) maxlen %d", 
+            LOG_W(MODULE_PREFIX, "setJsonDoc TOO_LONG namespace %s read: len(%d) maxlen %d", 
                         _nvsNamespace.c_str(), jsonDocStrLen, _jsonMaxlen);
 #endif
             return false;
@@ -55,7 +60,7 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_open FAIL ns %s error %s", 
+        LOG_W(MODULE_PREFIX, "setJsonDoc nvs_open FAIL ns %s error %s", 
                         _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         return false;
@@ -66,7 +71,7 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_set_str FAIL ns %s error %d", 
+        LOG_W(MODULE_PREFIX, "setJsonDoc nvs_set_str FAIL ns %s error %d", 
                         _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         return false;
@@ -77,7 +82,7 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_E(MODULE_PREFIX, "nvs_commit FAIL ns %s error %s", 
+        LOG_E(MODULE_PREFIX, "setJsonDoc nvs_commit FAIL ns %s error %s", 
                         _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
         return false;
@@ -96,8 +101,21 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     }
 
 #ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
-    LOG_I(MODULE_PREFIX, "setNewContent OK namespace %s len %d maxlen %d",
+    LOG_I(MODULE_PREFIX, "setJsonDoc OK namespace %s len %d maxlen %d",
                 _nvsNamespace.c_str(), jsonDocStrLen, _jsonMaxlen);
+#endif
+#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS_VERBOSE
+    {
+        // Debug
+        debugShowNVSInfo(true);
+        // Show the NVS contents
+        std::vector<char, SpiramAwareAllocator<char>> jsonDoc;
+        if (RaftJsonNVS::getStrFromNVS(_nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC, jsonDoc))
+        {
+            LOG_I(MODULE_PREFIX, "setJsonDoc debug ns %s key %s value %s", 
+                        _nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC, jsonDoc.data());
+        }
+    }
 #endif
 
     // Ok
@@ -152,7 +170,7 @@ bool RaftJsonNVS::getStrFromNVS(const char* pNamespace, const char* pKey,
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_NAMESPACE_NOT_FOUND_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_open FAIL ns %s error %s", 
+        LOG_W(MODULE_PREFIX, "getStrFromNVS nvs_open FAIL ns %s error %s", 
                         pNamespace, esp_err_to_name(err));
 #endif
         return false;
@@ -164,7 +182,7 @@ bool RaftJsonNVS::getStrFromNVS(const char* pNamespace, const char* pKey,
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_get_str len FAILED ns %s error %s", 
+        LOG_W(MODULE_PREFIX, "getStrFromNVS nvs_get_str len FAILED ns %s error %s", 
                         pNamespace, esp_err_to_name(err));
 #endif
         nvs_close(nvsHandle);
@@ -178,7 +196,7 @@ bool RaftJsonNVS::getStrFromNVS(const char* pNamespace, const char* pKey,
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "nvs_get_str data FAILED ns %s error %s", 
+        LOG_W(MODULE_PREFIX, "getStrFromNVS nvs_get_str data FAILED ns %s error %s", 
                         pNamespace, esp_err_to_name(err));
 #endif
         nvs_close(nvsHandle);
@@ -229,6 +247,12 @@ void RaftJsonNVS::updateJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
 
     // Store value in parent object (makes a copy of the string)
     setSourceStr(pJsonDoc, true, jsonDocStrLen);
+
+#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS_VERBOSE
+    // Debug
+    LOG_I(MODULE_PREFIX, "updateJsonDoc OK namespace %s len(%d) maxlen %d ... %s", 
+                _nvsNamespace.c_str(), jsonDocStrLen, _jsonMaxlen, pJsonDoc);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -319,10 +343,14 @@ bool RaftJsonNVS::initNVS(bool eraseIfCorrupt)
     // Initialize NVS
     esp_err_t nvsInitResult = nvs_flash_init();
     if (nvsInitResult == ESP_OK)
+    {
+        // Debug
+        LOG_I(MODULE_PREFIX, "nvs_flash_init() OK");
         return true;
+    }
 
     // Error message
-    ESP_LOGE(MODULE_PREFIX, "nvs_flash_init() failed with error %s (%d)", esp_err_to_name(nvsInitResult), nvsInitResult);
+    LOG_E(MODULE_PREFIX, "nvs_flash_init() failed with error %s (%d)", esp_err_to_name(nvsInitResult), nvsInitResult);
 
     // Clear flash if required
     if (eraseIfCorrupt && ((nvsInitResult == ESP_ERR_NVS_NO_FREE_PAGES) || (nvsInitResult == ESP_ERR_NVS_NEW_VERSION_FOUND)))
@@ -330,14 +358,14 @@ bool RaftJsonNVS::initNVS(bool eraseIfCorrupt)
         esp_err_t flashEraseResult = nvs_flash_erase();
         if (flashEraseResult != ESP_OK)
         {
-            ESP_LOGE(MODULE_PREFIX, "nvs_flash_erase() failed with error %s (%d)", 
+            LOG_E(MODULE_PREFIX, "nvs_flash_erase() failed with error %s (%d)", 
                             esp_err_to_name(flashEraseResult), flashEraseResult);
         }
         nvsInitResult = nvs_flash_init();
         if (nvsInitResult != ESP_OK)
         {
             // Error message
-            ESP_LOGW(MODULE_PREFIX, "nvs_flash_init() failed a second time with error %s (%d)", 
+            LOG_W(MODULE_PREFIX, "nvs_flash_init() failed a second time with error %s (%d)", 
                             esp_err_to_name(nvsInitResult), nvsInitResult);
             return false;
         }

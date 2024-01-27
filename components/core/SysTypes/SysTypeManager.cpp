@@ -16,11 +16,8 @@
 
 static const char* MODULE_PREFIX = "SysTypeManager";
 
-// #define DEBUG_SYS_TYPE_CONFIG
-// #define DEBUG_SYS_TYPE_CONFIG_DETAIL
-// #define DEBUG_SYS_TYPE_SETTING_WRITE
 // #define DEBUG_SYS_TYPE_MANAGER_API
-// #define DEBUG_SYS_TYPE_SET_MOST_APPROPRIATE
+// #define DEBUG_SYS_TYPE_SET_BEST
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -502,7 +499,7 @@ void SysTypeManager::selectBest()
     // Record the selected SysType info rec
     _currentlySysTypeInfoRecIdx = bestValidSysTypeInfoRecIdx;
 
-#ifdef DEBUG_SYS_TYPE_SET_MOST_APPROPRIATE
+#ifdef DEBUG_SYS_TYPE_SET_BEST
     LOG_I(MODULE_PREFIX, "selectBest selected recName %s recVersion %s curBaseVersion <<<%s>>> jsonDocPtr %p chainedPtr %p chainedJsonDoc %s", 
                 sysTypeInfoRec.getSysTypeName().c_str(), sysTypeInfoRec.getSysTypeVersion(), _baseSysTypeVersion.c_str(), 
                 sysTypeInfoRec.pSysTypeJSONDoc,

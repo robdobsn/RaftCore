@@ -114,7 +114,7 @@ class SerialIO:
                     # Handle incoming data
                     numWaiting = self._serial.in_waiting
                     if numWaiting < 1:
-                        time.sleep(0.001)
+                        time.sleep(0.01)
                         continue
                     rxBytes = self._serial.read(numWaiting)
                     self._dataCallback(rxBytes)
