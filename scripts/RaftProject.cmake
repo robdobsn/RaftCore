@@ -115,6 +115,9 @@ set(_full_fs_dest_image_path "${RAFT_BUILD_ARTEFACTS_FOLDER}/FSImage")
 message(STATUS "------------------ Copying FS Image ------------------")
 message(STATUS "Copying ${_full_fs_source_image_path} to ${_full_fs_dest_image_path}")
 execute_process(
+  COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
+)
+execute_process(
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
 )
 message(STATUS "Removing ${_full_fs_dest_image_path}/placeholder")

@@ -31,37 +31,15 @@ def parseArgs():
                         help="folder to output files to")
     parser.add_argument('--nogzip', action='store_false', dest='gzipContent',
                         help='gzip the resulting files')
-    parser.add_argument('--deletefirst', action='store_true', dest='deleteFirst',
-                        help='delete the react UI destination files first')
     parser.add_argument('--npminstall', action='store_false', dest='npmInstall',
                         help='npm install in the source folder first')
+    parser.add_argument('--outFolder', default='out',
+                        help='folder that npm run build builds into (relative to source folder)')
     return parser.parse_args()
 
-def generateWebUI(sourceFolder, destFolder, gzipContent, deleteFirst, npmInstall):
+def generateWebUI(sourceFolder, destFolder, gzipContent, outFolder, npmInstall):
 
     _log.info("GenWebUI source '%s' dest '%s' gzip %s", sourceFolder, destFolder, "Y" if gzipContent else "N")
-
-    # Delete the react UI files in the destination folder if required
-    if deleteFirst:
-        filesToDeleteIncWildcards = [
-            "asset-manifest.json", 
-            "favicon.ico", 
-            "index.html", 
-            "index.html.gz",
-            "logo192.png", 
-            "logo512.png", 
-            "manifest.json", 
-            "precache-manifest.*.js", 
-            "robots.txt", 
-            "service-worker.js", 
-            "main.*"
-            ]
-        filesToDelete = [glob.glob(os.path.join(destFolder, fileSpec), recursive=True) for fileSpec in filesToDeleteIncWildcards]
-        filesToDelete = [item for sublist in filesToDelete for item in sublist]
-        _log.info(f"GenWebUI deleting {filesToDelete}")
-        for fname in filesToDelete:
-            os.remove(os.path.join(destFolder, fname))
-            _log.info(f"GenWebUI deleted {fname}")
 
     # If npmInstall is true, execute npm install in the source folder
     if npmInstall:
@@ -78,7 +56,8 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, deleteFirst, npmInstall
         _log.error("GenWebUI failed to build Web UI")
         return rslt.returncode
     
-    buildFolder = os.path.join(sourceFolder, "build")
+    # Locate the npm run build output folder
+    buildFolder = os.path.join(sourceFolder, outFolder)
     for fname in os.listdir(buildFolder):
         if fname.endswith('.html') or fname.endswith('.js') or fname.endswith('.css'):
             if gzipContent:
@@ -101,7 +80,7 @@ def main():
     if not os.path.isfile(os.path.join(args.source, "package.json")):
         _log.error(f"GenWebUI source folder {args.source} does not contain a package.json file")
         return 0
-    return generateWebUI(args.source, args.dest, args.gzipContent, args.deleteFirst, args.npmInstall)
+    return generateWebUI(args.source, args.dest, args.gzipContent, args.outFolder, args.npmInstall)
 
 if __name__ == '__main__':
     rslt = main()
