@@ -70,10 +70,6 @@ execute_process(
     COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_CONFIG_DIR}/partitions.csv" ${_partitions_csv_file}
 )
 
-# List of dependencies of main project
-set(ADDED_PROJECT_DEPENDENCIES "raftcore")
-set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR})
-
 # Iterate over list of raft components
 foreach(_raft_component ${RAFT_COMPONENTS})
 
@@ -108,6 +104,13 @@ message(STATUS "Generating ${_systypes_cpp} from file ${_systypes_json}")
 execute_process(
     COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_h} --cpp_template ${_systypes_template}
 )
+
+# List of dependencies of main project
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} "raftcore")
+set(ADDED_PROJECT_DEPENDENCIES ${_partitions_csv_file})
+set(ADDED_PROJECT_DEPENDENCIES ${BUILD_CONFIG_DIR}/sdkconfig.defaults)
+set(ADDED_PROJECT_DEPENDENCIES ${BUILD_CONFIG_DIR}/sdkconfig)
+set(ADDED_PROJECT_DEPENDENCIES ${_systypes_h})
 
 # Copy the FS image source folder to the build artefacts directory
 set(_full_fs_source_image_path "${BUILD_CONFIG_DIR}/${FS_IMAGE_PATH}")
