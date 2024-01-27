@@ -33,11 +33,11 @@ def parseArgs():
                         help='gzip the resulting files')
     parser.add_argument('--npminstall', action='store_false', dest='npmInstall',
                         help='npm install in the source folder first')
-    parser.add_argument('--outFolder', default='out',
+    parser.add_argument('--distFolder', default='dist',
                         help='folder that npm run build builds into (relative to source folder)')
     return parser.parse_args()
 
-def generateWebUI(sourceFolder, destFolder, gzipContent, outFolder, npmInstall):
+def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall):
 
     _log.info("GenWebUI source '%s' dest '%s' gzip %s", sourceFolder, destFolder, "Y" if gzipContent else "N")
 
@@ -57,7 +57,7 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, outFolder, npmInstall):
         return rslt.returncode
     
     # Locate the npm run build output folder
-    buildFolder = os.path.join(sourceFolder, outFolder)
+    buildFolder = os.path.join(sourceFolder, distFolder)
     for fname in os.listdir(buildFolder):
         if fname.endswith('.html') or fname.endswith('.js') or fname.endswith('.css'):
             if gzipContent:
@@ -80,7 +80,7 @@ def main():
     if not os.path.isfile(os.path.join(args.source, "package.json")):
         _log.error(f"GenWebUI source folder {args.source} does not contain a package.json file")
         return 0
-    return generateWebUI(args.source, args.dest, args.gzipContent, args.outFolder, args.npmInstall)
+    return generateWebUI(args.source, args.dest, args.gzipContent, args.distFolder, args.npmInstall)
 
 if __name__ == '__main__':
     rslt = main()
