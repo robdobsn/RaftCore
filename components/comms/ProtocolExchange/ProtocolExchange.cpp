@@ -47,10 +47,9 @@ static const char* MODULE_PREFIX = "ProtExchg";
 ProtocolExchange::ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig)
     : SysModBase(pModuleName, sysConfig)
 {
-    // Handlers
-    _pFirmwareUpdater = nullptr;
-    _nextStreamID = FileStreamBase::FILE_STREAM_ID_MIN;
-    _sysManStateIndWasActive = false;
+#ifdef DEBUG_ADD_COMMS_CHANNELS
+    LOG_I(MODULE_PREFIX, "constructed %s", pModuleName);
+#endif
 }
 
 ProtocolExchange::~ProtocolExchange()
@@ -132,6 +131,11 @@ String ProtocolExchange::getDebugJSON()
 
 void ProtocolExchange::addCommsChannels(CommsCoreIF& commsCore)
 {
+    // Debug
+#ifdef DEBUG_ADD_COMMS_CHANNELS
+    LOG_I(MODULE_PREFIX, "addCommsChannels");
+#endif
+
     // Add support for RICSerial
     ProtocolCodecFactoryHelper ricSerialProtocolDef = { ProtocolRICSerial::getProtocolNameStatic(), 
                         ProtocolRICSerial::createInstance,

@@ -48,17 +48,17 @@ protected:
 
 private:
     // Handlers
-    SysModBase* _pFirmwareUpdater;
+    SysModBase* _pFirmwareUpdater = nullptr;
 
     // Next streamID to allocate to a stream session
-    uint32_t _nextStreamID; 
+    uint32_t _nextStreamID = FileStreamBase::FILE_STREAM_ID_MIN;
 
     // Transfer sessions
     static const uint32_t MAX_SIMULTANEOUS_FILE_STREAM_SESSIONS = 3;
     std::list<FileStreamSession*> _sessions;
 
     // Previous activity indicator to keep SysManager up-to-date
-    bool _sysManStateIndWasActive;
+    bool _sysManStateIndWasActive = false;
 
     // Threshold for determining if message processing is slow
     static const uint32_t MSG_PROC_SLOW_PROC_THRESH_MS = 50;
