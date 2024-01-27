@@ -53,8 +53,8 @@ void SysTypeManager::setBaseSysTypes(const SysTypeInfoRec* pSysTypeInfoRecs, uin
     _pSysTypeInfoRecs = pSysTypeInfoRecs;
     _numSysTypeInfoRecs = numSysTypeInfoRecs;
 
-    // Set the system type to the most appropriate one
-    selectMostAppropriateSysType();
+    // Set the system type to the best match
+    selectBest();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -69,8 +69,8 @@ void SysTypeManager::setBaseSysTypeVersion(const char* pVersionStr)
     if (pVersionStr)
         _baseSysTypeVersion = pVersionStr;
 
-    // Set the system type to the most appropriate one
-    selectMostAppropriateSysType();
+    // Set the system type to the best match
+    selectBest();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -230,10 +230,9 @@ bool SysTypeManager::setNonVolatileDocContents(const char* pJsonDoc)
     // Set the non-volatile JSON document
     bool rslt = _systemConfig.setJsonDoc(pJsonDoc);
 
-    // Select the most appropriate SysType because the non-volatile JSON document may have
-    // contained a SysType key
+    // Select the best SysType because the non-volatile JSON document may have contained a SysType key
     if (rslt)
-        selectMostAppropriateSysType();
+        selectBest();
     return rslt;
 }
 
@@ -449,8 +448,8 @@ RaftRetCode SysTypeManager::apiSysTypeClearSettings(const String &reqStr, String
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief set the most appropriate system type based on the requested system type name and base SysType version
-void SysTypeManager::selectMostAppropriateSysType()
+/// @brief set the best system type based on the requested system type name and base SysType version
+void SysTypeManager::selectBest()
 {
     // This method sets a pointer to the JSON doc for a base SysType (from the SysTypeInfoRecs) into the chained
     // RaftJson object in the system config.
@@ -487,7 +486,8 @@ void SysTypeManager::selectMostAppropriateSysType()
     if (bestValidSysTypeInfoRecIdx < 0)
     {
 #ifdef DEBUG_SYS_TYPE_SET_MOST_APPROPRIATE
-        LOG_I(MODULE_PREFIX, "selectMostAppropriateSysType no valid SysType found");
+        LOG_I(MODULE_PREFIX, "selectBest no valid SysType found - numSysTypeInfoRecs %d baseSysTypeVersion %s sysTypeName from NVS %s", 
+                    _numSysTypeInfoRecs, _baseSysTypeVersion.c_str(), sysTypeName.c_str());
 #endif
         return;
     }
@@ -505,7 +505,7 @@ void SysTypeManager::selectMostAppropriateSysType()
     _currentlySysTypeInfoRecIdx = bestValidSysTypeInfoRecIdx;
 
 #ifdef DEBUG_SYS_TYPE_SET_MOST_APPROPRIATE
-    LOG_I(MODULE_PREFIX, "selectMostAppropriateSysType selected recName %s recVersion %s curBaseVersion <<<%s>>> jsonDocPtr %p chainedPtr %p chainedJsonDoc %s", 
+    LOG_I(MODULE_PREFIX, "selectBest selected recName %s recVersion %s curBaseVersion <<<%s>>> jsonDocPtr %p chainedPtr %p chainedJsonDoc %s", 
                 sysTypeInfoRec.getSysTypeName().c_str(), sysTypeInfoRec.getSysTypeVersion(), _baseSysTypeVersion.c_str(), 
                 sysTypeInfoRec.pSysTypeJSONDoc,
                 _systemConfig.getChainedRaftJson(),

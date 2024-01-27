@@ -208,6 +208,9 @@ void SysManager::postSetup()
             {
                 if (pSysMod && pSysMod->modNameStr().equals(sysModClassDef.name))
                 {
+#ifdef DEBUG_SYSMOD_FACTORY
+                    LOG_I(MODULE_PREFIX, "postSetup %s alreadyCreated");
+#endif
                     alreadyCreated = true;
                     break;
                 }
@@ -227,7 +230,7 @@ void SysManager::postSetup()
                         depListStrCSV += ",";
                     depListStrCSV += dep;
                 }
-                LOG_I(MODULE_PREFIX, "SysMod %s isEnabled %s (alwaysEnable %s) deps <<<%s>>> depsSatisfied %s", 
+                LOG_I(MODULE_PREFIX, "postSetup SysMod %s isEnabled %s (alwaysEnable %s) deps <<<%s>>> depsSatisfied %s", 
                             sysModClassDef.name.c_str(), 
                             isEnabled ? "YES" : "NO",
                             sysModClassDef.alwaysEnable ? "YES" : "NO",
@@ -264,7 +267,7 @@ void SysManager::postSetup()
 #ifdef DEBUG_SYSMOD_MEMORY_USAGE
         uint32_t heapAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         ESP_LOGI(MODULE_PREFIX, "%s setup heap before %d after %d diff %d", 
-                pSysMod->modName(), heapBefore, heapAfter, heapBefore - heapAfter);
+                pSysMod->modName(), (int)heapBefore, (int)heapAfter, (int)(heapBefore - heapAfter));
 #endif
     }
 

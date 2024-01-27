@@ -132,8 +132,8 @@ private:
     std::function<void()> _systemRestartCallback = nullptr;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Select the most appropriate SysType based on requested SysType name and hardware revision
-    void selectMostAppropriateSysType();
+    /// @brief Select the best SysType based on requested SysType name and hardware revision
+    void selectBest();
 
     // API System type
     RaftRetCode apiGetSysTypes(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
