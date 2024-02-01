@@ -56,7 +56,6 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall,
         
     # Execute npm run build in the source folder
     # Copy the resulting files to the destination folder
-    # If gzipContent is true, gzip the files
     rslt = subprocess.run(["npm", "run", "build"], cwd=sourceFolder)
     if rslt.returncode != 0:
         _log.error("GenWebUI failed to build Web UI")
@@ -67,10 +66,13 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall,
 
     # Files to include in the destination folder
     extensions_to_include = ['.html', '.js', '.css']
-    extensions_to_zip = ['html', '.js', '.css']
+    extensions_to_zip = []
+    if gzipContent:
+        extensions_to_zip = ['html', '.js', '.css']
     if includemapfiles:
         extensions_to_include.append('.map')
-        extensions_to_zip.append('.map')
+        if gzipContent:
+            extensions_to_zip.append('.map')
     for fname in os.listdir(buildFolder):
         lower_case_fname = fname.lower()
         if lower_case_fname.endswith(tuple(extensions_to_include)):

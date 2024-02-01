@@ -36,5 +36,13 @@ For ESP IDF based projects the following are provided:
 
 # Todo
 
-
+[] improve build process
+[] - WebUI generation creates files in systypes/Common/WebUI - e.g. dist, .parcel-cache, node_modules - is this ok or would it be better to specify another folder
+[] - build_raft_artefacts is common to all systypes - this is by design BUT when switching from one systype to another this folder needs to be wiped
+[] - changes to WebUI source code don't trigger build
+[] - changes to SysType.json don't trigger build
+[] raft program could handle new template
+[] raft program could handle building
+[] raft program could handle serial monitoring - possibly with chart??
+[] raft program could handle monitoring over WiFi - maybe a stretch too far?
 
