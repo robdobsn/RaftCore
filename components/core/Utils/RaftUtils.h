@@ -155,7 +155,17 @@ namespace Raft
     // Extract bytes from hex encoded string
     uint32_t getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
 
-    // Generate a hex string from bytes
+    /// @brief Convert a byte array to a hex string
+    /// @param pBuf Pointer to the byte array
+    /// @param bufLen Length of the byte array
+    /// @param outStr String to receive the hex string
+    /// @param separator Separator between bytes
+    void hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* separator = "");
+
+    /// @brief Convert a byte array to a hex string (no separator)
+    /// @param pBuf Pointer to the byte array
+    /// @param bufLen Length of the byte array
+    /// @param outStr String to receive the hex string
     void getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
     
     // Generate a hex string from uint32_t

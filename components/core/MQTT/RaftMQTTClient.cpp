@@ -325,7 +325,7 @@ void RaftMQTTClient::socketConnect()
         if (Raft::isTimeout(millis(), _internalAddrLookupSlowLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalAddrLookupSlowLastTime = millis();
-            LOG_W(MODULE_PREFIX, "socketConnect broker lookup slow %s time %d", _brokerHostname.c_str(), int(micros() - microsStart));
+            LOG_W(MODULE_PREFIX, "socketConnect broker lookup slow %s time %dus", _brokerHostname.c_str(), int(micros() - microsStart));
         }
     }
     for(struct addrinfo *pAddr = pFoundAddrs; pAddr != nullptr; pAddr = pAddr->ai_next)
@@ -389,7 +389,7 @@ void RaftMQTTClient::socketConnect()
             if (Raft::isTimeout(millis(), _internalSocketCreateSlowLastTime , INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
                 _internalSocketCreateSlowLastTime  = millis();
-                LOG_W(MODULE_PREFIX, "socketConnect create slow %s time %d", _brokerHostname.c_str(), int(micros() - microsStart));
+                LOG_W(MODULE_PREFIX, "socketConnect create slow %s time %dus", _brokerHostname.c_str(), int(micros() - microsStart));
             }
         }
 

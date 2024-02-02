@@ -15,6 +15,20 @@
 class FileStreamBlock
 {
 public:
+    FileStreamBlock(const FileStreamBlock& other)
+    {
+        filename = other.filename;
+        contentLen = other.contentLen;
+        filePos = other.filePos;
+        pBlock = other.pBlock;
+        blockLen = other.blockLen;
+        finalBlock = other.finalBlock;
+        crc16 = other.crc16;
+        crc16Valid = other.crc16Valid;
+        fileLen = other.fileLen;
+        fileLenValid = other.fileLenValid;
+        firstBlock = other.firstBlock;
+    }
     FileStreamBlock(const char* filename,
         uint32_t contentLen,
         uint32_t filePos,
@@ -39,6 +53,13 @@ public:
         this->fileLen = fileLen;
         this->fileLenValid = fileLenValid;
         this->firstBlock = firstBlock;
+    }
+    FileStreamBlock(bool cancelUpdate)
+    {
+    }
+    bool isCancelUpdate()
+    {
+        return (pBlock == nullptr) && (filename == nullptr);
     }
     const char* filename = nullptr;
     const uint8_t* pBlock = nullptr;

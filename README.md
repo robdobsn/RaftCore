@@ -46,3 +46,6 @@ For ESP IDF based projects the following are provided:
 [] raft program could handle serial monitoring - possibly with chart??
 [] raft program could handle monitoring over WiFi - maybe a stretch too far?
 
+[] when ethernet is enabled but there is no ethernet hardware there is a long delay (5s?) on boot
+[] MQTT shows >500ms when booting in the situation where eth is enabled but no hardware and maybe other times?
+

@@ -399,37 +399,45 @@ uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t max
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Generate a hex string from bytes
-// Generates no space between hex digits (e.g. 55aa55aa, etc)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr)
+/// @brief Convert a byte array to a hex string
+/// @param pBuf Pointer to the byte array
+/// @param bufLen Length of the byte array
+/// @param outStr String to receive the hex string
+/// @param separator Separator between bytes
+void Raft::hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* pSeparator)
 {
     // Setup outStr
     outStr = "";
 
     // Check valid
-    if (!pBuf)
-        return;
-
-    // Check length
-    if (bufLen == 0)
+    if (!pBuf || (bufLen == 0) || !pSeparator)
         return;
 
     // Size outStr
-    outStr.reserve(bufLen * 2);
+    int itemLen = 2 + strnlen(pSeparator, 10);
+    outStr.reserve(bufLen * itemLen);
 
     // Generate hex
     for (uint32_t i = 0; i < bufLen; i++)
     {
         char tmpStr[10];
-        snprintf(tmpStr, sizeof(tmpStr), "%02x", pBuf[i]);
+        snprintf(tmpStr, sizeof(tmpStr), "%02x%s", pBuf[i], pSeparator);
         outStr += tmpStr;
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Generate a hex string from bytes
+/// @brief Convert a byte array to a hex string (no separator)
+/// @param pBuf Pointer to the byte array
+/// @param bufLen Length of the byte array
+/// @param outStr String to receive the hex string
+void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr)
+{
+    hexDump(pBuf, bufLen, outStr, "");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Generate a hex string from uInt32
 // Generates no space between hex digits (e.g. 55aa55aa, etc)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
