@@ -9,8 +9,13 @@
 #include "MQTTProtocol.h"
 #include "RaftUtils.h"
 
+// Debug
+// #define DEBUG_MQTT_CONN_ACK
+
 // Log prefix
+#ifdef DEBUG_MQTT_CONN_ACK
 static const char *MODULE_PREFIX = "MQTTProto";
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // MQTT Protocol Defs
@@ -192,6 +197,8 @@ bool MQTTProtocol::checkForConnAck(const std::vector<uint8_t>& buf, bool& isErro
         return false;
     }
 
+#ifdef DEBUG_MQTT_CONN_ACK
     LOG_I(MODULE_PREFIX, "service conn ack ok");
+#endif
     return true;
 }
