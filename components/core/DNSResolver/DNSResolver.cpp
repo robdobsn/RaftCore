@@ -10,7 +10,7 @@
 #include "RaftUtils.h"
 #include "DNSResolver.h"
 
-#define DEBUG_MQTT_DNS_LOOKUP
+// #define DEBUG_MQTT_DNS_LOOKUP
 #define WARN_MQTT_DNS_LOOKUP_FAILED
 
 // Log prefix
@@ -40,13 +40,19 @@ bool DNSResolver::getIPAddr(ip_addr_t &ipAddr)
     // Set time of last lookup
     _addrLastLookupMs = millis();        
 
-    // Lookup address
+    // Lookup address (use base ESP_LOGX functions to avoid recursion in logging modules like LogPapertrail)
+#ifdef DEBUG_MQTT_DNS_LOOKUP
+    ESP_LOGI(MODULE_PREFIX, "getIPAddr dns_gethostbyname %s", _hostname.c_str());
+#endif
+
+    // Set the IP address to blank and start the lookup
+    IP_ADDR4(&_ipAddr, 0,0,0,0);
     err_t dnsErr = dns_gethostbyname(_hostname.c_str(), &_ipAddr, dnsResultCallback, this);
     if (dnsErr == ERR_OK)
     {
         // ERR_OK means the address was cached and is returned immediately
 #ifdef DEBUG_MQTT_DNS_LOOKUP
-        LOG_I(MODULE_PREFIX, "getIPAddr lookup OK %s addr %s", _hostname.c_str(), ipaddr_ntoa(&_ipAddr));
+        ESP_LOGI(MODULE_PREFIX, "getIPAddr lookup OK %s addr %s", _hostname.c_str(), ipaddr_ntoa(&_ipAddr));
 #endif
         _addrValid = true;
         _lookupInProgress = false;
@@ -64,7 +70,7 @@ bool DNSResolver::getIPAddr(ip_addr_t &ipAddr)
 
     // Any other error is a failure
 #ifdef WARN_MQTT_DNS_LOOKUP_FAILED
-    LOG_W(MODULE_PREFIX, "getIPAddr lookup FAILED %s error %d", _hostname.c_str(), dnsErr);
+    ESP_LOGW(MODULE_PREFIX, "getIPAddr lookup FAILED %s error %d", _hostname.c_str(), dnsErr);
 #endif
     _addrValid = false;
     _lookupInProgress = false;
@@ -88,7 +94,7 @@ void DNSResolver::dnsResultCallback(const char *name, const ip_addr_t *ipaddr, v
     {
         pResolver->_addrValid = false;
 #ifdef WARN_MQTT_DNS_LOOKUP_FAILED
-        LOG_W(MODULE_PREFIX, "dnsResultCallback lookup failed for %s\n", name);
+        ESP_LOGW(MODULE_PREFIX, "dnsResultCallback lookup failed for %s\n", name);
 #endif
         return;
     }
@@ -97,6 +103,6 @@ void DNSResolver::dnsResultCallback(const char *name, const ip_addr_t *ipaddr, v
     pResolver->_ipAddr = *ipaddr;
     pResolver->_addrValid = true;
 #ifdef DEBUG_MQTT_DNS_LOOKUP
-    LOG_I(MODULE_PREFIX, "dnsResultCallback lookup OK for %s addr %s", name, ipaddr_ntoa(ipaddr));
+    ESP_LOGI(MODULE_PREFIX, "dnsResultCallback lookup OK for %s addr %s", name, ipaddr_ntoa(ipaddr));
 #endif
 }

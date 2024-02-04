@@ -16,13 +16,14 @@
 #include "RaftUtils.h"
 
 // Debug
+#define WARN_MQTT_DNS_LOOKUP_FAILED
 // #define DEBUG_MQTT_GENERAL
 // #define DEBUG_MQTT_CONNECTION
 // #define DEBUG_SEND_DATA
 // #define DEBUG_MQTT_CLIENT_RX
 // #define DEBUG_MQTT_TOPIC_DETAIL
 // #define DEBUG_MQTT_DNS_LOOKUP
-#define WARN_MQTT_DNS_LOOKUP_FAILED
+// #define DEBUG_MQTT_SOCKET_CREATE
 
 // Log prefix
 static const char *MODULE_PREFIX = "MQTTClient";
@@ -156,7 +157,7 @@ void RaftMQTTClient::service()
                 // Go back to connecting
                 _connState = MQTT_STATE_DISCONNECTED;
                 _lastConnStateChangeMs = millis();
-                LOG_W(MODULE_PREFIX, "service socket select error %d", errno);
+                ESP_LOGW(MODULE_PREFIX, "service socket select error %d", errno);
                 isError = true;
                 break;
             }
@@ -167,7 +168,7 @@ void RaftMQTTClient::service()
                 // Go back to connecting
                 _connState = MQTT_STATE_DISCONNECTED;
                 _lastConnStateChangeMs = millis();
-                LOG_W(MODULE_PREFIX, "service socket select timeout");
+                ESP_LOGW(MODULE_PREFIX, "service socket select timeout");
                 isError = true;
                 break;
             }
@@ -178,19 +179,19 @@ void RaftMQTTClient::service()
                 if (Raft::isTimeout(millis(), _internalSocketCreateSlowLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
                 {
                     _internalSocketCreateSlowLastTime = millis();
-                    LOG_W(MODULE_PREFIX, "service socket select still waiting");
+                    ESP_LOGW(MODULE_PREFIX, "service socket select still waiting");
                 }
                 break;
             }
 
             // Connected
-            LOG_I(MODULE_PREFIX, "service connId %d CONNECTED to %s", _clientHandle, _dnsResolver.getHostname());
+            ESP_LOGI(MODULE_PREFIX, "service connId %d CONNECTED to %s", _clientHandle, _dnsResolver.getHostname());
 
-            // Send CONNECT packet
+            // Send MQTT CONNECT packet
             std::vector<uint8_t> msgBuf;
             _mqttProtocol.encodeMQTTConnect(msgBuf, _keepAliveSecs, _clientID.c_str());
 
-            // Send packet
+            // Send data packet
             sendTxData(msgBuf, isError, connClosed);
             _connState = MQTT_STATE_MQTT_CONN_SENT;
             _lastConnStateChangeMs = millis();
@@ -207,7 +208,7 @@ void RaftMQTTClient::service()
                 String rxDataStr;
                 Raft::getHexStrFromBytes(rxData.data(), rxData.size(), rxDataStr);
 #ifdef DEBUG_MQTT_CLIENT_RX
-                LOG_I(MODULE_PREFIX, "service rx %s", rxDataStr.c_str());
+                ESP_LOGI(MODULE_PREFIX, "service rx %s", rxDataStr.c_str());
 #endif
 
                 // Check response
@@ -247,7 +248,7 @@ void RaftMQTTClient::service()
                 String rxDataStr;
                 Raft::getHexStrFromBytes(rxData.data(), rxData.size(), rxDataStr);
 #ifdef DEBUG_MQTT_CLIENT_RX
-                LOG_I(MODULE_PREFIX, "service rx %s", rxDataStr.c_str());
+                ESP_LOGI(MODULE_PREFIX, "service rx %s", rxDataStr.c_str());
 #endif
             }
             break;
@@ -263,7 +264,7 @@ void RaftMQTTClient::service()
             if (Raft::isTimeout(millis(), _internalClosedErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
                 _internalClosedErrorLastTime = millis();
-                LOG_W(MODULE_PREFIX, "service ERROR connId %d CLOSED", _clientHandle);
+                ESP_LOGW(MODULE_PREFIX, "service ERROR connId %d CLOSED", _clientHandle);
             }
         }
         // Conn closed so we'll need to retry sometime later
@@ -285,7 +286,7 @@ void RaftMQTTClient::disconnect()
     // Close socket
     close(_clientHandle);
 #ifdef DEBUG_MQTT_CONNECTION
-    LOG_I(MODULE_PREFIX, "disconnect connId %d CLOSED", _clientHandle);
+    ESP_LOGI(MODULE_PREFIX, "disconnect connId %d CLOSED", _clientHandle);
 #endif
     _connState = MQTT_STATE_DISCONNECTED;
     _lastConnStateChangeMs = millis();
@@ -349,7 +350,7 @@ void RaftMQTTClient::frameRxCB(const uint8_t *pBuf, unsigned bufLen)
 void RaftMQTTClient::socketConnect()
 {
 #ifdef DEBUG_MQTT_CONNECTION
-    LOG_I(MODULE_PREFIX, "socketConnect attempting to connect to %s port %d", _dnsResolver.getHostname(), _brokerPort);
+    ESP_LOGI(MODULE_PREFIX, "socketConnect attempting to connect to %s port %d", _dnsResolver.getHostname(), _brokerPort);
 #endif
 
     // Get IP address
@@ -362,14 +363,17 @@ void RaftMQTTClient::socketConnect()
     uint64_t microsStart = micros();
 
     // Create socket
+#ifdef DEBUG_MQTT_SOCKET_CREATE
+    ESP_LOGI(MODULE_PREFIX, "socketConnect creating socket");
+#endif
     _clientHandle = socket(AF_INET, SOCK_STREAM, 0);
     if (_clientHandle < 0)
     {
         if (Raft::isTimeout(millis(), _internalSocketCreateErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalSocketCreateErrorLastTime = millis();
-            LOG_W(MODULE_PREFIX, "socketConnect socket create error %d hostname %s addr %s port %d", 
-                        errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), _brokerPort);
+            ESP_LOGW(MODULE_PREFIX, "socketConnect socket create error %d hostname %s addr %s port %d", 
+                        errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), (int)_brokerPort);
         }
         return;
     }
@@ -381,8 +385,8 @@ void RaftMQTTClient::socketConnect()
         if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalSocketFcntlErrorLastTime = millis();
-            LOG_W(MODULE_PREFIX, "socketConnect fcntl get error %d hostname %s addr %s port %d", 
-                            errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), _brokerPort);
+            ESP_LOGW(MODULE_PREFIX, "socketConnect fcntl get error %d hostname %s addr %s port %d", 
+                            errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), (int)_brokerPort);
         }
         close(_clientHandle);
         return;
@@ -393,8 +397,8 @@ void RaftMQTTClient::socketConnect()
         if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalSocketFcntlErrorLastTime = millis();
-            LOG_W(MODULE_PREFIX, "socketConnect fcntl set error %d hostname %s addr %s port %d", 
-                            errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), _brokerPort);
+            ESP_LOGW(MODULE_PREFIX, "socketConnect fcntl set error %d hostname %s addr %s port %d", 
+                            errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), (int)_brokerPort);
         }
         close(_clientHandle);
         return;
@@ -413,7 +417,7 @@ void RaftMQTTClient::socketConnect()
             if (Raft::isTimeout(millis(), _internalSocketConnErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
                 _internalSocketConnErrorLastTime = millis();
-                LOG_W(MODULE_PREFIX, "socketConnect connect error %d", errno);
+                ESP_LOGW(MODULE_PREFIX, "socketConnect connect error %d", errno);
             }
             close(_clientHandle);
             return;
@@ -424,13 +428,13 @@ void RaftMQTTClient::socketConnect()
     _connState = MQTT_STATE_SOCK_CONN_REQD;
     _lastConnStateChangeMs = millis();
 #ifdef DEBUG_MQTT_CONNECTION
-    LOG_I(MODULE_PREFIX, "socketConnect connId %d result %s", 
+    ESP_LOGI(MODULE_PREFIX, "socketConnect connId %d result %s", 
                 _clientHandle, connectErr < 0 ? "in progress" : "connected OK");
 #endif
 
     // Debug
     uint64_t microsEnd = micros();
-    LOG_I(MODULE_PREFIX, "socketConnect took %d ms", int((microsEnd - microsStart) / 1000));
+    ESP_LOGI(MODULE_PREFIX, "socketConnect took %d ms", int((microsEnd - microsStart) / 1000));
 
     // Done
     return;
@@ -451,7 +455,7 @@ bool RaftMQTTClient::getRxData(std::vector<uint8_t>& rxData, bool& isError, bool
         if (Raft::isTimeout(millis(), _internalRxDataAllocErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalRxDataAllocErrorLastTime = millis();
-            LOG_E(MODULE_PREFIX, "getRxData failed alloc");
+            ESP_LOGE(MODULE_PREFIX, "getRxData failed alloc");
         }
         return false;
     }
@@ -471,7 +475,7 @@ bool RaftMQTTClient::getRxData(std::vector<uint8_t>& rxData, bool& isError, bool
                 if (Raft::isTimeout(millis(), _internalRxDataReadErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
                 {
                     _internalRxDataReadErrorLastTime = millis();
-                    LOG_W(MODULE_PREFIX, "getRxData read error %d", errno);
+                    ESP_LOGW(MODULE_PREFIX, "getRxData read error %d", errno);
                 }
                 isError = true;
                 break;
@@ -486,7 +490,7 @@ bool RaftMQTTClient::getRxData(std::vector<uint8_t>& rxData, bool& isError, bool
         if (Raft::isTimeout(millis(), _internalRxDataConnClosedLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalRxDataConnClosedLastTime = millis();
-            LOG_W(MODULE_PREFIX, "getRxData conn closed %d", errno);
+            ESP_LOGW(MODULE_PREFIX, "getRxData conn closed %d", errno);
         }
         connClosed = true;
         delete [] pBuf;
@@ -513,7 +517,7 @@ bool RaftMQTTClient::sendTxData(std::vector<uint8_t>& txData, bool& isError, boo
         if (Raft::isTimeout(millis(), _internalTxDataSendErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalTxDataSendErrorLastTime = millis();
-            LOG_W(MODULE_PREFIX, "sendTxData send error %d", errno);
+            ESP_LOGW(MODULE_PREFIX, "sendTxData send error %d", errno);
         }
         isError = true;
         return false;
@@ -523,7 +527,7 @@ bool RaftMQTTClient::sendTxData(std::vector<uint8_t>& txData, bool& isError, boo
         if (Raft::isTimeout(millis(), _internalTxDataSendLenLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalTxDataSendLenLastTime = millis();
-            LOG_W(MODULE_PREFIX, "sendTxData sent length %d != frame length %d", rslt, txData.size());
+            ESP_LOGW(MODULE_PREFIX, "sendTxData sent length %d != frame length %d", rslt, txData.size());
         }
         return true;
     }
@@ -532,7 +536,7 @@ bool RaftMQTTClient::sendTxData(std::vector<uint8_t>& txData, bool& isError, boo
     // Debug
     String txDataStr;
     Raft::getHexStrFromBytes(txData.data(), txData.size(), txDataStr);
-    LOG_I(MODULE_PREFIX, "sendTxData %s %s", rslt == txData.size() ? "OK" : "FAIL", txDataStr.c_str());
+    ESP_LOGI(MODULE_PREFIX, "sendTxData %s %s", rslt == txData.size() ? "OK" : "FAIL", txDataStr.c_str());
 #endif
 
     return true;
