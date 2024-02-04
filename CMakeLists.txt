@@ -11,6 +11,7 @@ set(RAFT_CORE_REQUIRES
   esp_wifi
   esp_eth
   esp_timer
+  mdns
 )
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
@@ -47,6 +48,7 @@ idf_component_register(
     "components/core/ConfigPinMap/ConfigPinMap.cpp"
     "components/core/DebounceButton/DebounceButton.cpp"
     "components/core/DebugGlobals/DebugGlobals.cpp"
+    "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
     "components/core/ExpressionEval/tinyexpr.c"
@@ -94,6 +96,7 @@ idf_component_register(
     "components/core/ConfigPinMap"
     "components/core/DebounceButton"
     "components/core/DebugGlobals"
+    "components/core/DNSResolver"
     "components/core/ExpressionEval"
     "components/core/FileSystem"
     "components/core/LEDPixels"

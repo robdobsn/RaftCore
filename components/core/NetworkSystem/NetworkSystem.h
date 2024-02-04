@@ -196,6 +196,7 @@ private:
     void ipEventHandler(void* arg, int32_t event_id, void* pEventData);
     void handleWiFiStaDisconnectEvent();
     void warnOnWiFiDisconnectIfEthNotConnected();
+    void setupMDNS();
 };
 
 // Access to single instance

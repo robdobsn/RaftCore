@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include "RaftArduino.h"
 #include "MQTTProtocol.h"
+#include "DNSResolver.h"
 
 class RaftMQTTClient
 {
@@ -29,10 +30,12 @@ public:
 private:
     // Settings
     bool _isEnabled;
-    String _brokerHostname;
     uint32_t _brokerPort;
     uint32_t _keepAliveSecs;
     String _clientID;
+
+    // DNSResolved
+    DNSResolver _dnsResolver;
 
     // Connection state
     enum MQTTConnState
@@ -82,7 +85,6 @@ private:
     uint32_t _internalRxDataConnClosedLastTime = 0;
     uint32_t _internalTxDataSendErrorLastTime = 0;
     uint32_t _internalTxDataSendLenLastTime = 0;
-    uint32_t _internalAddrLookupSlowLastTime = 0;
     uint32_t _internalSocketCreateSlowLastTime = 0;
     static const uint32_t INTERNAL_ERROR_LOG_MIN_GAP_MS = 10000;
 

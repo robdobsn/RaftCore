@@ -56,6 +56,9 @@ public:
         // NTP settings
         ntpServer = configPrefixed.getString("NTPServer", "pool.ntp.org");
         timezone = configPrefixed.getString("timezone", "UTC");
+
+        // mDNS
+        enableMDNS = configPrefixed.getBool("enableMDNS", true);
     }
 
     // Enables
@@ -85,6 +88,9 @@ public:
     // NTP
     String ntpServer;
     String timezone;
+
+    // mDNS
+    bool enableMDNS = true;
 
 private:
     EthLanChip getChipEnum(const String& ethLanChip)

@@ -11,7 +11,6 @@
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
 #include "lwip/netdb.h"
-#include "lwip/dns.h"
 #include "RaftMQTTClient.h"
 #include "RaftArduino.h"
 #include "RaftUtils.h"
@@ -22,6 +21,8 @@
 // #define DEBUG_SEND_DATA
 // #define DEBUG_MQTT_CLIENT_RX
 // #define DEBUG_MQTT_TOPIC_DETAIL
+// #define DEBUG_MQTT_DNS_LOOKUP
+#define WARN_MQTT_DNS_LOOKUP_FAILED
 
 // Log prefix
 static const char *MODULE_PREFIX = "MQTTClient";
@@ -71,9 +72,11 @@ void RaftMQTTClient::setup(bool isEnabled, const char *brokerHostname, uint32_t 
 
     // Store settings
     _isEnabled = isEnabled;
-    _brokerHostname = brokerHostname;
     _brokerPort = brokerPort;
     _clientID = clientID;
+
+    // DNS resolver
+    _dnsResolver.setHostname(brokerHostname);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -132,11 +135,57 @@ void RaftMQTTClient::service()
 
                 // Try to establish connection
                 socketConnect();
+
+                // Set time for slow connect
+                _internalSocketCreateSlowLastTime = millis();
             }
             break;
         }
         case MQTT_STATE_SOCK_CONN_REQD:
         {
+            // Check if the socket is ready for comms - connect() may have returned EIN_PROGRESS
+            struct timeval timeout;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 0;
+            fd_set writeSet;
+            FD_ZERO(&writeSet);
+            FD_SET(_clientHandle, &writeSet);
+            int selectErr = select(_clientHandle + 1, NULL, &writeSet, NULL, &timeout);
+            if (selectErr < 0)
+            {
+                // Go back to connecting
+                _connState = MQTT_STATE_DISCONNECTED;
+                _lastConnStateChangeMs = millis();
+                LOG_W(MODULE_PREFIX, "service socket select error %d", errno);
+                isError = true;
+                break;
+            }
+
+            // Check for max time waiting for socket to be ready
+            if (Raft::isTimeout(millis(), _lastConnStateChangeMs, MQTT_RETRY_CONNECT_TIME_MS))
+            {
+                // Go back to connecting
+                _connState = MQTT_STATE_DISCONNECTED;
+                _lastConnStateChangeMs = millis();
+                LOG_W(MODULE_PREFIX, "service socket select timeout");
+                isError = true;
+                break;
+            }
+
+            // Still waiting to connect
+            if (selectErr == 0)
+            {
+                if (Raft::isTimeout(millis(), _internalSocketCreateSlowLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+                {
+                    _internalSocketCreateSlowLastTime = millis();
+                    LOG_W(MODULE_PREFIX, "service socket select still waiting");
+                }
+                break;
+            }
+
+            // Connected
+            LOG_I(MODULE_PREFIX, "service connId %d CONNECTED to %s", _clientHandle, _dnsResolver.getHostname());
+
             // Send CONNECT packet
             std::vector<uint8_t> msgBuf;
             _mqttProtocol.encodeMQTTConnect(msgBuf, _keepAliveSecs, _clientID.c_str());
@@ -300,106 +349,91 @@ void RaftMQTTClient::frameRxCB(const uint8_t *pBuf, unsigned bufLen)
 void RaftMQTTClient::socketConnect()
 {
 #ifdef DEBUG_MQTT_CONNECTION
-    LOG_I(MODULE_PREFIX, "socketConnect attempting to connect to %s port %d", _brokerHostname.c_str(), _brokerPort);
+    LOG_I(MODULE_PREFIX, "socketConnect attempting to connect to %s port %d", _dnsResolver.getHostname(), _brokerPort);
 #endif
 
-    // Get address info
-    struct addrinfo addrInfo = {}, *pFoundAddrs = nullptr;
-    addrInfo.ai_family = AF_INET;
-    addrInfo.ai_socktype = SOCK_STREAM;
-    addrInfo.ai_protocol = IPPROTO_TCP;
+    // Get IP address
+    ip_addr_t ipAddr;
+    if (!_dnsResolver.getIPAddr(ipAddr))
+        return;
+
+    // Get address info for broker
     String portStr = String(_brokerPort);
     uint64_t microsStart = micros();
-    int err = getaddrinfo(_brokerHostname.c_str(), portStr.c_str(), &addrInfo, &pFoundAddrs);
-    if (err != 0)
+
+    // Create socket
+    _clientHandle = socket(AF_INET, SOCK_STREAM, 0);
+    if (_clientHandle < 0)
     {
-        if (Raft::isTimeout(millis(), _internalAddrLookupErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        if (Raft::isTimeout(millis(), _internalSocketCreateErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
-            _internalAddrLookupErrorLastTime = millis();
-            LOG_W(MODULE_PREFIX, "socketConnect broker lookup failed %s error %d", _brokerHostname.c_str(), err);
+            _internalSocketCreateErrorLastTime = millis();
+            LOG_W(MODULE_PREFIX, "socketConnect socket create error %d hostname %s addr %s port %d", 
+                        errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), _brokerPort);
         }
         return;
     }
-    else if (Raft::isTimeout(micros(), microsStart, 1000))
+
+    // Set non-blocking
+    int flags = fcntl(_clientHandle, F_GETFL, 0);
+    if (flags < 0)
     {
-        if (Raft::isTimeout(millis(), _internalAddrLookupSlowLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
+        if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
-            _internalAddrLookupSlowLastTime = millis();
-            LOG_W(MODULE_PREFIX, "socketConnect broker lookup slow %s time %dus", _brokerHostname.c_str(), int(micros() - microsStart));
+            _internalSocketFcntlErrorLastTime = millis();
+            LOG_W(MODULE_PREFIX, "socketConnect fcntl get error %d hostname %s addr %s port %d", 
+                            errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), _brokerPort);
         }
+        close(_clientHandle);
+        return;
     }
-    for(struct addrinfo *pAddr = pFoundAddrs; pAddr != nullptr; pAddr = pAddr->ai_next)
+    flags |= O_NONBLOCK;
+    if (fcntl(_clientHandle, F_SETFL, flags) < 0)
     {
-        microsStart = micros();
-        _clientHandle = socket(pAddr->ai_family, pAddr->ai_socktype, pAddr->ai_protocol);
-        if (_clientHandle == -1)
+        if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
-            err = errno;
-            if (Raft::isTimeout(millis(), _internalSocketCreateErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
-            {
-                _internalSocketCreateErrorLastTime = millis();
-                LOG_W(MODULE_PREFIX, "socketConnect socket failed %s error %d", _brokerHostname.c_str(), err);
-            }
-            continue;
+            _internalSocketFcntlErrorLastTime = millis();
+            LOG_W(MODULE_PREFIX, "socketConnect fcntl set error %d hostname %s addr %s port %d", 
+                            errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), _brokerPort);
         }
+        close(_clientHandle);
+        return;
+    }
 
-        // Set non-blocking
-        int flags = fcntl(_clientHandle, F_SETFL, fcntl(_clientHandle, F_GETFL, 0) | O_NONBLOCK);
-        if (flags == -1)
-        {
-            err = errno;
-            if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
-            {
-                _internalSocketFcntlErrorLastTime = millis();
-                LOG_W(MODULE_PREFIX, "socketConnect fcntl failed %s error %d socketFlags %04x", 
-                    _brokerHostname.c_str(), err, fcntl(_clientHandle, F_GETFL, 0));
-            }
-        }
-
-        // Connect
-        int connRslt = connect(_clientHandle, pAddr->ai_addr, pAddr->ai_addrlen);
-        err = errno;
-        if ((connRslt < 0) && (err != EINPROGRESS))
+    // Connect
+    struct sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(_brokerPort);
+    serverAddress.sin_addr.s_addr = ipAddr.u_addr.ip4.addr;
+    int connectErr = connect(_clientHandle, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+    if (connectErr < 0)
+    {
+        if (errno != EINPROGRESS)
         {
             if (Raft::isTimeout(millis(), _internalSocketConnErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
                 _internalSocketConnErrorLastTime = millis();
-                String hexStr;
-                Raft::getHexStrFromBytes((const uint8_t*)(pAddr->ai_addr), pAddr->ai_addrlen, hexStr);
-                LOG_I(MODULE_PREFIX, "socketConnect conn failed %s port %s connRslt %d errno %d socktype %d protocol %d socketFlags %04x EINPROGRESS %d addrInfo %s", 
-                            _brokerHostname.c_str(), portStr.c_str(), connRslt, errno, pAddr->ai_socktype, pAddr->ai_protocol, 
-                            fcntl(_clientHandle, F_GETFL, 0), EINPROGRESS,
-                            hexStr.c_str());
+                LOG_W(MODULE_PREFIX, "socketConnect connect error %d", errno);
             }
+            close(_clientHandle);
+            return;
         }
-        else
-        {
-#ifdef DEBUG_MQTT_GENERAL
-            LOG_I(MODULE_PREFIX, "socketConnect conn ok connId %d on %s", 
-                    _clientHandle,
-                    _brokerHostname.c_str());
-#endif
-            _connState = MQTT_STATE_SOCK_CONN_REQD;
-            break;
-        }
-
-        // Check connect time
-        if (Raft::isTimeout(micros(), microsStart, 1000))
-        {
-            if (Raft::isTimeout(millis(), _internalSocketCreateSlowLastTime , INTERNAL_ERROR_LOG_MIN_GAP_MS))
-            {
-                _internalSocketCreateSlowLastTime  = millis();
-                LOG_W(MODULE_PREFIX, "socketConnect create slow %s time %dus", _brokerHostname.c_str(), int(micros() - microsStart));
-            }
-        }
-
-        // Close socket if failed
-        err = errno;
-        close(_clientHandle);
     }
 
-    // Clean-up
-    freeaddrinfo(pFoundAddrs);
+    // Set state
+    _connState = MQTT_STATE_SOCK_CONN_REQD;
+    _lastConnStateChangeMs = millis();
+#ifdef DEBUG_MQTT_CONNECTION
+    LOG_I(MODULE_PREFIX, "socketConnect connId %d result %s", 
+                _clientHandle, connectErr < 0 ? "in progress" : "connected OK");
+#endif
+
+    // Debug
+    uint64_t microsEnd = micros();
+    LOG_I(MODULE_PREFIX, "socketConnect took %d ms", int((microsEnd - microsStart) / 1000));
+
+    // Done
+    return;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

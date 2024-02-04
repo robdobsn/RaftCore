@@ -23,6 +23,7 @@
 #include "RaftUtils.h"
 #include "ESPUtils.h"
 #include "RaftArduino.h"
+#include "mdns.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
@@ -1000,6 +1001,8 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", _wifiIPV4Addr.c_str());
+        // Setup mDNS
+        setupMDNS();
         break;
     }
     case IP_EVENT_STA_LOST_IP:
@@ -1025,6 +1028,8 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", _ethIPV4Addr.c_str());
+        // Setup mDNS
+        setupMDNS();
         break;
     }
     case IP_EVENT_ETH_LOST_IP:
@@ -1037,6 +1042,8 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
 #endif
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
+        // Setup mDNS
+        setupMDNS();
         break;
     case IP_EVENT_PPP_LOST_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP lost IP");
@@ -1091,3 +1098,56 @@ void NetworkSystem::warnOnWiFiDisconnectIfEthNotConnected()
 #endif
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Setup mDNS
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::setupMDNS()
+{
+    // Check valid
+    if (!_isSetup)
+        return;
+
+    // Check if mDNS is enabled
+    if (!_networkSettings.enableMDNS)
+        return;
+
+    // Check if we have an IP address
+    if (_wifiIPV4Addr.isEmpty() && _ethIPV4Addr.isEmpty())
+        return;
+
+    // Set hostname
+    if (_hostname.isEmpty())
+        _hostname = "esp32";
+
+    // Start mDNS
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setupMDNS failed to init err %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Set hostname
+    err = mdns_hostname_set(_hostname.c_str());
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setupMDNS failed to set hostname err %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Add service
+    mdns_txt_item_t serviceTxtData[] = {
+        {"board", "esp32"},
+        {"path", "/"}
+    };
+    err = mdns_service_add(_hostname.c_str(), "_http", "_tcp", 80, serviceTxtData, 2);
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setupMDNS failed to add service err %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "setupMDNS OK hostname %s", _hostname.c_str());
+}
