@@ -108,9 +108,9 @@ RaftCoreApp::~RaftCoreApp()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Service
-/// @note Called from main loop
-void RaftCoreApp::service()
+/// @brief Loop
+/// @note Called in main loop
+void RaftCoreApp::loop()
 {
     if (!_sysManagerSetupDone)
     {
@@ -118,6 +118,6 @@ void RaftCoreApp::service()
         _sysManagerSetupDone = true;
         _sysManager.postSetup();
     }
-    // Service all the system modules
-    _sysManager.service();
+    // Loop over all the system modules
+    _sysManager.loop();
 }

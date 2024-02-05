@@ -37,8 +37,8 @@ public:
             const char* restAPIEndpointName);
 
 protected:
-    // Service - called frequently
-    virtual void service() override final;
+    // Loop - called frequently
+    virtual void loop() override final;
 
     // Add comms channels
     virtual void addCommsChannels(CommsCoreIF& commsCore) override final;

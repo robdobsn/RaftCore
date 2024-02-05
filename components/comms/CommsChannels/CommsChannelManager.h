@@ -72,8 +72,8 @@ public:
     void bridgeService();
 
 protected:
-    // Service - called frequently
-    virtual void service() override final;
+    // Loop - called frequently
+    virtual void loop() override final;
 
 private:
     // Vector of channels - pointer must be deleted and vector

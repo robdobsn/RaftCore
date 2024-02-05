@@ -16,9 +16,9 @@
 #include "ExecTimer.h"
 
 #ifdef DEBUG_GLOBAL_VALUE
-#define SUPERVISE_SERVICE_CALL(supervisor, idx, debugVal, func) { DEBUG_GLOB_VAR_NAME(debugVal) = idx; supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
+#define SUPERVISE_LOOP_CALL(supervisor, idx, debugVal, func) { DEBUG_GLOB_VAR_NAME(debugVal) = idx; supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
 #else
-#define SUPERVISE_SERVICE_CALL(supervisor, idx, debugVal, func) { supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
+#define SUPERVISE_LOOP_CALL(supervisor, idx, debugVal, func) { supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
 #endif
 // Supervisor stats
 class SupervisorStats

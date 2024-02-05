@@ -57,8 +57,8 @@ public:
     {
     }
 
-    // Service
-    virtual void service()
+    // Loop (called frequently)
+    virtual void loop()
     {
     }
 

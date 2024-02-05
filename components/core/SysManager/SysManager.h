@@ -2,7 +2,7 @@
 //
 // Manager for SysMods (System Modules)
 // All modules that are core to the system should be derived from SysModBase
-// These modules are then serviced by this manager's service function
+// These modules are then looped over by this manager's loop function
 // They can be enabled/disabled and reconfigured in a consistent way
 // Also modules can be referred to by name to allow more complex interaction
 //
@@ -48,8 +48,8 @@ public:
     // Post-setup - called after other modules setup (and to setup SysMods)
     void postSetup();
 
-    // Service
-    void service();
+    // Loop (called from main loop)
+    void loop();
 
     // Register SysMod with the SysMod factory
     void registerSysMod(const char* pClassName, SysModCreateFn pCreateFn, bool alwaysEnable = false, const char* pDependencyListCSV = nullptr)
@@ -128,7 +128,7 @@ public:
     // Request system restart
     void systemRestart()
     {
-        // Actual restart occurs within service routine after a short delay
+        // Actual restart occurs within loop routine after a short delay
         _systemRestartPending = true;
         _systemRestartMs = millis();
     }
@@ -216,13 +216,13 @@ private:
     uint32_t _serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES;
     String _serialMagicStr;
 
-    // Service loop supervisor
+    // Loop supervisor
     void supervisorSetup();
     bool _supervisorDirty = false;
 
-    // Service loop
-    std::vector<SysModBase*> _sysModServiceVector;
-    uint32_t _serviceLoopCurModIdx = 0;
+    // SysMods to loop over
+    std::vector<SysModBase*> _sysModLoopVector;
+    uint32_t _loopCurModIdx = 0;
 
     // NOTE: _sysModuleList and _supervisorStats must be in synch
     //       when a module is added it must be added to both lists
@@ -238,7 +238,7 @@ private:
     // Supervisor statistics
     SupervisorStats _supervisorStats;
 
-    // Threshold of time for SysMod service considered too slow
+    // Threshold of time for SysMod loop considered too slow
     static const uint32_t SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT = 50;
     uint32_t _slowSysModThresholdUs = SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT * 1000;
 

@@ -2,7 +2,7 @@
 //
 // Manager for SysMods (System Modules)
 // All modules that are core to the system should be derived from SysModBase
-// These modules are then serviced by this manager's service function
+// These modules are then looped over by this manager's loop function
 // They can be enabled/disabled and reconfigured in a consistent way
 // Also modules can be referred to by name to allow more complex interaction
 //
@@ -27,12 +27,12 @@
 // Log prefix
 static const char *MODULE_PREFIX = "SysMan";
 
-// #define ONLY_ONE_MODULE_PER_SERVICE_LOOP 1
+// #define ONLY_ONE_MODULE_PER_LOOP 1
 
 // Warn
-#define WARN_ON_SYSMOD_SLOW_SERVICE
+#define WARN_ON_SYSMOD_SLOW_LOOP
 
-// Debug supervisor step (for hangup detection within a service call)
+// Debug supervisor step (for hangup detection within a loop call)
 // Uses global logger variables - see logger.h
 #define DEBUG_GLOB_SYSMAN 0
 #define INCLUDE_PROTOCOL_FILE_UPLOAD_IN_STATS
@@ -315,10 +315,10 @@ void SysManager::postSetup()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service
+// Loop (called from main thread's endless loop)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::service()
+void SysManager::loop()
 {
     // Check if supervisory info is dirty
     if (_supervisorDirty)
@@ -329,7 +329,7 @@ void SysManager::service()
         _supervisorDirty = false;
     }
        
-    // Service monitor periodically records timing
+    // Loop monitor periodically records timing
     if (_monitorTimerStarted)
     {
         // Check if monitor period is up
@@ -358,53 +358,53 @@ void SysManager::service()
         _monitorTimerStarted = true;
     }
 
-    // Check the index into list of sys-mods to service is valid
-    uint32_t numSysMods = _sysModServiceVector.size();
+    // Check the index into list of sys-mods to loop over is valid
+    uint32_t numSysMods = _sysModLoopVector.size();
     if (numSysMods == 0)
         return;
-    if (_serviceLoopCurModIdx >= numSysMods)
-        _serviceLoopCurModIdx = 0;
+    if (_loopCurModIdx >= numSysMods)
+        _loopCurModIdx = 0;
 
     // Monitor how long it takes to go around loop
     _supervisorStats.outerLoopStarted();
 
-#ifndef ONLY_ONE_MODULE_PER_SERVICE_LOOP
-    for (_serviceLoopCurModIdx = 0; _serviceLoopCurModIdx < numSysMods; _serviceLoopCurModIdx++)
+#ifndef ONLY_ONE_MODULE_PER_LOOP
+    for (_loopCurModIdx = 0; _loopCurModIdx < numSysMods; _loopCurModIdx++)
     {
 #endif
 
-    if (_sysModServiceVector[_serviceLoopCurModIdx])
+    if (_sysModLoopVector[_loopCurModIdx])
     {
 #ifdef DEBUG_SYSMOD_WITH_GLOBAL_VALUE
-        DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _serviceLoopCurModIdx;
+        DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _loopCurModIdx;
 #endif
-#ifdef WARN_ON_SYSMOD_SLOW_SERVICE
+#ifdef WARN_ON_SYSMOD_SLOW_LOOP
         uint64_t sysModExecStartUs = micros();
 #endif
 
-        // Service SysMod
-        _supervisorStats.execStarted(_serviceLoopCurModIdx);
-        _sysModServiceVector[_serviceLoopCurModIdx]->service();
-        _supervisorStats.execEnded(_serviceLoopCurModIdx);
+        // Call the SysMod's loop method to allow code inside the module to run
+        _supervisorStats.execStarted(_loopCurModIdx);
+        _sysModLoopVector[_loopCurModIdx]->loop();
+        _supervisorStats.execEnded(_loopCurModIdx);
 
-#ifdef WARN_ON_SYSMOD_SLOW_SERVICE
-        uint64_t sysModServiceUs = micros() - sysModExecStartUs;
-        if (sysModServiceUs > _slowSysModThresholdUs)
+#ifdef WARN_ON_SYSMOD_SLOW_LOOP
+        uint64_t sysModLoopUs = micros() - sysModExecStartUs;
+        if (sysModLoopUs > _slowSysModThresholdUs)
         {
-            LOG_W(MODULE_PREFIX, "service sysMod %s SLOW took %lldms", _sysModServiceVector[_serviceLoopCurModIdx]->modName(), sysModServiceUs/1000);
+            LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %lldms", _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
         }
 #endif
     }
 
-#ifndef ONLY_ONE_MODULE_PER_SERVICE_LOOP
+#ifndef ONLY_ONE_MODULE_PER_LOOP
     }
 #endif
 
     // Debug
-    // LOG_D(MODULE_PREFIX, "Service module %s", sysModInfo._pSysMod->modName());
+    // LOG_D(MODULE_PREFIX, "loop module %s", sysModInfo._pSysMod->modName());
 
     // Next SysMod
-    _serviceLoopCurModIdx++;
+    _loopCurModIdx++;
 
     // Check system restart pending
     if (_systemRestartPending)
@@ -481,21 +481,21 @@ void SysManager::addManagedSysMod(SysModBase* pSysMod)
 void SysManager::supervisorSetup()
 {
     // Reset iterator to start of list
-    _serviceLoopCurModIdx = 0;
+    _loopCurModIdx = 0;
 
     // Clear stats
     _supervisorStats.clear();
 
-    // Clear and reserve sysmods from service vector
-    _sysModServiceVector.clear();
-    _sysModServiceVector.reserve(_sysModuleList.size());
+    // Clear and reserve sysmods from loop vector
+    _sysModLoopVector.clear();
+    _sysModLoopVector.reserve(_sysModuleList.size());
 
     // Add modules to list and initialise stats
     for (SysModBase* pSysMod : _sysModuleList)
     {
         if (pSysMod)
         {
-            _sysModServiceVector.push_back(pSysMod);
+            _sysModLoopVector.push_back(pSysMod);
             _supervisorStats.add(pSysMod->modName());
         }
     }
