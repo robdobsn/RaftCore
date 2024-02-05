@@ -135,13 +135,16 @@ execute_process(
   COMMAND ${CMAKE_COMMAND} -E remove "${_full_fs_dest_image_path}/placeholder"
 )
 
-# Process WebUI files into the dest FS image folder
-set(_full_web_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
-message(STATUS "------------------ Generating WebUI ------------------")
-message(STATUS "Generating WebUI from ${_full_web_ui_source_path} to ${_full_fs_dest_image_path}")
-execute_process(
-    COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenWebUI.py ${WEB_UI_GEN_FLAGS} ${_full_web_ui_source_path} ${_full_fs_dest_image_path}
-)
+# Check if UI_SOURCE_PATH is defined
+if(DEFINED UI_SOURCE_PATH)
+  # Process WebUI files into the dest FS image folder
+  set(_full_web_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
+  message(STATUS "------------------ Generating WebUI ------------------")
+  message(STATUS "Generating WebUI from ${_full_web_ui_source_path} to ${_full_fs_dest_image_path}")
+  execute_process(
+      COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenWebUI.py ${WEB_UI_GEN_FLAGS} ${_full_web_ui_source_path} ${_full_fs_dest_image_path}
+  )
+endif()
 
 # Add optional component folders
 set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${OPTIONAL_COMPONENTS})
