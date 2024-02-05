@@ -13,20 +13,20 @@
 #include "ProtocolBase.h"
 #include "ProtocolCodecFactoryHelper.h"
 #include "CommsChannel.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "FileStreamBase.h"
 #include "FileStreamSession.h"
 
 class APISourceInfo;
 
-class ProtocolExchange : public SysModBase
+class ProtocolExchange : public RaftSysMod
 {
 public:
     ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig);
     virtual ~ProtocolExchange();
 
     // Set firmware update handler
-    void setFWUpdateHandler(SysModBase* pFirmwareUpdater)
+    void setFWUpdateHandler(RaftSysMod* pFirmwareUpdater)
     {
         _pFirmwareUpdater = pFirmwareUpdater;
     }
@@ -48,7 +48,7 @@ protected:
 
 private:
     // Handlers
-    SysModBase* _pFirmwareUpdater = nullptr;
+    RaftSysMod* _pFirmwareUpdater = nullptr;
 
     // Next streamID to allocate to a stream session
     uint32_t _nextStreamID = FileStreamBase::FILE_STREAM_ID_MIN;

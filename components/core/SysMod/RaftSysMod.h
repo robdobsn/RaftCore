@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Base class for SysMods (System Modules)
+// Base class for Raft SysMods (System Modules)
 // For more info see SysManager
 // Rob Dobson 2013-2023
 //
@@ -32,15 +32,15 @@ typedef std::function<bool(const char* messageName, CommsChannelMsg& msg)> SysMo
 // State change detector callback function type
 typedef std::function<void(const char* stateName, std::vector<uint8_t>& stateHash)> SysMod_stateDetectCB;
 
-class SysModBase
+class RaftSysMod
 {
 public:
-    SysModBase(const char *pModuleName, 
+    RaftSysMod(const char *pModuleName, 
             RaftJsonIF& sysConfig,
             const char* pConfigPrefix = nullptr, 
             const char* pMutableConfigNamespace = nullptr,
             const char* pMutableConfigPrefix = nullptr);
-    virtual ~SysModBase();
+    virtual ~RaftSysMod();
 
     // Setup
     virtual void setup()

@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Manager for SysMods (System Modules)
-// All modules that are core to the system should be derived from SysModBase
+// All modules that are core to the system should be derived from RaftSysMod
 // These modules are then looped over by this manager's loop function
 // They can be enabled/disabled and reconfigured in a consistent way
 // Also modules can be referred to by name to allow more complex interaction
@@ -16,7 +16,7 @@
 #include <vector>
 #include "ExecTimer.h"
 #include "SupervisorStats.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftArduino.h"
 #include "CommsCoreIF.h"
@@ -58,7 +58,7 @@ public:
     }
 
     // Add a pre-constructed SysMod to the managed list
-    void addManagedSysMod(SysModBase* pSysMod);
+    void addManagedSysMod(RaftSysMod* pSysMod);
 
     // Get system name
     String getSystemName()
@@ -221,14 +221,14 @@ private:
     bool _supervisorDirty = false;
 
     // SysMods to loop over
-    std::vector<SysModBase*> _sysModLoopVector;
+    std::vector<RaftSysMod*> _sysModLoopVector;
     uint32_t _loopCurModIdx = 0;
 
     // NOTE: _sysModuleList and _supervisorStats must be in synch
     //       when a module is added it must be added to both lists
 
     // List of modules
-    std::list<SysModBase*> _sysModuleList;
+    std::list<RaftSysMod*> _sysModuleList;
 
     // Stress test loop delay
     uint32_t _stressTestLoopDelayMs = 0;

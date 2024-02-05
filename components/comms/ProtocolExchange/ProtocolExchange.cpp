@@ -45,7 +45,7 @@ static const char* MODULE_PREFIX = "ProtExchg";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ProtocolExchange::ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig)
-    : SysModBase(pModuleName, sysConfig)
+    : RaftSysMod(pModuleName, sysConfig)
 {
 #ifdef DEBUG_ADD_COMMS_CHANNELS
     LOG_I(MODULE_PREFIX, "constructed %s", pModuleName);

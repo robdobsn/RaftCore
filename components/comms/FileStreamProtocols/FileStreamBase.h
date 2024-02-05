@@ -16,7 +16,7 @@
 class RICRESTMsg;
 class CommsChannelMsg;
 class CommsCoreIF;
-class SysModBase;
+class RaftSysMod;
 class FileStreamBlock;
 class FileStreamBlockOwned;
 

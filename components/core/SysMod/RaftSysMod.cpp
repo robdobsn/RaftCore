@@ -1,24 +1,24 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Base class for SysMods (System Modules)
+// Base class for Raft SysMods (System Modules)
 // For more info see SysManager
 // Rob Dobson 2013-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "Logger.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "SysManager.h"
 #include "ConfigPinMap.h"
 #include "CommsCoreIF.h"
 
-SysManager* SysModBase::_pSysManager = NULL;
+SysManager* RaftSysMod::_pSysManager = NULL;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SysModBase::SysModBase(const char *pModuleName, 
+RaftSysMod::RaftSysMod(const char *pModuleName, 
             RaftJsonIF& sysConfig,
             const char* pConfigPrefix, 
             const char* pMutableConfigNamespace,
@@ -41,7 +41,7 @@ SysModBase::SysModBase(const char *pModuleName,
     // TODO - deal with mutable config
 }
 
-SysModBase::~SysModBase()
+RaftSysMod::~RaftSysMod()
 {
 }
 
@@ -49,21 +49,21 @@ SysModBase::~SysModBase()
 // Helpers
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String SysModBase::getSystemName()
+String RaftSysMod::getSystemName()
 {
     if (_pSysManager)
         return _pSysManager->getSystemName();
     return "";
 }
 
-String SysModBase::getSystemUniqueString()
+String RaftSysMod::getSystemUniqueString()
 {
     if (_pSysManager)
         return _pSysManager->getSystemUniqueString();
     return "";
 }
 
-String SysModBase::getFriendlyName(bool& isSet)
+String RaftSysMod::getFriendlyName(bool& isSet)
 {
     if (_pSysManager)
         return _pSysManager->getFriendlyName(isSet);
@@ -71,7 +71,7 @@ String SysModBase::getFriendlyName(bool& isSet)
     return "";
 }
 
-RestAPIEndpointManager* SysModBase::getRestAPIEndpointManager()
+RestAPIEndpointManager* RaftSysMod::getRestAPIEndpointManager()
 {
     // Check parent
     if (!_pSysManager)
@@ -82,7 +82,7 @@ RestAPIEndpointManager* SysModBase::getRestAPIEndpointManager()
 }
 
 // Get CommsCore
-CommsCoreIF* SysModBase::getCommsCore()
+CommsCoreIF* RaftSysMod::getCommsCore()
 {
     // Check parent
     if (!_pSysManager)
@@ -92,59 +92,59 @@ CommsCoreIF* SysModBase::getCommsCore()
     return _pSysManager->getCommsCore();
 }
 
-long SysModBase::configGetLong(const char *dataPath, long defaultValue)
+long RaftSysMod::configGetLong(const char *dataPath, long defaultValue)
 {
     return _config.getLong(dataPath, defaultValue);
 }
 
-double SysModBase::configGetDouble(const char *dataPath, double defaultValue)
+double RaftSysMod::configGetDouble(const char *dataPath, double defaultValue)
 {
     return _config.getDouble(dataPath, defaultValue);
 }
 
-bool SysModBase::configGetBool(const char *dataPath, bool defaultValue)
+bool RaftSysMod::configGetBool(const char *dataPath, bool defaultValue)
 {
     return _config.getBool(dataPath, defaultValue);
 }
 
-String SysModBase::configGetString(const char *dataPath, const char* defaultValue)
+String RaftSysMod::configGetString(const char *dataPath, const char* defaultValue)
 {
     return _config.getString(dataPath, defaultValue);
 }
 
-String SysModBase::configGetString(const char *dataPath, const String& defaultValue)
+String RaftSysMod::configGetString(const char *dataPath, const String& defaultValue)
 {
     return _config.getString(dataPath, defaultValue.c_str());
 }
 
-RaftJsonIF::RaftJsonType SysModBase::configGetType(const char *dataPath, int& arrayLen)
+RaftJsonIF::RaftJsonType RaftSysMod::configGetType(const char *dataPath, int& arrayLen)
 {
     return _config.getType(dataPath, arrayLen);
 }
 
-bool SysModBase::configGetArrayElems(const char *dataPath, std::vector<String>& strList) const
+bool RaftSysMod::configGetArrayElems(const char *dataPath, std::vector<String>& strList) const
 {
     return _config.getArrayElems(dataPath, strList);
 }
 
-void SysModBase::configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback)
+void RaftSysMod::configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback)
 {
     _config.registerChangeCallback(configChangeCallback);
 }
 
-int SysModBase::configGetPin(const char* dataPath, const char* defaultValue)
+int RaftSysMod::configGetPin(const char* dataPath, const char* defaultValue)
 {
     String pinName = configGetString(dataPath, defaultValue);
     return ConfigPinMap::getPinFromName(pinName.c_str());
 }
 
-void SysModBase::configSaveData(const String& configStr)
+void RaftSysMod::configSaveData(const String& configStr)
 {
     _config.setJsonDoc(configStr.c_str());
 }
 
 // Get JSON status of another SysMod
-String SysModBase::sysModGetStatusJSON(const char* sysModName)
+String RaftSysMod::sysModGetStatusJSON(const char* sysModName)
 {
     if (_pSysManager)
         return _pSysManager->getStatusJSON(sysModName);
@@ -152,7 +152,7 @@ String SysModBase::sysModGetStatusJSON(const char* sysModName)
 }
 
 // Post JSON command to another SysMod
-RaftRetCode SysModBase::sysModSendCmdJSON(const char* sysModName, const char* jsonCmd)
+RaftRetCode RaftSysMod::sysModSendCmdJSON(const char* sysModName, const char* jsonCmd)
 {
     if (_pSysManager)
         return _pSysManager->sendCmdJSON(sysModName, jsonCmd);
@@ -160,7 +160,7 @@ RaftRetCode SysModBase::sysModSendCmdJSON(const char* sysModName, const char* js
 }
 
 // SysMod get named value
-double SysModBase::sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid)
+double RaftSysMod::sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid)
 {
     if (_pSysManager)
         return _pSysManager->getNamedValue(sysModName, valueName, isValid);
@@ -169,14 +169,14 @@ double SysModBase::sysModGetNamedValue(const char* sysModName, const char* value
 }
 
 // Add status change callback on a SysMod
-void SysModBase::sysModSetStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB)
+void RaftSysMod::sysModSetStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB)
 {
     if (_pSysManager)
         _pSysManager->setStatusChangeCB(sysModName, statusChangeCB);
 }
 
 // Execute status change callbacks
-void SysModBase::executeStatusChangeCBs(bool changeToOn)
+void RaftSysMod::executeStatusChangeCBs(bool changeToOn)
 {
     for (SysMod_statusChangeCB& statusChangeCB : _statusChangeCBs)
     {
@@ -185,7 +185,7 @@ void SysModBase::executeStatusChangeCBs(bool changeToOn)
     }
 }
 
-SupervisorStats* SysModBase::getSysManagerStats()
+SupervisorStats* RaftSysMod::getSysManagerStats()
 {
     if (_pSysManager)
         return _pSysManager->getStats();
@@ -193,7 +193,7 @@ SupervisorStats* SysModBase::getSysManagerStats()
 }
 
 // File/stream system activity - main firmware update
-bool SysModBase::isSystemMainFWUpdate()
+bool RaftSysMod::isSystemMainFWUpdate()
 {
     if (getSysManager())
         return getSysManager()->isSystemMainFWUpdate();
@@ -201,7 +201,7 @@ bool SysModBase::isSystemMainFWUpdate()
 }
 
 // File/stream system activity - file transfer
-bool SysModBase::isSystemFileTransferring()
+bool RaftSysMod::isSystemFileTransferring()
 {
     if (getSysManager())
         return getSysManager()->isSystemFileTransferring();
@@ -209,7 +209,7 @@ bool SysModBase::isSystemFileTransferring()
 }
 
 // File/stream system activity - streaming
-bool SysModBase::isSystemStreaming()
+bool RaftSysMod::isSystemStreaming()
 {
     if (getSysManager())
         return getSysManager()->isSystemStreaming();

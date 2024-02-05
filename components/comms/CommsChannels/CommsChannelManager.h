@@ -13,11 +13,11 @@
 #include "ProtocolBase.h"
 #include "ProtocolCodecFactoryHelper.h"
 #include "CommsChannel.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "CommsChannelBridge.h"
 #include "CommsCoreIF.h"
 
-class CommsChannelManager : public SysModBase, public CommsCoreIF
+class CommsChannelManager : public RaftSysMod, public CommsCoreIF
 {
 public:
     CommsChannelManager(const char *pModuleName, RaftJsonIF& sysConfig);

@@ -23,7 +23,7 @@ class FileStreamSession
 public:
     // Constructor / destructor
     FileStreamSession(const String& filename, uint32_t channelID,
-                CommsCoreIF* pCommsCore, SysModBase* pFirmwareUpdater,
+                CommsCoreIF* pCommsCore, RaftSysMod* pFirmwareUpdater,
                 FileStreamBase::FileStreamContentType fileStreamContentType, 
                 FileStreamBase::FileStreamFlowType fileStreamFlowType,
                 uint32_t streamID, const char* restAPIEndpointName,
@@ -126,7 +126,7 @@ private:
     FileSystemChunker* _pFileChunker;
 
     // Handlers
-    SysModBase* _pFirmwareUpdater;
+    RaftSysMod* _pFirmwareUpdater;
 
     // Session idle handler
     uint32_t _sessionLastActiveMs;

@@ -12,10 +12,10 @@
 #include <vector>
 #include "RaftArduino.h"
 
-class SysModBase;
+class RaftSysMod;
 
 // SysMod create function
-typedef SysModBase* (*SysModCreateFn)(const char* pSysModName, RaftJsonIF& sysConfig);
+typedef RaftSysMod* (*SysModCreateFn)(const char* pSysModName, RaftJsonIF& sysConfig);
 
 class SysModFactory
 {

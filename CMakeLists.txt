@@ -70,7 +70,7 @@ idf_component_register(
     "components/core/StatusIndicator/StatusIndicator.cpp"
     "components/core/SupervisorStats/SupervisorStats.cpp"
     "components/core/SysManager/SysManager.cpp"
-    "components/core/SysMod/SysModBase.cpp"
+    "components/core/SysMod/RaftSysMod.cpp"
     "components/core/SysTypes/SysTypeManager.cpp"
     "components/core/Utils/ESPUtils.cpp"
     "components/core/Utils/RaftUtils.cpp"

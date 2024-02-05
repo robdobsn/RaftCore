@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Manager for SysMods (System Modules)
-// All modules that are core to the system should be derived from SysModBase
+// All modules that are core to the system should be derived from RaftSysMod
 // These modules are then looped over by this manager's loop function
 // They can be enabled/disabled and reconfigured in a consistent way
 // Also modules can be referred to by name to allow more complex interaction
@@ -16,7 +16,7 @@
 #include "freertos/task.h"
 #include "Logger.h"
 #include "SysManager.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "RaftJsonNVS.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
@@ -78,8 +78,8 @@ SysManager::SysManager(const char* pModuleName,
     if (pSerialMagicStr)
         _serialMagicStr = pSerialMagicStr;
 
-    // Register this manager to all objects derived from SysModBase
-    SysModBase::setSysManager(this);
+    // Register this manager to all objects derived from RaftSysMod
+    RaftSysMod::setSysManager(this);
 
 }
 
@@ -204,7 +204,7 @@ void SysManager::postSetup()
         {
             // Check if already created
             bool alreadyCreated = false;
-            for (SysModBase* pSysMod : _sysModuleList)
+            for (RaftSysMod* pSysMod : _sysModuleList)
             {
                 if (pSysMod && pSysMod->modNameStr().equals(sysModClassDef.name))
                 {
@@ -273,7 +273,7 @@ void SysManager::postSetup()
 
     // Give each SysMod the opportunity to add endpoints and comms channels and to keep a
     // pointer to the CommsCoreIF that can be used to send messages
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod)
         {
@@ -285,7 +285,7 @@ void SysManager::postSetup()
     }
 
     // Post-setup - called after setup of all sysMods complete
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod)
             pSysMod->postSetup();
@@ -302,7 +302,7 @@ void SysManager::postSetup()
 
 #ifdef DEBUG_LIST_SYSMODS
     uint32_t sysModIdx = 0;
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         LOG_I(MODULE_PREFIX, "SysMod %d: %s", sysModIdx++, 
                 pSysMod ? pSysMod->modName() : "UNKNOWN");
@@ -461,7 +461,7 @@ void SysManager::loop()
 // Manage SysMod List
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::addManagedSysMod(SysModBase* pSysMod)
+void SysManager::addManagedSysMod(RaftSysMod* pSysMod)
 {
     // Avoid adding null pointers
     if (!pSysMod)
@@ -491,7 +491,7 @@ void SysManager::supervisorSetup()
     _sysModLoopVector.reserve(_sysModuleList.size());
 
     // Add modules to list and initialise stats
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod)
         {
@@ -508,7 +508,7 @@ void SysManager::supervisorSetup()
 void SysManager::setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -528,7 +528,7 @@ void SysManager::clearAllStatusChangeCBs()
     // Debug
     // LOG_I(MODULE_PREFIX, "clearAllStatusChangeCBs");
     // Go through the sysmod list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         return pSysMod->clearStatusChangeCBs();
     }
@@ -540,7 +540,7 @@ void SysManager::clearAllStatusChangeCBs()
 String SysManager::getStatusJSON(const char* sysModName)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -574,7 +574,7 @@ String SysManager::getDebugJSON(const char* sysModName)
     }
 
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -594,7 +594,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     uint64_t startUs = micros();
 #endif
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -624,7 +624,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 double SysManager::getNamedValue(const char* sysModName, const char* valueName, bool& isValid)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -642,7 +642,7 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 void SysManager::sendMsgGenCB(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -1054,7 +1054,7 @@ bool SysManager::checkSysModDependenciesSatisfied(const SysModFactory::SysModCla
     {
         // See if the sysmod is in the list of SysMods
         bool found = false;
-        for (SysModBase* pSysMod : _sysModuleList)
+        for (RaftSysMod* pSysMod : _sysModuleList)
         {
             if (pSysMod->modNameStr().equals(dependency))
             {

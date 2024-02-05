@@ -46,7 +46,7 @@ static const char* MODULE_PREFIX = "CommsMan";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 CommsChannelManager::CommsChannelManager(const char *pModuleName, RaftJsonIF& sysConfig)
-    : SysModBase(pModuleName, sysConfig)
+    : RaftSysMod(pModuleName, sysConfig)
 {
 }
 
