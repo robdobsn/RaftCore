@@ -256,7 +256,7 @@ void SysManager::postSetup()
     }
 
     // Now call setup on system modules
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
 #ifdef DEBUG_SYSMOD_MEMORY_USAGE
         uint32_t heapBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
