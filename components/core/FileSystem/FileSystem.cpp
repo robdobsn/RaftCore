@@ -993,8 +993,8 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
             {
                 LOG_I(MODULE_PREFIX, "setup failed to init LittleFS (error %s)", esp_err_to_name(ret));
             }
-        }
 #endif
+        }
         return false;
     }
 
@@ -1061,8 +1061,8 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
             {
                 LOG_I(MODULE_PREFIX, "setup failed to init SPIFFS (error %s)", esp_err_to_name(ret));
             }
-        }
 #endif
+        }
         return false;
     }
 
