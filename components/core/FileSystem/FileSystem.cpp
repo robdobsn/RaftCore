@@ -134,7 +134,7 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     esp_err_t ret = ESP_FAIL;
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
     if (_localFsType == LOCAL_FS_LITTLEFS)
-        ret = esp_littlefs_format(LOCAL_FILE_SYSTEM_PARTITION_LABEL);
+        ret = esp_littlefs_format(_fsPartitionName.c_str());
     else
 #endif
         ret = esp_spiffs_format(NULL);
@@ -956,10 +956,13 @@ void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 {
+    // Set partition name
+    _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL;
+
     // Using ESP IDF virtual file system
     esp_vfs_littlefs_conf_t conf = {
         .base_path = LOCAL_FILE_SYSTEM_BASE_PATH,
-        .partition_label = LOCAL_FILE_SYSTEM_PARTITION_LABEL,
+        .partition_label = _fsPartitionName.c_str(),
         .partition = NULL,
         .format_if_mount_failed = formatIfCorrupt,
         .read_only = false,
@@ -971,18 +974,25 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
     esp_err_t ret = esp_vfs_littlefs_register(&conf);
     if (ret != ESP_OK)
     {
+        // Try the alternate partition
+        _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT;
+        conf.partition_label = _fsPartitionName.c_str();
+        ret = esp_vfs_littlefs_register(&conf);
+        if (ret != ESP_OK)
+        {
 #ifdef DEBUG_FILE_SYSTEM_MOUNT
-        if (ret == ESP_FAIL) 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed mount/format LittleFS");
-        } 
-        else if (ret == ESP_ERR_NOT_FOUND) 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to find LittleFS partition");
-        } 
-        else 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to init LittleFS (error %s)", esp_err_to_name(ret));
+            if (ret == ESP_FAIL) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed mount/format LittleFS");
+            } 
+            else if (ret == ESP_ERR_NOT_FOUND) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to find LittleFS partition");
+            } 
+            else 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to init LittleFS (error %s)", esp_err_to_name(ret));
+            }
         }
 #endif
         return false;
@@ -990,7 +1000,7 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 
     // Get file system info
     size_t total = 0, used = 0;
-    ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &total, &used);
+    ret = esp_littlefs_info(_fsPartitionName.c_str(), &total, &used);
     if (ret != ESP_OK) 
     {
         LOG_W(MODULE_PREFIX, "setup failed to get LittleFS info (error %s)", esp_err_to_name(ret));
@@ -1017,10 +1027,13 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 
 bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
 {
+    // Set partition name
+    _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL;
+
     // Using ESP IDF virtual file system
     esp_vfs_spiffs_conf_t conf = {
         .base_path = LOCAL_FILE_SYSTEM_BASE_PATH,
-        .partition_label = LOCAL_FILE_SYSTEM_PARTITION_LABEL,
+        .partition_label = _fsPartitionName.c_str(),
         .max_files = 5,
         .format_if_mount_failed = formatIfCorrupt
     };        
@@ -1029,18 +1042,25 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
     if (ret != ESP_OK)
     {
-#ifdef DEBUG_FILE_SYSTEM_MOUNT
-        if (ret == ESP_FAIL) 
+        // Try the alternate partition
+        _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT;
+        conf.partition_label = _fsPartitionName.c_str();
+        ret = esp_vfs_spiffs_register(&conf);
+        if (ret != ESP_OK)
         {
-            LOG_I(MODULE_PREFIX, "setup failed mount/format SPIFFS");
-        } 
-        else if (ret == ESP_ERR_NOT_FOUND) 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to find SPIFFS partition");
-        } 
-        else 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to init SPIFFS (error %s)", esp_err_to_name(ret));
+    #ifdef DEBUG_FILE_SYSTEM_MOUNT
+            if (ret == ESP_FAIL) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed mount/format SPIFFS");
+            } 
+            else if (ret == ESP_ERR_NOT_FOUND) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to find SPIFFS partition");
+            } 
+            else 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to init SPIFFS (error %s)", esp_err_to_name(ret));
+            }
         }
 #endif
         return false;
@@ -1049,7 +1069,7 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     // Get file system info
     LOG_I(MODULE_PREFIX, "setup SPIFFS initialised ok");
     size_t total = 0, used = 0;
-    ret = esp_spiffs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &total, &used);
+    ret = esp_spiffs_info(_fsPartitionName.c_str(), &total, &used);
     if (ret != ESP_OK)
     {
         LOG_W(MODULE_PREFIX, "setup failed to get SPIFFS info (error %s)", esp_err_to_name(ret));
@@ -1332,10 +1352,10 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
         esp_err_t ret = ESP_FAIL;
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
         if (_localFsType == LOCAL_FS_LITTLEFS)
-            ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &sizeBytes, &usedBytes);
+            ret = esp_littlefs_info(_fsPartitionName.c_str(), &sizeBytes, &usedBytes);
         else
 #endif
-            ret = esp_spiffs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &sizeBytes, &usedBytes);
+            ret = esp_spiffs_info(_fsPartitionName.c_str(), &sizeBytes, &usedBytes);
         if (ret != ESP_OK)
         {
             xSemaphoreGive(_fileSysMutex);

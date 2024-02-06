@@ -157,6 +157,9 @@ private:
     // Mutex controlling access to file system
     SemaphoreHandle_t _fileSysMutex = nullptr;
 
+    // File system partition name
+    String _fsPartitionName;
+
 private:
     bool checkFileSystem(const String& fileSystemStr, String& fsName) const;
     String getFilePath(const String& nameOfFS, const String& filename) const;
@@ -182,7 +185,8 @@ private:
     static constexpr const char* SD_FILE_SYSTEM_NAME = "sd";
     static constexpr const char* SD_FILE_SYSTEM_BASE_PATH = "/sd";
     static constexpr const char* SD_FILE_SYSTEM_PATH_ELEMENT = "sd/";
-    static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL = "spiffs";
+    static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL = "fs";
+    static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT = "spiffs";
 };
 
 extern FileSystem fileSystem;

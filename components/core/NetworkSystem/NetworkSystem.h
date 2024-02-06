@@ -161,9 +161,9 @@ private:
     // Ethernet
 #ifdef ETHERNET_IS_ENABLED
     esp_eth_handle_t _ethernetHandle = nullptr;
+#endif
     String _ethIPV4Addr;
     String _ethMACAddress;
-#endif
 
     // FreeRTOS event group to signal when we are connected
     // Code here is based on https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c

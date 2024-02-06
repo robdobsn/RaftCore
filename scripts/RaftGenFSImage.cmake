@@ -16,21 +16,20 @@ if (FS_TYPE STREQUAL "littlefs")
   FetchContent_MakeAvailable(mklittlefs)
 
   # Create a LittleFS image from the contents of the _full_fs_dest_image_path directory
-  # that fits the partition named 'spiffs' (not littlefs!). FLASH_IN_PROJECT indicates that
+  # that fits the partition named 'fs'. FLASH_IN_PROJECT indicates that
   # the generated image should be flashed when the entire project is flashed to
   # the target with 'idf.py -p PORT flash'.
   # include("${raftcore_SOURCE_DIR}/scripts/CreateLittleFSImage.cmake")
   message(STATUS "Creating LittleFS file system image from ${_full_fs_dest_image_path}")
-  littlefs_create_partition_image(spiffs ${_full_fs_dest_image_path} FLASH_IN_PROJECT)
+  littlefs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT)
 
 else()
 
   # Create a SPIFFS image from the contents of the FS_IMAGE_PATH directory
-  # that fits the partition named 'spiffs'. FLASH_IN_PROJECT indicates that
+  # that fits the partition named 'fs'. FLASH_IN_PROJECT indicates that
   # the generated image should be flashed when the entire project is flashed to
   # the target with 'idf.py -p PORT flash'.
   message(STATUS "Creating SPIFFS file system image from ${_full_fs_dest_image_path}")
-  # spiffs_create_partition_image(spiffs ${FS_IMAGE_PATH} FLASH_IN_PROJECT DEPENDS generateWebUI)
-  spiffs_create_partition_image(spiffs ${_full_fs_dest_image_path} FLASH_IN_PROJECT)
+  spiffs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT)
 
 endif()

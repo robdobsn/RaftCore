@@ -106,13 +106,13 @@ def main():
         ["partition_table/partition-table.bin", "0x8000"],
         ["ota_data_initial.bin", "$otadata"],
         ["$firmware_binary_name", "$app0"],
-        ["$filesysimage", "$spiffs"]
+        ["$filesysimage", "$fs"]
     ] if args.targetChip == "esp32" else [
         ["bootloader/bootloader.bin","0x0000"],
         ["partition_table/partition-table.bin", "0x8000"],
         ["ota_data_initial.bin", "$otadata"],
         ["$firmware_binary_name", "$app0"],
-        ["$filesysimage", "$spiffs"]
+        ["$filesysimage", "$fs"]
     ]
 
     for fileToFlash in filesToFlash:
