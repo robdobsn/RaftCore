@@ -7,22 +7,49 @@ include(FetchContent)
 
 # Get build configuration folder
 get_filename_component(_build_config_name ${CMAKE_BINARY_DIR} NAME)
+get_filename_component(_test_build_base_folder ${CMAKE_BINARY_DIR} DIRECTORY)
+get_filename_component(_test_build_base_folder ${_test_build_base_folder} NAME)
+if(${_build_config_name} STREQUAL "build" AND NOT ${_test_build_base_folder} STREQUAL "build")
+
+    # We are building in the root of the build folder so we now need to find the first systype
+    set(_build_config_name "")
+    file(GLOB _all_systype_dirs RELATIVE ${CMAKE_SOURCE_DIR}/systypes ${CMAKE_SOURCE_DIR}/systypes/*)
+
+    # Iterate over all systype folders to skip the Common folder if it exists
+    foreach(_systype_dir IN LISTS _all_systype_dirs)
+        if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/systypes/${_systype_dir} AND NOT _systype_dir STREQUAL "Common")
+            set(_build_config_name ${_systype_dir})
+            break()
+        endif()
+    endforeach()
+
+    # Check if a valid systype was found
+    if(_build_config_name STREQUAL "")
+        message(FATAL_ERROR "No valid systype found in systypes folder")
+    endif()
+else()
+    # We are building in a subfolder of the build folder so we can use the subfolder name as the build config name
+    if(NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/systypes/${_build_config_name})
+        message(FATAL_ERROR "Config directory ${CMAKE_SOURCE_DIR}/systypes/${_build_config_name} not found.")
+    endif()
+endif()
 
 # Debug
-message (STATUS "------------------ RaftCore BuildConfig ${_build_config_name} ------------------")
+message (STATUS "\n------------------ RaftCore BuildConfig ${_build_config_name} ------------------")
 
 # Set the base project name
 set(PROJECT_BASENAME "${_build_config_name}")
 
 # Check config dir exists
 set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/systypes/${_build_config_name}")
-if((NOT EXISTS ${BUILD_CONFIG_DIR}) OR (NOT IS_DIRECTORY ${BUILD_CONFIG_DIR}))
-    message(FATAL_ERROR "Config directory ${BUILD_CONFIG_DIR} not found.")
-endif()
+
+# Set the build artefacts directory
+set(RAFT_BUILD_ARTEFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artefacts")
+file(MAKE_DIRECTORY ${RAFT_BUILD_ARTEFACTS_FOLDER})
 
 # Use sdkconfig for the selected build configuration
 set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
-set(SDKCONFIG "${BUILD_CONFIG_DIR}/sdkconfig")
+set(SDKCONFIG "${RAFT_BUILD_ARTEFACTS_FOLDER}/sdkconfig")
 
 # Check if the sdkconfig file is older than the sdkconfig.defaults file and delete it if so
 if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
@@ -33,7 +60,7 @@ if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
         message(STATUS "------------------ Not deleting sdkconfig as sdkconfig.defaults NOT_CHANGED ------------------")
     endif()
 else()
-    message(STATUS "------------------ Not deleting sdkconfig as NOT_FOUND ------------------")
+    message(STATUS "------------------ sdkconfig NOT_FOUND ------------------")
 endif()
 
 # Dependency
@@ -61,10 +88,6 @@ endif()
 
 # Configuration message
 message(STATUS "------------------ Configuring ${_build_config_name} firmware image name ${FW_IMAGE_NAME} ------------------")
-
-# Set the build artefacts directory
-set(RAFT_BUILD_ARTEFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artefacts")
-file(MAKE_DIRECTORY ${RAFT_BUILD_ARTEFACTS_FOLDER})
 
 # Copy the partitions.csv file from the specific systypes folder to the build artefacts directory
 # It should not go into the build_config_dir as the sdkconfig.defaults file must reference a fixed folder
@@ -112,22 +135,22 @@ foreach(_raft_component ${RAFT_COMPONENTS})
 endforeach()
 
 # Make sure the SysTypes header is generated before compiling this component (main) if needed
-set(_systypes_h "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypeInfoRecs.h")
+set(_systypes_out "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypeInfoRecs.h")
 set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
 set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
 message(STATUS "------------------ Generating SysTypeInfoRecs.h ------------------")
-message(STATUS "Generating ${_systypes_cpp} from file ${_systypes_json}")
+message(STATUS "Generating ${_systypes_out} from file ${_systypes_json}")
 execute_process(
-    COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_h} --cpp_template ${_systypes_template}
+    COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_out} --cpp_template ${_systypes_template}
 )
 
 # Dependency on SysTypes header
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} ${_systypes_h})
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} ${_systypes_out})
 
 # Copy the FS image source folder to the build artefacts directory
 set(_full_fs_source_image_path "${BUILD_CONFIG_DIR}/${FS_IMAGE_PATH}")
 set(_full_fs_dest_image_path "${RAFT_BUILD_ARTEFACTS_FOLDER}/FSImage")
-message(STATUS "------------------ Copying FS Image ------------------")
+message(STATUS "\n------------------ Copying FS Image ------------------")
 message(STATUS "Copying ${_full_fs_source_image_path} to ${_full_fs_dest_image_path}")
 execute_process(
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
