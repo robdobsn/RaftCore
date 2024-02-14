@@ -5,12 +5,12 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <JSONParams.h>
-#include <FileUploadOKTOProtocol.h>
-#include <RICRESTMsg.h>
-#include <FileSystem.h>
-#include <CommsChannelMsg.h>
-#include <CommsCoreIF.h>
+#include "RaftJson.h"
+#include "FileUploadOKTOProtocol.h"
+#include "RICRESTMsg.h"
+#include "FileSystem.h"
+#include "CommsChannelMsg.h"
+#include "CommsCoreIF.h"
 
 // Log prefix
 static const char *MODULE_PREFIX = "FileUpldOKTO";
@@ -241,7 +241,7 @@ String FileUploadOKTOProtocol::getDebugJSON(bool includeBraces)
 RaftRetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg, uint32_t channelID)
 {
     // Get params
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     uint32_t fileLen = cmdFrame.getLong("fileLen", 0);
     String fileName = cmdFrame.getString("fileName", "");
     String fileType = cmdFrame.getString("fileType", "");
@@ -330,7 +330,7 @@ RaftRetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqM
 RaftRetCode  FileUploadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Extract params
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
 
     // Handle file end
 #ifdef DEBUG_RICREST_FILEUPLOAD
@@ -368,7 +368,7 @@ RaftRetCode  FileUploadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMs
 RaftRetCode  FileUploadOKTOProtocol::handleCancelMsg(const RICRESTMsg& ricRESTReqMsg, String& respMsg)
 {
     // Handle file cancel
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     String fileName = cmdFrame.getString("fileName", "");
     String reason = cmdFrame.getString("reason", "");
 

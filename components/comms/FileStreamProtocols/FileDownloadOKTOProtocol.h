@@ -9,9 +9,7 @@
 #pragma once
 
 #include "FileStreamBase.h"
-#include <ArduinoTime.h>
-
-class JSONParams;
+#include "ArduinoTime.h"
 
 class FileDownloadOKTOProtocol : public FileStreamBase
 {
@@ -40,7 +38,7 @@ public:
             const char* fileStreamName);
 
     // Service
-    void service();
+    virtual void service() override final;
 
     // Handle command frame
     virtual RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 

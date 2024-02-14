@@ -11,18 +11,12 @@ set(RAFT_CORE_REQUIRES
   esp_wifi
   esp_eth
   esp_timer
+  mdns
 )
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_adc)
-endif()
-
-set(TEST_LITTLEFS_FOLDER ${COMPONENT_DIR}/../esp_littlefs-src)
-get_filename_component(TEST_LITTLEFS_SRC ${TEST_LITTLEFS_FOLDER} REALPATH)
-if (EXISTS "${TEST_LITTLEFS_SRC}")
-  message(STATUS "============================= LittleFS component found")
-  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_littlefs-src )
 endif()
 
 idf_component_register(
@@ -51,13 +45,10 @@ idf_component_register(
     "components/core/ArduinoUtils/ArduinoWString.cpp"
     "components/core/ArPreferences/ArPreferences.cpp"
     "components/core/Bus/BusSerial.cpp"
-    "components/core/Config/ConfigBase.cpp"
-    "components/core/Config/ConfigMulti.cpp"
-    "components/core/Config/ConfigNVS.cpp"
     "components/core/ConfigPinMap/ConfigPinMap.cpp"
-    "components/core/DataCollection/SampleCollectorJSON.cpp"
     "components/core/DebounceButton/DebounceButton.cpp"
     "components/core/DebugGlobals/DebugGlobals.cpp"
+    "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
     "components/core/ExpressionEval/tinyexpr.c"
@@ -73,13 +64,13 @@ idf_component_register(
     "components/core/MQTT/RaftMQTTClient.cpp"
     "components/core/NetworkSystem/NetworkSystem.cpp"
     "components/core/NetworkSystem/WiFiScanner.cpp"
-    "components/core/RaftJson/RaftJsmn.cpp"
-    "components/core/RaftJson/RaftJson.cpp"
+    "components/core/RaftCoreApp/RaftCoreApp.cpp"
+    "components/core/RaftJson/RaftJsonNVS.cpp"
     "components/core/RestAPIEndpoints/RestAPIEndpointManager.cpp"
     "components/core/StatusIndicator/StatusIndicator.cpp"
     "components/core/SupervisorStats/SupervisorStats.cpp"
     "components/core/SysManager/SysManager.cpp"
-    "components/core/SysMod/SysModBase.cpp"
+    "components/core/SysMod/RaftSysMod.cpp"
     "components/core/SysTypes/SysTypeManager.cpp"
     "components/core/Utils/ESPUtils.cpp"
     "components/core/Utils/RaftUtils.cpp"
@@ -102,11 +93,10 @@ idf_component_register(
     "components/core/ArduinoUtils"
     "components/core/ArPreferences"
     "components/core/Bus"
-    "components/core/Config"
     "components/core/ConfigPinMap"
-    "components/core/DataCollection"
     "components/core/DebounceButton"
     "components/core/DebugGlobals"
+    "components/core/DNSResolver"
     "components/core/ExpressionEval"
     "components/core/FileSystem"
     "components/core/LEDPixels"
@@ -117,6 +107,7 @@ idf_component_register(
     "components/core/NamedValueProvider"
     "components/core/NetworkSystem"
     "components/core/NumericalFilters"
+    "components/core/RaftCoreApp"
     "components/core/RaftJson"
     "components/core/RestAPIEndpoints"
     "components/core/RingBuffer"
@@ -125,6 +116,7 @@ idf_component_register(
     "components/core/SysManager"
     "components/core/SysMod"
     "components/core/SysTypes"
+    "${RAFT_BUILD_ARTEFACTS_FOLDER}"
     "components/core/ThreadSafeQueue"
     "components/core/Utils"
   REQUIRES

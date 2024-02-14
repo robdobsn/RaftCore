@@ -8,8 +8,6 @@
 
 #ifndef ESP8266
 
-#include <ESPUtils.h>
-#include <RaftUtils.h>
 #include <limits.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -29,6 +27,8 @@ extern "C" {
 }
 #endif
 #endif
+#include "ESPUtils.h"
+#include "RaftUtils.h"
 
 #ifndef ARDUINO
 

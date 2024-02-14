@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <RaftArduino.h>
 #include <vector>
-#include <BusRequestInfo.h>
+#include "RaftArduino.h"
+#include "BusRequestInfo.h"
 
 class BusRequestResult
 {

@@ -10,11 +10,14 @@
 
 #include <vector>
 #include <stdint.h>
-#include <RaftArduino.h>
-#include <RaftJson.h>
-#include <SpiramAwareAllocator.h>
+#include "RaftArduino.h"
+#include "SpiramAwareAllocator.h"
 
 // #define IMPLEMENT_COMMS_MSG_JSON
+
+#ifdef IMPLEMENT_COMMS_MSG_JSON
+#include "RaftJson.h"
+#endif
 
 static const uint32_t COMMS_MSG_UNNUMBERED_NUM = UINT32_MAX;
 
@@ -187,23 +190,23 @@ public:
                     String("\"d\":\"") + getMsgTypeAsString(_msgTypeCode) + String("\",") +
                     String("\"n\":\"") + String(_msgNum) + String("\"}");
     }
-    String getString(const char *dataPath, const char *defaultValue)
+    String getString(const char *pDataPath, const char *defaultValue)
     {
-        return RaftJson::getString(dataPath, defaultValue, _cmdJSON.c_str());
+        return RaftJson::getString(_cmdJSON.c_str(), pDataPath, defaultValue);
     }
-    String getString(const char *dataPath, const String& defaultValue)
+    String getString(const char *pDataPath, const String& defaultValue)
     {
-        return RaftJson::getString(dataPath, defaultValue.c_str(), _cmdJSON.c_str());
-    }
-
-    long getLong(const char *dataPath, long defaultValue)
-    {
-        return RaftJson::getLong(dataPath, defaultValue, _cmdJSON.c_str());
+        return RaftJson::getString(_cmdJSON.c_str(), pDataPath, defaultValue.c_str());
     }
 
-    double getDouble(const char *dataPath, double defaultValue)
+    long getLong(const char *pDataPath, long defaultValue)
     {
-        return RaftJson::getDouble(dataPath, defaultValue, _cmdJSON.c_str());
+        return RaftJson::getLong(_cmdJSON.c_str(), pDataPath, defaultValue);
+    }
+
+    double getDouble(const char *pDataPath, double defaultValue)
+    {
+        return RaftJson::getDouble(_cmdJSON.c_str(), pDataPath, defaultValue);
     }
 #endif
 

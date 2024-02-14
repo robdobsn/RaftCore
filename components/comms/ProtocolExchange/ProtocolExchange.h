@@ -8,25 +8,25 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <RaftArduino.h>
 #include <vector>
-#include <ProtocolBase.h>
+#include "RaftArduino.h"
+#include "ProtocolBase.h"
 #include "ProtocolCodecFactoryHelper.h"
 #include "CommsChannel.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "FileStreamBase.h"
 #include "FileStreamSession.h"
 
 class APISourceInfo;
 
-class ProtocolExchange : public SysModBase
+class ProtocolExchange : public RaftSysMod
 {
 public:
-    ProtocolExchange(const char *pModuleName, ConfigBase &defaultConfig, ConfigBase *pGlobalConfig, ConfigBase *pMutableConfig);
+    ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig);
     virtual ~ProtocolExchange();
 
-    // Set handlers
-    void setHandlers(SysModBase* pFirmwareUpdater)
+    // Set firmware update handler
+    void setFWUpdateHandler(RaftSysMod* pFirmwareUpdater)
     {
         _pFirmwareUpdater = pFirmwareUpdater;
     }
@@ -37,8 +37,8 @@ public:
             const char* restAPIEndpointName);
 
 protected:
-    // Service - called frequently
-    virtual void service() override final;
+    // Loop - called frequently
+    virtual void loop() override final;
 
     // Add comms channels
     virtual void addCommsChannels(CommsCoreIF& commsCore) override final;
@@ -48,17 +48,17 @@ protected:
 
 private:
     // Handlers
-    SysModBase* _pFirmwareUpdater;
+    RaftSysMod* _pFirmwareUpdater = nullptr;
 
     // Next streamID to allocate to a stream session
-    uint32_t _nextStreamID; 
+    uint32_t _nextStreamID = FileStreamBase::FILE_STREAM_ID_MIN;
 
     // Transfer sessions
     static const uint32_t MAX_SIMULTANEOUS_FILE_STREAM_SESSIONS = 3;
     std::list<FileStreamSession*> _sessions;
 
     // Previous activity indicator to keep SysManager up-to-date
-    bool _sysManStateIndWasActive;
+    bool _sysManStateIndWasActive = false;
 
     // Threshold for determining if message processing is slow
     static const uint32_t MSG_PROC_SLOW_PROC_THRESH_MS = 50;

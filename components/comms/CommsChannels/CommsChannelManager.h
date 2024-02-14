@@ -8,19 +8,19 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <RaftArduino.h>
 #include <vector>
-#include <ProtocolBase.h>
+#include "RaftArduino.h"
+#include "ProtocolBase.h"
 #include "ProtocolCodecFactoryHelper.h"
 #include "CommsChannel.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "CommsChannelBridge.h"
-#include <CommsCoreIF.h>
+#include "CommsCoreIF.h"
 
-class CommsChannelManager : public SysModBase, public CommsCoreIF
+class CommsChannelManager : public RaftSysMod, public CommsCoreIF
 {
 public:
-    CommsChannelManager(const char *pModuleName, ConfigBase &defaultConfig, ConfigBase *pGlobalConfig, ConfigBase *pMutableConfig);
+    CommsChannelManager(const char *pModuleName, RaftJsonIF& sysConfig);
     virtual ~CommsChannelManager();
 
     // Register as an external message channel
@@ -72,8 +72,8 @@ public:
     void bridgeService();
 
 protected:
-    // Service - called frequently
-    virtual void service() override final;
+    // Loop - called frequently
+    virtual void loop() override final;
 
 private:
     // Vector of channels - pointer must be deleted and vector

@@ -7,17 +7,17 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <Logger.h>
+#include "Logger.h"
 #include "ProtocolExchange.h"
 #include "CommsChannelMsg.h"
-#include <RestAPIEndpointManager.h>
-#include <ProtocolRICSerial.h>
-#include <ProtocolRICFrame.h>
-#include <ProtocolRICJSON.h>
-#include <RICRESTMsg.h>
-#include <SysManager.h>
-#include <JSONParams.h>
-#include <CommsBridgeMsg.h>
+#include "RestAPIEndpointManager.h"
+#include "ProtocolRICSerial.h"
+#include "ProtocolRICFrame.h"
+#include "ProtocolRICJSON.h"
+#include "RICRESTMsg.h"
+#include "SysManager.h"
+#include "RaftJson.h"
+#include "CommsBridgeMsg.h"
 
 static const char* MODULE_PREFIX = "ProtExchg";
 
@@ -44,13 +44,12 @@ static const char* MODULE_PREFIX = "ProtExchg";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-ProtocolExchange::ProtocolExchange(const char *pModuleName, ConfigBase &defaultConfig, ConfigBase *pGlobalConfig, ConfigBase *pMutableConfig)
-    : SysModBase(pModuleName, defaultConfig, pGlobalConfig, pMutableConfig)
+ProtocolExchange::ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig)
+    : RaftSysMod(pModuleName, sysConfig)
 {
-    // Handlers
-    _pFirmwareUpdater = nullptr;
-    _nextStreamID = FileStreamBase::FILE_STREAM_ID_MIN;
-    _sysManStateIndWasActive = false;
+#ifdef DEBUG_ADD_COMMS_CHANNELS
+    LOG_I(MODULE_PREFIX, "constructed %s", pModuleName);
+#endif
 }
 
 ProtocolExchange::~ProtocolExchange()
@@ -63,10 +62,10 @@ ProtocolExchange::~ProtocolExchange()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service
+// Loop - called frequently
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ProtocolExchange::service()
+void ProtocolExchange::loop()
 {
     // Service active sessions
 
@@ -132,6 +131,11 @@ String ProtocolExchange::getDebugJSON()
 
 void ProtocolExchange::addCommsChannels(CommsCoreIF& commsCore)
 {
+    // Debug
+#ifdef DEBUG_ADD_COMMS_CHANNELS
+    LOG_I(MODULE_PREFIX, "addCommsChannels");
+#endif
+
     // Add support for RICSerial
     ProtocolCodecFactoryHelper ricSerialProtocolDef = { ProtocolRICSerial::getProtocolNameStatic(), 
                         ProtocolRICSerial::createInstance,
@@ -299,9 +303,8 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
     // Raw commands
     else if (protocol == MSG_PROTOCOL_RAWCMDFRAME)
     {
-        String cmdMsgStr;
-        Raft::strFromBuffer(cmdMsg.getBuf(), cmdMsg.getBufLen(), cmdMsgStr);
-        JSONParams cmdFrame = cmdMsgStr;
+        String cmdMsgStr(cmdMsg.getBuf(), cmdMsg.getBufLen());
+        RaftJson cmdFrame = cmdMsgStr;
         String reqStr = cmdFrame.getString("cmdName", "");
         String queryStr = RaftJson::getHTMLQueryFromJSON(cmdMsgStr);
         if (queryStr.length() > 0)
@@ -404,7 +407,7 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
                 const CommsChannelMsg &endpointMsg)
 {
     // Handle command frames
-    JSONParams cmdFrame = ricRESTReqMsg.getPayloadJson();
+    RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     String cmdName = cmdFrame.getString("cmdName", "");
 
     // Get File/Stream message type

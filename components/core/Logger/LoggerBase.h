@@ -9,15 +9,15 @@
 #pragma once
 
 #include <stdarg.h>
+#include "Logger.h"
 #include "esp_attr.h"
 #include "esp_log.h"
-#include "ConfigBase.h"
-#include "Logger.h"
+#include "RaftJsonIF.h"
 
 class LoggerBase
 {
 public:
-    LoggerBase(const ConfigBase& config)
+    LoggerBase(const RaftJsonIF& config)
     {
         _loggerType = config.getString("type", "");
         _level = convStrToLogLevel(config.getString("level", "").c_str()) ;

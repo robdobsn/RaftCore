@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <LEDPixHSV.h>
+#include "LEDPixHSV.h"
 
 #define ALWAYS_INLINE __attribute__((always_inline))
 

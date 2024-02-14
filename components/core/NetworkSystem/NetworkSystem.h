@@ -20,9 +20,17 @@
 #include "RaftArduino.h"
 #include "WiFiScanner.h"
 #include "NetworkSettings.h"
+#include "sdkconfig.h"
 
+// Check if any ethernet phy type is enabled
+#if defined(CONFIG_ETH_USE_ESP32_EMAC) || defined(CONFIG_ETH_USE_SPI_ETHERNET) || defined(CONFIG_ETH_USE_RMII_ETHERNET) || defined(CONFIG_ETH_USE_OPENETH)
+#define ETHERNET_IS_ENABLED
+#endif
+
+#ifdef ETHERNET_IS_ENABLED
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 #include "esp_eth_driver.h"
+#endif
 #endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
@@ -64,10 +72,13 @@ public:
     {
         return _wifiIPV4Addr;
     }
+
+#ifdef ETHERNET_IS_ENABLED
     String getEthIPV4AddrStr()
     {
         return _ethIPV4Addr;
     }
+#endif
 
     // Hostname
     String getHostname()
@@ -148,7 +159,9 @@ private:
     static const int WIFI_CONNECT_MAX_RETRY = -1;
 
     // Ethernet
+#ifdef ETHERNET_IS_ENABLED
     esp_eth_handle_t _ethernetHandle = nullptr;
+#endif
     String _ethIPV4Addr;
     String _ethMACAddress;
 
@@ -173,14 +186,17 @@ private:
     // Helpers
     bool startWifi();
     void stopWifi();
-    bool startEthernet();
     static void networkEventHandler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* pEventData);
     void wifiEventHandler(void* arg, int32_t event_id, void* pEventData);
+#ifdef ETHERNET_IS_ENABLED
+    bool startEthernet();
     void ethEventHandler(void* arg, int32_t event_id, void* pEventData);
+#endif
     void ipEventHandler(void* arg, int32_t event_id, void* pEventData);
     void handleWiFiStaDisconnectEvent();
     void warnOnWiFiDisconnectIfEthNotConnected();
+    void setupMDNS();
 };
 
 // Access to single instance

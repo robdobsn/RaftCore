@@ -1,0 +1,100 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python test SysTypes1 GenerateSysTypesCpp.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "${workspaceFolder}/test_data/SysTypes1/SysTypes.json",
+                "${workspaceFolder}/test_data/SysTypes1/SysTypesInfo.cpp",
+                "--cpp_template",
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfo.cpp.template"
+            ]
+        },
+        {
+            "name": "Python test SysTypes2 GenerateSysTypesCpp.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "${workspaceFolder}/test_data/SysTypes2/SysTypes.json",
+                "${workspaceFolder}/test_data/SysTypes2/SysTypesInfo.cpp",
+                "--cpp_template",
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfo.cpp.template"
+            ]
+        },
+        {
+            "name": "Python test SysTypes3 GenerateSysTypesCpp.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/GenerateSysTypesCpp.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "${workspaceFolder}/test_data/SysTypes3/SysTypes.json",
+                "${workspaceFolder}/test_data/SysTypes3/SysTypesInfo.cpp",
+                "--cpp_template",
+                "${workspaceFolder}/components/core/SysTypes/SysTypesInfo.cpp.template"
+            ]
+        },
+        {
+            "name": "(gdb) G++ build and debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/linux_unit_tests/linux_unit_tests",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceRoot}/linux_unit_tests",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "C/C++: g++ build linux_unit_tests",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) Linux unit tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/linux_unit_tests/linux_unit_tests",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "build",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}

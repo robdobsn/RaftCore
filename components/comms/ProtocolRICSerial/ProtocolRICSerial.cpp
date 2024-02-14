@@ -8,12 +8,12 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "ProtocolRICSerial.h"
-#include <CommsChannelMsg.h>
-#include <ConfigBase.h>
-#include <MiniHDLC.h>
-#include <RaftUtils.h>
-#include <RaftArduino.h>
-#include <ESPUtils.h>
+#include "CommsChannelMsg.h"
+#include "RaftJsonPrefixed.h"
+#include "MiniHDLC.h"
+#include "RaftUtils.h"
+#include "RaftArduino.h"
+#include "ESPUtils.h"
 
 // Logging
 static const char* MODULE_PREFIX = "RICSerial";
@@ -34,7 +34,7 @@ static const char* MODULE_PREFIX = "RICSerial";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                     CommsChannelOutboundHandleMsgFnType msgTxCB, 
                     CommsChannelInboundHandleMsgFnType msgRxCB, 
                     CommsChannelInboundCanAcceptFnType readyToRxCB) :
@@ -46,9 +46,12 @@ ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, con
     static const int DEFAULT_TX_MAX_NO_PSRAM = 5000;
     static const int DEFAULT_TX_MAX_PSRAM = 200000;
 
+    // Create a prefixed config
+    RaftJsonPrefixed configPrefixed(config, pConfigPrefix);
+
     // Check for overrides
-    uint32_t maxRxMsgLen = config.getLong("MaxRxMsgLen", 0, pConfigPrefix);
-    uint32_t maxTxMsgLen = config.getLong("MaxTxMsgLen", 0, pConfigPrefix);
+    uint32_t maxRxMsgLen = configPrefixed.getLong("MaxRxMsgLen", 0);
+    uint32_t maxTxMsgLen = configPrefixed.getLong("MaxTxMsgLen", 0);
 
     // If not overridden then use default based on PSRAM availability
     bool isPSRAM = utilsGetSPIRAMSize() > 0;
@@ -56,8 +59,8 @@ ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, ConfigBase& config, con
     maxTxMsgLen = (maxTxMsgLen == 0) ? (isPSRAM ? DEFAULT_TX_MAX_PSRAM : DEFAULT_TX_MAX_NO_PSRAM) : maxTxMsgLen;
 
     // Extract configuration
-    unsigned frameBoundary = config.getLong("FrameBound", 0x7E, pConfigPrefix);
-    unsigned controlEscape = config.getLong("CtrlEscape", 0x7D, pConfigPrefix);
+    unsigned frameBoundary = configPrefixed.getLong("FrameBound", 0x7E);
+    unsigned controlEscape = configPrefixed.getLong("CtrlEscape", 0x7D);
 
     // New HDLC
     _pHDLC = new MiniHDLC(NULL, 

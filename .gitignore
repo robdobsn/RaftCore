@@ -3,6 +3,7 @@
 build
 builds
 sdkconfig
+managed_components
 compile_commands_win.json
 *.pyc
 logs/
@@ -12,6 +13,7 @@ scripts/config.ini
 .venv
 test/eepromPartitionTest/prewritedata.bin
 test/eepromPartitionTest/readbackdata.bin
+linux_unit_tests/linux_unit_tests
 
 # Generated updater files
 current_version.json

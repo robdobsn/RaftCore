@@ -8,20 +8,19 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <sys/stat.h>
-#include <esp_spiffs.h>
-#include <esp_vfs.h>
-#include <esp_vfs_fat.h>
-#include <esp_err.h>
-#include <driver/sdmmc_host.h>
-#include <driver/sdmmc_defs.h>
-#include <driver/sdspi_host.h>
-#include <FileSystem.h>
-#include <RaftJson.h>
-#include <RaftUtils.h>
-#include <ConfigPinMap.h>
-#include <Logger.h>
-#include <SpiramAwareAllocator.h>
-#ifdef FEATURE_LITTLEFS_SUPPORT
+#include "esp_spiffs.h"
+#include "esp_vfs.h"
+#include "esp_vfs_fat.h"
+#include "esp_err.h"
+#include "driver/sdmmc_host.h"
+#include "driver/sdmmc_defs.h"
+#include "driver/sdspi_host.h"
+#include "FileSystem.h"
+#include "RaftUtils.h"
+#include "ConfigPinMap.h"
+#include "Logger.h"
+#include "SpiramAwareAllocator.h"
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 #include "esp_littlefs.h"
 #endif
 
@@ -45,36 +44,35 @@ FileSystem fileSystem;
 // #define DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor
+// Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FileSystem::FileSystem()
 {
-    // Vars
-    _localFSIsLittleFS = false;
-    _cacheFileSystemInfo = false;
-    _defaultToSDIfAvailable = true;
-    _pSDCard = NULL;
     _fileSysMutex = xSemaphoreCreateMutex();
+}
+
+FileSystem::~FileSystem()
+{
+    if (_fileSysMutex)
+        vSemaphoreDelete(_fileSysMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileSystem::setup(bool enableSPIFFS, bool enableLittleFS, bool localFsFormatIfCorrupt, bool enableSD, 
+void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsFormatIfCorrupt, bool enableSD, 
         int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin, bool defaultToSDIfAvailable,
         bool cacheFileSystemInfo)
 {
     // Init
-    _localFsCache.isUsed = false;
-    _localFsCache.fsName.clear();
-    _sdFsCache.isUsed = false;
+    _localFsType = localFsDefaultType;
     _cacheFileSystemInfo = cacheFileSystemInfo;
     _defaultToSDIfAvailable = defaultToSDIfAvailable;
 
     // Setup local file system
-    localFileSystemSetup(enableSPIFFS, enableLittleFS, localFsFormatIfCorrupt);
+    localFileSystemSetup(localFsFormatIfCorrupt);
 
     // Setup SD file system
     sdFileSystemSetup(enableSD, sdMOSIPin, sdMISOPin, sdCLKPin, sdCSPin);
@@ -102,6 +100,13 @@ void FileSystem::service()
 
 bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool force)
 {
+    // Check for file system disabled
+    if (_localFsType == LOCAL_FS_DISABLE)
+    {
+        LOG_W(MODULE_PREFIX, "reformat local file system disabled");
+        return false;
+    }
+
     // Check file system supported
     String nameOfFS;
     if (!force && !checkFileSystem(fileSystemStr, nameOfFS))
@@ -127,9 +132,9 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isFileInfoSetup = false;
     esp_err_t ret = ESP_FAIL;
-#ifdef FEATURE_LITTLEFS_SUPPORT
-    if (_localFSIsLittleFS)
-        ret = esp_littlefs_format(LOCAL_FILE_SYSTEM_PARTITION_LABEL);
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+    if (_localFsType == LOCAL_FS_LITTLEFS)
+        ret = esp_littlefs_format(_fsPartitionName.c_str());
     else
 #endif
         ret = esp_spiffs_format(NULL);
@@ -217,7 +222,7 @@ bool FileSystem::getFilesJSON(const char* req, const String& fileSystemStr, cons
 
     // Check if cached information can be used
     CachedFileSystem& cachedFs = nameOfFS.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
-    if (_cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
+    if (cachedFs.isUsed && _cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
     {
         LOG_I(MODULE_PREFIX, "getFilesJSON using cached info");
         return fileInfoCacheToJSON(req, cachedFs, "/", respStr);
@@ -667,7 +672,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename, 
-                    bool writeMode, uint32_t seekToPos)
+                    bool writeMode, uint32_t seekToPos, bool seekFromEnd)
 {
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t startMs = millis();
@@ -698,15 +703,17 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     startMs = millis();
 #endif
 
-    FILE* pFile = fopen(rootFilename.c_str(), writeMode ? "wb" : "rb");
+    FILE* pFile = fopen(rootFilename.c_str(), writeMode ? ((seekToPos != 0) || seekFromEnd ? "ab" : "wb") : "rb");
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t fopenMs = millis() - startMs;
     startMs = millis();
 #endif
 
-    if (pFile && (seekToPos != 0))
-        fseek(pFile, seekToPos, SEEK_SET);
+    if (pFile && ((seekToPos != 0) || seekFromEnd))
+    {
+        fseek(pFile, seekToPos, seekFromEnd ? SEEK_END : SEEK_SET);
+    }
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t fseekMs = millis() - startMs;
@@ -883,75 +890,117 @@ bool FileSystem::fileSeek(FILE* pFile, uint32_t seekPos)
 // Setup local file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileSystem::localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bool formatIfCorrupt)
+void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
 {
     // Check enabled
-    if (!enableSPIFFS && !enableLittleFS)
+    if (_localFsType == LOCAL_FS_DISABLE)
     {
         LOG_I(MODULE_PREFIX, "localFileSystemSetup local file system disabled");
         return;
     }
 
-    // Check if SPIFFS if enabled
-    if (enableSPIFFS)
+    // Try LittleFS first (with format if corrupt false)
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+    // Init LittleFS file system (format if required)
+    if (localFileSystemSetupLittleFS(false))
     {
-        // Format SPIFFS file system if required - this will fail if the partition is not
-        // in SPIFFS format and formatting will only be done if enabled and LittleFS is not
-        // enabled
-        if (localFileSystemSetupSPIFFS(!enableLittleFS && formatIfCorrupt))
+        LOG_I(MODULE_PREFIX, "localFileSystemSetup LittleFS initialised ok");
+        return;
+    }
+#endif
+
+    // Try SPIFFS next (with format if corrupt false)
+    if (localFileSystemSetupSPIFFS(false))
+    {
+        LOG_I(MODULE_PREFIX, "localFileSystemSetup SPIFFS initialised ok");
+        return;
+    }
+
+    // If format if corrupt is false then we are done and FS can't be mounted
+    if (!formatIfCorrupt)
+    {
+        _localFsType = LOCAL_FS_DISABLE;
+        LOG_I(MODULE_PREFIX, "localFileSystemSetup no file system found");
             return;
     }
 
-    // Init LittleFS if enabled
-#ifdef FEATURE_LITTLEFS_SUPPORT
-    if (enableLittleFS)
+    // Now try default FS with format if corrupt true
+    if (_localFsType == LOCAL_FS_SPIFFS)
     {
-        // Init LittleFS file system (format if required)
-        if (localFileSystemSetupLittleFS(formatIfCorrupt))
+        if (localFileSystemSetupSPIFFS(true))
+        {
+            LOG_I(MODULE_PREFIX, "localFileSystemSetup SPIFFS formmatted ok");
+            return;
+        }
+    }
+    else
+    {
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+        if (localFileSystemSetupLittleFS(true))
+        {
+            LOG_I(MODULE_PREFIX, "localFileSystemSetup LittleFS formmatted ok");
             return;
     }
+    }
 #endif
+
+    // Failed
+    _localFsType = LOCAL_FS_DISABLE;
+    LOG_W(MODULE_PREFIX, "localFileSystemSetup failed to initialise file system");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup local file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef FEATURE_LITTLEFS_SUPPORT
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 {
+    // Set partition name
+    _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL;
+
     // Using ESP IDF virtual file system
     esp_vfs_littlefs_conf_t conf = {
         .base_path = LOCAL_FILE_SYSTEM_BASE_PATH,
-        .partition_label = LOCAL_FILE_SYSTEM_PARTITION_LABEL,
+        .partition_label = _fsPartitionName.c_str(),
+        .partition = NULL,
         .format_if_mount_failed = formatIfCorrupt,
+        .read_only = false,
         .dont_mount = false,
+        .grow_on_mount = false,
     };        
     // Use settings defined above to initialize and mount LittleFS filesystem.
     // Note: esp_vfs_littlefs_register is an all-in-one convenience function.
     esp_err_t ret = esp_vfs_littlefs_register(&conf);
     if (ret != ESP_OK)
     {
+        // Try the alternate partition
+        _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT;
+        conf.partition_label = _fsPartitionName.c_str();
+        ret = esp_vfs_littlefs_register(&conf);
+        if (ret != ESP_OK)
+        {
 #ifdef DEBUG_FILE_SYSTEM_MOUNT
-        if (ret == ESP_FAIL) 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed mount/format LittleFS");
-        } 
-        else if (ret == ESP_ERR_NOT_FOUND) 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to find LittleFS partition");
-        } 
-        else 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to init LittleFS (error %s)", esp_err_to_name(ret));
-        }
+            if (ret == ESP_FAIL) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed mount/format LittleFS");
+            } 
+            else if (ret == ESP_ERR_NOT_FOUND) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to find LittleFS partition");
+            } 
+            else 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to init LittleFS (error %s)", esp_err_to_name(ret));
+            }
 #endif
+        }
         return false;
     }
 
     // Get file system info
     size_t total = 0, used = 0;
-    ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &total, &used);
+    ret = esp_littlefs_info(_fsPartitionName.c_str(), &total, &used);
     if (ret != ESP_OK) 
     {
         LOG_W(MODULE_PREFIX, "setup failed to get LittleFS info (error %s)", esp_err_to_name(ret));
@@ -962,8 +1011,7 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
     LOG_I(MODULE_PREFIX, "setup LittleFS partition size total %d, used %d", total, used);
     
     // Local file system is ok
-    _localFSIsLittleFS = true;
-    _localFsCache.isUsed = true;
+    _localFsType = LOCAL_FS_LITTLEFS;
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isSizeInfoValid = false;
     _localFsCache.isFileInfoSetup = false;
@@ -979,10 +1027,13 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 
 bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
 {
+    // Set partition name
+    _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL;
+
     // Using ESP IDF virtual file system
     esp_vfs_spiffs_conf_t conf = {
         .base_path = LOCAL_FILE_SYSTEM_BASE_PATH,
-        .partition_label = LOCAL_FILE_SYSTEM_PARTITION_LABEL,
+        .partition_label = _fsPartitionName.c_str(),
         .max_files = 5,
         .format_if_mount_failed = formatIfCorrupt
     };        
@@ -991,27 +1042,34 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
     if (ret != ESP_OK)
     {
-#ifdef DEBUG_FILE_SYSTEM_MOUNT
-        if (ret == ESP_FAIL) 
+        // Try the alternate partition
+        _fsPartitionName = LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT;
+        conf.partition_label = _fsPartitionName.c_str();
+        ret = esp_vfs_spiffs_register(&conf);
+        if (ret != ESP_OK)
         {
-            LOG_I(MODULE_PREFIX, "setup failed mount/format SPIFFS");
-        } 
-        else if (ret == ESP_ERR_NOT_FOUND) 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to find SPIFFS partition");
-        } 
-        else 
-        {
-            LOG_I(MODULE_PREFIX, "setup failed to init SPIFFS (error %s)", esp_err_to_name(ret));
-        }
+    #ifdef DEBUG_FILE_SYSTEM_MOUNT
+            if (ret == ESP_FAIL) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed mount/format SPIFFS");
+            } 
+            else if (ret == ESP_ERR_NOT_FOUND) 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to find SPIFFS partition");
+            } 
+            else 
+            {
+                LOG_I(MODULE_PREFIX, "setup failed to init SPIFFS (error %s)", esp_err_to_name(ret));
+            }
 #endif
+        }
         return false;
     }
 
     // Get file system info
     LOG_I(MODULE_PREFIX, "setup SPIFFS initialised ok");
     size_t total = 0, used = 0;
-    ret = esp_spiffs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &total, &used);
+    ret = esp_spiffs_info(_fsPartitionName.c_str(), &total, &used);
     if (ret != ESP_OK)
     {
         LOG_W(MODULE_PREFIX, "setup failed to get SPIFFS info (error %s)", esp_err_to_name(ret));
@@ -1022,7 +1080,7 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     LOG_I(MODULE_PREFIX, "setup SPIFFS partition size total %d, used %d", total, used);
 
     // Local file system is ok
-    _localFSIsLittleFS = false;
+    _localFsType = LOCAL_FS_SPIFFS;
     _localFsCache.isUsed = true;
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isSizeInfoValid = false;
@@ -1186,11 +1244,6 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
 bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr)
 {
     // Check if file-system info is valid
-    if (!cachedFs.isUsed)
-    {
-        Raft::setJsonErrorResult(req, respStr, "fsinvalid");
-        return false;
-    }
     if (!cachedFs.isSizeInfoValid)
     {
         if (!fileSysInfoUpdateCache(req, cachedFs, respStr))
@@ -1297,12 +1350,12 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
     {
         size_t sizeBytes = 0, usedBytes = 0;
         esp_err_t ret = ESP_FAIL;
-#ifdef FEATURE_LITTLEFS_SUPPORT
-        if (_localFSIsLittleFS)
-            ret = esp_littlefs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &sizeBytes, &usedBytes);
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+        if (_localFsType == LOCAL_FS_LITTLEFS)
+            ret = esp_littlefs_info(_fsPartitionName.c_str(), &sizeBytes, &usedBytes);
         else
 #endif
-            ret = esp_spiffs_info(LOCAL_FILE_SYSTEM_PARTITION_LABEL, &sizeBytes, &usedBytes);
+            ret = esp_spiffs_info(_fsPartitionName.c_str(), &sizeBytes, &usedBytes);
         if (ret != ESP_OK)
         {
             xSemaphoreGive(_fileSysMutex);
@@ -1348,12 +1401,16 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
 
 void FileSystem::markFileCacheDirty(const String& fsName, const String& filename)
 {
+    // Get file system info
+    CachedFileSystem& cachedFs = fsName.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
+
+    // Set FS info invalid
+    cachedFs.isFileInfoValid = false;
+    cachedFs.isSizeInfoValid = false;
+
     // Check caching enabled
     if (!_cacheFileSystemInfo)
         return;
-
-    // Get file system info
-    CachedFileSystem& cachedFs = fsName.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
 
     // Check valid
     if (!cachedFs.isFileInfoSetup)
@@ -1382,8 +1439,6 @@ void FileSystem::markFileCacheDirty(const String& fsName, const String& filename
         newFileInfo.isValid = false;
         cachedFs.cachedRootFileList.push_back(newFileInfo);
     }
-    cachedFs.isFileInfoValid = false;
-    cachedFs.isSizeInfoValid = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

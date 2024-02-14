@@ -8,10 +8,9 @@
 
 #pragma once
 
-#include <RaftArduino.h>
 #include <vector>
-#include <RaftJson.h>
 #include <stdint.h>
+#include "RaftArduino.h"
 
 enum CommsBridgeIndex
 {

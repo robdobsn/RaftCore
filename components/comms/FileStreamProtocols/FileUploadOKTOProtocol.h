@@ -10,8 +10,6 @@
 
 #include "FileStreamBase.h"
 
-class JSONParams;
-
 class FileUploadOKTOProtocol : public FileStreamBase
 {
 public:
@@ -45,7 +43,7 @@ public:
             const char* fileStreamName);
 
     // Service
-    void service();
+    virtual void service() override final;
 
     // Handle command frame
     virtual RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType,

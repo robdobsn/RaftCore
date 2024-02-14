@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <RaftArduino.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <vector>
 #include <functional>
+#include "RaftArduino.h"
 
 // Put buffer callback function type
 typedef std::function<void(const uint8_t *pBuf, unsigned bufLen)> MQTTPutFnType;

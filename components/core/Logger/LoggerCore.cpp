@@ -6,14 +6,12 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "Logger.h"
 #include "LoggerCore.h"
 #include "RaftArduino.h"
-#include <SpiramAwareAllocator.h>
-#include "Logger.h"
+#include "SpiramAwareAllocator.h"
 
 LoggerCore loggerCore;
-
-#include <stdio.h>
 
 extern "C" void LOGGING_FUNCTION_DECORATOR loggerLog(esp_log_level_t level, const char *tag, const char *format, ...)
 {

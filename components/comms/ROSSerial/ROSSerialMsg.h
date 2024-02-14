@@ -1,7 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // ROSSerialMsg
-// Some content from Marty V1 rosbridge.cpp/h
 //
 // Sandy Enoch and Rob Dobson 2016-2023
 //
@@ -9,12 +8,12 @@
 
 #pragma once
 
+#include <vector>
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <SpiramAwareAllocator.h>
-#include <vector>
+#include "SpiramAwareAllocator.h"
 
 static const uint32_t ROSSERIAL_SYNC_FLAG_POS = 0;
 static const uint32_t ROSSERIAL_SYNC_FLAG_VAL = 0xff;

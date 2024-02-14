@@ -1,18 +1,14 @@
 # This is the project CMakeLists.txt file for the test subproject
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.16)
 
-# Include the components directory of the main application:
-set(EXTRA_COMPONENT_DIRS "../components")
+# Include the library root folder which contains the CMakelists.txt file
+list(APPEND EXTRA_COMPONENT_DIRS "..")
 
+# Enable network functionality for the tests
 add_compile_definitions(FEATURE_NETWORK_FUNCTIONALITY)
+add_compile_definitions(JSMN_PARENT_LINKS)
+add_compile_definitions(JSMN_STRICT)
 
-# Set the components to include the tests for.
-# This can be overriden from CMake cache:
-# - when invoking CMake directly: cmake -D TEST_COMPONENTS="xxxxx" ..
-# - when using idf.py: idf.py -T xxxxx build
-set(TEST_COMPONENTS "core" CACHE STRING "Components to test")
+# Standard project configuration stuff
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(unittests)
-
-# Set compile flags to enable parents in jsmn
-idf_build_set_property(COMPILE_OPTIONS "-DJSMN_PARENT_LINKS -DJSMN_STRICT" APPEND)

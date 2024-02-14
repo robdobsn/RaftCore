@@ -3,12 +3,12 @@
 
 #ifndef ARDUINO
 
-#include "stdint.h"
-#include "ArduinoTime.h"
+#include <stdint.h>
 #include "esp_timer.h"
 #include "esp_attr.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "ArduinoTime.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Low-level time functions for Arduino compat

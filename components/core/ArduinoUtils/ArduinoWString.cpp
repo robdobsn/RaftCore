@@ -23,17 +23,13 @@
 
 #ifndef ARDUINO
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "ArduinoWString.h"
 #include "ArduinoStdlibNonISO.h"
-#include "esp_log.h"
-#include <cstdio>
+#include "Logger.h"
 
 #define MODULE_PREFIX "ArdWString"
-
-#define log_e(...) ESP_LOGE(MODULE_PREFIX, __VA_ARGS__)
-#define log_w(...) ESP_LOGW(MODULE_PREFIX, __VA_ARGS__)
-#define log_i(...) ESP_LOGI(MODULE_PREFIX, __VA_ARGS__)
-#define log_d(...) ESP_LOGD(MODULE_PREFIX, __VA_ARGS__)
 
 /*********************************************/
 /*  Constructors                             */
@@ -130,7 +126,7 @@ String::String(float value, unsigned int decimalPlaces) {
         free(buf);
     } else {
         *this = "nan";
-        log_e("No enought memory for the operation.");
+        LOG_E(MODULE_PREFIX, "No enought memory for the operation.");
     }
 }
 
@@ -142,7 +138,7 @@ String::String(double value, unsigned int decimalPlaces) {
         free(buf);
     } else {
         *this = "nan";
-        log_e("No enought memory for the operation.");
+        LOG_E(MODULE_PREFIX, "No enought memory for the operation.");
     }
 }
 
@@ -827,7 +823,7 @@ void String::replace(const String& find, const String& replace) {
         if(size == len())
             return;
         if(size > capacity() && !changeBuffer(size)) {
-            log_w("String.Replace() Insufficient space to replace string");
+            LOG_W(MODULE_PREFIX, "String.Replace() Insufficient space to replace string");
             return;
         }
         int index = len() - 1;

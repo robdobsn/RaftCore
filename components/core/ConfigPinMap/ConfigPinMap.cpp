@@ -7,11 +7,11 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <cstring>
+#include <string.h>
 #include <cstddef>
-#include <cstdlib>
+#include <stdlib.h>
 #include "ConfigPinMap.h"
-#include "ConfigBase.h"
+#include "RaftJsonIF.h"
 #include "Logger.h"
 
 // #define DEBUG_CONFIG_MULTIPLE
@@ -110,7 +110,7 @@ int ConfigPinMap::mapPinModeToArduino(PinMode pinMode)
 }
 
 // Configure multople IOs
-void ConfigPinMap::configMultiple(ConfigBase& config, PinDef* pPinDefs, int numPinDefs, bool deinit)
+void ConfigPinMap::configMultiple(RaftJsonIF& config, PinDef* pPinDefs, int numPinDefs, bool deinit)
 {
     // Loop through pins
     for (int defIdx = 0; defIdx < numPinDefs; defIdx++)

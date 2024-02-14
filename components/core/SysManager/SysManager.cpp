@@ -1,8 +1,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Manager for SysMods (System Modules)
-// All modules that are core to the system should be derived from SysModBase
-// These modules are then serviced by this manager's service function
+// All modules that are core to the system should be derived from RaftSysMod
+// These modules are then looped over by this manager's loop function
 // They can be enabled/disabled and reconfigured in a consistent way
 // Also modules can be referred to by name to allow more complex interaction
 //
@@ -10,17 +10,16 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "SysManager.h"
-#include "SysModBase.h"
-#include "JSONParams.h"
-#include "Logger.h"
-#include "RestAPIEndpointManager.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "Logger.h"
+#include "SysManager.h"
+#include "RaftSysMod.h"
+#include "RaftJsonNVS.h"
+#include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
-#include "RaftJson.h"
 #include "ESPUtils.h"
 #include "NetworkSystem.h"
 #include "DebugGlobals.h"
@@ -28,12 +27,12 @@
 // Log prefix
 static const char *MODULE_PREFIX = "SysMan";
 
-// #define ONLY_ONE_MODULE_PER_SERVICE_LOOP 1
+// #define ONLY_ONE_MODULE_PER_LOOP 1
 
 // Warn
-#define WARN_ON_SYSMOD_SLOW_SERVICE
+#define WARN_ON_SYSMOD_SLOW_LOOP
 
-// Debug supervisor step (for hangup detection within a service call)
+// Debug supervisor step (for hangup detection within a loop call)
 // Uses global logger variables - see logger.h
 #define DEBUG_GLOB_SYSMAN 0
 #define INCLUDE_PROTOCOL_FILE_UPLOAD_IN_STATS
@@ -45,88 +44,115 @@ static const char *MODULE_PREFIX = "SysMan";
 // #define DEBUG_SEND_CMD_JSON_PERF
 // #define DEBUG_REGISTER_MSG_GEN_CB
 // #define DEBUG_API_ENDPOINTS
+// #define DEBUG_SYSMOD_FACTORY
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SysManager::SysManager(const char* pModuleName, ConfigBase& defaultConfig, 
-                ConfigBase* pGlobalConfig, ConfigBase* pMutableConfig,
+SysManager::SysManager(const char* pModuleName,
+                RaftJsonIF& systemConfig,
+            const String sysManagerNVSNamespace,
+            SysTypeManager& sysTypeManager,
+            const char* pSystemName,
                 const char* pDefaultFriendlyName,
-                const char* pSystemHWName,
-                uint32_t serialLengthBytes, const String& serialMagicStr)
+                uint32_t serialLengthBytes, 
+            const char* pSerialMagicStr) :
+                            _systemConfig(systemConfig),
+                    _mutableConfig(sysManagerNVSNamespace.c_str()),
+                    _sysTypeManager(sysTypeManager)
 {
-    // Store mutable config
-    _pMutableConfig = pMutableConfig;
+    // Save params (some of these may be overriden later from config)
+    _moduleName = pModuleName;
+    _systemName = pSystemName ? pSystemName : 
+#ifdef PROJECT_BASENAME
+            PROJECT_BASENAME
+#else
+            "Unknown"
+#endif
+            ;
+    _defaultFriendlyName = pDefaultFriendlyName ? pDefaultFriendlyName : _systemName;
 
     // Set serial length and magic string
     _serialLengthBytes = serialLengthBytes;
-    _serialMagicStr = serialMagicStr;
+    if (pSerialMagicStr)
+        _serialMagicStr = pSerialMagicStr;
 
-    // Register this manager to all objects derived from SysModBase
-    SysModBase::setSysManager(this);
+    // Register this manager to all objects derived from RaftSysMod
+    RaftSysMod::setSysManager(this);
 
-    // Module name
-    _moduleName = pModuleName;
+}
 
-    // Extract info from config
-    _sysModManConfig = pGlobalConfig ? 
-                pGlobalConfig->getString(_moduleName.c_str(), "{}") :
-                defaultConfig.getString(_moduleName.c_str(), "{}");
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Pre-Setup
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SysManager::preSetup()
+{
+    // Extract system name from root level of config
+    String sysTypeName = _systemConfig.getString("SysTypeName", _systemName.c_str());
+
+    // Override system name if it is specified in the config
+    _systemName = _systemConfig.getString("SystemName", sysTypeName.c_str());
+    _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
+
+    // System config for this module
+    RaftJsonPrefixed sysManConfig(_systemConfig, _moduleName.c_str());
+
+    // System friendly name (may be overridden by config)
+    _defaultFriendlyName = sysManConfig.getString("DefaultName", _defaultFriendlyName.c_str());
+
+    // Prime the mutable config info
+    _mutableConfigCache.friendlyName = _mutableConfig.getString("friendlyName", "");
+    _mutableConfigCache.friendlyNameIsSet = _mutableConfig.getBool("nameSet", 0);
+    _mutableConfigCache.serialNo = _mutableConfig.getString("serialNo", "");
 
     // Slow SysMod threshold
-    _slowSysModThresholdUs = _sysModManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
-
-    // Extract system name from config
-    _systemName = defaultConfig.getString("SystemName", pSystemHWName);
-    _systemVersion = defaultConfig.getString("SystemVersion", "0.0.0");
+    _slowSysModThresholdUs = sysManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
 
     // Monitoring period and monitoring timer
-    _monitorPeriodMs = _sysModManConfig.getLong("monitorPeriodMs", 10000);
+    _monitorPeriodMs = sysManConfig.getLong("monitorPeriodMs", 10000);
     _monitorTimerMs = millis();
-    _sysModManConfig.getArrayElems("reportList", _monitorReportList);
+    sysManConfig.getArrayElems("reportList", _monitorReportList);
 
     // System restart flag
     _systemRestartMs = millis();
-
-    // System friendly name
-    _defaultFriendlyName = defaultConfig.getString("DefaultName", pDefaultFriendlyName);
 
     // System unique string - use BT MAC address
     _systemUniqueString = getSystemMACAddressStr(ESP_MAC_BT, "");
 
     // Reboot after N hours
-    _rebootAfterNHours = _sysModManConfig.getLong("rebootAfterNHours", 0);
+    _rebootAfterNHours = sysManConfig.getLong("rebootAfterNHours", 0);
 
     // Reboot if disconnected for N minutes
-    _rebootIfDiscMins = _sysModManConfig.getLong("rebootIfDiscMins", 0);
+    _rebootIfDiscMins = sysManConfig.getLong("rebootIfDiscMins", 0);
 
-    // Prime the mutable config info
-    if (_pMutableConfig)
-    {
-        _mutableConfigCache.friendlyName = _pMutableConfig->getString("friendlyName", "");
-        _mutableConfigCache.friendlyNameIsSet = _pMutableConfig->getLong("nameSet", 0);
-        _mutableConfigCache.serialNo = _pMutableConfig->getString("serialNo", "");
-    }
+    // Pause WiFi for BLE
+    _pauseWiFiForBLE = sysManConfig.getBool("pauseWiFiforBLE", 0);
 
     // Get friendly name
     bool friendlyNameIsSet = false;
     String friendlyName = getFriendlyName(friendlyNameIsSet);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "friendlyName %s rebootAfterNHours %d rebootIfDiscMins %d slowSysModUs %d serialNo %s (defaultFriendlyName %s)",
+    LOG_I(MODULE_PREFIX, "systemName %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
+                _systemName.c_str(),
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
-                _rebootAfterNHours, _rebootIfDiscMins,
-                _slowSysModThresholdUs,
+                _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
-                _defaultFriendlyName.c_str());
+                _mutableConfig.getNVSNamespace().c_str());
+    LOG_I(MODULE_PREFIX, "slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d",
+                _slowSysModThresholdUs,
+                _monitorPeriodMs,
+                _rebootAfterNHours, 
+                _rebootIfDiscMins);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::setup()
+void SysManager::postSetup()
 {
     // Clear status change callbacks for sysmods (they are added again in postSetup)
     clearAllStatusChangeCBs();
@@ -153,8 +179,8 @@ void SysManager::setup()
                 std::bind(&SysManager::apiSerialNumber, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Serial number");
         _pRestAPIEndpointManager->addEndpoint("hwrevno", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
-                std::bind(&SysManager::apiHwRevisionNumber, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                "HW revision number");
+                std::bind(&SysManager::apiBaseSysTypeVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                "HW revision");
         _pRestAPIEndpointManager->addEndpoint("testsetloopdelay", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiTestSetLoopDelay, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Set a loop delay to test resilience, e.g. ?delayMs=10&skipCount=1, applies 10ms delay to alternate loops");
@@ -165,26 +191,89 @@ void SysManager::setup()
 
     // Short delay here to allow logging output to complete as some hardware configurations
     // require changes to serial uarts and this disturbs the logging flow
-    delay(100);
+    delay(20);
+
+    // Work through the SysMods in the factory and create those that are enabled
+    // We may loop multiple times here to ensure that a SysMod is not created unless all it's dependencies
+    // have been created
+    bool anySysModsCreated = true;
+    while (anySysModsCreated)
+    {
+        anySysModsCreated = false;
+        for (SysModFactory::SysModClassDef& sysModClassDef : _sysModFactory.sysModClassDefs)
+        {
+            // Check if already created
+            bool alreadyCreated = false;
+            for (RaftSysMod* pSysMod : _sysModuleList)
+            {
+                if (pSysMod && pSysMod->modNameStr().equals(sysModClassDef.name))
+                {
+#ifdef DEBUG_SYSMOD_FACTORY
+                    LOG_I(MODULE_PREFIX, "postSetup %s alreadyCreated");
+#endif
+                    alreadyCreated = true;
+                    break;
+                }
+            }
+            if (alreadyCreated)
+                continue;
+
+            // Get enabled flag from SysConfig
+            bool isEnabled = _systemConfig.getBool((sysModClassDef.name + "/enable").c_str(), sysModClassDef.alwaysEnable);
+
+#ifdef DEBUG_SYSMOD_FACTORY
+            {
+                String depListStrCSV;
+                for (const String& dep : sysModClassDef.dependencyList)
+                {
+                    if (!depListStrCSV.isEmpty())
+                        depListStrCSV += ",";
+                    depListStrCSV += dep;
+                }
+                LOG_I(MODULE_PREFIX, "postSetup SysMod %s isEnabled %s (alwaysEnable %s) deps <<<%s>>> depsSatisfied %s", 
+                            sysModClassDef.name.c_str(), 
+                            isEnabled ? "YES" : "NO",
+                            sysModClassDef.alwaysEnable ? "YES" : "NO",
+                            depListStrCSV.c_str(),
+                            checkSysModDependenciesSatisfied(sysModClassDef) ? "YES" : "NO");
+            }
+#endif
+
+            // Check if enabled
+            if (!isEnabled)
+                continue;
+
+            // Check if dependencies are met
+            if (!checkSysModDependenciesSatisfied(sysModClassDef))
+                continue;
+
+            // Create the SysMod (it registers itself with the SysManager)
+            sysModClassDef.pCreateFn(sysModClassDef.name.c_str(), _systemConfig);
+
+            // Set flag to indicate we created a SysMod
+            anySysModsCreated = true;
+        }
+    }
 
     // Now call setup on system modules
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
 #ifdef DEBUG_SYSMOD_MEMORY_USAGE
         uint32_t heapBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 #endif
         if (pSysMod)
             pSysMod->setup();
+
 #ifdef DEBUG_SYSMOD_MEMORY_USAGE
         uint32_t heapAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         ESP_LOGI(MODULE_PREFIX, "%s setup heap before %d after %d diff %d", 
-                pSysMod->modName(), heapBefore, heapAfter, heapBefore - heapAfter);
+                pSysMod->modName(), (int)heapBefore, (int)heapAfter, (int)(heapBefore - heapAfter));
 #endif
     }
 
     // Give each SysMod the opportunity to add endpoints and comms channels and to keep a
     // pointer to the CommsCoreIF that can be used to send messages
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod)
         {
@@ -196,16 +285,15 @@ void SysManager::setup()
     }
 
     // Post-setup - called after setup of all sysMods complete
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod)
             pSysMod->postSetup();
     }
 
     // Check if WiFi to be paused when BLE connected
-    bool pauseWiFiForBLEConn = _sysModManConfig.getLong("pauseWiFiforBLE", 0) != 0;
-    LOG_I(MODULE_PREFIX, "pauseWiFiForBLEConn %s", pauseWiFiForBLEConn ? "YES" : "NO");
-    if (pauseWiFiForBLEConn)
+    LOG_I(MODULE_PREFIX, "pauseWiFiForBLEConn %s", _pauseWiFiForBLE ? "YES" : "NO");
+    if (_pauseWiFiForBLE)
     {
         // Hook status change on BLE
         setStatusChangeCB("BLEMan", 
@@ -214,7 +302,7 @@ void SysManager::setup()
 
 #ifdef DEBUG_LIST_SYSMODS
     uint32_t sysModIdx = 0;
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         LOG_I(MODULE_PREFIX, "SysMod %d: %s", sysModIdx++, 
                 pSysMod ? pSysMod->modName() : "UNKNOWN");
@@ -227,10 +315,10 @@ void SysManager::setup()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service
+// Loop (called from main thread's endless loop)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::service()
+void SysManager::loop()
 {
     // Check if supervisory info is dirty
     if (_supervisorDirty)
@@ -241,12 +329,17 @@ void SysManager::service()
         _supervisorDirty = false;
     }
        
-    // Service monitor periodically records timing
+    // Loop monitor periodically records timing
     if (_monitorTimerStarted)
     {
         // Check if monitor period is up
-        if (Raft::isTimeout(millis(), _monitorTimerMs, _monitorPeriodMs))
+        if (Raft::isTimeout(millis(), _monitorTimerMs, 
+                            _monitorShownFirstTime ? _monitorPeriodMs :MONITOR_PERIOD_FIRST_SHOW_MS))
         {
+            // Wait until next period
+            _monitorTimerMs = millis();
+            _monitorShownFirstTime = true;
+            
             // Calculate supervisory stats
             _supervisorStats.calculate();
 
@@ -255,9 +348,6 @@ void SysManager::service()
 
             // Clear stats for start of next monitor period
             _supervisorStats.clear();
-
-            // Wait until next period
-            _monitorTimerMs = millis();
         }
     }
     else
@@ -268,53 +358,53 @@ void SysManager::service()
         _monitorTimerStarted = true;
     }
 
-    // Check the index into list of sys-mods to service is valid
-    uint32_t numSysMods = _sysModServiceVector.size();
+    // Check the index into list of sys-mods to loop over is valid
+    uint32_t numSysMods = _sysModLoopVector.size();
     if (numSysMods == 0)
         return;
-    if (_serviceLoopCurModIdx >= numSysMods)
-        _serviceLoopCurModIdx = 0;
+    if (_loopCurModIdx >= numSysMods)
+        _loopCurModIdx = 0;
 
     // Monitor how long it takes to go around loop
     _supervisorStats.outerLoopStarted();
 
-#ifndef ONLY_ONE_MODULE_PER_SERVICE_LOOP
-    for (_serviceLoopCurModIdx = 0; _serviceLoopCurModIdx < numSysMods; _serviceLoopCurModIdx++)
+#ifndef ONLY_ONE_MODULE_PER_LOOP
+    for (_loopCurModIdx = 0; _loopCurModIdx < numSysMods; _loopCurModIdx++)
     {
 #endif
 
-    if (_sysModServiceVector[_serviceLoopCurModIdx])
+    if (_sysModLoopVector[_loopCurModIdx])
     {
 #ifdef DEBUG_SYSMOD_WITH_GLOBAL_VALUE
-        DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _serviceLoopCurModIdx;
+        DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _loopCurModIdx;
 #endif
-#ifdef WARN_ON_SYSMOD_SLOW_SERVICE
+#ifdef WARN_ON_SYSMOD_SLOW_LOOP
         uint64_t sysModExecStartUs = micros();
 #endif
 
-        // Service SysMod
-        _supervisorStats.execStarted(_serviceLoopCurModIdx);
-        _sysModServiceVector[_serviceLoopCurModIdx]->service();
-        _supervisorStats.execEnded(_serviceLoopCurModIdx);
+        // Call the SysMod's loop method to allow code inside the module to run
+        _supervisorStats.execStarted(_loopCurModIdx);
+        _sysModLoopVector[_loopCurModIdx]->loop();
+        _supervisorStats.execEnded(_loopCurModIdx);
 
-#ifdef WARN_ON_SYSMOD_SLOW_SERVICE
-        uint64_t sysModServiceUs = micros() - sysModExecStartUs;
-        if (sysModServiceUs > _slowSysModThresholdUs)
+#ifdef WARN_ON_SYSMOD_SLOW_LOOP
+        uint64_t sysModLoopUs = micros() - sysModExecStartUs;
+        if (sysModLoopUs > _slowSysModThresholdUs)
         {
-            LOG_W(MODULE_PREFIX, "service sysMod %s SLOW took %lldms", _sysModServiceVector[_serviceLoopCurModIdx]->modName(), sysModServiceUs/1000);
+            LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %lldms", _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
         }
 #endif
     }
 
-#ifndef ONLY_ONE_MODULE_PER_SERVICE_LOOP
+#ifndef ONLY_ONE_MODULE_PER_LOOP
     }
 #endif
 
     // Debug
-    // LOG_D(MODULE_PREFIX, "Service module %s", sysModInfo._pSysMod->modName());
+    // LOG_D(MODULE_PREFIX, "loop module %s", sysModInfo._pSysMod->modName());
 
     // Next SysMod
-    _serviceLoopCurModIdx++;
+    _loopCurModIdx++;
 
     // Check system restart pending
     if (_systemRestartPending)
@@ -371,7 +461,7 @@ void SysManager::service()
 // Manage SysMod List
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::add(SysModBase* pSysMod)
+void SysManager::addManagedSysMod(RaftSysMod* pSysMod)
 {
     // Avoid adding null pointers
     if (!pSysMod)
@@ -391,21 +481,21 @@ void SysManager::add(SysModBase* pSysMod)
 void SysManager::supervisorSetup()
 {
     // Reset iterator to start of list
-    _serviceLoopCurModIdx = 0;
+    _loopCurModIdx = 0;
 
     // Clear stats
     _supervisorStats.clear();
 
-    // Clear and reserve sysmods from service vector
-    _sysModServiceVector.clear();
-    _sysModServiceVector.reserve(_sysModuleList.size());
+    // Clear and reserve sysmods from loop vector
+    _sysModLoopVector.clear();
+    _sysModLoopVector.reserve(_sysModuleList.size());
 
     // Add modules to list and initialise stats
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod)
         {
-            _sysModServiceVector.push_back(pSysMod);
+            _sysModLoopVector.push_back(pSysMod);
             _supervisorStats.add(pSysMod->modName());
         }
     }
@@ -418,7 +508,7 @@ void SysManager::supervisorSetup()
 void SysManager::setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -438,7 +528,7 @@ void SysManager::clearAllStatusChangeCBs()
     // Debug
     // LOG_I(MODULE_PREFIX, "clearAllStatusChangeCBs");
     // Go through the sysmod list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         return pSysMod->clearStatusChangeCBs();
     }
@@ -450,7 +540,7 @@ void SysManager::clearAllStatusChangeCBs()
 String SysManager::getStatusJSON(const char* sysModName)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -484,7 +574,7 @@ String SysManager::getDebugJSON(const char* sysModName)
     }
 
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -504,7 +594,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     uint64_t startUs = micros();
 #endif
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -534,7 +624,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 double SysManager::getNamedValue(const char* sysModName, const char* valueName, bool& isValid)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -552,7 +642,7 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 void SysManager::sendMsgGenCB(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
     // See if the sysmod is in the list
-    for (SysModBase* pSysMod : _sysModuleList)
+    for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
@@ -585,20 +675,19 @@ RaftRetCode SysManager::apiReset(const String &reqStr, String& respStr, const AP
 RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get serial number
-    String serialNo;
-    if (_pMutableConfig)
-        serialNo = _pMutableConfig->getString("serialNo", "");
+    String serialNo = _mutableConfig.getString("serialNo", "");
     char versionJson[225];
+    // Hardware revision Json
+    String hwRevJson = getBaseSysVersJson();
     snprintf(versionJson, sizeof(versionJson),
              R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
-             R"("MAC":"%s","RicHwRevNo":%d,"HwRev":%d})",
+            R"("MAC":"%s",%s})",
              reqStr.c_str(), 
              _systemName.c_str(), 
              _systemVersion.c_str(), 
              serialNo.c_str(),
              _systemUniqueString.c_str(),
-             _hwRevision,
-             _hwRevision);
+            hwRevJson.c_str());
     respStr = versionJson;
 
 #ifdef DEBUG_API_ENDPOINTS
@@ -680,7 +769,7 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
         {
             magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
-            if (!magicString.equals(_serialMagicStr))
+            if (!magicString.equals(_serialMagicStr) && !_serialMagicStr.isEmpty())
             {
                 Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
                 return RaftRetCode::RAFT_INVALID_DATA;
@@ -691,17 +780,11 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         Raft::getHexStrFromBytes(serialNumBuf, _serialLengthBytes, _mutableConfigCache.serialNo);
 
         // Store the serial no
-        String jsonConfig = getMutableConfigJson();
-        if (_pMutableConfig)
-        {
-            _pMutableConfig->writeConfig(jsonConfig);
-        }
+        _mutableConfig.setJsonDoc(getMutableConfigJson().c_str());
     }
 
     // Get serial number from mutable config
-    String serialNo;
-    if (_pMutableConfig)
-        serialNo = _pMutableConfig->getString("serialNo", "");
+    String serialNo = _mutableConfig.getString("serialNo", "");
 
     // Create response JSON
     char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 100];
@@ -710,15 +793,13 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// HW revision number
+// HW revision
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode SysManager::apiHwRevisionNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+RaftRetCode SysManager::apiBaseSysTypeVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Create response JSON
-    char jsonOut[50];
-    snprintf(jsonOut, sizeof(jsonOut), R"("RicHwRevNo":%d,"HwRevNo":%d)", _hwRevision, _hwRevision);
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, jsonOut);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, getBaseSysVersJson().c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -731,7 +812,7 @@ RaftRetCode SysManager::apiTestSetLoopDelay(const String &reqStr, String& respSt
     std::vector<String> params;
     std::vector<RaftJson::NameValuePair> nameValues;
     RestAPIEndpointManager::getParamsAndNameValues(reqStr.c_str(), params, nameValues);
-    JSONParams nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
+    RaftJson nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
 
     // Extract values
     _stressTestLoopDelayMs = nameValueParamsJson.getLong("delayMs", 0);
@@ -755,7 +836,7 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
     std::vector<String> params;
     std::vector<RaftJson::NameValuePair> nameValues;
     RestAPIEndpointManager::getParamsAndNameValues(reqStr.c_str(), params, nameValues);
-    JSONParams nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
+    RaftJson nameValueParamsJson = RaftJson::getJSONFromNVPairs(nameValues, true);
 
     // Extract log output interval
     _monitorPeriodMs = nameValueParamsJson.getDouble("interval", _monitorPeriodMs/1000) * 1000;
@@ -837,10 +918,14 @@ void SysManager::statsShow()
 {
     // Generate stats
     char statsStr[200];
-    snprintf(statsStr, sizeof(statsStr), R"({"n":"%s","v":"%s","r":%d,"hpInt":%d,"hpMin":%d,"hpAll":%d)", 
+    String friendlyNameStr;
+    if (_mutableConfigCache.friendlyNameIsSet)
+        friendlyNameStr = "\"f\":\"" + _mutableConfigCache.friendlyName + "\",";
+    snprintf(statsStr, sizeof(statsStr), R"({%s"n":"%s","v":"%s","r":"%s","hpInt":%d,"hpMin":%d,"hpAll":%d)", 
+                friendlyNameStr.c_str(),
                 _systemName.c_str(),
                 _systemVersion.c_str(),
-                _hwRevision,
+                _hardwareRevision.c_str(),
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_free_size(MALLOC_CAP_8BIT));
@@ -873,24 +958,26 @@ String SysManager::getFriendlyName(bool& isSet)
     isSet = getFriendlyNameIsSet();
 
     // Handle default naming
-    String friendlyName;
-    if (_pMutableConfig)
-        friendlyName = _pMutableConfig->getString("friendlyName", "");
+    String friendlyNameNVS = _mutableConfig.getString("friendlyName", "");
+    String friendlyName = friendlyNameNVS;
     if (!isSet || friendlyName.isEmpty())
     {
         friendlyName = _defaultFriendlyName;
-        LOG_I(MODULE_PREFIX, "getFriendlyName default %s uniqueStr %s", _defaultFriendlyName.c_str(), _systemUniqueString.c_str());
         if (_systemUniqueString.length() >= 6)
             friendlyName += "_" + _systemUniqueString.substring(_systemUniqueString.length()-6);
     }
+    LOG_I(MODULE_PREFIX, "getFriendlyName %s (isSet %s nvsStr %s default %s uniqueStr %s)", 
+                friendlyName.c_str(), 
+                isSet ? "Y" : "N",
+                friendlyNameNVS.c_str(),
+                _defaultFriendlyName.c_str(), 
+                _systemUniqueString.c_str());
     return friendlyName;
 }
 
 bool SysManager::getFriendlyNameIsSet()
 {
-    if (_pMutableConfig)
-        return _pMutableConfig->getLong("nameSet", 0);
-    return true;
+    return _mutableConfig.getLong("nameSet", 0);
 }
 
 bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, String& errorStr)
@@ -914,11 +1001,7 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
         networkSystem.setHostname(_mutableConfigCache.friendlyName.c_str());
 
     // Store the new name (even if it is blank)
-    String jsonConfig = getMutableConfigJson();
-    if (_pMutableConfig)
-    {
-        _pMutableConfig->writeConfig(jsonConfig);
-    }
+    _mutableConfig.setJsonDoc(getMutableConfigJson().c_str());
     return true;
 }
 
@@ -930,10 +1013,57 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
 {
     // Check if WiFi should be paused
     LOG_I(MODULE_PREFIX, "BLE connection change isConn %s", changeToOnline ? "YES" : "NO");
-    bool pauseWiFiForBLEConn = _sysModManConfig.getString("pauseWiFiforBLE", 0);
-    if (pauseWiFiForBLEConn)
+    if (_pauseWiFiForBLE)
     {
         networkSystem.pauseWiFi(changeToOnline);
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get hardware revision JSON
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String SysManager::getBaseSysVersJson()
+{
+    // Get hardware revision string (if all digits then set in JSON as a number for backward compatibility)
+    String baseSysTypeVersStr = _sysTypeManager.getBaseSysTypeVersion();
+    String ricHWRevStr = _sysTypeManager.getBaseSysTypeVersion();
+    bool allDigits = true;
+    for (int i = 0; i < ricHWRevStr.length(); i++)
+    {
+        if (!isdigit(ricHWRevStr.charAt(i)))
+        {
+            allDigits = false;
+            break;
+        }
+    }
+    if (!allDigits)
+        ricHWRevStr = "\"" + ricHWRevStr + "\"";
+    // Form JSON
+    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"RicHwRevNo\":" + ricHWRevStr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check SysMod dependencies satisfied
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool SysManager::checkSysModDependenciesSatisfied(const SysModFactory::SysModClassDef& sysModClassDef)
+{
+    // Check if all dependencies are satisfied
+    for (auto& dependency : sysModClassDef.dependencyList)
+    {
+        // See if the sysmod is in the list of SysMods
+        bool found = false;
+        for (RaftSysMod* pSysMod : _sysModuleList)
+        {
+            if (pSysMod->modNameStr().equals(dependency))
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+    }
+    return true;
+}

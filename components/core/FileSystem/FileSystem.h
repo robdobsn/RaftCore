@@ -9,23 +9,33 @@
 
 #pragma once
 
+#include <list>
+#include <string>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include <RaftArduino.h>
-#include <list>
-#include <RaftUtils.h>
+#include "RaftArduino.h"
+#include "RaftUtils.h"
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
-#include <string>
+
+#define FILE_SYSTEM_SUPPORTS_LITTLEFS
 
 class FileSystem
 {
 public:
     FileSystem();
+    virtual ~FileSystem();
+
+    // Local file system types
+    typedef enum {
+        LOCAL_FS_DISABLE,
+        LOCAL_FS_SPIFFS,
+        LOCAL_FS_LITTLEFS,
+    } LocalFileSystemType;
 
     // Setup 
-    void setup(bool enableSPIFFS, bool enableLittleFS, bool localFsFormatIfCorrupt, bool enableSD, 
+    void setup(LocalFileSystemType localFsType, bool localFsFormatIfCorrupt, bool enableSD, 
         int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin, bool defaultToSDIfAvailable,
         bool cacheFileSystemInfo);
 
@@ -86,7 +96,7 @@ public:
             uint32_t lineMaxLen, uint32_t& fileCurPos);
 
     // Open file
-    FILE* fileOpen(const String& fileSystemStr, const String& filename, bool writeMode, uint32_t seekToPos);
+    FILE* fileOpen(const String& fileSystemStr, const String& filename, bool writeMode, uint32_t seekToPos, bool seekFromEnd = false);
 
     // Close file
     bool fileClose(FILE* pFile, const String& fileSystemStr, const String& filename, bool fileModified);
@@ -105,64 +115,56 @@ public:
     
     // Get temporary file name
     String getTempFileName();
+
+    // Get file system size
+    bool getFileSystemSize(const String& fileSystemStr, uint32_t& fsSizeBytes, uint32_t& fsUsedBytes);
     
 private:
 
-    // File system controls
-    bool _localFSIsLittleFS;
-    bool _defaultToSDIfAvailable;
-    bool _sdIsOk;
-    bool _cacheFileSystemInfo;
+    // File system settings
+    LocalFileSystemType _localFsType = LOCAL_FS_DISABLE;
+    bool _defaultToSDIfAvailable = false;
+    bool _sdIsOk = false;
+    bool _cacheFileSystemInfo = false;
 
     // SD card
-    void* _pSDCard;
+    void* _pSDCard = nullptr;
 
     // Cached file info
     class CachedFileInfo
     {
     public:
-        CachedFileInfo()
-        {
-            fileSize = 0;
-            isValid = false;
-        }
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fileName;
-        uint32_t fileSize;
-        bool isValid;
+        uint32_t fileSize = 0;
+        bool isValid = false;
     };
     class CachedFileSystem
     {
     public:
-        CachedFileSystem()
-        {
-            fsSizeBytes = 0;
-            fsUsedBytes = 0;
-            isSizeInfoValid = false;
-            isFileInfoValid = false;
-            isFileInfoSetup = false;
-            isUsed = false;
-        }
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fsName;
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fsBase;
         std::list<CachedFileInfo, SpiramAwareAllocator<CachedFileInfo>> cachedRootFileList;
-        uint32_t fsSizeBytes;
-        uint32_t fsUsedBytes;
-        bool isSizeInfoValid;
-        bool isFileInfoValid;
-        bool isFileInfoSetup;
-        bool isUsed;
+        uint32_t fsSizeBytes = 0;
+        uint32_t fsUsedBytes = 0;
+        bool isSizeInfoValid = false;
+        bool isFileInfoValid = false;
+        bool isFileInfoSetup = false;
+        bool isUsed = false;
     };
     CachedFileSystem _sdFsCache;
     CachedFileSystem _localFsCache;
 
     // Mutex controlling access to file system
-    SemaphoreHandle_t _fileSysMutex;
+    SemaphoreHandle_t _fileSysMutex = nullptr;
+
+    // File system partition name
+    String _fsPartitionName;
 
 private:
     bool checkFileSystem(const String& fileSystemStr, String& fsName) const;
     String getFilePath(const String& nameOfFS, const String& filename) const;
-    void localFileSystemSetup(bool enableSPIFFS, bool enableLittleFS, bool formatIfCorrupt);
-#ifdef FEATURE_LITTLEFS_SUPPORT
+    void localFileSystemSetup(bool formatIfCorrupt);
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
     bool localFileSystemSetupLittleFS(bool formatIfCorrupt);
 #endif
     bool localFileSystemSetupSPIFFS(bool formatIfCorrupt);
@@ -183,7 +185,8 @@ private:
     static constexpr const char* SD_FILE_SYSTEM_NAME = "sd";
     static constexpr const char* SD_FILE_SYSTEM_BASE_PATH = "/sd";
     static constexpr const char* SD_FILE_SYSTEM_PATH_ELEMENT = "sd/";
-    static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL = "spiffs";
+    static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL = "fs";
+    static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT = "spiffs";
 };
 
 extern FileSystem fileSystem;

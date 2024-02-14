@@ -9,22 +9,23 @@
 
 #pragma once
 
-#include <Logger.h>
-#include <ProtocolBase.h>
+#include "Logger.h"
+#include "ProtocolBase.h"
 
 class MiniHDLC;
+class RaftJsonIF;
 
 class ProtocolRICSerial : public ProtocolBase
 {
 public:
-    ProtocolRICSerial(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+    ProtocolRICSerial(uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                         CommsChannelOutboundHandleMsgFnType msgTxCB, 
                         CommsChannelInboundHandleMsgFnType msgRxCB, 
                         CommsChannelInboundCanAcceptFnType readyToRxCB);
     virtual ~ProtocolRICSerial();
     
     // Create instance
-    static ProtocolBase* createInstance(uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+    static ProtocolBase* createInstance(uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                         CommsChannelOutboundHandleMsgFnType msgTxCB, 
                         CommsChannelInboundHandleMsgFnType msgRxCB, 
                         CommsChannelInboundCanAcceptFnType readyToRxCB)

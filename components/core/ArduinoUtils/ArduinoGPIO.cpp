@@ -3,10 +3,10 @@
 
 #ifndef ARDUINO
 
+#include <stdint.h>
 #include "sdkconfig.h"
 #include "ArduinoGPIO.h"
 #include "ArduinoTime.h"
-#include "stdint.h"
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
@@ -24,7 +24,7 @@
 
 // #define DEBUG_PINMODE
 #ifdef DEBUG_PINMODE
-#include <Logger.h>
+#include "Logger.h"
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

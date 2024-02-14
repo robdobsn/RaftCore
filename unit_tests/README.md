@@ -8,3 +8,8 @@ To build these tests use the Makefile in this directory:
 ```bash
 $ make
 ```
+
+To flash using wsl
+```bash
+$ make flashwsl
+```

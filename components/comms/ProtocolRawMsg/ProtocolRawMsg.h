@@ -10,9 +10,8 @@
 
 #include <vector>
 #include <stdint.h>
-#include <RaftArduino.h>
-#include <RaftJson.h>
-#include <SpiramAwareAllocator.h>
+#include "RaftArduino.h"
+#include "SpiramAwareAllocator.h"
 
 class ProtocolRawMsg
 {

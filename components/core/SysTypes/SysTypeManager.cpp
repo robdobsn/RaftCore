@@ -7,204 +7,253 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "SysTypeManager.h"
+#include "Logger.h"
 #include "RaftJson.h"
+#include "RaftJsonNVS.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
+#include "SysTypeManager.h"
 
 static const char* MODULE_PREFIX = "SysTypeManager";
 
-// #define DEBUG_SYS_TYPE_CONFIG
-// #define DEBUG_SYS_TYPE_CONFIG_DETAIL
-// #define DEBUG_GET_POST_SETTINGS
-// #define DEBUG_SYS_TYPE_SETTING_WRITE
+// #define DEBUG_SYS_TYPE_MANAGER_API
+// #define DEBUG_SYS_TYPE_SET_BEST
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-SysTypeManager::SysTypeManager(ConfigNVS& sysTypeConfig) :
-        _sysTypeConfig(sysTypeConfig)
+/// @brief Constructor
+/// @param systemConfig system configuration (based on a JSON document)
+/// @param baseSysTypesJson JSON document containing the current base SysType
+SysTypeManager::SysTypeManager(RaftJsonIF& systemConfig, RaftJson& sysTypeConfig) :
+        _systemConfig(systemConfig),
+        _baseSysTypeConfig(sysTypeConfig)
 {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void SysTypeManager::setup(const char** pSysTypeConfigArrayStatic, int sysTypeConfigArrayLen)
+/// @brief setBaseSysTypes the SysTypes to be selected from
+/// @param pSysTypeInfoRecs pointer to a vector of SysTypeInfoRec records
+/// @note The SysTypeInfoRec records are not copied and must remain valid for the lifetime of this object
+///       Once the SysTypeInfoRecs have been set the system type is selected based on the SysType key in
+///       the JSON non-volatile storage (if it exists) or the first SysType in the SysTypeInfoRecs
+///       (if there is only one SysType) or the SysType that matches the base SysType version string
+///       if it is not empty
+void SysTypeManager::setBaseSysTypes(const SysTypeInfoRec* pSysTypeInfoRecs, uint16_t numSysTypeInfoRecs)
 {
-    // Add configurations from array
-    for (int configIdx = 0; configIdx < sysTypeConfigArrayLen; configIdx++)
+    // Check valid
+    if (!pSysTypeInfoRecs)
     {
-        _sysTypesList.push_back(pSysTypeConfigArrayStatic[configIdx]);
-#ifdef DEBUG_SYS_TYPE_CONFIG_DETAIL
-        LOG_I(MODULE_PREFIX, "setup sysTypeFromArray %s", pSysTypeConfigArrayStatic[configIdx]);
-#endif
+        LOG_E(MODULE_PREFIX, "setup pSysTypeInfoRecs is NULL");
+        return;
     }
 
-    // If there is only one configuration in the list then choose that one as the static config
-    // it may still be overridden by config from the non-volatile storage if there is any set
-    if (_sysTypesList.size() == 1)
+    // Store the SysType information records
+    _pSysTypeInfoRecs = pSysTypeInfoRecs;
+    _numSysTypeInfoRecs = numSysTypeInfoRecs;
+
+    // Set the system type to the best match
+    selectBest();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set version of base SysType
+/// @param hwRev versionString
+/// @note Setting the base SysType version will cause the base SysType to be re-selected based on the
+///       best match to the version string and SysType specified in the non-volatile JSON document
+///       (if it exists)
+void SysTypeManager::setBaseSysTypeVersion(const char* pVersionStr)
+{
+    // Set the version
+    if (pVersionStr)
+        _baseSysTypeVersion = pVersionStr;
+
+    // Set the system type to the best match
+    selectBest();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get current SysType name
+/// @return SysType name which may be from the SysType key in JSON non-volatile storage or from the
+///         currently selected SysType from the SysTypeInfoRecs.
+String SysTypeManager::getCurrentSysTypeName()
+{
+    // Check the value from the JSON document
+    String sysTypeName = _systemConfig.getString("SysType", "");
+
+    // If this is empty then use record in SysTypeInfoRecs that is currently selected
+    if (sysTypeName.length() != 0)
+        return sysTypeName;
+
+    // Check if a SysTypeInfoRec has been selected
+    if (!_pSysTypeInfoRecs || (_currentlySysTypeInfoRecIdx < 0) || 
+                (_currentlySysTypeInfoRecIdx >= (int)_numSysTypeInfoRecs))
+        return "";
+
+    // Return SysType name from the selected SysTypeInfoRec
+    return _pSysTypeInfoRecs[_currentlySysTypeInfoRecIdx].getSysTypeName();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a list of SysTypes as a JSON list
+/// @return JSON document containing just a list of SysTypes
+/// @note the list is generated from the SysTypeInfoRec records passed into setup. The list returned will only
+///       include those SysTypes that are valid for the current base SysType version string (unless there is
+///       only 1 base SysType in which case it will be returned)
+String SysTypeManager::getBaseSysTypesListAsJson()
+{
+
+    // Set of SysType names
+    std::vector<String> sysTypeNames;
+
+    // Get a JSON formatted list of sysTypes
+    String respStr = "[";
+
+    // Add each SysType from the systype info records
+    if (_pSysTypeInfoRecs)
     {
-        // Check JSON is valid
-        int numJsonTokens = 0;
-        if (!RaftJson::validateJson(_sysTypesList.front(), numJsonTokens))
+        bool isFirst = true;
+        for (uint16_t sysTypeIdx = 0; sysTypeIdx < _numSysTypeInfoRecs; sysTypeIdx++)
         {
-            LOG_E(MODULE_PREFIX, "setup JSON from SysType failed to parse");
-            return;
+            // Get SysType info record
+            const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[sysTypeIdx];
+
+            // Get base name
+            String recName = sysTypeInfoRec.getSysTypeName();
+            if (recName.length() == 0)
+                continue;
+
+            // Get version
+            String recVersion = sysTypeInfoRec.getSysTypeVersion();
+
+            // Check if valid for this version
+            if (!recVersion.equals(_baseSysTypeVersion) && (_numSysTypeInfoRecs != 1) && (_baseSysTypeVersion.length() != 0))
+                continue;
+
+            // Check if this SysType is already in the list
+            bool alreadyInList = false;
+            for (const String& sysTypeName : sysTypeNames)
+            {
+                if (sysTypeName.equals(recName))
+                {
+                    alreadyInList = true;
+                    break;
+                }
+            }
+            if (alreadyInList)
+                continue;
+
+            // Add to list
+            sysTypeNames.push_back(recName);
+
+            // Add comma if needed
+            if (!isFirst)
+                respStr += ",";
+            isFirst = false;
+
+            // Append to return string
+            respStr += "\"" + recName + "\"";
+        }
+    }
+
+    respStr += "]";
+    return respStr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the JSON document for a base SysType (SysTypes are used for configuration defined by the JSON doc)
+/// @param pSysTypeName name of the SysType (if this is nullptr or empty then the current SysType doc is returned)
+///                     the information returned will be for the SysType record relating to the current base
+///                     base SysType version
+/// @param outJsonDoc JSON document to return content in
+/// @param append true if the JSON document should be appended to
+/// @return bool true if the JSON document was found
+bool SysTypeManager::getBaseSysTypeContent(const char* pSysTypeName, String& outJsonDoc, bool append)
+{
+    // Check for nullptr or blank - in which case return the current JSON doc
+    if (!pSysTypeName || (strlen(pSysTypeName) == 0))
+    {
+        // Get the JSON doc from chained RaftJson object
+        const RaftJsonIF* pChainedRaftJson = _systemConfig.getChainedRaftJson();
+        if (pChainedRaftJson)
+        {
+            const char* pJsonDoc = pChainedRaftJson->getJsonDoc();
+            if (pJsonDoc)
+            {
+                if (!append)
+                    outJsonDoc.clear();
+                outJsonDoc += pJsonDoc;
+                return true;
+            }
         }
 
-        // Set config from first item
-        _sysTypeConfig.setStaticConfigData(_sysTypesList.front());
-
-        // Debug
-#ifdef DEBUG_SYS_TYPE_CONFIG_DETAIL
-        LOG_I(MODULE_PREFIX, "setup sysTypeFromNVS %s", _sysTypeConfig.getConfigString().c_str());
-#endif
-
-        // Get type name
-        _curSysTypeName = _sysTypeConfig.getString("SysType", "");
-
-        // Debug
-        LOG_I(MODULE_PREFIX, "Only 1 SysType so assuming that type = %s", _curSysTypeName.c_str());
+        // Failed to get JSON doc
+        return false;
     }
-}
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get list of SysTypes JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void SysTypeManager::getSysTypesListJSON(String &respStr)
-{
-    // Get a JSON formatted list of sysTypes
-    respStr = "[";
-    bool isFirst = true;
-    for (ConfigBase sysTypeConfig : _sysTypesList)
+    // Check the SysType info records are valid
+    if (!_pSysTypeInfoRecs)
     {
-        // Get name of SysType
-        String sysTypeName = sysTypeConfig.getString("SysType", "");
-
-        // Add comma if needed
-        if (!isFirst)
-            respStr += ",";
-        isFirst = false;
-
-        // Append to return string
-        respStr += "\"" + sysTypeName + "\"";
+        LOG_E(MODULE_PREFIX, "getJsonDocForSysType no SysTypeInfoRecs");
+        return false;
     }
-    respStr += "]";
-}
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get JSON for a SysTypeConfig
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool SysTypeManager::getSysTypeConfig(const String& sysTypeName, String &respStr)
-{
-    
-    // Check blank which means current one
-    String nameToMatch = sysTypeName.isEmpty() ? _curSysTypeName : sysTypeName;
-    LOG_I(MODULE_PREFIX, "Requesting %s%s, there are %d default types", nameToMatch.c_str(), 
-        sysTypeName.isEmpty() ? " (blank was passed)" : "",
-        _sysTypesList.size());
-
-    // Find matching sysType
-    for (ConfigBase sysTypeConfig : _sysTypesList)
+    // Find the requested SysType in the SysTypeInfoRecs - it needs to match both the name and
+    // the base SysType version
+    for (uint16_t sysTypeIdx = 0; sysTypeIdx < _numSysTypeInfoRecs; sysTypeIdx++)
     {
-        String altSysTypeName = sysTypeConfig.getString("SysType", "");
-        // LOG_D(MODULE_PREFIX, "Testing %s against %s", pNameToMatch, sysTypeName.c_str());
-        if (altSysTypeName.equals(nameToMatch))
+        const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[sysTypeIdx];
+        String recName = sysTypeInfoRec.getSysTypeName();
+        String recVersion = sysTypeInfoRec.getSysTypeVersion();
+        if (recName.equals(pSysTypeName) && 
+                (recVersion.equals(_baseSysTypeVersion) || (_numSysTypeInfoRecs == 1)) && 
+                sysTypeInfoRec.pSysTypeJSONDoc)
         {
-#ifdef DEBUG_SYS_TYPE_CONFIG
-            LOG_I(MODULE_PREFIX, "Config for %s found", nameToMatch.c_str());
-            LOG_I(MODULE_PREFIX, "Config str %s", sysTypeConfig.getConfigString().c_str());
-#endif
-            respStr = sysTypeConfig.getConfigString();
+            // Get the JSON doc
+            if (!append)
+                outJsonDoc.clear();
+            outJsonDoc += sysTypeInfoRec.pSysTypeJSONDoc;
             return true;
         }
     }
-    LOG_W(MODULE_PREFIX, "Config for %s not found", nameToMatch.c_str());
-    respStr = "{}";
     return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// System Settings
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool SysTypeManager::setSysSettings(const uint8_t *pData, int len)
+/// @brief Set the non-volatile document contents
+/// @param pJsonDoc JSON document
+/// @note This is the JSON document that is stored in non-volatile storage and is used 
+///       override configuration settings
+bool SysTypeManager::setNonVolatileDocContents(const char* pJsonDoc)
 {
-    // Debug
-#ifdef DEBUG_SYS_TYPE_CONFIG
-    LOG_I(MODULE_PREFIX, "setSystemTypeConfig len %d", len);
-#endif
+    // Set the non-volatile JSON document
+    bool rslt = _systemConfig.setJsonDoc(pJsonDoc);
 
-    // Check sensible length
-    if (len + 10 > _sysTypeConfig.getMaxLen())
-    {
-        LOG_W(MODULE_PREFIX, "setSysSettings config too long");
-        return false;
-    }
-
-    // Extract string
-    String configJson;
-    if (Raft::strFromBuffer(pData, len, configJson))
-    {
-#ifdef DEBUG_SYS_TYPE_CONFIG
-        LOG_I(MODULE_PREFIX, "setSystemTypeConfig %s", configJson.c_str());
-#endif
-
-        // Check JSON is valid
-        int numJsonTokens = 0;
-        if (!RaftJson::validateJson(configJson.c_str(), numJsonTokens))
-        {
-            LOG_E(MODULE_PREFIX, "setSysSettings JSON failed to parse %s", configJson.c_str());
-            return false;
-        }
-
-        // Store the configuration permanently
-        // LOG_W(MODULE_PREFIX, "SYS_TYPE_CONFIG currently %s", _sysTypeConfig.getConfigString().c_str());
-        _sysTypeConfig.writeConfig(configJson);
-#ifdef DEBUG_SYS_TYPE_SETTING_WRITE
-        LOG_I(MODULE_PREFIX, "SYS_TYPE_CONFIG now %s", _sysTypeConfig.getConfigString().c_str());
-#endif
-
-        // Get type name
-        _curSysTypeName = _sysTypeConfig.getString("SysType", "");
-    }
-    else
-    {
-        LOG_W(MODULE_PREFIX, "setSysSettings failed to set");
-        return false;
-    }
-
-    // Ok
-    return true;
+    // Select the best SysType because the non-volatile JSON document may have contained a SysType key
+    if (rslt)
+        selectBest();
+    return rslt;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Endpoints
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Add REST API endpoints
+/// @param endpointManager endpoint manager
 void SysTypeManager::addRestAPIEndpoints(RestAPIEndpointManager& endpointManager)
 {
     // Get SysTypes list
     endpointManager.addEndpoint("getSysTypes", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&SysTypeManager::apiGetSysTypes, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            "Get system types");
+                            "Get list of base system types");
 
     // Get a SysType config
     endpointManager.addEndpoint("getSysTypeConfiguration", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
-                            std::bind(&SysTypeManager::apiGetSysTypeConfig, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            "Get config for a system type");
+                            std::bind(&SysTypeManager::apiGetSysTypeContent, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                            "Get JSON contents for a named base system type");
 
     // Post persisted settings - these settings override the underlying (static) SysType settings
     endpointManager.addEndpoint("postsettings", 
                             RestAPIEndpoint::ENDPOINT_CALLBACK, 
                             RestAPIEndpoint::ENDPOINT_POST,
                             std::bind(&SysTypeManager::apiSysTypePostSettings, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            "Set settings for system add /reboot to restart after settings the value",
+                            "Set non-volatile systype config, for system add /reboot to restart after settings the value",
                             "application/json", 
                             NULL,
                             RestAPIEndpoint::ENDPOINT_CACHE_NEVER,
@@ -218,7 +267,7 @@ void SysTypeManager::addRestAPIEndpoints(RestAPIEndpointManager& endpointManager
     // Get persisted settings - these are the overridden settings so may be empty
     endpointManager.addEndpoint("getsettings", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&SysTypeManager::apiSysTypeGetSettings, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            "Get settings for system /getsettings/<filter> where filter is all, nv, base (nv indicates non-volatile) and filter can be blank for all");
+                            "Get systype info for system, /getsettings/<filter> where filter is all, nv, base (nv indicates non-volatile) and filter can be blank for all");
 
     // Clear settings
     endpointManager.addEndpoint("clearsettings", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
@@ -226,51 +275,89 @@ void SysTypeManager::addRestAPIEndpoints(RestAPIEndpointManager& endpointManager
                             "Clear settings for system /clearsettings");
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief API get system types
+/// @param reqStr request string
+/// @param respStr response string
+/// @param sourceInfo source information
 RaftRetCode SysTypeManager::apiGetSysTypes(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
     LOG_I(MODULE_PREFIX, "GetSysTypes");
-    String sysTypesJson;
-    getSysTypesListJSON(sysTypesJson);
+#endif
+    String sysTypesJson = getBaseSysTypesListAsJson();
     // Response
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, ("\"sysTypes\":" + sysTypesJson).c_str());
 }
 
-RaftRetCode SysTypeManager::apiGetSysTypeConfig(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief API get system type config
+/// @param reqStr request string
+/// @param respStr response string
+/// @param sourceInfo source information
+/// @note The systype content matching the base SysType version and requested name will be returned
+RaftRetCode SysTypeManager::apiGetSysTypeContent(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
-#ifdef DEBUG_GET_POST_SETTINGS
-    LOG_I(MODULE_PREFIX, "apiGetSysTypeConfig");
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
+    LOG_I(MODULE_PREFIX, "apiGetSysTypeContent");
 #endif
     String sysTypeName = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
-    String sysTypeJson;
-    bool gotOk = getSysTypeConfig(sysTypeName, sysTypeJson);
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, gotOk, ("\"sysType\":" + sysTypeJson).c_str());
+    String sysTypeJson = "\"sysType\":";
+    bool gotOk = getBaseSysTypeContent(sysTypeName.c_str(), sysTypeJson, true);
+    if (gotOk)
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, gotOk, sysTypeJson.c_str());
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, gotOk);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get system settings
+/// @param reqStr request string
+/// @param respStr response string
+/// @param sourceInfo source information
 RaftRetCode SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
+    // Check argument
     String filterSettings = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
-    String settingsResp = "\"sysType\":\"" + _curSysTypeName + "\"";
-#ifdef DEBUG_GET_POST_SETTINGS
-    LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings filter %s sysType %s", filterSettings.c_str(), _curSysTypeName.c_str());
+
+    // Basic response is the current system type
+    String settingsResp = "\"sysType\":\"" + getCurrentSysTypeName() + "\"";
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
+    LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings filter %s sysType %s baseSysTypeVersion %s", 
+                filterSettings.c_str(), getCurrentSysTypeName().c_str(), _baseSysTypeVersion.c_str());
 #endif
     if (filterSettings.equalsIgnoreCase("nv") || filterSettings.equalsIgnoreCase("all") || (filterSettings == ""))
     {
-        String sysSettingsJson = _sysTypeConfig.getPersistedConfig();
-#ifdef DEBUG_GET_POST_SETTINGS
-        LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings nv %s", sysSettingsJson.c_str());
+        // Get the non-volatile document
+        const char* pPersistedJsonDoc = _systemConfig.getJsonDoc();
+        settingsResp += String(",\"nv\":") + pPersistedJsonDoc;
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
+        LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings nv %s", pPersistedJsonDoc);
 #endif
-        settingsResp += ",\"nv\":" + sysSettingsJson;
     }
     if (filterSettings.equalsIgnoreCase("base") || filterSettings.equalsIgnoreCase("all") || (filterSettings == ""))
     {
-        settingsResp += ",\"base\":" + _sysTypeConfig.getStaticConfig();
+        // Check if there is any chaining of RaftJson objects - if so the first in the chain is
+        // considered the base JSON doc
+        const RaftJsonIF* pBaseRaftJson = _systemConfig.getChainedRaftJson();
+        if (pBaseRaftJson)
+        {
+            // Get the base JSON doc
+            const char* pBaseJsonDoc = pBaseRaftJson->getJsonDoc();
+            settingsResp += String(",\"base\":") + pBaseJsonDoc;
+        }
     }
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, settingsResp.c_str());
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set system settings (completion)
+/// @param reqStr request string
+/// @param respStr response string
+/// @param sourceInfo source information
 RaftRetCode SysTypeManager::apiSysTypePostSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
-#ifdef DEBUG_GET_POST_SETTINGS
+    // Note that this is called after the body of the POST is complete
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
     LOG_I(MODULE_PREFIX, "PostSettings request %s", reqStr.c_str());
 #endif
     String rebootRequired = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
@@ -287,15 +374,28 @@ RaftRetCode SysTypeManager::apiSysTypePostSettings(const String &reqStr, String 
     return RaftRetCode::RAFT_OK;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set system settings body
+/// @param reqStr request string
+/// @param pData pointer to data
+/// @param len length of data
 RaftRetCode SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, const uint8_t *pData, size_t len, 
                 size_t index, size_t total, const APISourceInfo& sourceInfo)
 {
     if (len == total)
     {
-        // Store the settings
-        _lastPostResultOk = setSysSettings(pData, len);
+        // Form the JSON document
+        _postResultBuf.assign(pData, pData + len);
+        // Make sure it is null-terminated
+        if (_postResultBuf[_postResultBuf.size() - 1] != 0)
+            _postResultBuf.push_back(0);
+        // Store the settings from buffer and clear the buffer
+        _lastPostResultOk = setNonVolatileDocContents(_postResultBuf.data());
+        _postResultBuf.clear();
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
         LOG_I(MODULE_PREFIX, "apiSysTypePostSettingsBody oneblock rslt %s len %d index %d total %d curBufLen %d", 
                     _lastPostResultOk ? "OK" : "FAIL", len, index, total, _postResultBuf.size());
+#endif
         return RAFT_OK;
     }
 
@@ -309,24 +409,102 @@ RaftRetCode SysTypeManager::apiSysTypePostSettingsBody(const String& reqStr, con
     // Check for complete
     if (_postResultBuf.size() == total)
     {
+        // Check the buffer is null-terminated
+        if (_postResultBuf[_postResultBuf.size() - 1] != 0)
+            _postResultBuf.push_back(0);
+
         // Store the settings from buffer and clear the buffer
-        _lastPostResultOk = setSysSettings(_postResultBuf.data(), _postResultBuf.size());
+        _lastPostResultOk = setNonVolatileDocContents(_postResultBuf.data());
         _postResultBuf.clear();
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
         LOG_I(MODULE_PREFIX, "apiSysTypePostSettingsBody multiblock rslt %s len %d index %d total %d", 
                     _lastPostResultOk ? "OK" : "FAIL", len, index, total);
+#endif
     }
     else
     {
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
         LOG_I(MODULE_PREFIX, "apiSysTypePostSettingsBody partial len %d index %d total %d curBufLen %d", 
             len, index, total, _postResultBuf.size());
+#endif
     }
     return RAFT_OK;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Clear system settings
+/// @param reqStr request string
+/// @param respStr response string
+/// @param sourceInfo source information
 RaftRetCode SysTypeManager::apiSysTypeClearSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
     LOG_I(MODULE_PREFIX, "ClearSettings");
-    String emptyObj = "{}";
-    bool clearOk = setSysSettings((uint8_t*)emptyObj.c_str(), emptyObj.length());
+    const char* pEmptyObj = "{}";
+    bool clearOk = setNonVolatileDocContents(pEmptyObj);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, clearOk);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief set the best system type based on the requested system type name and base SysType version
+void SysTypeManager::selectBest()
+{
+    // This method sets a pointer to the JSON doc for a base SysType (from the SysTypeInfoRecs) into the chained
+    // RaftJson object in the system config.
+    // A SysType info rec will only be selected if it matches the base SysType version or if there is only 
+    // one base SysType (otherwise, a nullptr will be set into the chained RaftJson object)
+    // Assuming one or more SysType info recs match the base SysType version then the one chosen will either be
+    // the one matching the SysType key in the non-volatile JSON document or the first one in the list
+
+    // Initially remove the chained document so SysType can only come from the non-volatile JSON document
+    _systemConfig.setChainedRaftJson(nullptr);
+
+    // Get the system type from NVS
+    String sysTypeName = _systemConfig.getString("SysType", "");
+
+    // Find matching sysType
+    int bestValidSysTypeInfoRecIdx = -1;
+    for (int sysTypeInfoRecIdx = 0; sysTypeInfoRecIdx < (int)_numSysTypeInfoRecs; sysTypeInfoRecIdx++)
+    {
+        const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[sysTypeInfoRecIdx];
+        String recName = sysTypeInfoRec.getSysTypeName();
+        String recVersion = sysTypeInfoRec.getSysTypeVersion();
+        // Check version matches first
+        if (!recVersion.equals(_baseSysTypeVersion) && (_numSysTypeInfoRecs != 1) && (_baseSysTypeVersion.length() != 0))
+            continue;
+        // Check if this is first match
+        if (bestValidSysTypeInfoRecIdx < 0)
+            bestValidSysTypeInfoRecIdx = sysTypeInfoRecIdx;
+        // Check if this is the SysType we are looking for
+        if (recName.equals(sysTypeName))
+            bestValidSysTypeInfoRecIdx = sysTypeInfoRecIdx;
+        }
+
+    // Check if a valid SysType was found
+    if (bestValidSysTypeInfoRecIdx < 0)
+    {
+        LOG_W(MODULE_PREFIX, "selectBest no valid SysType found - numSysTypeInfoRecs %d baseSysTypeVersion %s sysTypeName from NVS %s", 
+                    _numSysTypeInfoRecs, _baseSysTypeVersion.c_str(), sysTypeName.c_str());
+        return;
+    }
+
+    // Get the SysType info rec
+    const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[bestValidSysTypeInfoRecIdx];
+
+    // Set into the main document of the chained RaftJson object
+    _baseSysTypeConfig.setSourceStr(sysTypeInfoRec.pSysTypeJSONDoc, false, strlen(sysTypeInfoRec.pSysTypeJSONDoc));
+
+    // Set the chained RaftJson object into the system config
+    _systemConfig.setChainedRaftJson(&_baseSysTypeConfig);
+
+    // Record the selected SysType info rec
+    _currentlySysTypeInfoRecIdx = bestValidSysTypeInfoRecIdx;
+
+#ifdef DEBUG_SYS_TYPE_SET_BEST
+    LOG_I(MODULE_PREFIX, "selectBest selected recName %s recVersion %s curBaseVersion <<<%s>>> jsonDocPtr %p chainedPtr %p chainedJsonDoc %s", 
+                sysTypeInfoRec.getSysTypeName().c_str(), sysTypeInfoRec.getSysTypeVersion(), _baseSysTypeVersion.c_str(), 
+                sysTypeInfoRec.pSysTypeJSONDoc,
+                _systemConfig.getChainedRaftJson(),
+                _systemConfig.getChainedRaftJson() ? _systemConfig.getChainedRaftJson()->getJsonDoc() : "null"
+                );
+#endif
 }

@@ -23,11 +23,11 @@
 #ifndef ARDUINO
 #ifdef __cplusplus
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <ArduinoPgmSpace.h>
-#include <stdint.h>
+#include "ArduinoPgmSpace.h"
 
 // An inherited class for holding the result of a concatenation.  These
 // result objects are assumed to be writable by subsequent concatenations.

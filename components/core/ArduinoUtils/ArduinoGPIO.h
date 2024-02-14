@@ -5,8 +5,7 @@
 
 #ifndef ARDUINO
 
-#include "esp_attr.h"
-#include "stdint.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

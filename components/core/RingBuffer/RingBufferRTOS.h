@@ -9,8 +9,8 @@
 
 #pragma once
 
-#include "RingBufferPosnRTOS.h"
 #include <vector>
+#include "RingBufferPosnRTOS.h"
 
 template<typename ElemT, uint32_t bufferSize>
 class RingBufferRTOS

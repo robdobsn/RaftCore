@@ -7,11 +7,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <Logger.h>
-#include "NetworkSystem.h"
-#include <RaftUtils.h>
-#include <ESPUtils.h>
-#include <RaftArduino.h>
+#include <time.h>
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -22,12 +18,20 @@
 #include "nvs_flash.h"
 #include "esp_private/wifi.h"
 #include "sdkconfig.h"
-#include "time.h"
+#include "Logger.h"
+#include "NetworkSystem.h"
+#include "RaftUtils.h"
+#include "ESPUtils.h"
+#include "RaftArduino.h"
+#include "mdns.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
+
+#ifdef ETHERNET_IS_ENABLED
 #include "esp_eth_netif_glue.h"
+#endif
 
 // This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
 #define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(servers_in_list, list_of_servers)   {   \
@@ -61,11 +65,6 @@ NetworkSystem networkSystem;
 // #define DEBUG_HOSTNAME_SETTING
 // #define DEBUG_NETWORK_EVENTS
 // #define DEBUG_NETWORK_EVENTS_DETAIL
-
-#ifdef ETHERNET_HARDWARE_OLIMEX
-#define ETHERNET_IS_SUPPORTED
-#define ETH_PHY_LAN87XX
-#endif
 
 #ifdef DEBUG_NETWORK_EVENTS
 #define LOG_NETWORK_EVENT_INFO( tag, format, ... ) LOG_I( tag, format, ##__VA_ARGS__ )
@@ -152,12 +151,14 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
         startWifi();
     }
 
+#ifdef ETHERNET_IS_ENABLED
     // Start ethernet if required
     if (_networkSettings.enableEthernet)
     {
         // Start Ethernet
         startEthernet();
     }
+#endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     // SNTP server
@@ -310,10 +311,12 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
         jsonStr += R"("eth":{"en":)" + String(_networkSettings.enableEthernet);
+#ifdef ETHERNET_IS_ENABLED
         if (_networkSettings.enableEthernet)
             jsonStr += R"(,"conn":)" + String(isEthConnectedWithIP()) +
                         R"(,"IP":")" + _ethIPV4Addr +
                         R"(","MAC":")" + _ethMACAddress + R"(")";
+#endif
         jsonStr += R"(})";
     }
     // Add braces if required
@@ -340,10 +343,12 @@ void NetworkSystem::networkEventHandler(void *arg, esp_event_base_t event_base,
     {
         networkSystem.ipEventHandler(arg, event_id, pEventData);
     }
+#ifdef ETHERNET_IS_ENABLED
     else if (event_base == ETH_EVENT)
     {
         networkSystem.ethEventHandler(arg, event_id, pEventData);
     }
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -686,39 +691,39 @@ void NetworkSystem::setLogLevel(esp_log_level_t logLevel)
 // Start ethernet
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef ETHERNET_IS_ENABLED
+
 bool NetworkSystem::startEthernet()
 {
     esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &networkEventHandler, nullptr, nullptr);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &networkEventHandler, nullptr, nullptr);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP, &networkEventHandler, nullptr, nullptr);
 
-#ifdef ETHERNET_HARDWARE_OLIMEX
-
     // Debug
-    LOG_I(MODULE_PREFIX, "startEthernet - Olimex hardware lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
+    LOG_I(MODULE_PREFIX, "startEthernet - lanChip %d phyAddr %d phyRstPin %d smiMDCPin %d smiMDIOPin %d powerPin %d",
                 _networkSettings.ethLanChip, _networkSettings.phyAddr, _networkSettings.phyRstPin,
                 _networkSettings.smiMDCPin, _networkSettings.smiMDIOPin, _networkSettings.powerPin);
                 
-    if (_networkSettings.enableEthernet &&  
-        (_networkSettings.ethLanChip != NetworkSettings::ETH_CHIP_TYPE_NONE) && (_networkSettings.powerPin != -1))
+    if (!_networkSettings.enableEthernet || (_networkSettings.ethLanChip == NetworkSettings::ETH_CHIP_TYPE_NONE))
     {
-        // Create ethernet event loop that running in background
-        esp_netif_t *pEthNetif = nullptr;
-        _ethernetHandle = nullptr;
-        // Create new default instance of esp-netif for Ethernet
-        esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
-        pEthNetif = esp_netif_new(&cfg);
+        LOG_I(MODULE_PREFIX, "startEthernet - ethernet disabled");
+        return false;
+    }
 
-        // Set hostname
-        if (pEthNetif && !_hostname.isEmpty())
-            esp_netif_set_hostname(pEthNetif, _hostname.c_str());
+    // Create ethernet event loop that running in background
+    esp_netif_t *pEthNetif = nullptr;
+    _ethernetHandle = nullptr;
+    // Create new default instance of esp-netif for Ethernet
+    esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+    pEthNetif = esp_netif_new(&cfg);
 
-        // Init MAC and PHY configs to default
-        eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
-        eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    // Set hostname
+    if (pEthNetif && !_hostname.isEmpty())
+        esp_netif_set_hostname(pEthNetif, _hostname.c_str());
 
-        phy_config.phy_addr = _networkSettings.phyAddr;
-        phy_config.reset_gpio_num = _networkSettings.phyRstPin;
+    // Handle power pin
+    if (_networkSettings.powerPin >= 0)
+    {
         gpio_config_t powerPinConfig(
         {
             .pin_bit_mask = (1ULL << _networkSettings.powerPin),
@@ -730,79 +735,95 @@ bool NetworkSystem::startEthernet()
         gpio_config(&powerPinConfig);
         gpio_set_level((gpio_num_t) _networkSettings.powerPin, 1);
         vTaskDelay(pdMS_TO_TICKS(10));
-
-        // Create Ethernet driver
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-        // Init vendor specific MAC config to default
-        eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
-        esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
-        esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
-        // Create new ESP32 Ethernet MAC instance
-        esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#else
-        mac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
-        mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
-        esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
-#endif
-#if defined(ETH_PHY_IP101)
-        esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
-#elif defined(ETH_PHY_RTL8201)
-        esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
-#elif defined(ETH_PHY_LAN87XX)
-        esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
-#elif defined(ETH_PHY_DP83848)
-        esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
-#elif defined(ETH_PHY_KSZ8041)
-        esp_eth_phy_t *phy = esp_eth_phy_new_ksz8041(&phy_config);
-#elif defined(ETH_PHY_KSZ8081)
-        esp_eth_phy_t *phy = esp_eth_phy_new_ksz8081(&phy_config);
-#endif
-        esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
-
-        // Install Ethernet driver
-        esp_err_t err = esp_eth_driver_install(&config, &_ethernetHandle);
-
-        // Check driver ok
-        if (err != ESP_OK)
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to install eth driver");
-        }
-        else if (pEthNetif)
-        {
-            // Attach Ethernet driver to Ethernet netif
-            err = esp_netif_attach(pEthNetif, esp_eth_new_netif_glue(_ethernetHandle));
-        }
-        else
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to create netif for ethernet");
-            err = ESP_FAIL;
-        }
-
-        // Check event handler ok
-        if (err != ESP_OK)
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
-        }
-        if (err == ESP_OK)
-        {
-            // Start Ethernet driver state machine
-            err = esp_eth_start(_ethernetHandle);
-        }
-
-        // Check for error
-        if (err != ESP_OK)
-        {
-            LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
-            return false;
-        }
-
-        // Debug
-        LOG_I(MODULE_PREFIX, "setup Ethernet OK");
-        return true;
     }
+
+    // Init MAC and PHY configs to default
+    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+
+    // Create Ethernet driver
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    // Init vendor specific MAC config to default
+    eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+    esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
+    esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    // Create new ESP32 Ethernet MAC instance
+    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#else
+    mac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
+    mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
 #endif
-    return false;
+
+    // Any phy hw?
+#if defined(HW_ETH_PHY_IP101) || defined(HW_ETH_PHY_RTL8201) || defined(HW_ETH_PHY_LAN87XX) || \
+        defined(HW_ETH_PHY_DP83848) || defined(HW_ETH_PHY_KSZ8041) || defined(HW_ETH_PHY_KSZ8081)
+    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    phy_config.phy_addr = _networkSettings.phyAddr;
+    phy_config.reset_gpio_num = _networkSettings.phyRstPin;
+#endif
+
+    // Create Ethernet PHY instance
+    esp_eth_phy_t *phy = nullptr;
+#if defined(HW_ETH_PHY_IP101)
+    phy = esp_eth_phy_new_ip101(&phy_config);
+#elif defined(HW_ETH_PHY_RTL8201)
+    phy = esp_eth_phy_new_rtl8201(&phy_config);
+#elif defined(HW_ETH_PHY_LAN87XX)
+    phy = esp_eth_phy_new_lan87xx(&phy_config);
+#elif defined(HW_ETH_PHY_DP83848)
+    phy = esp_eth_phy_new_dp83848(&phy_config);
+#elif defined(HW_ETH_PHY_KSZ8041)
+    phy = esp_eth_phy_new_ksz8041(&phy_config);
+#elif defined(HW_ETH_PHY_KSZ8081)
+    phy = esp_eth_phy_new_ksz8081(&phy_config);
+#endif
+    if (!phy)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to create phy");
+        return false;
+    }
+
+    // Ethernet config
+    esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
+
+    // Install Ethernet driver
+    esp_err_t err = esp_eth_driver_install(&config, &_ethernetHandle);
+
+    // Check driver ok
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to install eth driver");
+        return false;
+    }
+
+    if (!pEthNetif)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to create netif for ethernet");
+        return false;
+    }
+
+    // Attach Ethernet driver to Ethernet netif
+    err = esp_netif_attach(pEthNetif, esp_eth_new_netif_glue(_ethernetHandle));
+    // Check event handler ok
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to attach eth driver");
+        return false;
+    }
+
+    // Start Ethernet driver state machine
+    err = esp_eth_start(_ethernetHandle);
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setup failed to start eth driver");
+        return false;
+    }
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "setup ethernet OK");
+    return true;
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle WiFi events
@@ -923,6 +944,8 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
 // Ethernet Event handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef ETHERNET_IS_ENABLED
+
 void NetworkSystem::ethEventHandler(void *arg, int32_t event_id, void *pEventData)
 {
     switch (event_id)
@@ -956,6 +979,8 @@ void NetworkSystem::ethEventHandler(void *arg, int32_t event_id, void *pEventDat
     }
 }
 
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 // Handle IP events
 ////////////////////////////////////////////////////////////////////////////////
@@ -976,6 +1001,8 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", _wifiIPV4Addr.c_str());
+        // Setup mDNS
+        setupMDNS();
         break;
     }
     case IP_EVENT_STA_LOST_IP:
@@ -992,6 +1019,7 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     case IP_EVENT_GOT_IP6:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station/AP IPv6 preferred");
         break;
+#ifdef ETHERNET_IS_ENABLED
     case IP_EVENT_ETH_GOT_IP:
     {
         // Get IP address string
@@ -1000,6 +1028,8 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", _ethIPV4Addr.c_str());
+        // Setup mDNS
+        setupMDNS();
         break;
     }
     case IP_EVENT_ETH_LOST_IP:
@@ -1009,8 +1039,11 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet lost IP");
         break;
     }
+#endif
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
+        // Setup mDNS
+        setupMDNS();
         break;
     case IP_EVENT_PPP_LOST_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP lost IP");
@@ -1065,3 +1098,56 @@ void NetworkSystem::warnOnWiFiDisconnectIfEthNotConnected()
 #endif
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Setup mDNS
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::setupMDNS()
+{
+    // Check valid
+    if (!_isSetup)
+        return;
+
+    // Check if mDNS is enabled
+    if (!_networkSettings.enableMDNS)
+        return;
+
+    // Check if we have an IP address
+    if (_wifiIPV4Addr.isEmpty() && _ethIPV4Addr.isEmpty())
+        return;
+
+    // Set hostname
+    if (_hostname.isEmpty())
+        _hostname = "esp32";
+
+    // Start mDNS
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setupMDNS failed to init err %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Set hostname
+    err = mdns_hostname_set(_hostname.c_str());
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setupMDNS failed to set hostname err %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Add service
+    mdns_txt_item_t serviceTxtData[] = {
+        {"board", "esp32"},
+        {"path", "/"}
+    };
+    err = mdns_service_add(_hostname.c_str(), "_http", "_tcp", 80, serviceTxtData, 2);
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setupMDNS failed to add service err %s", esp_err_to_name(err));
+        return;
+    }
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "setupMDNS OK hostname %s", _hostname.c_str());
+}

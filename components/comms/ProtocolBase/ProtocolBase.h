@@ -11,18 +11,18 @@
 
 #include <stdint.h>
 #include <functional>
-#include <CommsCoreIF.h>
+#include "CommsCoreIF.h"
 
 class CommsChannelMsg;
 class ProtocolBase;
-class ConfigBase;
+class RaftJsonIF;
 
 // Put byte callback function type
 typedef std::function<void(uint8_t ch)> ProtocolBasePutByteCBType;
 // Received frame callback function type
 typedef std::function<void(const uint8_t *framebuffer, int framelength)> ProtocolBaseFrameCBType;
 // Create protocol instance
-typedef std::function<ProtocolBase* (uint32_t channelID, ConfigBase& config, const char* pConfigPrefix, 
+typedef std::function<ProtocolBase* (uint32_t channelID, RaftJsonIF& config, const char* pConfigPrefix, 
                 CommsChannelOutboundHandleMsgFnType msgTxCB, 
                 CommsChannelInboundHandleMsgFnType msgRxCB, 
                 CommsChannelInboundCanAcceptFnType readyToRxCB)> ProtocolCreateFnType;

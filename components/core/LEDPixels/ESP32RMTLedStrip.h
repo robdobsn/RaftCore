@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <stdint.h>
 #include <vector>
-#include <SpiramAwareAllocator.h>
+#include <stdint.h>
+#include "driver/rmt_tx.h"
+#include "SpiramAwareAllocator.h"
 #include "LEDPixel.h"
 #include "LEDStripConfig.h"
 #include "LEDStripEncoder.h"
-#include "driver/rmt_tx.h"
 
 class ESP32RMTLedStrip
 {

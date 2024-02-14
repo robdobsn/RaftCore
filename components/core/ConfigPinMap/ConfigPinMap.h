@@ -10,8 +10,7 @@
 #pragma once
 
 #include "RaftArduino.h"
-
-class ConfigBase;
+#include "RaftJsonIF.h"
 
 class ConfigPinMap
 {
@@ -58,7 +57,7 @@ public:
     static int getInputType(const char *inputTypeStr);
 
     // Configure multiple IOs
-    static void configMultiple(ConfigBase& config, PinDef* pPinDefs, int numPinDefs, bool deinit=false);
+    static void configMultiple(RaftJsonIF& config, PinDef* pPinDefs, int numPinDefs, bool deinit=false);
 
     // Pin mode mapping
     static int mapPinModeToArduino(PinMode pinMode);

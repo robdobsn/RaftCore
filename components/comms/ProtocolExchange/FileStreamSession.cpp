@@ -7,15 +7,15 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "FileStreamSession.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "FileUploadHTTPProtocol.h"
 #include "FileUploadOKTOProtocol.h"
 #include "FileDownloadOKTOProtocol.h"
 #include "StreamDatagramProtocol.h"
 #include "RestAPIEndpointManager.h"
 #include "RICRESTMsg.h"
-#include <MiniHDLC.h>
-#include <SpiramAwareAllocator.h>
+#include "MiniHDLC.h"
+#include "SpiramAwareAllocator.h"
 
 static const char* MODULE_PREFIX = "FSSess";
 
@@ -33,7 +33,7 @@ static const char* MODULE_PREFIX = "FSSess";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
-                CommsCoreIF* pCommsCore, SysModBase* pFirmwareUpdater,
+                CommsCoreIF* pCommsCore, RaftSysMod* pFirmwareUpdater,
                 FileStreamBase::FileStreamContentType fileStreamContentType, 
                 FileStreamBase::FileStreamFlowType fileStreamFlowType,
                 uint32_t streamID, const char* restAPIEndpointName,

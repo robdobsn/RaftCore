@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <vector>
-#include <SpiramAwareAllocator.h>
+#include "SpiramAwareAllocator.h"
 
 class SimpleBuffer
 {

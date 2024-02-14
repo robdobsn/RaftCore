@@ -11,9 +11,9 @@
 #ifndef ESP8266
 
 #include <cstdint>
-#include "RaftArduino.h"
 #include "esp_system.h"
 #include "esp_mac.h"
+#include "RaftArduino.h"
 
 #ifndef ARDUINO
 

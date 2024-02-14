@@ -8,12 +8,13 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "ExpressionEval.h"
-#include <RaftUtils.h>
-#include <Logger.h>
-#include <RaftArduino.h>
 #include <vector>
 #include <algorithm>
+#include "Logger.h"
+#include "ExpressionEval.h"
+#include "RaftUtils.h"
+#include "RaftArduino.h"
+#include "RaftJson.h"
 
 // #define DEBUG_EXPRESSION_EVAL 1
 // #define DEBUG_EXPRESSION_EVAL_VAR_DETAIL 1
@@ -41,7 +42,7 @@ ExpressionEval::~ExpressionEval()
 // Set values
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ExpressionEval::addVariables(const char* valsJSON, bool append)
+void ExpressionEval::addVariables(const char* pValsJsonStr, bool append)
 {
     // Clear values if required
     if (!append)
@@ -49,11 +50,12 @@ void ExpressionEval::addVariables(const char* valsJSON, bool append)
 
     // Set the constants into the evaluator
     std::vector<String> initValNames;
-    RaftJson::getKeys("", initValNames, valsJSON);
+    RaftJson valsJson(pValsJsonStr, false);
+    valsJson.getKeys("", initValNames);
     for (String& valToAdd : initValNames)
     {
         // Get value
-        double val = RaftJson::getDouble(valToAdd.c_str(), 0, valsJSON);
+        double val = valsJson.getDouble(valToAdd.c_str(), 0);
 #ifdef DEBUG_EXPRESSION_EVAL_VAR_DETAIL
         LOG_I(MODULE_PREFIX, "addVariables var %s val %f", valToAdd.c_str(), val);
 #endif
@@ -217,12 +219,15 @@ bool ExpressionEval::addExpressions(const char* pExpr, uint32_t& errorLine)
 // Evaluate statements
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ExpressionEval::evalStatements(const char* pImmutableVarsJSON)
+void ExpressionEval::evalStatements(const char* pImmutableVarsJsonStr)
 {
     // Get the names of immutable variables 
     std::vector<String> immutableVarNames;
-    if (pImmutableVarsJSON && (pImmutableVarsJSON[0] != '\0'))
-        RaftJson::getKeys("", immutableVarNames, pImmutableVarsJSON);
+    if (pImmutableVarsJsonStr)
+    {
+        RaftJson immutableVars(pImmutableVarsJsonStr, false);
+        immutableVars.getKeys("", immutableVarNames);
+    }
 
 #ifdef DEBUG_EXPRESSION_EVAL
     // Debug

@@ -7,9 +7,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <math.h>
+#include "Logger.h"
 #include "ExpressionContext.h"
-#include <Logger.h>
-#include "math.h"
 
 // #define DEBUG_EVALUATOR_EXPRESSIONS 1
 

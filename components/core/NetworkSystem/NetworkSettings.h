@@ -9,9 +9,9 @@
 #pragma once
 
 #include <string.h>
-#include <RaftArduino.h>
-#include <ConfigBase.h>
-#include <esp_wifi_types.h>
+#include "esp_wifi_types.h"
+#include "RaftArduino.h"
+#include "RaftJsonPrefixed.h"
 
 class NetworkSettings
 {
@@ -23,37 +23,42 @@ public:
         ETH_CHIP_TYPE_LAN87XX
     };
 
-    void setFromConfig(ConfigBase& config, const String& defaultHostnameIn, const char* pPrefix = nullptr)
+    void setFromConfig(RaftJsonIF& config, const String& defaultHostnameIn, const char* pPrefix = nullptr)
     {
+        RaftJsonPrefixed configPrefixed(config, pPrefix);
+
         // Extract enables from config
-        enableWifiSTAMode = config.getBool("wifiSTAEn", false, pPrefix) || 
-                            config.getBool("WiFiEnabled", true, pPrefix);
-        enableWifiAPMode = config.getBool("wifiAPEn", false, pPrefix);
-        enableEthernet = config.getBool("ethEn", false, pPrefix) || 
-                         config.getBool("EthEnabled", false, pPrefix);
+        enableWifiSTAMode = configPrefixed.getBool("wifiSTAEn", false) || 
+                            configPrefixed.getBool("WiFiEnabled", true);
+        enableWifiAPMode = configPrefixed.getBool("wifiAPEn", false);
+        enableEthernet = configPrefixed.getBool("ethEn", false) || 
+                         configPrefixed.getBool("EthEnabled", false);
 
         // Wifi STA
-        wifiSTAScanThreshold = getAuthModeFromStr(config.getString("wifiSTAScanThreshold", "OPEN", pPrefix).c_str());
+        wifiSTAScanThreshold = getAuthModeFromStr(configPrefixed.getString("wifiSTAScanThreshold", "OPEN").c_str());
 
         // Wifi AP
-        wifiAPAuthMode = getAuthModeFromStr(config.getString("wifiAPAuthMode", "WPA2_PSK", pPrefix).c_str());
-        wifiAPMaxConn = config.getLong("wifiAPMaxConn", 4, pPrefix);
-        wifiAPChannel = config.getLong("wifiAPChannel", 1, pPrefix);
+        wifiAPAuthMode = getAuthModeFromStr(configPrefixed.getString("wifiAPAuthMode", "WPA2_PSK").c_str());
+        wifiAPMaxConn = configPrefixed.getLong("wifiAPMaxConn", 4);
+        wifiAPChannel = configPrefixed.getLong("wifiAPChannel", 1);
 
         // Hostname
-        defaultHostname = config.getString("defaultHostname", defaultHostnameIn, pPrefix);
+        defaultHostname = configPrefixed.getString("defaultHostname", defaultHostnameIn.c_str());
 
         // Ethernet settings
-        ethLanChip = getChipEnum(config.getString("ethLanChip", "", pPrefix));
-        powerPin = config.getLong("ethPowerPin", config.getLong("ethPowerPin", -1, pPrefix), pPrefix);
-        smiMDCPin = config.getLong("ethMDCPin", config.getLong("ethMDCPin", -1, pPrefix), pPrefix);
-        smiMDIOPin = config.getLong("ethMDIOPin", config.getLong("ethMDIOPin", -1, pPrefix), pPrefix);
-        phyAddr = config.getLong("ethPhyAddr", config.getLong("ethPhyAddr", -1, pPrefix), pPrefix);
-        phyRstPin = config.getLong("ethPhyRstPin", config.getLong("ethPhyRstPin", -1, pPrefix), pPrefix);
+        ethLanChip = getChipEnum(configPrefixed.getString("ethLanChip", ""));
+        powerPin = configPrefixed.getLong("ethPowerPin", -1);
+        smiMDCPin = configPrefixed.getLong("ethMDCPin", -1);
+        smiMDIOPin = configPrefixed.getLong("ethMDIOPin", -1);
+        phyAddr = configPrefixed.getLong("ethPhyAddr", -1);
+        phyRstPin = configPrefixed.getLong("ethPhyRstPin", -1);
 
         // NTP settings
-        ntpServer = config.getString("NTPServer", "pool.ntp.org", pPrefix);
-        timezone = config.getString("timezone", "UTC", pPrefix);
+        ntpServer = configPrefixed.getString("NTPServer", "pool.ntp.org");
+        timezone = configPrefixed.getString("timezone", "UTC");
+
+        // mDNS
+        enableMDNS = configPrefixed.getBool("enableMDNS", true);
     }
 
     // Enables
@@ -83,6 +88,9 @@ public:
     // NTP
     String ntpServer;
     String timezone;
+
+    // mDNS
+    bool enableMDNS = true;
 
 private:
     EthLanChip getChipEnum(const String& ethLanChip)
