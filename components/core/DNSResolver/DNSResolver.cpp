@@ -9,6 +9,7 @@
 
 #include "RaftUtils.h"
 #include "DNSResolver.h"
+#include "NetworkSystem.h"
 
 #define WARN_DNS_LOOKUP_FAILED
 // #define DEBUG_DNS_LOOKUP
