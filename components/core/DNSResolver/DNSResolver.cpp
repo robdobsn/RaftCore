@@ -47,8 +47,8 @@ bool DNSResolver::getIPAddr(ip_addr_t &ipAddr)
     {
 #ifdef DEBUG_DNS_LOOKUP_WHEN_NOT_CONNECTED
         ESP_LOGI(MODULE_PREFIX, "getIPAddr not connected %s", _hostname.c_str());
-        return false;
 #endif
+        return false;
     }
 
     // Lookup address (use base ESP_LOGX functions to avoid recursion in logging modules like LogPapertrail)
