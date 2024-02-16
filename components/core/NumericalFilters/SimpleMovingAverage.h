@@ -75,7 +75,12 @@ public:
         }
         variance /= numEntries;
         return variance;
-    }    
+    }
+
+    double getStandardDeviation()
+    {
+        return sqrt(getVariance());
+    }
 
 private:
     uint16_t index = 0;
