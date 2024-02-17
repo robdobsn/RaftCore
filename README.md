@@ -1,6 +1,6 @@
 # RaftCore
 
-Raft is an opinionated operating environment for the Espressif ESP32 family
+Raft is an opinionated app framework for Espressif ESP32 family development
 
 Raft currently supports: ESP32, ESP32S3 and ESP32C3
 
@@ -20,4 +20,3 @@ Raft:
 Supported frameworks: ESP IDF, Arduino
 
 This is the core component of Raft which provides the base functionality of the raft operating environment
-

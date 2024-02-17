@@ -8,9 +8,7 @@
 [] - build_raft_artefacts is common to all systypes - this is by design BUT when switching from one systype to another this folder needs to be wiped
 [] - changes to WebUI source code don't trigger build
 [] - changes to SysType.json don't trigger build
-[] raft program could handle new template
-[] raft program could handle building
-[] raft program could handle serial monitoring - possibly with chart??
-[] raft program could handle monitoring over WiFi - maybe a stretch too far?
+[] raftcli could handle building
+[] raftcli program could handle monitoring over WiFi - maybe a stretch too far?
 [] when ethernet is enabled but there is no ethernet hardware there is a long delay (5s?) on boot
 [] MQTT shows >500ms when booting in the situation where eth is enabled but no hardware and maybe other times?
