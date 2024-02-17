@@ -51,7 +51,7 @@ public:
     }
 
     // get rate
-    double getRatePerSec()
+    double getRatePerSec() const
     {
         // Check empty
         if (_usedSlots == 0)

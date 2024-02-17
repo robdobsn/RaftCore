@@ -1,4 +1,4 @@
-#pragma once/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Peak value follower
 //
@@ -12,7 +12,7 @@
 #include <cmath>
 
 // Follow the peak values (negative and positive) of a signal
-// This uses a linear leaky bucket to track the peak values of a signal over a period of time
+// This uses a linear leaky bucket to track the peak values (max and min) of a signal over a period of time
 // If you are tracking a periodic signal then set the timeFor100PercentDecayUs to be several times the period
 // of the signal (e.g. 10x the period)
 template<typename INPUT_TYPE, typename TIME_STAMP_TYPE>
@@ -26,36 +26,48 @@ public:
 
     float sample(INPUT_TYPE input, TIME_STAMP_TYPE timeStampUs)
     {
-        // Calculate time since last sample
-        float timeSinceLastSampleSecs = (timeStampUs - _prevSampleTimeUs) / 1000000.0;
-
-        // Handle positive peaks
-        if (input > _positivePeakValue)
+        // First sample
+        if (isFirstSample)
         {
-            // Update the positive peak value
-            _positivePeakValue = input;
-            _positivePeakTimeUs = timeStampUs;
+            isFirstSample = false;
+            _prevSampleValue = input;
+            _prevSampleTimeUs = timeStampUs;
+            _maxValueTracked = input;
+            _minValueTracked = input;
+            return input;
+        }
+
+        // Calculate time since last sample
+        float timeSinceLastSampleUs = timeStampUs - _prevSampleTimeUs;
+
+        // Handle max value tracking
+        if (input > _maxValueTracked)
+        {
+            // Update the max value
+            _maxValueTracked = input;
+            _maxValueTimeUs = timeStampUs;
         }
         else
         {
             // Calculate the linear leaky bucket value - it tracks towards the input value
-            _positivePeakValue = timeSinceLastSampleSecs < _timeFor100PercentDecayUs ?
-                    _positivePeakValue - (_positivePeakValue - input) * (1.0 - timeSinceLastSampleSecs / _timeFor100PercentDecayUs) : 
+            float newPeak = timeSinceLastSampleUs < _timeFor100PercentDecayUs ?
+                    _maxValueTracked - (_maxValueTracked - input) * (timeSinceLastSampleUs / _timeFor100PercentDecayUs) : 
                     input;
+            _maxValueTracked = newPeak;
         }
 
-        // Handle negative peaks
-        if (input < _negativePeakValue)
+        // Handle min values
+        if (input < _minValueTracked)
         {
             // Update the negative peak value
-            _negativePeakValue = input;
-            _negativePeakTimeUs = timeStampUs;
+            _minValueTracked = input;
+            _minValueTimeUs = timeStampUs;
         }
         else
         {
             // Calculate the linear leaky bucket value - it tracks towards the input value
-            _negativePeakValue = timeSinceLastSampleSecs < _timeFor100PercentDecayUs ?
-                    _negativePeakValue + (_negativePeakValue - input) * (1.0 - timeSinceLastSampleSecs / _timeFor100PercentDecayUs) : 
+            _minValueTracked = timeSinceLastSampleUs < _timeFor100PercentDecayUs ?
+                    _minValueTracked - (_minValueTracked - input) * (timeSinceLastSampleUs / _timeFor100PercentDecayUs) : 
                     input;
         }
 
@@ -64,40 +76,41 @@ public:
         _prevSampleTimeUs = timeStampUs;
 
         // Return the positive peak value
-        return _positivePeakValue;
+        return _maxValueTracked;
     }
 
     INPUT_TYPE getPositivePeakValue() const
     {
-        return _positivePeakValue;
+        return _maxValueTracked;
     }
 
     TIME_STAMP_TYPE getPositivePeakTimeUs() const
     {
-        return _positivePeakTimeUs;
+        return _maxValueTimeUs;
     }
 
     INPUT_TYPE getNegativePeakValue() const
     {
-        return _negativePeakValue;
+        return _minValueTracked;
     }
 
     TIME_STAMP_TYPE getNegativePeakTimeUs() const
     {
-        return _negativePeakTimeUs;
+        return _minValueTimeUs;
     }
 
 private:
     // Leaky bucket linear time constant
-    TIME_STAMP_TYPE _timeFor100PercentDecayUs = 0;
+    TIME_STAMP_TYPE _timeFor100PercentDecayUs = 1000;
 
     // Previous value
+    bool isFirstSample = true;
     INPUT_TYPE _prevSampleValue = 0;
     TIME_STAMP_TYPE _prevSampleTimeUs = 0;
 
-    // Leaky bucket values for positive and negative peaks
-    INPUT_TYPE _positivePeakValue = 0;
-    TIME_STAMP_TYPE _positivePeakTimeUs = 0;
-    INPUT_TYPE _negativePeakValue = 0;
-    TIME_STAMP_TYPE _negativePeakTimeUs = 0;
+    // Leaky bucket values for min and max
+    INPUT_TYPE _maxValueTracked = 0;
+    TIME_STAMP_TYPE _maxValueTimeUs = 0;
+    INPUT_TYPE _minValueTracked = 0;
+    TIME_STAMP_TYPE _minValueTimeUs = 0;
 };

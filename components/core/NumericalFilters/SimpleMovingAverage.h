@@ -49,7 +49,7 @@ public:
         return sum / numEntries;
     }
 
-    input_t getAverage() 
+    input_t getAverage() const
     {
         return sum / numEntries;
     }
@@ -63,7 +63,7 @@ public:
             previousInputs[i] = 0;
     }
 
-    double getVariance()
+    double getVariance() const
     {
         if (numEntries == 0)
             return 0;
@@ -78,7 +78,7 @@ public:
         return variance;
     }
 
-    double getStandardDeviation()
+    double getStandardDeviation() const
     {
         return sqrt(getVariance());
     }

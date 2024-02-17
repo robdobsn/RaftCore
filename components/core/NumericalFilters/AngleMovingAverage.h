@@ -68,13 +68,13 @@ public:
         hysteresis = hysteresisVal;
     }
 
-    input_t getAverage(bool withHysteresis, bool clamped)
+    input_t getAverage(bool withHysteresis, bool clamped) const
     {
         if (withHysteresis)
             return clamped ? (hysteresisResult % maxVal + maxVal) % maxVal : hysteresisResult;
         return clamped ? (avgWithoutHysteresis() % maxVal + maxVal) % maxVal : avgWithoutHysteresis();
     }
-    input_t avgWithoutHysteresis()
+    input_t avgWithoutHysteresis() const
     {
         if (numEntries == 0)
             return 0;

@@ -33,7 +33,7 @@ class ExpMovingAverage
         return output;
     }
 
-    input_t getAverage() 
+    input_t getAverage() const
     {
         return output;
     }
