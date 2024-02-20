@@ -51,6 +51,8 @@ public:
 
     input_t getAverage() const
     {
+        if (numEntries == 0)
+            return 0;
         return sum / numEntries;
     }
 
