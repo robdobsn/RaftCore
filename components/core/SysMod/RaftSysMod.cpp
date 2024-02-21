@@ -23,7 +23,7 @@ RaftSysMod::RaftSysMod(const char *pModuleName,
             const char* pConfigPrefix, 
             const char* pMutableConfigNamespace,
             const char* pMutableConfigPrefix) :
-        _config(sysConfig, pConfigPrefix ? pConfigPrefix : pModuleName)
+        config(sysConfig, pConfigPrefix ? pConfigPrefix : pModuleName)
 {
     // Set sysmod name
     if (pModuleName)
@@ -94,42 +94,42 @@ CommsCoreIF* RaftSysMod::getCommsCore()
 
 long RaftSysMod::configGetLong(const char *dataPath, long defaultValue)
 {
-    return _config.getLong(dataPath, defaultValue);
+    return config.getLong(dataPath, defaultValue);
 }
 
 double RaftSysMod::configGetDouble(const char *dataPath, double defaultValue)
 {
-    return _config.getDouble(dataPath, defaultValue);
+    return config.getDouble(dataPath, defaultValue);
 }
 
 bool RaftSysMod::configGetBool(const char *dataPath, bool defaultValue)
 {
-    return _config.getBool(dataPath, defaultValue);
+    return config.getBool(dataPath, defaultValue);
 }
 
 String RaftSysMod::configGetString(const char *dataPath, const char* defaultValue)
 {
-    return _config.getString(dataPath, defaultValue);
+    return config.getString(dataPath, defaultValue);
 }
 
 String RaftSysMod::configGetString(const char *dataPath, const String& defaultValue)
 {
-    return _config.getString(dataPath, defaultValue.c_str());
+    return config.getString(dataPath, defaultValue.c_str());
 }
 
 RaftJsonIF::RaftJsonType RaftSysMod::configGetType(const char *dataPath, int& arrayLen)
 {
-    return _config.getType(dataPath, arrayLen);
+    return config.getType(dataPath, arrayLen);
 }
 
 bool RaftSysMod::configGetArrayElems(const char *dataPath, std::vector<String>& strList) const
 {
-    return _config.getArrayElems(dataPath, strList);
+    return config.getArrayElems(dataPath, strList);
 }
 
 void RaftSysMod::configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback)
 {
-    _config.registerChangeCallback(configChangeCallback);
+    config.registerChangeCallback(configChangeCallback);
 }
 
 int RaftSysMod::configGetPin(const char* dataPath, const char* defaultValue)
@@ -140,7 +140,7 @@ int RaftSysMod::configGetPin(const char* dataPath, const char* defaultValue)
 
 void RaftSysMod::configSaveData(const String& configStr)
 {
-    _config.setJsonDoc(configStr.c_str());
+    config.setJsonDoc(configStr.c_str());
 }
 
 // Get JSON status of another SysMod

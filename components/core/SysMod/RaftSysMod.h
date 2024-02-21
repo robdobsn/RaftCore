@@ -104,11 +104,11 @@ public:
     virtual void configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback);
     virtual RaftJsonIF& configGetConfig()
     {
-        return _config;
+        return config;
     }
     virtual RaftJsonIF& modConfig()
     {
-        return _config;
+        return config;
     }
 
     // Get JSON status string
@@ -233,7 +233,7 @@ public:
 
 protected:
     // Module config
-    RaftJsonPrefixed _config;
+    RaftJsonPrefixed config;
 
     // Execute status change callbacks
     void executeStatusChangeCBs(bool changeToOn);
