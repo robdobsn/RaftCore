@@ -43,13 +43,13 @@ set(PROJECT_BASENAME "${_build_config_name}")
 # Check config dir exists
 set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/systypes/${_build_config_name}")
 
-# Set the build artefacts directory
-set(RAFT_BUILD_ARTEFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artefacts")
-file(MAKE_DIRECTORY ${RAFT_BUILD_ARTEFACTS_FOLDER})
+# Set the build artifacts directory
+set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artifacts")
+file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
 # Use sdkconfig for the selected build configuration
 set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
-set(SDKCONFIG "${RAFT_BUILD_ARTEFACTS_FOLDER}/sdkconfig")
+set(SDKCONFIG "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig")
 
 # Check if the sdkconfig file is older than the sdkconfig.defaults file and delete it if so
 if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
@@ -89,9 +89,9 @@ endif()
 # Configuration message
 message(STATUS "------------------ Configuring ${_build_config_name} firmware image name ${FW_IMAGE_NAME} ------------------")
 
-# Copy the partitions.csv file from the specific systypes folder to the build artefacts directory
+# Copy the partitions.csv file from the specific systypes folder to the build artifacts directory
 # It should not go into the build_config_dir as the sdkconfig.defaults file must reference a fixed folder
-set(_partitions_csv_file "${RAFT_BUILD_ARTEFACTS_FOLDER}/partitions.csv")
+set(_partitions_csv_file "${RAFT_BUILD_ARTIFACTS_FOLDER}/partitions.csv")
 message(STATUS "Copying ${BUILD_CONFIG_DIR}/partitions.csv to ${_partitions_csv_file}")
 execute_process(
     COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_CONFIG_DIR}/partitions.csv" ${_partitions_csv_file}
@@ -135,7 +135,7 @@ foreach(_raft_component ${RAFT_COMPONENTS})
 endforeach()
 
 # Make sure the SysTypes header is generated before compiling this component (main) if needed
-set(_systypes_out "${RAFT_BUILD_ARTEFACTS_FOLDER}/SysTypeInfoRecs.h")
+set(_systypes_out "${RAFT_BUILD_ARTIFACTS_FOLDER}/SysTypeInfoRecs.h")
 set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
 set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
 message(STATUS "------------------ Generating SysTypeInfoRecs.h ------------------")
@@ -147,9 +147,9 @@ execute_process(
 # Dependency on SysTypes header
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} ${_systypes_out})
 
-# Copy the FS image source folder to the build artefacts directory
+# Copy the FS image source folder to the build artifacts directory
 set(_full_fs_source_image_path "${BUILD_CONFIG_DIR}/${FS_IMAGE_PATH}")
-set(_full_fs_dest_image_path "${RAFT_BUILD_ARTEFACTS_FOLDER}/FSImage")
+set(_full_fs_dest_image_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/FSImage")
 message(STATUS "\n------------------ Copying FS Image ------------------")
 message(STATUS "Copying ${_full_fs_source_image_path} to ${_full_fs_dest_image_path}")
 execute_process(

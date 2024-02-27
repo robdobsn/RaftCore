@@ -5,7 +5,7 @@
 [] add API to set time
 [] improve build process
 [] - WebUI generation creates files in systypes/Common/WebUI - e.g. dist, .parcel-cache, node_modules - is this ok or would it be better to specify another folder
-[] - build_raft_artefacts is common to all systypes - this is by design BUT when switching from one systype to another this folder needs to be wiped
+[] - build_raft_artifacts is common to all systypes - this is by design BUT when switching from one systype to another this folder needs to be wiped
 [] - changes to WebUI source code don't trigger build
 [] - changes to SysType.json don't trigger build
 [] raftcli could handle building

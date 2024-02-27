@@ -116,7 +116,7 @@ idf_component_register(
     "components/core/SysManager"
     "components/core/SysMod"
     "components/core/SysTypes"
-    "${RAFT_BUILD_ARTEFACTS_FOLDER}"
+    "${RAFT_BUILD_ARTIFACTS_FOLDER}"
     "components/core/ThreadSafeQueue"
     "components/core/Utils"
   REQUIRES
