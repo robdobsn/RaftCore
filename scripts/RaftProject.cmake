@@ -51,21 +51,23 @@ file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
 set(SDKCONFIG "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig")
 
-# Check if the sdkconfig file is older than the sdkconfig.defaults file and delete it if so
-if(EXISTS ${SDKCONFIG} AND EXISTS ${SDKCONFIG_DEFAULTS})
-    if(${SDKCONFIG_DEFAULTS} IS_NEWER_THAN ${SDKCONFIG})
-        message(STATUS "------------------ Deleting sdkconfig as sdkconfig.defaults CHANGED ------------------")
-        file(REMOVE ${SDKCONFIG})
-    else()
-        message(STATUS "------------------ Not deleting sdkconfig as sdkconfig.defaults NOT_CHANGED ------------------")
-    endif()
-else()
-    message(STATUS "------------------ sdkconfig NOT_FOUND ------------------")
-endif()
+# Custom command to change the sdkconfig file based on the sdkconfig.defaults file dependency
+add_custom_command(
+    OUTPUT ${SDKCONFIG}
+    COMMAND ${CMAKE_COMMAND} -E copy ${SDKCONFIG_DEFAULTS} ${SDKCONFIG}
+    DEPENDS ${SDKCONFIG_DEFAULTS}
+    COMMENT "Copying sdkconfig.defaults to sdkconfig"
+)
 
-# Dependency
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} ${BUILD_CONFIG_DIR}/sdkconfig.defaults)
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} ${BUILD_CONFIG_DIR}/sdkconfig)
+# Custom target to ensure the sdkconfig file is generated before the main project is built
+add_custom_target(
+    sdkconfig ALL
+    DEPENDS ${SDKCONFIG}
+    COMMENT "Copying sdkconfig.defaults to sdkconfig"
+)
+
+# Add project dependencies
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
 
 # Configure build config specific features (options, flags, etc).
 include(${BUILD_CONFIG_DIR}/features.cmake)
@@ -87,18 +89,29 @@ if(NOT DEFINED FW_IMAGE_NAME)
 endif()
 
 # Configuration message
-message(STATUS "------------------ Configuring ${_build_config_name} firmware image name ${FW_IMAGE_NAME} ------------------")
+message(STATUS "------------------ Firmware image ${FW_IMAGE_NAME} ------------------")
 
 # Copy the partitions.csv file from the specific systypes folder to the build artifacts directory
 # It should not go into the build_config_dir as the sdkconfig.defaults file must reference a fixed folder
 set(_partitions_csv_file "${RAFT_BUILD_ARTIFACTS_FOLDER}/partitions.csv")
-message(STATUS "Copying ${BUILD_CONFIG_DIR}/partitions.csv to ${_partitions_csv_file}")
-execute_process(
+
+# Custom command to copy the partitions.csv file
+add_custom_command(
+    OUTPUT ${_partitions_csv_file}
     COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_CONFIG_DIR}/partitions.csv" ${_partitions_csv_file}
+    DEPENDS "${BUILD_CONFIG_DIR}/partitions.csv"
+    COMMENT "Copying partitions.csv to build artifacts directory"
+)
+
+# Custom target to ensure the partitions.csv file is generated before the main project is built
+add_custom_target(
+    partitions_csv ALL
+    DEPENDS ${_partitions_csv_file}
+    COMMENT "Copying partitions.csv to build artifacts directory"
 )
 
 # Dependency on partitions.csv
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} ${_partitions_csv_file})
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} partitions_csv)
 
 # List of dependencies of main project
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} "raftcore")
@@ -140,38 +153,68 @@ set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
 set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
 message(STATUS "------------------ Generating SysTypeInfoRecs.h ------------------")
 message(STATUS "Generating ${_systypes_out} from file ${_systypes_json}")
-execute_process(
+add_custom_command(
+    OUTPUT ${_systypes_out}
     COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_out} --cpp_template ${_systypes_template}
+    DEPENDS ${_systypes_json} ${_systypes_template}
+    WORKING_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}
+    COMMENT "Generating SysTypeInfoRecs.h"
 )
+add_custom_target(
+    SysTypeInfoRecs ALL
+    DEPENDS ${_systypes_out}
+    COMMENT "Generating SysTypeInfoRecs.h")
 
 # Dependency on SysTypes header
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} ${_systypes_out})
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 
 # Copy the FS image source folder to the build artifacts directory
 set(_full_fs_source_image_path "${BUILD_CONFIG_DIR}/${FS_IMAGE_PATH}")
 set(_full_fs_dest_image_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/FSImage")
-message(STATUS "\n------------------ Copying FS Image ------------------")
-message(STATUS "Copying ${_full_fs_source_image_path} to ${_full_fs_dest_image_path}")
-execute_process(
+
+# Custom command to copy the FS image source folder
+add_custom_command(
+    OUTPUT ${_full_fs_dest_image_path}
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
-)
-execute_process(
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
-)
-message(STATUS "Removing ${_full_fs_dest_image_path}/placeholder")
-execute_process(
     COMMAND ${CMAKE_COMMAND} -E remove "${_full_fs_dest_image_path}/placeholder"
+    DEPENDS ${_full_fs_source_image_path}
+    COMMENT "Copying FS Image to build artifacts directory"
 )
+
+# Custom target to ensure the FS image source folder is copied before the main project is built
+add_custom_target(
+    FSImage ALL
+    DEPENDS ${_full_fs_dest_image_path}
+    COMMENT "Copying FS Image to build artifacts directory"
+)
+
+# Dependency on FS image
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} FSImage)
 
 # Check if UI_SOURCE_PATH is defined
 if(DEFINED UI_SOURCE_PATH)
     # Process WebUI files into the dest FS image folder
     set(_full_web_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
-    message(STATUS "------------------ Generating WebUI ------------------")
-    message(STATUS "Generating WebUI from ${_full_web_ui_source_path} to ${_full_fs_dest_image_path}")
-    execute_process(
+
+    # Custom command to generate the WebUI
+    add_custom_command(
+        OUTPUT ${_full_fs_dest_image_path}
         COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenWebUI.py ${WEB_UI_GEN_FLAGS} ${_full_web_ui_source_path} ${_full_fs_dest_image_path}
+        DEPENDS ${_full_web_ui_source_path}
+        COMMENT "Generating WebUI"
     )
+
+    # Add the WebUI generation as a dependency
+    add_custom_target(
+        WebUI ALL
+        DEPENDS ${_full_fs_dest_image_path}
+        COMMENT "Generating WebUI"
+    )
+
+    # Dependency on WebUI
+    set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} WebUI)
+
 endif()
 
 # Add optional component folders
