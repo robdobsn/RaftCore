@@ -1141,8 +1141,11 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
         .max_transfer_sz = 4000,
         .flags = 0,
 #endif
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 2, 0)
         .isr_cpu_id = INTR_CPU_ID_AUTO,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 

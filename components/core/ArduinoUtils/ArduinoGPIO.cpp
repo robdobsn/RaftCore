@@ -22,6 +22,12 @@
 #include "esp_adc/adc_oneshot.h"
 #endif
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+#define RAFT_ADC_ATTEN_DB ADC_ATTEN_DB_12
+#else
+#define RAFT_ADC_ATTEN_DB ADC_ATTEN_DB_11
+#endif
+
 // #define DEBUG_PINMODE
 #ifdef DEBUG_PINMODE
 #include "Logger.h"
@@ -155,7 +161,7 @@ extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
         adc1_config_width(ADC_WIDTH_BIT_12);
 
         // Set attenuation (to allow voltages 0 .. 2.5V approx)
-        adc1_config_channel_atten(adc1Chan, ADC_ATTEN_DB_11);
+        adc1_config_channel_atten(adc1Chan, RAFT_ADC_ATTEN_DB);
 
         // Get adc reading
         return adc1_get_raw(adc1Chan);
@@ -163,7 +169,7 @@ extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
     else if (adc2Chan != ADC2_CHANNEL_MAX)
     {
         // Configure width
-        adc2_config_channel_atten(adc2Chan, ADC_ATTEN_DB_11);
+        adc2_config_channel_atten(adc2Chan, RAFT_ADC_ATTEN_DB);
 
         // Get adc reading
         int rawValue = 0;
@@ -195,7 +201,7 @@ extern "C" uint16_t IRAM_ATTR __analogRead(uint8_t pin)
 
     // Configure channel
     adc_oneshot_chan_cfg_t chanConfig = {
-        .atten = ADC_ATTEN_DB_11,
+        .atten = RAFT_ADC_ATTEN_DB,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
     if (adc_oneshot_config_channel(adcHandle, adcChannel, &chanConfig) != ESP_OK)

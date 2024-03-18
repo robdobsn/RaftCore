@@ -47,6 +47,9 @@ set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/systypes/${_build_config_name}")
 set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artifacts")
 file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
+# Save a file in the build artifacts directory to indicate the build configuration
+file(WRITE "${RAFT_BUILD_ARTIFACTS_FOLDER}/cursystype.txt" "${_build_config_name}")
+
 # Copy the partitions.csv file from the specific systypes folder to the build artifacts directory
 # It should not go into the build_config_dir as the sdkconfig.defaults file must reference a fixed folder
 set(_partitions_csv_file "${RAFT_BUILD_ARTIFACTS_FOLDER}/partitions.csv")

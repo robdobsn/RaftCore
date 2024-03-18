@@ -62,6 +62,8 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
         .resolution_hz = hwConfig.rmtResolutionHz,
         .mem_block_symbols = 64,                            // Increase to reduce flickering
         .trans_queue_depth = 4,                             // Number of transactions that can be pending in the background
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+#else
         .flags = {
             .invert_out = false,                            // Invert output
             .with_dma = false,                              // No DMA
@@ -69,6 +71,7 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
             .io_od_mode = false,                            // Not open drain
         },
         .intr_priority = 0,                                  // Interrupt priority
+#endif
     };
 
     // Create RMT TX channel
