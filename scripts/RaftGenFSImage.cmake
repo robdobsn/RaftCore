@@ -21,7 +21,7 @@ if (FS_TYPE STREQUAL "littlefs")
   # the target with 'idf.py -p PORT flash'.
   # include("${raftcore_SOURCE_DIR}/scripts/CreateLittleFSImage.cmake")
   message(STATUS "Creating LittleFS file system image from ${_full_fs_dest_image_path}")
-  littlefs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT)
+  littlefs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT DEPENDS CopyFSAndWebUI)
 
 else()
 
@@ -30,6 +30,6 @@ else()
   # the generated image should be flashed when the entire project is flashed to
   # the target with 'idf.py -p PORT flash'.
   message(STATUS "Creating SPIFFS file system image from ${_full_fs_dest_image_path}")
-  spiffs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT)
+  spiffs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT DEPENDS CopyFSAndWebUI)
 
 endif()

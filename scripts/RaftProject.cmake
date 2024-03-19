@@ -5,6 +5,10 @@
 cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
+################################################
+# Build configuration handling
+################################################
+
 # Get build configuration folder
 get_filename_component(_build_config_name ${CMAKE_BINARY_DIR} NAME)
 get_filename_component(_test_build_base_folder ${CMAKE_BINARY_DIR} DIRECTORY)
@@ -39,6 +43,7 @@ message (STATUS "\n------------------ RaftCore BuildConfig ${_build_config_name}
 
 # Set the base project name
 set(PROJECT_BASENAME "${_build_config_name}")
+add_compile_definitions(PROJECT_BASENAME="${PROJECT_BASENAME}")
 
 # Check config dir exists
 set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/systypes/${_build_config_name}")
@@ -49,6 +54,67 @@ file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
 # Save a file in the build artifacts directory to indicate the build configuration
 file(WRITE "${RAFT_BUILD_ARTIFACTS_FOLDER}/cursystype.txt" "${_build_config_name}")
+
+################################################
+# SysTypes Header
+################################################
+
+# Make sure the SysTypes header is generated before compiling this component (main) if needed
+set(_systypes_out "${RAFT_BUILD_ARTIFACTS_FOLDER}/SysTypeInfoRecs.h")
+set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
+set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
+message(STATUS "------------------ Generating SysTypeInfoRecs.h ------------------")
+message(STATUS "Generating ${_systypes_out} from file ${_systypes_json}")
+add_custom_command(
+    OUTPUT ${_systypes_out}
+    COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_out} --cpp_template ${_systypes_template}
+    DEPENDS ${_systypes_json} ${_systypes_template}
+    WORKING_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}
+    COMMENT "Generating SysTypeInfoRecs.h"
+)
+add_custom_target(
+    SysTypeInfoRecs ALL
+    DEPENDS ${_systypes_out}
+    COMMENT "Generating SysTypeInfoRecs.h")
+
+# Dependency on SysTypes header
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
+
+################################################
+# SysType specific features
+################################################
+
+# Configure build config specific features (options, flags, etc).
+include(${BUILD_CONFIG_DIR}/features.cmake)
+
+################################################
+# ESP IDF
+################################################
+
+# Set CONFIG_IDF_TARGET from IDF_TARGET if not already set
+if(NOT DEFINED CONFIG_IDF_TARGET)
+    set(CONFIG_IDF_TARGET ${IDF_TARGET})
+endif()
+
+# Include ESP-IDF build system (must be done after setting CONFIG_IDF_TARGET)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+
+# Set the firmware image name (if not already set)
+if(NOT DEFINED FW_IMAGE_NAME)
+    set(FW_IMAGE_NAME "${_build_config_name}FW")
+endif()
+
+# Configuration message
+message(STATUS "------------------ Firmware image ${FW_IMAGE_NAME} ------------------")
+
+# List of dependencies of main project
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} "raftcore")
+set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR})
+set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${OPTIONAL_COMPONENTS})
+
+################################################
+# Partition table
+################################################
 
 # Copy the partitions.csv file from the specific systypes folder to the build artifacts directory
 # It should not go into the build_config_dir as the sdkconfig.defaults file must reference a fixed folder
@@ -77,6 +143,10 @@ add_custom_target(
 # Dependency on partitions.csv
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} partitions_csv)
 
+################################################
+# SDKConfig
+################################################
+
 # Use sdkconfig for the selected build configuration
 set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
 set(SDKCONFIG "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig")
@@ -99,31 +169,9 @@ add_custom_target(
 # Add project dependencies
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
 
-# Configure build config specific features (options, flags, etc).
-include(${BUILD_CONFIG_DIR}/features.cmake)
-
-# System naming
-add_compile_definitions(PROJECT_BASENAME="${PROJECT_BASENAME}")
-
-# Set CONFIG_IDF_TARGET from IDF_TARGET if not already set
-if(NOT DEFINED CONFIG_IDF_TARGET)
-    set(CONFIG_IDF_TARGET ${IDF_TARGET})
-endif()
-
-# Include ESP-IDF build system (must be done after setting CONFIG_IDF_TARGET)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-
-# Set the firmware image name (if not already set)
-if(NOT DEFINED FW_IMAGE_NAME)
-    set(FW_IMAGE_NAME "${_build_config_name}FW")
-endif()
-
-# Configuration message
-message(STATUS "------------------ Firmware image ${FW_IMAGE_NAME} ------------------")
-
-# List of dependencies of main project
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} "raftcore")
-set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR})
+################################################
+# Raft components
+################################################
 
 # Iterate over list of raft components
 foreach(_raft_component ${RAFT_COMPONENTS})
@@ -155,78 +203,76 @@ foreach(_raft_component ${RAFT_COMPONENTS})
 
 endforeach()
 
-# Make sure the SysTypes header is generated before compiling this component (main) if needed
-set(_systypes_out "${RAFT_BUILD_ARTIFACTS_FOLDER}/SysTypeInfoRecs.h")
-set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
-set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
-message(STATUS "------------------ Generating SysTypeInfoRecs.h ------------------")
-message(STATUS "Generating ${_systypes_out} from file ${_systypes_json}")
-add_custom_command(
-    OUTPUT ${_systypes_out}
-    COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_out} --cpp_template ${_systypes_template}
-    DEPENDS ${_systypes_json} ${_systypes_template}
-    WORKING_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}
-    COMMENT "Generating SysTypeInfoRecs.h"
-)
-add_custom_target(
-    SysTypeInfoRecs ALL
-    DEPENDS ${_systypes_out}
-    COMMENT "Generating SysTypeInfoRecs.h")
-
-# Dependency on SysTypes header
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
-
-# Copy the FS image source folder to the build artifacts directory
-set(_full_fs_source_image_path "${BUILD_CONFIG_DIR}/${FS_IMAGE_PATH}")
-set(_full_fs_dest_image_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/FSImage")
-
-# Custom command to copy the FS image source folder
-add_custom_command(
-    OUTPUT ${_full_fs_dest_image_path}
-    COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
-    COMMAND ${CMAKE_COMMAND} -E remove "${_full_fs_dest_image_path}/placeholder"
-    DEPENDS ${_full_fs_source_image_path}
-    COMMENT "Copying FS Image to build artifacts directory"
-)
-
-# Custom target to ensure the FS image source folder is copied before the main project is built
-add_custom_target(
-    FSImage ALL
-    DEPENDS ${_full_fs_dest_image_path}
-    COMMENT "Copying FS Image to build artifacts directory"
-)
-
-# Dependency on FS image
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} FSImage)
+################################################
+# WebUI
+################################################
 
 # Check if UI_SOURCE_PATH is defined
 if(DEFINED UI_SOURCE_PATH)
-    # Process WebUI files into the dest FS image folder
+    # Process WebUI files into a temporary folder
     set(_full_web_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
-
+    set(_web_ui_build_folder_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/BuildWebUI")
+    # Ensure the WebUI build folder exists
+    file(MAKE_DIRECTORY ${_web_ui_build_folder_path})
+    
     # Custom command to generate the WebUI
+    file(GLOB_RECURSE WebUI_SOURCES "${_full_web_ui_source_path}/*")
     add_custom_command(
-        OUTPUT ${_full_fs_dest_image_path}
-        COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenWebUI.py ${WEB_UI_GEN_FLAGS} ${_full_web_ui_source_path} ${_full_fs_dest_image_path}
-        DEPENDS ${_full_web_ui_source_path}
+        OUTPUT ${_web_ui_build_folder_path}
+        COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenWebUI.py ${WEB_UI_GEN_FLAGS} ${_full_web_ui_source_path} ${_web_ui_build_folder_path}
+        DEPENDS ${WebUI_SOURCES}
         COMMENT "Generating WebUI"
     )
 
     # Add the WebUI generation as a dependency
     add_custom_target(
         WebUI ALL
-        DEPENDS ${_full_fs_dest_image_path}
+        DEPENDS ${_web_ui_build_folder_path}
         COMMENT "Generating WebUI"
     )
 
     # Dependency on WebUI
     set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} WebUI)
 
+else()
+    add_custom_target(
+        WebUI ALL
+        COMMENT "No WebUI defined"
+    )
+
 endif()
 
-# Add optional component folders
-set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${OPTIONAL_COMPONENTS})
+################################################
+# FS Image
+################################################
+
+# Copy the FS image source folder to the build artifacts directory
+set(_full_fs_source_image_path "${BUILD_CONFIG_DIR}/${FS_IMAGE_PATH}")
+set(_full_fs_dest_image_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/FSImage")
+
+# Always copy FS and WebUI files
+add_custom_target(AlwaysCopyFSAndWebUI
+    COMMAND echo "-------------- Always copy FS and WebUI files ----------------------"
+)
+
+# Define a custom target to always copy FS and WebUI files
+add_custom_target(
+    CopyFSAndWebUI ALL
+    COMMAND echo "---------------------- Copying FS and WebUI files to the FS Image directory -----------------------"
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
+    COMMAND ${CMAKE_COMMAND} -E remove "${_full_fs_dest_image_path}/placeholder"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${_web_ui_build_folder_path}" "${_full_fs_dest_image_path}"
+    DEPENDS WebUI AlwaysCopyFSAndWebUI # Ensure WebUI target is built first
+    COMMENT "Copying FS and WebUI files to the FS Image directory"
+)
+
+# Dependency on FS image
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} CopyFSAndWebUI WebUI)
+
+################################################
+# compile_commands.json
+################################################
 
 # This makes it easy for VS Code to access the compile commands for the most
 # recently built FW revision.
@@ -235,3 +281,4 @@ add_custom_target(updateSharedCompileCommands ALL
     DEPENDS "${CMAKE_BINARY_DIR}/compile_commands.json"
     COMMENT "Updating shared compile_commands.json"
 )
+
