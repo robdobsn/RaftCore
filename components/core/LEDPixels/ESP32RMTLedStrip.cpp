@@ -166,6 +166,10 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
         .loop_count = 0,        // no repetition
         .flags = {
             .eot_level = 0      // level = 0 at end
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+            ,
+            .queue_nonblocking = false
+#endif
         }
     };
     esp_err_t err = rmt_transmit(_rmtChannelHandle, _ledStripEncoderHandle, _pixelBuffer.data(), numBytesToCopy, &tx_config);
