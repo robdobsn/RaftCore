@@ -63,6 +63,13 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
         .mem_block_symbols = 64,                            // Increase to reduce flickering
         .trans_queue_depth = 4,                             // Number of transactions that can be pending in the background
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+        .intr_priority = 0,                                  // Interrupt priority
+        .flags = {
+            .invert_out = false,                            // Invert output
+            .with_dma = false,                              // No DMA
+            .io_loop_back = false,                          // No loop
+            .io_od_mode = false,                            // Not open drain
+        },
 #else
         .flags = {
             .invert_out = false,                            // Invert output
