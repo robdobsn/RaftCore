@@ -255,17 +255,21 @@ add_custom_target(AlwaysCopyFSAndWebUI
     COMMAND echo "-------------- Always copy FS and WebUI files ----------------------"
 )
 
-# Define a custom target to always copy FS and WebUI files
 add_custom_target(CopyFSAndWebUI ALL
     COMMAND ${CMAKE_COMMAND} -E echo "------------------ Running CopyFSAndWebUI target --------------------"
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
     COMMAND ${CMAKE_COMMAND} -E remove "${_full_fs_dest_image_path}/placeholder"
-    # Only execute the next command if UI_SOURCE_PATH is defined
-    $<$<BOOL:${UI_SOURCE_PATH}>:${CMAKE_COMMAND} -E copy_directory "${_web_ui_build_folder_path}" "${_full_fs_dest_image_path}">
-    DEPENDS WebUI AlwaysCopyFSAndWebUI # Ensure WebUI target is built first
+    DEPENDS WebUI AlwaysCopyFSAndWebUI
     COMMENT "Copying FS and WebUI files to the FS Image directory"
 )
+
+if(DEFINED UI_SOURCE_PATH)
+    add_custom_command(TARGET CopyFSAndWebUI POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${_web_ui_build_folder_path}" "${_full_fs_dest_image_path}"
+        COMMENT "Copying WebUI files to the FS Image directory"
+    )
+endif()
 
 # Dependency on FS image
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} CopyFSAndWebUI WebUI)
