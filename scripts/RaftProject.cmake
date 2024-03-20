@@ -262,7 +262,9 @@ add_custom_target(
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
     COMMAND ${CMAKE_COMMAND} -E remove "${_full_fs_dest_image_path}/placeholder"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${_web_ui_build_folder_path}" "${_full_fs_dest_image_path}"
+    if(DEFINED UI_SOURCE_PATH)
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${_web_ui_build_folder_path}" "${_full_fs_dest_image_path}"
+    endif()
     DEPENDS WebUI AlwaysCopyFSAndWebUI # Ensure WebUI target is built first
     COMMENT "Copying FS and WebUI files to the FS Image directory"
 )
