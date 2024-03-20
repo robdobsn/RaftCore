@@ -257,7 +257,6 @@ add_custom_target(AlwaysCopyFSAndWebUI
 
 # Setup command to handle copying of FS and WebUI files
 set(copy_command "
-    ${CMAKE_COMMAND} -E echo \"---------------------- Copying FS and WebUI files to the FS Image directory -----------------------\" &&
     ${CMAKE_COMMAND} -E remove_directory \"${_full_fs_dest_image_path}\" &&
     ${CMAKE_COMMAND} -E copy_directory \"${_full_fs_source_image_path}\" \"${_full_fs_dest_image_path}\" &&
     ${CMAKE_COMMAND} -E remove \"${_full_fs_dest_image_path}/placeholder\"
