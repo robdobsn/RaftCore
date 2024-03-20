@@ -56,6 +56,32 @@ file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 file(WRITE "${RAFT_BUILD_ARTIFACTS_FOLDER}/cursystype.txt" "${_build_config_name}")
 
 ################################################
+# SDKConfig
+################################################
+
+# Use sdkconfig for the selected build configuration
+set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
+set(SDKCONFIG "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig")
+
+# Custom command to change the sdkconfig file based on the sdkconfig.defaults file dependency
+add_custom_command(
+    OUTPUT ${SDKCONFIG}
+    COMMAND ${CMAKE_COMMAND} -E copy ${SDKCONFIG_DEFAULTS} ${SDKCONFIG}
+    DEPENDS ${SDKCONFIG_DEFAULTS}
+    COMMENT "Copying sdkconfig.defaults to sdkconfig"
+)
+
+# Custom target to ensure the sdkconfig file is generated before the main project is built
+add_custom_target(
+    sdkconfig ALL
+    DEPENDS ${SDKCONFIG}
+    COMMENT "Copying sdkconfig.defaults to sdkconfig"
+)
+
+# Add project dependencies
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
+
+################################################
 # SysTypes Header
 ################################################
 
@@ -142,32 +168,6 @@ add_custom_target(
 
 # Dependency on partitions.csv
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} partitions_csv)
-
-################################################
-# SDKConfig
-################################################
-
-# Use sdkconfig for the selected build configuration
-set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
-set(SDKCONFIG "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig")
-
-# Custom command to change the sdkconfig file based on the sdkconfig.defaults file dependency
-add_custom_command(
-    OUTPUT ${SDKCONFIG}
-    COMMAND ${CMAKE_COMMAND} -E copy ${SDKCONFIG_DEFAULTS} ${SDKCONFIG}
-    DEPENDS ${SDKCONFIG_DEFAULTS}
-    COMMENT "Copying sdkconfig.defaults to sdkconfig"
-)
-
-# Custom target to ensure the sdkconfig file is generated before the main project is built
-add_custom_target(
-    sdkconfig ALL
-    DEPENDS ${SDKCONFIG}
-    COMMENT "Copying sdkconfig.defaults to sdkconfig"
-)
-
-# Add project dependencies
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
 
 ################################################
 # Raft components
