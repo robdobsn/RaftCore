@@ -1,6 +1,6 @@
 LIBRARYDIR = $(realpath $(CURDIR)/..)
 WORKING_DIR = $(realpath $(CURDIR))
-DOCKER_ESP_IDF ?= docker run --rm -v $(LIBRARYDIR):$(LIBRARYDIR) -w $(WORKING_DIR) espressif/idf:v5.1.2
+DOCKER_ESP_IDF ?= docker run --rm -v $(LIBRARYDIR):$(LIBRARYDIR) -w $(WORKING_DIR) espressif/idf:v5.2.1
 TARGET ?= esp32
 CMD ?= idf.py -B ./build build -DIDF_TARGET=$(TARGET)
 PORT ?= COM3

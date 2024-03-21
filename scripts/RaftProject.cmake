@@ -127,7 +127,7 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Set the firmware image name (if not already set)
 if(NOT DEFINED FW_IMAGE_NAME)
-    set(FW_IMAGE_NAME "${_build_config_name}FW")
+    set(FW_IMAGE_NAME "${_build_config_name}")
 endif()
 
 # Configuration message

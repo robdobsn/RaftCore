@@ -160,6 +160,26 @@ public:
                                 (busElemAddr.isChangeToOnline ? "Online" : "Offline");
     }    
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Call bus element status callback
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void callBusElemStatusCB(const std::vector<BusElemAddrAndStatus>& statusChanges)
+    {
+        if (_busElemStatusCB)
+            _busElemStatusCB(*this, statusChanges);
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Call bus operation status callback
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void callBusOperationStatusCB(BusOperationStatus busOperationStatus)
+    {
+        if (_busOperationStatusCB)
+            _busOperationStatusCB(*this, busOperationStatus);
+    }
+
 protected:
     BusStats _busStats;
     BusElemStatusCB _busElemStatusCB;
