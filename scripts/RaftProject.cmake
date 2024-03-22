@@ -134,8 +134,6 @@ endif()
 message(STATUS "------------------ Firmware image ${FW_IMAGE_NAME} ------------------")
 
 # List of dependencies of main project
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} "raftcore")
-set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR})
 set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${OPTIONAL_COMPONENTS})
 
 ################################################
