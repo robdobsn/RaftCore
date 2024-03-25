@@ -180,6 +180,11 @@ public:
             _busOperationStatusCB(*this, busOperationStatus);
     }
 
+    BusStats& getBusStats()
+    {
+        return _busStats;
+    }
+
 protected:
     BusStats _busStats;
     BusElemStatusCB _busElemStatusCB;
