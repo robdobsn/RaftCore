@@ -10,7 +10,7 @@
 
 struct BusElemAddrAndStatus
 {
-    uint16_t address;
+    uint32_t address;
     bool isChangeToOnline;
 };
 
