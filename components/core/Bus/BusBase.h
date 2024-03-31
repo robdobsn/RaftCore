@@ -154,7 +154,7 @@ public:
     // Get the bus element address as a string
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    static String busElemAddrAndStatusToString(BusElemAddrAndStatus busElemAddr)
+    virtual String busElemAddrAndStatusToString(BusElemAddrAndStatus busElemAddr)
     {
         return "0x" + String(busElemAddr.address, 16) + ":" +
                                 (busElemAddr.isChangeToOnline ? "Online" : "Offline");
