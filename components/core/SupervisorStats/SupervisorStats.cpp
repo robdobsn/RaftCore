@@ -115,7 +115,7 @@ void SupervisorStats::calculate()
 // Get summary string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String SupervisorStats::getSummaryString()
+String SupervisorStats::getSummaryString() const
 {
     // Average loop time
     String outerLoopStr;

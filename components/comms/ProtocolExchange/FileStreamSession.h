@@ -32,37 +32,37 @@ public:
     virtual ~FileStreamSession();
 
     // Info
-    bool isActive()
+    bool isActive() const
     {
         return _isActive;
     }
-    const String& getFileStreamName()
+    const String& getFileStreamName() const
     {
         return _fileStreamName;
     }
-    uint32_t getChannelID()
+    uint32_t getChannelID() const
     {
         return _channelID;
     }
-    uint32_t getStreamID()
+    uint32_t getStreamID() const
     {
         if (_pFileStreamProtocolHandler)
             return _pFileStreamProtocolHandler->getStreamID();
         return FileStreamBase::FILE_STREAM_ID_ANY;
     }
-    bool isMainFWUpdate()
+    bool isMainFWUpdate() const
     {
         return _fileStreamContentType == FileStreamBase::FILE_STREAM_CONTENT_TYPE_FIRMWARE;
     }
-    bool isFileSystemActivity()
+    bool isFileSystemActivity() const
     {
         return _fileStreamContentType == FileStreamBase::FILE_STREAM_CONTENT_TYPE_FILE;
     }
-    bool isStreaming()
+    bool isStreaming() const
     {
         return _fileStreamContentType == FileStreamBase::FILE_STREAM_CONTENT_TYPE_RT_STREAM;
     }
-    bool isUpload()
+    bool isUpload() const
     {
         return true;
     }
@@ -89,7 +89,7 @@ public:
     void fileStreamCancelEnd(bool isNormalEnd);
 
     // Debug
-    String getDebugJSON();
+    String getDebugJSON() const;
     
 private:
     // Is active

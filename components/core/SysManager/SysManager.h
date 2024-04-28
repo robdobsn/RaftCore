@@ -61,13 +61,13 @@ public:
     void addManagedSysMod(RaftSysMod* pSysMod);
 
     // Get system name
-    String getSystemName()
+    String getSystemName() const
     {
         return _systemName;
     }
 
     // Get system version
-    String getSystemVersion()
+    String getSystemVersion() const
     {
         return _systemVersion;
     }
@@ -79,14 +79,14 @@ public:
     }
 
     // Get base SysType version
-    String getBaseSysTypeVersion()
+    String getBaseSysTypeVersion() const
     {
         return _sysTypeManager.getBaseSysTypeVersion();
     }
 
     // Get friendly name
-    String getFriendlyName(bool& isSet);
-    bool getFriendlyNameIsSet();
+    String getFriendlyName(bool& isSet) const;
+    bool getFriendlyNameIsSet() const;
     bool setFriendlyName(const String& friendlyName, bool setHostname, String& respStr);
 
     // Set system unique string
@@ -96,7 +96,7 @@ public:
     }
 
     // Get system unique string
-    String getSystemUniqueString()
+    String getSystemUniqueString() const
     {
         return _systemUniqueString;
     }
@@ -114,7 +114,7 @@ public:
     String getStatusJSON(const char* sysModName);
 
     // Get debug from SysMod
-    String getDebugJSON(const char* sysModName);
+    String getDebugJSON(const char* sysModName) const;
 
     // Send command to SysMod
     RaftRetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
@@ -123,7 +123,7 @@ public:
     void sendMsgGenCB(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
 
     // Get named value 
-    double getNamedValue(const char* sysModName, const char* valueName, bool& isValid);
+    double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const;
 
     // Request system restart
     void systemRestart()

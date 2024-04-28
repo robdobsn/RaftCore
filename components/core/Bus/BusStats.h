@@ -36,7 +36,7 @@ public:
     }
 
     // Get stats
-    String getStatsJSON(const String& busName)
+    String getStatsJSON(const String& busName) const
     {
         char outStr[150];
             snprintf(outStr, sizeof(outStr), R"("%s":{"cnt":%d,"reqF":%d,"reqQ":%d,"reqQPk":%d,"rspF":%d,"rspQ":%d,"rspQPk":%d,"rspE":%d,"poll":%d,"cmds":%d})",

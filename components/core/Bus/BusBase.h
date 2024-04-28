@@ -24,122 +24,167 @@ typedef std::function<void(BusBase& bus, BusOperationStatus busOperationStatus)>
 class BusBase
 {
 public:
-    // Constructor
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Constructor
+    /// @param busElemStatusCB - callback for bus element status changes
+    /// @param busOperationStatusCB - callback for bus operation status changes
     BusBase(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
         : _busElemStatusCB(busElemStatusCB), _busOperationStatusCB(busOperationStatusCB)
     {
     }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Destructor
     virtual ~BusBase()
     {
     }
 
-    // Setup
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Setup
+    /// @param config - configuration
+    /// @return true if successful
     virtual bool setup(const RaftJsonIF& config)
     {
         return false;
     }
 
-    // Close
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Close
     virtual void close()
     {
     }
 
-    // Service
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief service (should be called frequently to service the bus)
     virtual void service()
     {
     }
 
-    // Clear
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Clear
     virtual void clear(bool incPolling)
     {
     }
 
-    // Pause
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Pause
+    /// @param pause - true to pause, false to resume
     virtual void pause(bool pause)
     {
     }
 
-    // IsPaused
-    virtual bool isPaused()
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Is paused
+    /// @return true if paused
+    virtual bool isPaused() const
     {
         return false;
     }
 
-    // Hiatus for period of ms
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Hiatus for a period in ms (stop bus activity for a period of time)
+    /// @param forPeriodMs - period in ms
     virtual void hiatus(uint32_t forPeriodMs)
     {
     }
 
-    // IsHiatus
-    virtual bool isHiatus()
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Is hiatus
+    /// @return true if in hiatus
+    virtual bool isHiatus() const
     {
         return false;
     }
 
-    // isOperatingOk
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if bus is operating ok
+    /// @return bus operation status
     virtual BusOperationStatus isOperatingOk() const
     {
         return BusOperationStatus::BUS_OPERATION_OK;
     }
 
-    // isReady (for new requests)
-    virtual bool isReady()
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if bus is ready for new requests
+    /// @return true if ready
+    virtual bool isReady() const
     {
         return false;
     }
 
-    // Get Name
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus name
+    /// @return bus name
     virtual String getBusName() const
     {
         return "";
     }
 
-    // Request bus action
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Request an action (like regular polling of a device or sending a single message and getting a response)
+    /// @param busReqInfo - bus request information
+    /// @return true if action queued for processing
     virtual bool addRequest(BusRequestInfo& busReqInfo)
     {
         return false;
     }
 
-    // Get stats
-    virtual String getBusStatsJSON()
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus statistics as a JSON string
+    /// @return JSON string
+    virtual String getBusStatsJSON() const
     {
         return _busStats.getStatsJSON(getBusName());
     }
 
-    // Check bus element responding
-    virtual bool isElemResponding(uint32_t address, bool* pIsValid = nullptr)
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if a bus element is responding
+    /// @param address - address of element to check
+    /// @param pIsValid - (out) set to true if address is valid
+    /// @return true if element is responding
+    virtual bool isElemResponding(uint32_t address, bool* pIsValid = nullptr) const
     {
         if (pIsValid)
             *pIsValid = false;
         return true;
     }
 
-    // Request (or suspend) slow scanning and optionally request a fast scan
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Request a change to bus scanning activity
+    /// @param enableSlowScan - true to enable slow scan
+    /// @param requestFastScan - true to request a fast scan
     virtual void requestScan(bool enableSlowScan, bool requestFastScan)
     {
     }
 
-    // Clear receive buffer
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Clear received data
     virtual void rxDataClear()
     {
     }
     
-    // Received data bytes available
-    virtual uint32_t rxDataBytesAvailable()
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if received data is available (for byte-oriented buses)
+    /// @return true if data is available
+    virtual uint32_t rxDataBytesAvailable() const
     {
         return 0;
     }
 
-    // Get rx data - returns number of bytes placed in pData buffer
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get received data (for byte-oriented buses)
+    /// @param pData - buffer to place data in
+    /// @param maxLen - maximum number of bytes to place in buffer
+    /// @return number of bytes placed in pData buffer (0 if no data available)
     virtual uint32_t rxDataGet(uint8_t* pData, uint32_t maxLen)
     {
         return 0;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Get the bus operation status as a string
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+    /// @brief Get the bus operation status as a string
+    /// @param busOperationStatus - bus operation status
+    /// @return bus operation status as a string
     static const char *busOperationStatusToString(BusOperationStatus busOperationStatus)
     {
         switch (busOperationStatus)
@@ -151,14 +196,88 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Get the bus element address as a string
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    virtual String busElemAddrAndStatusToString(BusElemAddrAndStatus busElemAddr)
+    /// @brief Get the bus element address and status as a string
+    /// @param busElemAddr - bus element address
+    /// @return bus element address and status as a string
+    virtual String busElemAddrAndStatusToString(BusElemAddrAndStatus busElemAddr) const
     {
         return "0x" + String(busElemAddr.address, 16) + ":" +
-                                (busElemAddr.isChangeToOnline ? "Online" : "Offline");
+                                (busElemAddr.isChangeToOnline ? "Online" : "Offline" + String(busElemAddr.isChangeToOffline ? " (was online)" : ""));
     }    
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get device type information by address
+    /// @param address - address of device to get information for
+    /// @param includePlugAndPlayInfo - true to include plug and play information
+    /// @return JSON string
+    virtual String getDevTypeInfoJsonByAddr(uint32_t address, bool includePlugAndPlayInfo) const
+    {
+        return "{}";
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get device type information by device type name
+    /// @param deviceType - device type name
+    /// @param includePlugAndPlayInfo - true to include plug and play information
+    /// @return JSON string
+    virtual String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo) const
+    {
+        return "{}";
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Return addresses of devices attached to the bus
+    /// @param addresses - vector to store the addresses of devices
+    /// @param onlyAddressesWithIdentPollResponses - true to only return addresses with ident poll responses
+    /// @return true if there are any ident poll responses available
+    virtual bool getBusElemAddresses(std::vector<uint32_t>& addresses, bool onlyAddressesWithIdentPollResponses) const
+    {
+        return false;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
+    /// @brief Get bus element poll responses for a specific address
+    /// @param address - address of device to get responses for
+    /// @param isOnline - (out) true if device is online
+    /// @param deviceTypeIndex - (out) device type index
+    /// @param devicePollResponseData - (out) vector to store the device poll response data
+    /// @param responseSize - (out) size of the response data
+    /// @param maxResponsesToReturn - maximum number of responses to return (0 for no limit)
+    /// @return number of responses returned
+    virtual uint32_t getBusElemPollResponses(uint32_t address, bool& isOnline, uint16_t& deviceTypeIndex, 
+                std::vector<uint8_t>& devicePollResponseData, 
+                uint32_t& responseSize, uint32_t maxResponsesToReturn)
+    {
+        isOnline = false;
+        deviceTypeIndex = 0;
+        devicePollResponseData.clear();
+        responseSize = 0;
+        return 0;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus poll JSON for all detected bus elements
+    /// @return JSON string
+    virtual String getBusPollResponsesJson()
+    {
+        return "{}";
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get time of last bus status update
+    /// @return time of last bus status update in ms
+    virtual uint32_t getLastStatusUpdateMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const
+    {
+        return 0;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus status (JSON)
+    /// @return JSON string
+    virtual String getBusStatusJson() const
+    {
+        return "{}";
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Call bus element status callback
@@ -180,6 +299,7 @@ public:
             _busOperationStatusCB(*this, busOperationStatus);
     }
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     BusStats& getBusStats()
     {
         return _busStats;

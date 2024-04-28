@@ -113,7 +113,7 @@ void ProtocolExchange::loop()
 // Get info JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String ProtocolExchange::getDebugJSON()
+String ProtocolExchange::getDebugJSON() const
 {
     String jsonStr;
     for (FileStreamSession* pSession : _sessions)

@@ -161,7 +161,7 @@ bool BusSerial::serialInit()
 // isReady (for new requests)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool BusSerial::isReady()
+bool BusSerial::isReady() const
 {
     if (_minTimeBetweenSendsMs == 0)
         return true;
@@ -212,7 +212,7 @@ void BusSerial::rxDataClear()
 // Received data bytes available
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t BusSerial::rxDataBytesAvailable()
+uint32_t BusSerial::rxDataBytesAvailable() const
 {
     size_t numAvailable = 0;
     if (uart_get_buffered_data_len((uart_port_t)_uartNum, &numAvailable) == ESP_OK)

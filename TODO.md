@@ -8,3 +8,5 @@
 [] when ethernet is enabled but there is no ethernet hardware there is a long delay (5s?) on boot
 [] wifi password less than 8 --- what does this mean?
 [] 
+
+[] build with web server fails sometimes due to output names changing - need a different way to determine destination output - maybe a dummy file?

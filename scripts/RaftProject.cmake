@@ -212,7 +212,7 @@ if(DEFINED UI_SOURCE_PATH)
     set(_web_ui_build_folder_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/BuildWebUI")
     # Ensure the WebUI build folder exists
     file(MAKE_DIRECTORY ${_web_ui_build_folder_path})
-    
+
     # Custom command to generate the WebUI
     file(GLOB_RECURSE WebUI_SOURCES "${_full_web_ui_source_path}/*")
     add_custom_command(
@@ -254,16 +254,17 @@ add_custom_target(AlwaysCopyFSAndWebUI
 )
 
 add_custom_target(CopyFSAndWebUI ALL
-    COMMAND ${CMAKE_COMMAND} -E echo "------------------ Running CopyFSAndWebUI target --------------------"
+    COMMAND ${CMAKE_COMMAND} -E echo "------------------ Copying FSImage files to file system --------------------"
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${_full_fs_dest_image_path}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${_full_fs_source_image_path}" "${_full_fs_dest_image_path}"
     COMMAND ${CMAKE_COMMAND} -E remove "${_full_fs_dest_image_path}/placeholder"
     DEPENDS WebUI AlwaysCopyFSAndWebUI
-    COMMENT "Copying FS and WebUI files to the FS Image directory"
+    COMMENT "Copying FSImage files to the FS Image directory"
 )
 
 if(DEFINED UI_SOURCE_PATH)
     add_custom_command(TARGET CopyFSAndWebUI POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "------------------ Copying Web UI files to file system --------------------"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${_web_ui_build_folder_path}" "${_full_fs_dest_image_path}"
         COMMENT "Copying WebUI files to the FS Image directory"
     )

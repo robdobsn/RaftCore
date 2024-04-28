@@ -39,7 +39,7 @@ public:
     }
 
     // IsPaused
-    virtual bool isPaused() override final
+    virtual bool isPaused() const override final
     {
         return false;
     }
@@ -51,7 +51,7 @@ public:
     }
 
     // isReady (for new requests)
-    virtual bool isReady() override final;
+    virtual bool isReady() const override final;
 
     // Request bus action
     virtual bool addRequest(BusRequestInfo& busReqInfo) override final;
@@ -60,7 +60,7 @@ public:
     virtual void rxDataClear() override final;
 
     // Received data bytes available
-    virtual uint32_t rxDataBytesAvailable() override final;
+    virtual uint32_t rxDataBytesAvailable() const override final;
 
     // Get rx data - returns number of bytes placed in pData buffer
     virtual uint32_t rxDataGet(uint8_t* pData, uint32_t maxLen) override final;

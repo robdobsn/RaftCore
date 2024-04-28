@@ -58,37 +58,36 @@ public:
     void service();
 
     // Connected indicators
-    bool isWifiStaConnectedWithIP();
-    bool isWifiAPConnectedWithIP();
-    bool isEthConnectedWithIP();
-    bool isIPConnected();
+    bool isWifiStaConnectedWithIP() const;
+    bool isEthConnectedWithIP() const;
+    bool isIPConnected() const;
 
     // Get JSON info
-    String getSettingsJSON(bool includeBraces);
-    String getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue);
+    String getSettingsJSON(bool includeBraces) const;
+    String getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue) const;
 
     // Connection info
-    String getWiFiIPV4AddrStr()
+    String getWiFiIPV4AddrStr() const
     {
         return _wifiIPV4Addr;
     }
 
 #ifdef ETHERNET_IS_ENABLED
-    String getEthIPV4AddrStr()
+    String getEthIPV4AddrStr() const
     {
         return _ethIPV4Addr;
     }
 #endif
 
     // Hostname
-    String getHostname()
+    String getHostname() const
     {
         return _hostname;
     }
     void setHostname(const char* hostname);
 
     // SSID
-    String getSSID()
+    String getSSID() const
     {
         return _wifiStaSSID;
     }
@@ -103,7 +102,7 @@ public:
     // Pause WiFi operation - used to help with BLE vs WiFi contention in ESP32
     // (they share the same radio)
     void pauseWiFi(bool pause);
-    bool isPaused()
+    bool isPaused() const
     {
         return _isPaused;
     }
@@ -115,7 +114,7 @@ public:
     bool wifiScan(bool start, String& jsonResult);
 
     // Get RSSI
-    int getRSSI(bool& isValid)
+    int getRSSI(bool& isValid) const
     {
         isValid = _wifiRSSI != 0;
         return _wifiRSSI;

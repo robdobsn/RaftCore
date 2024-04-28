@@ -222,7 +222,7 @@ void NetworkSystem::service()
 // Status
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool NetworkSystem::isWifiStaConnectedWithIP()
+bool NetworkSystem::isWifiStaConnectedWithIP() const
 {
     // Check valid
     if (!_isSetup)
@@ -232,7 +232,7 @@ bool NetworkSystem::isWifiStaConnectedWithIP()
     return (connBits & WIFI_STA_CONNECTED_BIT) && (connBits & WIFI_STA_IP_CONNECTED_BIT);
 }
 
-bool NetworkSystem::isIPConnected()
+bool NetworkSystem::isIPConnected() const
 {
     // Check valid
     if (!_isSetup)
@@ -242,7 +242,7 @@ bool NetworkSystem::isIPConnected()
     return (connBits & WIFI_STA_IP_CONNECTED_BIT) | (connBits & ETH_IP_CONNECTED_BIT);
 }
 
-bool NetworkSystem::isEthConnectedWithIP()
+bool NetworkSystem::isEthConnectedWithIP() const
 {
     // Check valid
     if (!_isSetup)
@@ -256,7 +256,7 @@ bool NetworkSystem::isEthConnectedWithIP()
 // Get settings JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String NetworkSystem::getSettingsJSON(bool includeBraces)
+String NetworkSystem::getSettingsJSON(bool includeBraces) const
 {
     // Get the status JSON
     String jsonStr = R"("wifiSTA":")" + String(_networkSettings.enableWifiSTAMode) + 
@@ -275,7 +275,7 @@ String NetworkSystem::getSettingsJSON(bool includeBraces)
 // Get conn state JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue)
+String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue) const
 {
     // Get the status JSON
     String jsonStr = R"("hostname":")" + _hostname + R"(")";

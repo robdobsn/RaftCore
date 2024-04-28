@@ -553,7 +553,7 @@ String SysManager::getStatusJSON(const char* sysModName)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get debugStr from SysMod
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-String SysManager::getDebugJSON(const char* sysModName)
+String SysManager::getDebugJSON(const char* sysModName) const
 {
     // Check if it is the SysManager's own stats that are wanted
     if (strcasecmp(sysModName, "SysMan") == 0)
@@ -621,7 +621,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 // Get named value from SysMod
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-double SysManager::getNamedValue(const char* sysModName, const char* valueName, bool& isValid)
+double SysManager::getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const
 {
     // See if the sysmod is in the list
     for (RaftSysMod* pSysMod : _sysModuleList)
@@ -952,7 +952,7 @@ void SysManager::statsShow()
 // Friendly name helpers
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String SysManager::getFriendlyName(bool& isSet)
+String SysManager::getFriendlyName(bool& isSet) const
 {
     // Check if set
     isSet = getFriendlyNameIsSet();
@@ -975,7 +975,7 @@ String SysManager::getFriendlyName(bool& isSet)
     return friendlyName;
 }
 
-bool SysManager::getFriendlyNameIsSet()
+bool SysManager::getFriendlyNameIsSet() const
 {
     return _mutableConfig.getLong("nameSet", 0);
 }

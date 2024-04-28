@@ -272,7 +272,7 @@ RaftRetCode FileStreamSession::handleDataFrame(const RICRESTMsg& ricRESTReqMsg, 
 // getDebugJSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String FileStreamSession::getDebugJSON()
+String FileStreamSession::getDebugJSON() const
 {
     // Build JSON
     if (_pFileStreamProtocolHandler)

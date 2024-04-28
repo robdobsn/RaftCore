@@ -134,7 +134,11 @@ public:
         _pSysManager = pSysManager;
     }
 
-    SysManager* getSysManager()
+    SysManager* getSysManager() const
+    {
+        return _pSysManager;
+    }
+    const SysManager* getSysManagerConst() const
     {
         return _pSysManager;
     }
@@ -146,7 +150,7 @@ public:
     }
 
     // Get debug string
-    virtual String getDebugJSON()
+    virtual String getDebugJSON() const
     {
         return "{}";
     }

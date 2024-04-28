@@ -92,7 +92,7 @@ public:
 
 private:
     // Read data
-    static const int RESPONSE_BUFFER_MAX_BYTES = 120;
+    static const int RESPONSE_BUFFER_MAX_BYTES = 5000;
     std::vector<uint8_t> _respBuf;
 
     // Result

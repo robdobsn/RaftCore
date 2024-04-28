@@ -53,7 +53,7 @@ public:
 
     // Clear stats
     void clear();
-    String getSummaryString();
+    String getSummaryString() const;
 
 private:
 

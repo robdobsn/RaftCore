@@ -20,6 +20,8 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
 endif()
 
 idf_component_register(
+  NAME
+    "RaftCore"
   SRCS
     "components/comms/CommsChannels/CommsChannel.cpp"
     "components/comms/CommsChannels/CommsChannelManager.cpp"

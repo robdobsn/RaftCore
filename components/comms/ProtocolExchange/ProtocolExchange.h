@@ -44,7 +44,7 @@ protected:
     virtual void addCommsChannels(CommsCoreIF& commsCore) override final;
 
     // Get debug info
-    virtual String getDebugJSON();
+    virtual String getDebugJSON() const override final;
 
 private:
     // Handlers

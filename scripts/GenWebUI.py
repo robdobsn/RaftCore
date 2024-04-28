@@ -47,6 +47,15 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall,
                         "Y" if gzipContent else "N",
                         "Y" if includemapfiles else "N")
 
+    # Empty the dest folder
+    try:
+        _log.info(f"Emptying {destFolder}")
+        for fname in os.listdir(destFolder):
+            _log.info(f"Removing {os.path.join(destFolder, fname)}")
+            os.remove(os.path.join(destFolder, fname))
+    except:
+        pass
+
     # If npmInstall is true, execute npm install in the source folder
     if npmInstall:
         rslt = subprocess.run(["npm", "install"], cwd=sourceFolder)
