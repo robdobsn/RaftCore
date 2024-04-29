@@ -188,6 +188,7 @@ foreach(_raft_component ${RAFT_COMPONENTS})
     # Fetch the Raft library
     FetchContent_Declare(
         ${_raft_component_lower}
+        SOURCE_DIR     ${RAFT_BUILD_ARTIFACTS_FOLDER}/${_raft_component_name}
         GIT_REPOSITORY https://github.com/robdobsn/${_raft_component_name}.git
         GIT_TAG        ${_raft_component_tag}
     )
