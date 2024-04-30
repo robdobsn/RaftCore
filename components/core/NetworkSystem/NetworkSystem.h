@@ -92,6 +92,12 @@ public:
         return _wifiStaSSID;
     }
 
+    // Get SSID we're trying to connect to
+    String getSSIDConnectingTo() const
+    {
+        return _wifiStaSSIDConnectingTo;
+    }
+
     // Configuration
     bool configWifiSTA(const String& ssid, const String& pw);
     bool configWifiAP(const String& apSsid, const String& apPassword);
@@ -138,6 +144,9 @@ private:
     String _wifiIPV4Addr;
     String _hostname;
     bool _wifiStaConnWithIPBeforePause = false;
+
+    // WiFi STA SSID we're trying to connect to
+    String _wifiStaSSIDConnectingTo;
 
     // WiFi AP
     String _wifiAPSSID;

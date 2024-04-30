@@ -289,7 +289,7 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         jsonStr += R"("wifiSTA":{"en":)" + String(_networkSettings.enableWifiSTAMode);
         if (_networkSettings.enableWifiSTAMode)
             jsonStr += R"(,"conn":)" + String(wifiStaConnWithIP) + 
-                            R"(,"SSID":")" + _wifiStaSSID +
+                            R"(,"SSID":")" + (wifiStaConnWithIP ? _wifiStaSSID : _wifiStaSSIDConnectingTo) +
                             R"(","RSSI":)" + String(_wifiRSSI) + 
                             R"(,"IP":")" + _wifiIPV4Addr + 
                             R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") +
@@ -418,8 +418,11 @@ bool NetworkSystem::startWifi()
             currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
             esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
 
-            // Debug
+            // Set SSID we're trying to connect to
             String ssid = String((char*)currentWifiConfig.sta.ssid, sizeof(currentWifiConfig.sta.ssid));
+            _wifiStaSSIDConnectingTo = ssid;
+
+            // Debug
             LOG_I(MODULE_PREFIX, "setup connecting to ssid %s", ssid.c_str());
         }
     }
@@ -508,6 +511,7 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
         LOG_E(MODULE_PREFIX, "configWifiSTA FAILED err %s (%d) ***", esp_err_to_name(err), err);
         return false;
     }
+    _wifiStaSSIDConnectingTo = ssidUnescaped;
 
     // Check if we need to disconnect
     uint connBits = xEventGroupClearBits(_networkRTOSEventGroup, 0);
@@ -575,11 +579,12 @@ esp_err_t NetworkSystem::clearCredentials()
 
     // Restore to system defaults
     esp_wifi_disconnect();
-    _wifiStaSSID.clear();
-    _wifiIPV4Addr.clear();
     esp_err_t err = esp_wifi_restore();
     if (err == ESP_OK)
     {
+        _wifiStaSSID.clear();
+        _wifiIPV4Addr.clear();
+        _wifiStaSSIDConnectingTo.clear();
         LOG_I(MODULE_PREFIX, "apiWifiClear CLEARED WiFi Credentials");
     }
     else
