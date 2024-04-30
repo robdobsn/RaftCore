@@ -40,6 +40,7 @@ endif()
 
 # Debug
 message (STATUS "\n------------------ RaftCore BuildConfig ${_build_config_name} ------------------")
+message (STATUS "\n------------------ RaftCore build folder ${CMAKE_BINARY_DIR} ------------------")
 
 # Set the base project name
 set(PROJECT_BASENAME "${_build_config_name}")
@@ -49,7 +50,7 @@ add_compile_definitions(PROJECT_BASENAME="${PROJECT_BASENAME}")
 set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/systypes/${_build_config_name}")
 
 # Set the build artifacts directory
-set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_SOURCE_DIR}/build_raft_artifacts")
+set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
 file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
 # Save a file in the build artifacts directory to indicate the build configuration
