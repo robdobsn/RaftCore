@@ -593,7 +593,6 @@ public:
         return outStr;
     }
 
-
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Extract name-value pairs from string
     /// @param inStr : input string
@@ -603,83 +602,48 @@ public:
     /// @param nameValuePairs : vector of name-value pairs
     /// @return void
     static void extractNameValues(const String& inStr, 
-        const char* pNameValueSep, const char* pPairDelim, const char* pPairDelimAlt, 
-        std::vector<RaftJson::NameValuePair>& nameValuePairs)
-    {
-        // Count the pairs
-        uint32_t pairCount = 0;
-        const char* pCurSep = inStr.c_str();
-        while(pCurSep)
-        {
-            pCurSep = strstr(pCurSep, pNameValueSep);
-            if (pCurSep)
-            {
-                pairCount++;
-                pCurSep++;
+                                const char* pNameValueSep, 
+                                const char* pPairDelim, 
+                                const char* pPairDelimAlt, 
+                                std::vector<NameValuePair>& nameValuePairs) {
+        // Calculate lengths of delimiters for optimization
+        size_t nameValueSepLen = strlen(pNameValueSep);
+        size_t pairDelimLen = strlen(pPairDelim);
+        size_t pairDelimAltLen = pPairDelimAlt ? strlen(pPairDelimAlt) : 0;
+
+        uint32_t startPos = 0;
+        uint32_t endPos;
+
+        while (startPos < inStr.length()) {
+            // Find the next pair delimiter
+            int nextPairDelimPos = inStr.indexOf(pPairDelim, startPos);
+            int nextPairDelimAltPos = pPairDelimAlt ? inStr.indexOf(pPairDelimAlt, startPos) : -1;
+
+            if (nextPairDelimPos == -1) nextPairDelimPos = inStr.length();
+            if (nextPairDelimAltPos == -1) nextPairDelimAltPos = inStr.length();
+
+            endPos = nextPairDelimPos < nextPairDelimAltPos ? nextPairDelimPos : nextPairDelimAltPos;
+
+            // Extract the pair substring
+            String pair = inStr.substring(startPos, endPos);
+
+            // Find the separator between name and value
+            int sepPos = pair.indexOf(pNameValueSep);
+            String name, value;
+            if (sepPos != -1) {
+                name = pair.substring(0, sepPos);
+                value = pair.substring(sepPos + nameValueSepLen);
+            } else {
+                name = pair;
             }
+
+            // Add to the vector
+            nameValuePairs.emplace_back(name, value);
+
+            // Move to the next part of the string
+            startPos = endPos + (endPos == (uint32_t)nextPairDelimPos ? pairDelimLen : pairDelimAltLen);
         }
-
-#ifdef DEBUG_EXTRACT_NAME_VALUES
-        // Debug
-        LOG_I(RAFT_JSON_PREFIX, "extractNameValues found %d nameValues", pairCount);
-#endif
-
-        // Extract the pairs
-        nameValuePairs.resize(pairCount);
-        pCurSep = inStr.c_str();
-        bool sepTypeIsEqualsSign = true;
-        uint32_t pairIdx = 0;
-        String name, val;
-        while(pCurSep)
-        {
-            // Each pair has the form "name=val;" (semicolon missing on last pair)
-            const char* pElemStart = pCurSep;
-            if (sepTypeIsEqualsSign)
-            {
-                // Check for missing =
-                pCurSep = strstr(pElemStart, pNameValueSep);
-                if (!pCurSep)
-                    break;
-                name = String((uint8_t*)pElemStart, pCurSep-pElemStart);
-                pCurSep++;
-            }
-            else
-            {
-                // Handle two alternatives - sep or no sep
-                pCurSep = strstr(pElemStart, pPairDelim);
-                if (!pCurSep && pPairDelimAlt)
-                    pCurSep = strstr(pElemStart, pPairDelimAlt);
-                if (pCurSep)
-                {
-                    val = String((uint8_t*)pElemStart, pCurSep-pElemStart);
-                    pCurSep++;
-                }
-                else
-                {
-                    val = pElemStart;
-                }
-            }
-
-            // Next separator
-            sepTypeIsEqualsSign = !sepTypeIsEqualsSign;
-            if (!sepTypeIsEqualsSign)
-                continue;
-
-            // Store and move on
-            if (pairIdx >= pairCount)
-                break;
-            name.trim();
-            val.trim();
-            nameValuePairs[pairIdx] = {name,val};
-            pairIdx++;
-        }
-
-#ifdef DEBUG_EXTRACT_NAME_VALUES
-        // Debug
-        for (RaftJson::NameValuePair& pair : nameValuePairs)
-            LOG_I(RAFT_JSON_PREFIX, "extractNameValues name %s val %s", pair.name.c_str(), pair.value.c_str());
-#endif
-    }        
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get string representation of element type
