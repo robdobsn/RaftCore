@@ -1037,7 +1037,7 @@ String SysManager::getBaseSysVersJson()
             break;
         }
     }
-    if (!allDigits)
+    if ((ricHWRevStr.length() == 0) || !allDigits)
         ricHWRevStr = "\"" + ricHWRevStr + "\"";
     // Form JSON
     return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"RicHwRevNo\":" + ricHWRevStr;

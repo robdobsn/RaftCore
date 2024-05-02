@@ -196,14 +196,22 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get the bus element address and status as a string
-    /// @param busElemAddr - bus element address
-    /// @return bus element address and status as a string
-    virtual String busElemAddrAndStatusToString(BusElemAddrAndStatus busElemAddr) const
+    /// @brief Convert bus address to string
+    /// @param addr - address
+    /// @return address as a string
+    virtual String addrToString(uint32_t addr) const
     {
-        return "0x" + String(busElemAddr.address, 16) + ":" +
-                                (busElemAddr.isChangeToOnline ? "Online" : "Offline" + String(busElemAddr.isChangeToOffline ? " (was online)" : ""));
-    }    
+        return "0x" + String(addr, 16);
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Convert string to bus address
+    /// @param addrStr - address as a string
+    /// @return address
+    virtual uint32_t stringToAddr(const String& addrStr) const
+    {
+        return strtol(addrStr.c_str(), NULL, 0);
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type information by address
