@@ -24,6 +24,9 @@ typedef std::function<void()> RaftJsonChangeCallbackType;
 class RaftJsonIF
 {
 public:
+    class BaseIterator;
+    class ArrayIterator;
+    class ObjectIterator;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get string value using the member variable JSON document
@@ -38,6 +41,13 @@ public:
     /// @param defaultValue the default value to return if the variable is not found
     /// @return the value of the variable or the default value if not found
     virtual double getDouble(const char* pDataPath, double defaultValue) const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get int value using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @return the value of the variable or the default value if not found    
+    virtual int getInt(const char* pDataPath, int defaultValue) const = 0;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get long value using the member variable JSON document
@@ -98,6 +108,36 @@ public:
     /// @brief Get JSON doc contents
     /// @return const char* : JSON doc contents
     virtual const char* getJsonDoc() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get JSON doc end
+    /// @return const char* : JSON doc end
+    virtual const char* getJsonDocEnd() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a string
+    /// @return String
+    virtual String toString() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a double
+    /// @return double
+    virtual double toDouble() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as an int
+    /// @return int
+    virtual int toInt() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a long
+    /// @return long
+    virtual long toLong() const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a boolean
+    /// @return bool
+    virtual bool toBool() const = 0;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get JSON doc (alternative to getJsonDoc)

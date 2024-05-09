@@ -35,7 +35,9 @@
 // Change this value to false if you want to treat strings as strings in ALL JSON documents
 #define RAFT_JSON_TREAT_STRINGS_AS_NUMBERS true
 
-// RaftJson class
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @class RaftJson
+/// @brief JSON on-demand parser and field extractor
 class RaftJson : public RaftJsonIF
 {
 public:
@@ -47,14 +49,15 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Construct a new RaftJson object
-    /// @param pJsonStr 
+    /// @param pJsonStr start of JSON document
+    /// @param pJsonEnd end of JSON document
     /// @param makeCopy when false the string pointer must remain valid for the lifetime of this object
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @note The makeCopy option is provided to avoid copying strings in flash memory - please don't use it in other cases
-    RaftJson(const char* pJsonStr, bool makeCopy = true, RaftJsonIF* pChainedRaftJson = nullptr)
+    RaftJson(const char* pJsonStr, const char* pJsonEnd = nullptr, bool makeCopy = true, RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Store the source string
-        setSourceStr(pJsonStr, makeCopy, strlen(pJsonStr));
+        setSourceStr(pJsonStr, makeCopy, pJsonEnd ? pJsonEnd : pJsonStr + strlen(pJsonStr));
         _pChainedRaftJson = pChainedRaftJson;
     }
 
@@ -66,7 +69,7 @@ public:
     RaftJson(const String& jsonStr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Store the source string
-        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
+        setSourceStr(jsonStr.c_str(), true, jsonStr.c_str() + jsonStr.length());
         _pChainedRaftJson = pChainedRaftJson;
     }
 
@@ -78,7 +81,7 @@ public:
     RaftJson(const std::string& jsonStr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Store the source string
-        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
+        setSourceStr(jsonStr.c_str(), true, jsonStr.c_str() + jsonStr.length());
         _pChainedRaftJson = pChainedRaftJson;
     }
 
@@ -95,25 +98,25 @@ public:
     RaftJson& operator=(const char* pJsonStr)
     {
         // Store the source string
-        setSourceStr(pJsonStr, true, strlen(pJsonStr));
+        setSourceStr(pJsonStr, true, pJsonStr + strlen(pJsonStr));
         return *this;
     }
     RaftJson& operator=(const String& jsonStr)
     {
         // Store the source string
-        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
+        setSourceStr(jsonStr.c_str(), true, jsonStr.c_str() + jsonStr.length());
         return *this;
     }
     RaftJson& operator=(const std::string& jsonStr)
     {
         // Store the source string
-        setSourceStr(jsonStr.c_str(), true, jsonStr.length());
+        setSourceStr(jsonStr.c_str(), true, jsonStr.c_str() + jsonStr.length());
         return *this;
     }
     virtual bool setJsonDoc(const char* pJsonDoc) override
     {
         // Store the source string
-        setSourceStr(pJsonDoc, true, strlen(pJsonDoc));
+        setSourceStr(pJsonDoc, true, pJsonDoc + strlen(pJsonDoc));
         return true;
     }
 
@@ -124,7 +127,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual String getString(const char* pDataPath, const char* defaultValue) const override
     {
-        return getStringIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getStringIm(_pSourceStr, _pSourceEnd, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -134,7 +137,17 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual double getDouble(const char* pDataPath, double defaultValue) const override
     {
-        return getDoubleIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getDoubleIm(_pSourceStr, _pSourceEnd, pDataPath, defaultValue, _pChainedRaftJson);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get int value using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @return the value of the variable or the default value if not found
+    virtual int getInt(const char* pDataPath, int defaultValue) const override
+    {
+        return getLongIm(_pSourceStr, _pSourceEnd, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +157,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual long getLong(const char* pDataPath, long defaultValue) const override
     {
-        return getLongIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getLongIm(_pSourceStr, _pSourceEnd, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +167,7 @@ public:
     /// @return the value of the variable or the default value if not found
     virtual bool getBool(const char* pDataPath, bool defaultValue) const override
     {
-        return getBoolIm(_pSourceStr, pDataPath, defaultValue, _pChainedRaftJson);
+        return getBoolIm(_pSourceStr, _pSourceEnd, pDataPath, defaultValue, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -164,7 +177,7 @@ public:
     /// @return true if the array was found
     virtual bool getArrayElems(const char *pDataPath, std::vector<String>& strList) const override
     {
-        return getArrayElemsIm(_pSourceStr, pDataPath, strList, _pChainedRaftJson);
+        return getArrayElemsIm(_pSourceStr, _pSourceEnd, pDataPath, strList, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +187,7 @@ public:
     /// @return true if the object was found
     virtual bool getKeys(const char *pDataPath, std::vector<String>& keysVector) const override
     {
-        return getKeysIm(_pSourceStr, pDataPath, keysVector, _pChainedRaftJson);
+        return getKeysIm(_pSourceStr, _pSourceEnd, pDataPath, keysVector, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +197,7 @@ public:
     virtual bool contains(const char* pDataPath) const override
     {
         int arrayLen = 0;
-        RaftJsonType elemType = getTypeIm(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
+        RaftJsonType elemType = getTypeIm(_pSourceStr, _pSourceEnd, pDataPath, arrayLen, _pChainedRaftJson);
         return elemType != RAFT_JSON_UNDEFINED;
     }
 
@@ -195,7 +208,7 @@ public:
     /// @return the type of the element
     virtual RaftJsonType getType(const char* pDataPath, int &arrayLen) const override
     {
-        return getTypeIm(_pSourceStr, pDataPath, arrayLen, _pChainedRaftJson);
+        return getTypeIm(_pSourceStr, _pSourceEnd, pDataPath, arrayLen, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,27 +218,30 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief gets a string from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static String getStringIm(const char* pJsonDoc,
+    static String getStringIm(const char* pJsonDoc, const char* pJsonEnd,
             const char* pDataPath, const char* defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
+        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
         const char* pElemStart = nullptr;
         const char* pElemEnd = nullptr;
-        if (!RaftJson::locateElementBounds(pJsonDocPos, pElemStart, pElemEnd))
+        if (!RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd))
             return defaultValue;
         // Skip quotes
         if (*pElemStart == '"')
             pElemStart++;
+        if ((pElemEnd > pElemStart) && (*(pElemEnd-1) == '"'))
+            pElemEnd--;
         String outStr = String(pElemStart, pElemEnd - pElemStart);
         unescapeString(outStr);
         return outStr;
@@ -234,17 +250,18 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief gets a double from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static double getDoubleIm(const char* pJsonDoc,
+    static double getDoubleIm(const char* pJsonDoc, const char* pJsonEnd,
             const char* pDataPath, double defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
+        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
@@ -264,17 +281,18 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief gets a long from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static long getLongIm(const char* pJsonDoc,
+    static long getLongIm(const char* pJsonDoc, const char* pJsonEnd,
             const char* pDataPath, long defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
+        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
@@ -294,32 +312,34 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief gets a boolean from a JSON document (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
-    static bool getBoolIm(const char* pJsonDoc, 
+    static bool getBoolIm(const char* pJsonDoc, const char* pJsonEnd,
             const char* pDataPath, bool defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Use long method to get value
-        return RaftJson::getLongIm(pJsonDoc, pDataPath, defaultValue, pChainedRaftJson) != 0;
+        return RaftJson::getLongIm(pJsonDoc, pJsonEnd, pDataPath, defaultValue, pChainedRaftJson) != 0;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief gets the elements of an array from the JSON (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
     /// @param pDataPath the path of the required array in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param strList a vector which is filled with the array elements
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return true if the array was found
-    static bool getArrayElemsIm(const char* pJsonDoc,
+    static bool getArrayElemsIm(const char* pJsonDoc, const char* pJsonEnd,
             const char *pDataPath, std::vector<String>& strList,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
+        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -329,10 +349,10 @@ public:
         // Skip over array start
         pJsonDocPos++;
         // Iterate over array elements
-        while (*pJsonDocPos)
+        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
         {
             // Skip whitespace
-            while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
             // Check for end of array
             if (*pJsonDocPos == ']')
@@ -340,7 +360,7 @@ public:
             // Locate element
             const char* pElemStart = nullptr;
             const char* pElemEnd = nullptr;
-            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pElemStart, pElemEnd);
+            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
             if (!pJsonDocPos)
                 return false;
             // Skip quotes
@@ -355,17 +375,18 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief gets the keys of an object from the JSON (immediate - i.e. static function, doc passed in)
     /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
     /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param keysVector a vector which is filled with the keys
     /// @param pChainRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return true if the object was found
-    static bool getKeysIm(const char* pJsonDoc,
+    static bool getKeysIm(const char* pJsonDoc, const char* pJsonEnd,
             const char *pDataPath, std::vector<String>& keysVector,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
+        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -375,10 +396,10 @@ public:
         // Skip over object start
         pJsonDocPos++;
         // Iterate over object elements
-        while (*pJsonDocPos)
+        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
         {
             // Skip whitespace
-            while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
             // Check for end of object
             if (*pJsonDocPos == '}')
@@ -386,7 +407,7 @@ public:
             // Locate key
             const char* pKeyStart = nullptr;
             const char* pKeyEnd = nullptr;
-            pJsonDocPos = locateStringElement(pJsonDocPos, pKeyStart, pKeyEnd, false);
+            pJsonDocPos = locateStringElement(pJsonDocPos, pJsonEnd, pKeyStart, pKeyEnd, false);
             if (!pJsonDocPos)
                 return false;
             // Add to list
@@ -394,7 +415,7 @@ public:
             // Skip to end of element
             const char* pElemEnd = nullptr;
             const char* pElemStart = nullptr;
-            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pElemStart, pElemEnd);
+            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
             if (!pJsonDocPos)
                 return false;
         }
@@ -441,17 +462,18 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get type of element from a JSON document at the specified path
     /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
     /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param arrayLen the length of the array if the element is an array
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the type of the element
-    static RaftJsonType getTypeIm(const char* pJsonDoc,
+    static RaftJsonType getTypeIm(const char* pJsonDoc, const char* pJsonEnd,
             const char* pDataPath, int &arrayLen,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pDataPath, pChainedRaftJson);
+        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
         // Check if we found the element
         if (!pJsonDocPos)
             return RAFT_JSON_UNDEFINED;
@@ -465,10 +487,10 @@ public:
             pJsonDocPos++;
             // Iterate over array elements
             arrayLen = 0;
-            while (*pJsonDocPos)
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
             {
                 // Skip whitespace
-                while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
                     pJsonDocPos++;
                 // Check for end of array
                 if (*pJsonDocPos == ']')
@@ -476,7 +498,7 @@ public:
                 // Locate element
                 const char* pElemStart = nullptr;
                 const char* pElemEnd = nullptr;
-                pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pElemStart, pElemEnd);
+                pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
                 if (!pJsonDocPos)
                     return RAFT_JSON_UNDEFINED;
                 // Count elements
@@ -575,7 +597,7 @@ public:
     {
         // Get keys of object
         std::vector<String> keyStrs;
-        RaftJson::getKeysIm(jsonStr.c_str(), "", keyStrs);
+        RaftJson::getKeysIm(jsonStr.c_str(), jsonStr.c_str()+jsonStr.length(), "", keyStrs);
         if (keyStrs.size() == 0)
             return "";
 
@@ -583,7 +605,7 @@ public:
         String outStr;
         for (String& keyStr : keyStrs)
         {
-            String valStr = RaftJson::getStringIm(jsonStr.c_str(), keyStr.c_str(), "");
+            String valStr = RaftJson::getStringIm(jsonStr.c_str(), jsonStr.c_str()+jsonStr.length(), keyStr.c_str(), "");
             if (valStr.length() == 0)
                 continue;
             if (outStr.length() != 0)
@@ -665,11 +687,78 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get Element start by path
+    /// @return const char* : Start of element
+    const char* getElemStart(const char* pDataPath)
+    {
+        return locateElementByPath(_pSourceStr, _pSourceEnd, pDataPath, _pChainedRaftJson);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get JSON doc contents
     /// @return const char* : JSON doc contents
     const char* getJsonDoc() const override
     {
         return _pSourceStr;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get JSON doc end
+    /// @return const char* : JSON doc end
+    const char* getJsonDocEnd() const override
+    {
+        return _pSourceEnd;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a string
+    /// @return String : JSON doc contents
+    virtual String toString() const
+    {
+        // Check if string is in quotes
+        const char* pStart = _pSourceStr;
+        if ((*pStart == '\"') && (_pSourceEnd > pStart))
+            pStart++;
+        // Check end of string
+        const char* pEnd = _pSourceEnd;
+        if ((pEnd > pStart) && (*(pEnd - 1) == '\"'))
+            pEnd--;
+        return String(pStart, pEnd - pStart);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Coerce to a double
+    /// @return double : JSON doc contents
+    virtual double toDouble() const
+    {
+        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toDouble();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a long
+    /// @return long : JSON doc contents
+    virtual int toInt() const
+    {
+        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toInt();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a long
+    /// @return long : JSON doc contents
+    virtual long toLong() const
+    {
+        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toInt();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a boolean
+    /// @return bool : JSON doc contents
+    virtual bool toBool() const
+    {
+        int retVal = 0;
+        if (isBooleanIm(_pSourceStr, retVal))
+            return retVal != 0;
+        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toInt() != 0;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -692,30 +781,307 @@ public:
     /// @brief Set source string - the main JSON doc string used by this object
     /// @param pSourceStr source string
     /// @param makeCopy when false the string pointer must remain valid for the lifetime of this object
-    /// @param sourceStrLen length of source string
-    void setSourceStr(const char* pSourceStr, bool makeCopy, uint32_t sourceStrLen)
+    /// @param pSourceEnd end of source string (location of null character or arbitrary location within the valid string bounds)
+    void setSourceStr(const char* pSourceStr, bool makeCopy, const char* pSourceEnd)
     {
         // Check valid
-        if (!pSourceStr)
+        if (!pSourceStr || !pSourceEnd)
             return;
 
         // Make copy if required
         if (makeCopy)
         {
 #ifdef USE_RAFT_SPIRAM_AWARE_ALLOCATOR
-            _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pSourceStr, pSourceStr + sourceStrLen + 1);
+            _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pSourceStr, pSourceEnd + 1);
+            _jsonStr[pSourceEnd - pSourceStr] = 0;
 #else
-            _jsonStr = std::vector<char>(pSourceStr, pSourceStr + sourceStrLen + 1);
+            _jsonStr = std::vector<char>(pSourceStr, pSourceEnd + 1);
+            _jsonStr[pSourceEnd - pSourceStr] = 0;
 #endif
             // Reference the copy
             _pSourceStr = _jsonStr.data();
+            _pSourceEnd = _pSourceStr + (_jsonStr.size() - 1);
         }
         else
         {
             // Reference the source string
             _pSourceStr = pSourceStr;
+            _pSourceEnd = pSourceEnd;
         }
     }
+
+    // Forward definition of iterator
+    class ArrayIterator;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @class ArrayWrapper
+    /// @brief wrapper for iterator for arrays in JSON
+    class ArrayWrapper {
+    public:
+        ArrayWrapper(const RaftJsonIF* pJsonDoc, const char* pPath)
+            : _pJsonDoc(pJsonDoc), _path(pPath)
+        {
+        }
+
+        ArrayIterator begin() const {
+            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
+            return ArrayIterator(pStart, _pJsonDoc->getJsonDocEnd());
+        }
+
+        ArrayIterator end() const {
+            return ArrayIterator(nullptr, nullptr);
+        }
+
+        RaftJson operator[](size_t index) const {
+            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
+            const char* pCurrent = pStart;
+            const char* pDocEnd = _pJsonDoc->getJsonDocEnd();
+            if (pCurrent && *pCurrent == '[') {
+                pCurrent++;  // Move past the '['
+                skipWhitespace(pCurrent, pDocEnd);
+            }
+
+            size_t currentIndex = 0;
+            while (pCurrent && pCurrent < pDocEnd && *pCurrent != ']') {
+                if (currentIndex == index) {
+                    // Find the bounds of the current element
+                    const char* pElemEnd = nullptr;
+                    locateElementBounds(pCurrent, pDocEnd, pCurrent, pElemEnd);
+                    return RaftJson(pCurrent, pElemEnd, false);
+                }
+
+                // Move to next element
+                const char* pElemEnd = nullptr;
+                pCurrent = locateElementBounds(pCurrent, pDocEnd, pCurrent, pElemEnd);
+                skipWhitespace(pCurrent, pDocEnd);
+                if (*pCurrent == ',') {
+                    pCurrent++;
+                    skipWhitespace(pCurrent, pDocEnd);
+                }
+                currentIndex++;
+            }
+            return RaftJson();
+        }
+
+        size_t size() const {
+            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
+            const char* pCurrent = pStart;
+            const char* pDocEnd = _pJsonDoc->getJsonDocEnd();
+            if (pCurrent && *pCurrent == '[') {
+                pCurrent++;  // Move past the '['
+                skipWhitespace(pCurrent, pDocEnd);
+            } else {
+                return 0; // Not a valid array
+            }
+
+            size_t count = 0;
+            while (pCurrent && pCurrent < pDocEnd && *pCurrent != ']') {
+                // Find the end of the current element
+                const char* pElemEnd = nullptr;
+                pCurrent = locateElementBounds(pCurrent, pDocEnd, pCurrent, pElemEnd);
+                if (!pCurrent || pCurrent >= pDocEnd) {
+                    break;
+                }
+                count++;
+                skipWhitespace(pCurrent, pDocEnd);
+                if (*pCurrent == ',') {
+                    pCurrent++;
+                    skipWhitespace(pCurrent, pDocEnd);
+                }
+            }
+            return count;
+        }        
+        
+    private:
+        const RaftJsonIF* _pJsonDoc;
+        const String _path;
+    };
+
+    // Method to get the array wrapper
+    ArrayWrapper getArray(const char* pPath) const {
+        return ArrayWrapper(this, pPath);
+    }
+
+    class ArrayIterator {
+    public:
+        // Construct the iterator with a pointer to the JSON document and the start of the array
+        ArrayIterator(const char* pStart, const char* pEnd)
+            : _pStart(pStart), _pCurrent(pStart), _pDocEnd(pEnd), _atEnd(pStart == nullptr || pStart == pEnd) 
+        {
+            if (_pCurrent && *_pCurrent == '[') 
+            {
+                // Move past the opening bracket of the array
+                _pCurrent++;
+                skipWhitespace(_pCurrent, _pDocEnd);
+                if (*_pCurrent == ']') 
+                {
+                    _atEnd = true; // Handle empty array
+                }
+            }
+        }
+
+        // Move to the next element in the array
+        ArrayIterator& operator++() 
+        {
+            if (!_atEnd && _pCurrent) 
+            {
+                const char* pElemEnd = nullptr;
+                // Find the bounds of the current element
+                _pCurrent = locateElementBounds(_pCurrent, _pDocEnd, _pCurrent, pElemEnd);
+                if (!_pCurrent)
+                {
+                    _atEnd = true;
+                    return *this;
+                }
+                skipWhitespace(_pCurrent, _pDocEnd);
+                if (*_pCurrent == ']') 
+                {
+                    _atEnd = true;
+                    _pCurrent = nullptr;
+                }
+                else if (*_pCurrent == ',') 
+                {
+                    _pCurrent++;
+                    skipWhitespace(_pCurrent, _pDocEnd);
+                }
+            }
+            return *this;
+        }
+
+        // Access the element the iterator points to
+        RaftJson operator*() const 
+        {
+            const char* pElemEnd = nullptr;
+            const char* pElemStart = _pCurrent;
+            locateElementBounds(_pCurrent, _pDocEnd, pElemStart, pElemEnd);
+            return RaftJson(pElemStart, pElemEnd, false);
+        }
+
+        // Compare two iterators
+        bool operator!=(const ArrayIterator& other) const 
+        {
+            return _pCurrent != other._pCurrent || _atEnd != other._atEnd;
+        }
+
+    private:
+        const char* _pStart = nullptr;
+        const char* _pCurrent = nullptr;
+        const char* _pDocEnd = nullptr;
+        bool _atEnd = false;
+    };
+
+    // Forward definition of iterator
+    class ObjectIterator;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @class ObjectWrapper
+    /// @brief wrapper for iterator for objects in JSON
+    class ObjectWrapper {
+    public:
+        ObjectWrapper(const RaftJsonIF* pJsonDoc, const char* pPath)
+            : _pJsonDoc(pJsonDoc), _path(pPath)
+        {
+        }
+
+        ObjectIterator begin() const {
+            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
+            return ObjectIterator(pStart, _pJsonDoc->getJsonDocEnd());
+        }
+
+        ObjectIterator end() const {
+            return ObjectIterator(nullptr, nullptr);
+        }
+
+    private:
+        const RaftJsonIF* _pJsonDoc;
+        const String _path;
+    };
+
+    // Method to get the object wrapper
+    ObjectWrapper getObject(const char* pPath) const {
+        return ObjectWrapper(this, pPath);
+    }
+
+    class ObjectIterator {
+    public:
+        ObjectIterator(const char* pStart, const char* pEnd)
+            : _pCurrent(pStart), _pDocEnd(pEnd), _atEnd(pStart == nullptr || pStart == pEnd)
+        {
+            if (_pCurrent && *_pCurrent == '{') {
+                _pCurrent++;
+                skipWhitespace(_pCurrent, _pDocEnd);
+                if (*_pCurrent == '}') {
+                    _atEnd = true; // Handle empty object
+                }
+            }
+        }
+
+        ObjectIterator& operator++() {
+            if (!_atEnd && _pCurrent) 
+            {
+                const char* pElemEnd = nullptr;
+                // Find the bounds of the key
+                _pCurrent = locateElementBounds(_pCurrent, _pDocEnd, _pCurrent, pElemEnd);
+                if (!_pCurrent)
+                {
+                    _atEnd = true;
+                    return *this;
+                }
+                skipWhitespace(_pCurrent, _pDocEnd);
+                if (*_pCurrent == ':')
+                {
+                    _pCurrent++;
+                }
+                // Find the bounds of the value
+                _pCurrent = locateElementBounds(_pCurrent, _pDocEnd, _pCurrent, pElemEnd);
+                if (!_pCurrent)
+                {
+                    _atEnd = true;
+                    return *this;
+                }
+                skipWhitespace(_pCurrent, _pDocEnd);
+                if (*_pCurrent == '}') 
+                {
+                    _atEnd = true;
+                    _pCurrent = nullptr;
+                }
+                else if (*_pCurrent == ',') 
+                {
+                    _pCurrent++;
+                    skipWhitespace(_pCurrent, _pDocEnd);
+                }
+            }
+            return *this;
+        }
+
+        std::pair<String, RaftJson> operator*() const {
+            // Locate key
+            const char* pKeyStart = nullptr;
+            const char* pKeyEnd = nullptr;
+            const char* pJsonDocPos = locateStringElement(_pCurrent, _pDocEnd, pKeyStart, pKeyEnd, false);
+            String key;
+            if (pJsonDocPos)
+                key = String(pKeyStart, pKeyEnd - pKeyStart);
+
+            // Find value
+            skipWhitespace(pJsonDocPos, _pDocEnd);
+            if (*pJsonDocPos == ':')
+                pJsonDocPos++;
+            skipWhitespace(pJsonDocPos, _pDocEnd);
+            const char* valueEnd;
+            locateElementBounds(pJsonDocPos, _pDocEnd, pJsonDocPos, valueEnd);
+            return {key, RaftJson(pJsonDocPos, valueEnd, false)};
+        }
+
+        bool operator!=(const ObjectIterator& other) const {
+            return _pCurrent != other._pCurrent || _atEnd != other._atEnd;
+        }
+
+    private:
+        const char* _pCurrent;
+        const char* _pDocEnd;
+        bool _atEnd;
+    };    
 
 protected:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -724,27 +1090,39 @@ protected:
     /// @return the position of the element or nullptr if not found
     virtual const char* locateElementByPath(const char* pPath) const override
     {
-        return locateElementByPath(_pSourceStr, pPath, _pChainedRaftJson);
+        return locateElementByPath(_pSourceStr, _pSourceEnd, pPath, _pChainedRaftJson);
     }
 
 private:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Skip whitespace characters
+    /// @param pCur the current position in the JSON document
+    /// @param pEnd the end of the JSON document
+    static void skipWhitespace(const char*& pCur, const char* pEnd) {
+        while ((pCur < pEnd) && (*pCur == ' ' || *pCur == '\n' || *pCur == '\r' || *pCur == '\t')) {
+            pCur++;
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate a string element from the current position in a JSON document
     /// @param pJsonDocPos the current position in the JSON document
+    /// @param pJsonEnd the end of the JSON document
     /// @param pElemStart [out] the start of the element
     /// @param pElemEnd [out] the end of the element
     /// @param includeQuotes if true include the quotes in the returned element
     /// @return a position in the document after the end of the element or nullptr if not found
-    static const char* locateStringElement(const char* pJsonDocPos, const char*& pElemStart, const char*& pElemEnd, bool includeQuotes = false)
+    static const char* locateStringElement(const char* pJsonDocPos, const char* pJsonEnd,
+            const char*& pElemStart, const char*& pElemEnd, bool includeQuotes = false)
     {
         // Skip quote if at start of string
-        if (!includeQuotes && (*pJsonDocPos == '"'))
+        if (!includeQuotes && (*pJsonDocPos == '"') && (pJsonDocPos < pJsonEnd))
             pJsonDocPos++;
 
         // Find end of string
         pElemStart = pJsonDocPos;
         bool isEscaped = false;
-        while (*pJsonDocPos && (isEscaped || (*pJsonDocPos != '"')))
+        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (isEscaped || (*pJsonDocPos != '"')))
         {
             isEscaped = (*pJsonDocPos == '\\');
             pJsonDocPos++;
@@ -762,15 +1140,16 @@ private:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate the bounds of an element in a JSON document
     /// @param pJsonDocPos the current position in the JSON document
+    /// @param pJsonEnd the end of the JSON document
     /// @param pElemStart [out] the start of the element
     /// @param pElemEnd [out] the end of the element
     /// @return a position in the document after the end of the element or nullptr if not found
-    static const char* locateElementBounds(const char* pJsonDocPos, const char*& pElemStart, const char*& pElemEnd)
+    static const char* locateElementBounds(const char* pJsonDocPos, const char* pJsonEnd, const char*& pElemStart, const char*& pElemEnd)
     {
         // Skip whitespace, commas and colons
-        while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',') || (*pJsonDocPos == ':')))
+        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',') || (*pJsonDocPos == ':')))
             pJsonDocPos++;
-        if (!*pJsonDocPos)
+        if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
             return nullptr;
         pElemStart = pJsonDocPos;
             
@@ -787,7 +1166,7 @@ private:
             pJsonDocPos++;
             // Skip to end of object
             bool insideString = false;
-            while (*pJsonDocPos && (numBraces > 0))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (numBraces > 0))
             {
                 if (*pJsonDocPos == '"')
                 {
@@ -832,7 +1211,7 @@ private:
             }
             pElemEnd = pJsonDocPos;
             // Skip whitespace and commas
-            while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
                 pJsonDocPos++;
             return pJsonDocPos;
         }
@@ -844,22 +1223,25 @@ private:
             // Find end of string
             pJsonDocPos++;
             bool isEscaped = false;
-            while (*pJsonDocPos && (isEscaped || (*pJsonDocPos != '"')))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (isEscaped || (*pJsonDocPos != '"')))
             {
                 isEscaped = (*pJsonDocPos == '\\');
                 pJsonDocPos++;
             }
-            if (!*pJsonDocPos)
+            if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
             {
 #ifdef DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
                 LOG_I("RaftJson", "locateElementBounds str unexpectedly reached end of document pJsonDocPos %p", pJsonDocPos);
 #endif
                 return nullptr;
             }
+            // Check if we're on the closing quotes
             pElemEnd = pJsonDocPos;
+            if (*pJsonDocPos == '"')
+                pElemEnd = pJsonDocPos + 1;
             pJsonDocPos++;
             // Skip whitespace and commas
-            while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
                 pJsonDocPos++;
             return pJsonDocPos;
         }
@@ -869,11 +1251,11 @@ private:
             LOG_I("RaftJson", "locateElementBounds found number pJsonDocPos %p", pJsonDocPos);
 #endif        
             // Find end of element
-            while (*pJsonDocPos && (*pJsonDocPos > ' ') && (*pJsonDocPos != ',') && (*pJsonDocPos != '}') && (*pJsonDocPos != ']'))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos > ' ') && (*pJsonDocPos != ',') && (*pJsonDocPos != '}') && (*pJsonDocPos != ']'))
                 pJsonDocPos++;
             pElemEnd = pJsonDocPos;
             // Skip whitespace and commas
-            while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
                 pJsonDocPos++;
             if (!*pJsonDocPos)
             {
@@ -887,22 +1269,24 @@ private:
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a single key (part of a path)
+    /// @param pJsonDocPos the current position in the JSON document
+    /// @param pJsonEnd the end of the JSON document
     /// @param pReqdKey [in/out] the key of the required variable (note this is modified by the function)
     /// @return the position of the element or nullptr if not found
     /// @note The key can be empty in which case the entire object is returned
     /// @note The key can be an array index (e.g. "[0]") in which case the value at that index is returned if the element is an array
     /// @note The key can be a string in which case the value for that key is returned if the element is an object
-    static const char* locateElementValueWithKey(const char* pJsonDocPos, const char*& pReqdKey)
+    static const char* locateElementValueWithKey(const char* pJsonDocPos, const char* pJsonEnd, const char*& pReqdKey)
     {
         // Check valid
-        if (!pJsonDocPos)
+        if (!pJsonDocPos || !pJsonEnd)
             return nullptr;
 
         // If key is empty return the entire element
         if (!pReqdKey || !*pReqdKey || (*pReqdKey == '/'))
         {
             // Skip any whitespace
-            while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
 
 #ifdef DEBUG_JSON_BY_SPECIFIC_PATH_PART
@@ -919,7 +1303,7 @@ private:
         }
 
         // Skip any whitespace
-        while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
             pJsonDocPos++;
         if ((*pJsonDocPos != '{') && (*pJsonDocPos != '['))
             return nullptr;
@@ -960,31 +1344,31 @@ private:
         // Skip over elements until we get to the one we want
         const char* pKeyStart = pJsonDocPos;
         const char* pKeyEnd = nullptr;
-        while (*pJsonDocPos)
+        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
         {
             // Check for object - in which case what comes first is the key
             if (isObject)
             {
                 // Skip to start of key
-                while (*pJsonDocPos && (*pJsonDocPos != '"'))
+                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos != '"'))
                     pJsonDocPos++;
-                if (!*pJsonDocPos)
+                if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
                     return nullptr;
                 // Extract key string
-                pJsonDocPos = locateStringElement(pJsonDocPos, pKeyStart, pKeyEnd, false);
+                pJsonDocPos = locateStringElement(pJsonDocPos, pJsonEnd, pKeyStart, pKeyEnd, false);
                 if (!pJsonDocPos)
                     return nullptr;
                 // Skip over any whitespace and colons
-                while (*pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ':')))
+                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ':')))
                     pJsonDocPos++;
-                if (!*pJsonDocPos)
+                if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
                     return nullptr;
                 // Check for longer of key and path part
                 uint32_t keyLen = (pKeyEnd - pKeyStart) > (pReqdKeyEnd - pReqdKeyStart) ? (pKeyEnd - pKeyStart) : (pReqdKeyEnd - pReqdKeyStart);
                 if (strncmp(pKeyStart, pReqdKeyStart, keyLen) == 0)
                     return pJsonDocPos;
                 // Skip whitespace
-                while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
                     pJsonDocPos++;
             }
             else
@@ -993,14 +1377,14 @@ private:
                     return pJsonDocPos;
                 elemCount++;
                 // Skip whitespace
-                while (*pJsonDocPos && (*pJsonDocPos <= ' '))
+                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) &&(*pJsonDocPos <= ' '))
                     pJsonDocPos++;
             }
 
             // Skip to end of element
             const char* pElemEnd = nullptr;
             const char* pElemStart = nullptr;
-            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pElemStart, pElemEnd);
+            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
             if (!pJsonDocPos)
                 return nullptr;
 
@@ -1014,14 +1398,16 @@ private:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a path
     /// @param pJsonDocPos the current position in the JSON document
+    /// @param pJsonEnd the end of the JSON document
     /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the position of the element or nullptr if not found
-    static const char* locateElementByPath(const char* pJsonDocPos, const char* pPath,
+    static const char* locateElementByPath(const char* pJsonDocPos, const char* pJsonEnd, 
+                const char* pPath,
                 const RaftJsonIF* pChainedRaftJson)
     {
         // Check valid
-        if (!pPath || !pJsonDocPos)
+        if (!pPath || !pJsonDocPos || !pJsonEnd)
             return nullptr;
 
         // Iterate over path
@@ -1039,7 +1425,7 @@ private:
         while(true)
         {
             // Locate element (note that pPath is modified by each call)
-            pJsonDocPos = locateElementValueWithKey(pJsonDocPos, pPathPos);
+            pJsonDocPos = locateElementValueWithKey(pJsonDocPos, pJsonEnd, pPathPos);
             if (!pJsonDocPos)
             {
 #ifdef DEBUG_CHAINED_RAFT_JSON
@@ -1082,6 +1468,9 @@ private:
     // Or it may be a pointer to the string in the _jsonStr vector
     // Or it may be a pointer to a static string which contains the empty JSON document {}
     const char* _pSourceStr = EMPTY_JSON_DOCUMENT;
+
+    // Pointer to end of JSON document (location of null character or other location within the string)
+    const char* _pSourceEnd = _pSourceStr + strlen(_pSourceStr);
 
     // Pointer to an alternate RaftJsonIF implementation
     // This allows chaining so that if a value is not found in this object

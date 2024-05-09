@@ -10,11 +10,11 @@
 
 int main()
 {
-    int constsAxis = RaftJson::getLongIm(JSON_test_data_small, "consts/axis", 0);
-    int minotaur = RaftJson::getLongIm(JSON_test_data_small, "consts/oxis/coo[3]/minotaur[2]", 0);
-    int comarr = RaftJson::getLongIm(JSON_test_data_small, "consts/comarr[4]", 0);
+    int constsAxis = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/axis", 0);
+    int minotaur = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/oxis/coo[3]/minotaur[2]", 0);
+    int comarr = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/comarr[4]", 0);
 
-    int maxQ = RaftJson::getLongIm(JSON_test_data_large, "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", 0);
+    int maxQ = RaftJson::getLongIm(JSON_test_data_large, JSON_test_data_large+strlen(JSON_test_data_large), "[0]/Robot/WorkMgr/WorkQ/maxLen[0]/__value__", 0);
 
     printf("Parse ConstsAxis %d minotaur %d maxQ %d comarr %d\n", constsAxis, minotaur, maxQ, comarr);
 
@@ -71,7 +71,7 @@ int main()
     for (int testIdx = 0; testIdx < findKeyTestsLen; testIdx++)
     {
         String keyStartStr = "testGetString testkeyIdx=" + String(testIdx);
-        String val = RaftJson::getStringIm(testJSON, findKeyTests[testIdx].dataPath, "");
+        String val = RaftJson::getStringIm(testJSON, testJSON+strlen(testJSON), findKeyTests[testIdx].dataPath, "");
         String expStr = String(findKeyTests[testIdx].expStr);
         expStr.trim();
         if (val != expStr)
@@ -99,7 +99,8 @@ int main()
     for (int testIdx = 0; testIdx < testTinyExpectationsLen; testIdx++)
     {
         String keyStartStr = "testTinyJson testkeyIdx=" + String(testIdx);
-        int val = RaftJson::getLongIm(testTinyJson, testTinyExpectations[testIdx].dataPath, MAX_RPM_DEFAULT_VALUE);
+        int val = RaftJson::getLongIm(testTinyJson, testTinyJson+strlen(testTinyJson),
+                     testTinyExpectations[testIdx].dataPath, MAX_RPM_DEFAULT_VALUE);
         if (val != testTinyExpectations[testIdx].expInt)
         {
             printf("testTinyJson failed %s <<<%d>>> != <<<%d>>>\n", testTinyExpectations[testIdx].dataPath, val, testTinyExpectations[testIdx].expInt);
@@ -112,43 +113,48 @@ int main()
 
     // Test on a document containing only primitives
     int failCount = 0;
-    TEST_ASSERT(RaftJson::getStringIm("1234", "", "<<<>>>") == "1234", "testPrimitiveStr1");
-    TEST_ASSERT(RaftJson::getStringIm("1234", nullptr, "<<<>>>") == "<<<>>>", "testPrimitiveStr2");
-    TEST_ASSERT(RaftJson::getStringIm("1234", "abc", "<<<>>>") == "<<<>>>", "testPrimitiveStr3");
-    TEST_ASSERT(RaftJson::getStringIm("1234", "abc", "") == "", "testPrimitiveStr5");
-    TEST_ASSERT(RaftJson::getStringIm("null", "", "<<<>>>") == "null", "testPrimitiveStr6");
-    TEST_ASSERT(RaftJson::getStringIm("null", nullptr, "<<<>>>") == "<<<>>>", "testPrimitiveStr7");
-    TEST_ASSERT(RaftJson::getStringIm("null", "abc", "<<<>>>") == "<<<>>>", "testPrimitiveStr8");
-    TEST_ASSERT(RaftJson::getStringIm("null", "abc", "") == "", "testPrimitiveStr9");
-    TEST_ASSERT(RaftJson::getDoubleIm("1234", "", -1000000) == 1234.0, "testPrimitiveDouble1");
-    TEST_ASSERT(RaftJson::getDoubleIm("1234", nullptr, -1000000) == -1000000, "testPrimitiveDouble2");
-    TEST_ASSERT(RaftJson::getDoubleIm("1234", "abc", -1000000) == -1000000, "testPrimitiveDouble3");
-    TEST_ASSERT(RaftJson::getDoubleIm("1234", "abc", 0) == 0, "testPrimitiveDouble4");
-    TEST_ASSERT(RaftJson::getDoubleIm("null", "", -1000000) == -1000000, "testPrimitiveDouble5");
-    TEST_ASSERT(RaftJson::getDoubleIm("null", nullptr, -1000000) == -1000000, "testPrimitiveDouble6");
-    TEST_ASSERT(RaftJson::getDoubleIm("null", "abc", -1000000) == -1000000, "testPrimitiveDouble7");
-    TEST_ASSERT(RaftJson::getDoubleIm("null", "abc", 0) == 0, "testPrimitiveDouble8");
-    TEST_ASSERT(RaftJson::getLongIm("1234", "", -1000000) == 1234, "testPrimitiveLong1");
-    TEST_ASSERT(RaftJson::getLongIm("1234", nullptr, -1000000) == -1000000, "testPrimitiveLong2");
-    TEST_ASSERT(RaftJson::getLongIm("1234", "abc", -1000000) == -1000000, "testPrimitiveLong3");
-    TEST_ASSERT(RaftJson::getLongIm("1234", "abc", 0) == 0, "testPrimitiveLong4");
-    TEST_ASSERT(RaftJson::getLongIm("null", "", -1000000) == -1000000, "testPrimitiveLong5");
-    TEST_ASSERT(RaftJson::getLongIm("null", nullptr, -1000000) == -1000000, "testPrimitiveLong6");
-    TEST_ASSERT(RaftJson::getLongIm("null", "abc", -1000000) == -1000000, "testPrimitiveLong7");
-    TEST_ASSERT(RaftJson::getLongIm("null", "abc", 0) == 0, "testPrimitiveLong8");
-    TEST_ASSERT(RaftJson::getLongIm("\"true\"", "", 1234) == 0, "testPrimitiveBool13");
-    TEST_ASSERT(RaftJson::getBoolIm("true", "", false) == true, "testPrimitiveBool1");
-    TEST_ASSERT(RaftJson::getBoolIm("true", nullptr, false) == false, "testPrimitiveBool2");
-    TEST_ASSERT(RaftJson::getBoolIm("true", "abc", false) == false, "testPrimitiveBool3");
-    TEST_ASSERT(RaftJson::getBoolIm("true", "abc", true) == true, "testPrimitiveBool4");
-    TEST_ASSERT(RaftJson::getBoolIm("false", "", true) == false, "testPrimitiveBool5");
-    TEST_ASSERT(RaftJson::getBoolIm("false", nullptr, true) == true, "testPrimitiveBool6");
-    TEST_ASSERT(RaftJson::getBoolIm("false", "abc", true) == true, "testPrimitiveBool7");
-    TEST_ASSERT(RaftJson::getBoolIm("false", "abc", false) == false, "testPrimitiveBool8");
-    TEST_ASSERT(RaftJson::getBoolIm("null", "", true) == true, "testPrimitiveBool9");
-    TEST_ASSERT(RaftJson::getBoolIm("null", nullptr, true) == true, "testPrimitiveBool10");
-    TEST_ASSERT(RaftJson::getBoolIm("null", "abc", true) == true, "testPrimitiveBool11");
-    TEST_ASSERT(RaftJson::getBoolIm("null", "abc", false) == false, "testPrimitiveBool12");
+    const char* testStr1234 = "1234";
+    const char* testStrNull = "null";
+    const char* testStrTrueInQuotes = "\"true\"";
+    const char* testStrTrue = "true";
+    const char* testStrFalse = "false";
+    TEST_ASSERT(RaftJson::getStringIm(testStr1234, testStr1234+strlen(testStr1234), "", "<<<>>>") == "1234", "testPrimitiveStr1");
+    TEST_ASSERT(RaftJson::getStringIm(testStr1234, testStr1234+strlen(testStr1234), nullptr, "<<<>>>") == "<<<>>>", "testPrimitiveStr2");
+    TEST_ASSERT(RaftJson::getStringIm(testStr1234, testStr1234+strlen(testStr1234), "abc", "<<<>>>") == "<<<>>>", "testPrimitiveStr3");
+    TEST_ASSERT(RaftJson::getStringIm(testStr1234, testStr1234+strlen(testStr1234), "abc", "") == "", "testPrimitiveStr5");
+    TEST_ASSERT(RaftJson::getStringIm(testStrNull, testStrNull+strlen(testStrNull), "", "<<<>>>") == "null", "testPrimitiveStr6");
+    TEST_ASSERT(RaftJson::getStringIm(testStrNull, testStrNull+strlen(testStrNull), nullptr, "<<<>>>") == "<<<>>>", "testPrimitiveStr7");
+    TEST_ASSERT(RaftJson::getStringIm(testStrNull, testStrNull+strlen(testStrNull), "abc", "<<<>>>") == "<<<>>>", "testPrimitiveStr8");
+    TEST_ASSERT(RaftJson::getStringIm(testStrNull, testStrNull+strlen(testStrNull), "abc", "") == "", "testPrimitiveStr9");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStr1234, testStr1234+strlen(testStr1234), "", -1000000) == 1234.0, "testPrimitiveDouble1");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStr1234, testStr1234+strlen(testStr1234), nullptr, -1000000) == -1000000, "testPrimitiveDouble2");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStr1234, testStr1234+strlen(testStr1234), "abc", -1000000) == -1000000, "testPrimitiveDouble3");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStr1234, testStr1234+strlen(testStr1234), "abc", 0) == 0, "testPrimitiveDouble4");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStrNull, testStrNull+strlen(testStrNull), "", -1000000) == -1000000, "testPrimitiveDouble5");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStrNull, testStrNull+strlen(testStrNull), nullptr, -1000000) == -1000000, "testPrimitiveDouble6");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStrNull, testStrNull+strlen(testStrNull), "abc", -1000000) == -1000000, "testPrimitiveDouble7");
+    TEST_ASSERT(RaftJson::getDoubleIm(testStrNull, testStrNull+strlen(testStrNull), "abc", 0) == 0, "testPrimitiveDouble8");
+    TEST_ASSERT(RaftJson::getLongIm(testStr1234, testStr1234+strlen(testStr1234), "", -1000000) == 1234, "testPrimitiveLong1");
+    TEST_ASSERT(RaftJson::getLongIm(testStr1234, testStr1234+strlen(testStr1234), nullptr, -1000000) == -1000000, "testPrimitiveLong2");
+    TEST_ASSERT(RaftJson::getLongIm(testStr1234, testStr1234+strlen(testStr1234), "abc", -1000000) == -1000000, "testPrimitiveLong3");
+    TEST_ASSERT(RaftJson::getLongIm(testStr1234, testStr1234+strlen(testStr1234), "abc", 0) == 0, "testPrimitiveLong4");
+    TEST_ASSERT(RaftJson::getLongIm(testStrNull, testStrNull+strlen(testStrNull), "", -1000000) == -1000000, "testPrimitiveLong5");
+    TEST_ASSERT(RaftJson::getLongIm(testStrNull, testStrNull+strlen(testStrNull), nullptr, -1000000) == -1000000, "testPrimitiveLong6");
+    TEST_ASSERT(RaftJson::getLongIm(testStrNull, testStrNull+strlen(testStrNull), "abc", -1000000) == -1000000, "testPrimitiveLong7");
+    TEST_ASSERT(RaftJson::getLongIm(testStrNull, testStrNull+strlen(testStrNull), "abc", 0) == 0, "testPrimitiveLong8");
+    TEST_ASSERT(RaftJson::getLongIm(testStrTrueInQuotes, testStrTrueInQuotes+strlen(testStrTrueInQuotes), "", 1234) == 0, "testPrimitiveBool13");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrTrue, testStrTrue+strlen(testStrTrue), "", false) == true, "testPrimitiveBool1");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrTrue, testStrTrue+strlen(testStrTrue), nullptr, false) == false, "testPrimitiveBool2");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrTrue, testStrTrue+strlen(testStrTrue), "abc", false) == false, "testPrimitiveBool3");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrTrue, testStrTrue+strlen(testStrTrue), "abc", true) == true, "testPrimitiveBool4");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrFalse, testStrFalse+strlen(testStrFalse), "", true) == false, "testPrimitiveBool5");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrFalse, testStrFalse+strlen(testStrFalse), nullptr, true) == true, "testPrimitiveBool6");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrFalse, testStrFalse+strlen(testStrFalse), "abc", true) == true, "testPrimitiveBool7");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrFalse, testStrFalse+strlen(testStrFalse), "abc", false) == false, "testPrimitiveBool8");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrNull, testStrNull+strlen(testStrNull), "", true) == true, "testPrimitiveBool9");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrNull, testStrNull+strlen(testStrNull), nullptr, true) == true, "testPrimitiveBool10");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrNull, testStrNull+strlen(testStrNull), "abc", true) == true, "testPrimitiveBool11");
+    TEST_ASSERT(RaftJson::getBoolIm(testStrNull, testStrNull+strlen(testStrNull), "abc", false) == false, "testPrimitiveBool12");
 
     // Extract NV pair tests
     const char* testInput = R"(0x020701=&0x020801=&0x009600=&0x0097fd&0x00e301=&0x00e403=r1&0x00e502=&0x00e601=&0x00e703=0x123456&0x00f502=&0x00d905=&0x00dbce=&0x00dc03=&0x00ddf8=&0x009f00=&0x00a33c=&0x00b700=&0x00bb3c=&0x00b209=&0x00ca09=&0x019801=&0x01b017=&0x01ad00=&0x00ff05=r55;0x010005=&0x019905=&0x01a61b;0x01ac3e=&0x01a71f=&0x003000=;0x001110=&0x010a30=&0x003f46=&0x0031ff=&0x004163=&0x002e01=&0x001b09=&0x003e31=&0x001424=)";
@@ -182,6 +188,67 @@ int main()
     TEST_ASSERT(nvPairs[23].value == "r55", "testNVPair23Value");
     TEST_ASSERT(nvPairs[24].name == "0x010005", "testNVPair24Name");
     TEST_ASSERT(nvPairs[24].value == "", "testNVPair24Value");
+
+    // Test array iterators
+    const char* testArrayJSON = R"({"testArray":[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]})";
+    RaftJson testArrayJson1(testArrayJSON);
+    int idx = 1;
+    for (auto myTestVar : testArrayJson1.getArray("testArray"))
+    {
+        TEST_ASSERT(myTestVar.toInt() == idx, "testArrayJSON1");
+        // printf("testArrayJSON %d\n", myTestVar.toInt());
+        idx++;
+    }
+    RaftJson testArrayJson2(R"({"testArray":["a", "bb", "ccc", "dddd", "eeeee", "ffffff", "", "bananas", "{}", {"a": 1, "b": 2, "c": 3}]})");
+    idx = 1;
+    for (auto myTestVar : testArrayJson2.getArray("testArray"))
+    {
+        switch(idx)
+        {
+            case 1: TEST_ASSERT(myTestVar.toString() == "a", "testArrayJSON2_1"); break;
+            case 2: TEST_ASSERT(myTestVar.toString() == "bb", "testArrayJSON2_2"); break;
+            case 3: TEST_ASSERT(myTestVar.toString() == "ccc", "testArrayJSON2_3"); break;
+            case 4: TEST_ASSERT(myTestVar.toString() == "dddd", "testArrayJSON2_4"); break;
+            case 5: TEST_ASSERT(myTestVar.toString() == "eeeee", "testArrayJSON2_5"); break;
+            case 6: TEST_ASSERT(myTestVar.toString() == "ffffff", "testArrayJSON2_6"); break;
+            case 7: TEST_ASSERT(myTestVar.toString() == "", "testArrayJSON2_7"); break;
+            case 8: TEST_ASSERT(myTestVar.toString() == "bananas", "testArrayJSON2_8"); break;
+            case 9: TEST_ASSERT(myTestVar.toString() == "{}", "testArrayJSON2_9"); break;
+            case 10: TEST_ASSERT(myTestVar.toString() == "{\"a\": 1, \"b\": 2, \"c\": 3}", "testArrayJSON2_10"); break;
+        }
+        idx++;
+        // printf("testArrayJSON %s\n", myTestVar.toString().c_str());
+    }
+
+    // Test array size
+    TEST_ASSERT(testArrayJson1.getArray("testArray").size() == 10, "testArrayJSON1_1");
+    TEST_ASSERT(testArrayJson2.getArray("testArray").size() == 10, "testArrayJSON2_1");
+    
+    // Test array access
+    TEST_ASSERT(testArrayJson1.getArray("testArray")[4].toInt() == 5, "testArrayJSON1_0");
+    TEST_ASSERT(testArrayJson2.getArray("testArray")[4].toString() == "eeeee", "testArrayJSON2_0");
+
+    // Test object iterator
+    const char* testObjectJSON = R"({"testObject":{"a": 1, "b": "hello", "c": {"minky":"monk","dinky":"donk"}, "d": 1234, "e": [1,2,3,4,5,6], "f": 6, "g": 7, "h": 8, "i": 9}})";
+    RaftJson testObjectJson(testObjectJSON);
+    idx = 1;
+    for (auto myTestVar : testObjectJson.getObject("testObject"))
+    {
+        switch(idx)
+        {
+            case 1: TEST_ASSERT(myTestVar.first == "a", "testObjectJSON1_1"); TEST_ASSERT(myTestVar.second.toInt() == 1, "testObjectJSON1_2"); break;
+            case 2: TEST_ASSERT(myTestVar.first == "b", "testObjectJSON1_3"); TEST_ASSERT(myTestVar.second.toString() == "hello", "testObjectJSON1_4"); break;
+            case 3: TEST_ASSERT(myTestVar.first == "c", "testObjectJSON1_5"); TEST_ASSERT(myTestVar.second.toString() == "{\"minky\":\"monk\",\"dinky\":\"donk\"}", "testObjectJSON1_6"); break;
+            case 4: TEST_ASSERT(myTestVar.first == "d", "testObjectJSON1_7"); TEST_ASSERT(myTestVar.second.toInt() == 1234, "testObjectJSON1_8"); break;
+            case 5: TEST_ASSERT(myTestVar.first == "e", "testObjectJSON1_9"); TEST_ASSERT(myTestVar.second.toString() == "[1,2,3,4,5,6]", "testObjectJSON1_10"); break;
+            case 6: TEST_ASSERT(myTestVar.first == "f", "testObjectJSON1_11"); TEST_ASSERT(myTestVar.second.toInt() == 6, "testObjectJSON1_12"); break;
+            case 7: TEST_ASSERT(myTestVar.first == "g", "testObjectJSON1_13"); TEST_ASSERT(myTestVar.second.toInt() == 7, "testObjectJSON1_14"); break;
+            case 8: TEST_ASSERT(myTestVar.first == "h", "testObjectJSON1_15"); TEST_ASSERT(myTestVar.second.toInt() == 8, "testObjectJSON1_16"); break;
+            case 9: TEST_ASSERT(myTestVar.first == "i", "testObjectJSON1_17"); TEST_ASSERT(myTestVar.second.toInt() == 9, "testObjectJSON1_18"); break;
+        }
+        idx++;
+        // printf("testObjectJSON %s: %s\n", myTestVar.first.c_str(), myTestVar.second.toString().c_str());
+    }
 
     // Check failCount
     if (failCount > 0)
