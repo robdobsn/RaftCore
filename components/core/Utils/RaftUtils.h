@@ -58,47 +58,92 @@ namespace Raft
     // Get a uint8_t value from the uint8_t pointer passed in
     // Increment the pointer (by 1)
     // Also checks endStop pointer value if provided
-    uint16_t getUint8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    uint16_t getUint8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Get an int8_t value from the uint8_t pointer passed in
     // Increment the pointer (by 1)
     // Also checks endStop pointer value if provided
-    int16_t getInt8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    int16_t getInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Get a uint16_t little endian value from the uint8_t pointer passed in
     // Increment the pointer (by 2)
     // Also checks endStop pointer value if provided
-    uint16_t getLEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    uint16_t getLEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Get a int16_t little endian value from the uint8_t pointer passed in
     // Increment the pointer (by 2)
     // Also checks endStop pointer value if provided
-    int16_t getLEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    int16_t getLEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Get a uint16_t big endian value from the uint8_t pointer passed in
     // Increment the pointer (by 2)
     // Also checks endStop pointer value if provided
-    uint16_t getBEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    uint16_t getBEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Get a int16_t big endian value from the uint8_t pointer passed in
     // Increment the pointer (by 2)
     // Also checks endStop pointer value if provided
-    int16_t getBEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
-
-    // Get a uint32_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 4)
-    // Also checks endStop pointer value if provided
-    uint32_t getBEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    int16_t getBEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Get a uint32_t little endian value from the uint8_t pointer passed in
     // Increment the pointer (by 4)
     // Also checks endStop pointer value if provided
-    uint32_t getLEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    uint32_t getLEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+
+    // Get a int32_t little endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 4)
+    // Also checks endStop pointer value if provided
+    int32_t getLEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+
+    // Get a uint32_t big endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 4)
+    // Also checks endStop pointer value if provided
+    uint32_t getBEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+
+    // Get a int32_t big endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 4)
+    // Also checks endStop pointer value if provided
+    int32_t getBEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+
+    // Get a uint64_t little endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 8)
+    // Also checks endStop pointer value if provided
+    uint64_t getLEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
+
+    // Get an int64_t little endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 8)
+    // Also checks endStop pointer value if provided
+    int64_t getLEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
+
+    // Get an uint64_t big endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 8)
+    // Also checks endStop pointer value if provided
+    uint64_t getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
+
+    // Get an int64_t big endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 8)
+    // Also checks endStop pointer value if provided
+    int64_t getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
+
+    // Get a float32_t little endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 4)
+    // Also checks endStop pointer value if provided
+    float getLEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Get a float32_t big endian value from the uint8_t pointer passed in
     // Increment the pointer (by 4)
     // Also checks endStop pointer value if provided
-    float getBEfloat32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop = nullptr);
+    float getBEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+
+    // Get a double64_t little endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 8)
+    // Also checks endStop pointer value if provided
+    double getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+
+    // Get a double64_t big endian value from the uint8_t pointer passed in
+    // Increment the pointer (by 8)
+    // Also checks endStop pointer value if provided
+    double getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     // Set values into a buffer
     void setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val);

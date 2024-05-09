@@ -598,117 +598,236 @@ String Raft::formatMACAddr(const uint8_t* pMacAddr, const char* separator)
 // Get a uint8_t value from the uint8_t pointer passed in
 // Increment the pointer (by 1)
 // Also checks endStop pointer value if provided
-uint16_t Raft::getUint8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint16_t Raft::getUint8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal >= pEndStop)))
+    const size_t varSize = sizeof(uint8_t);
+    if (!pBuf || (pEndStop && (pBuf >= pEndStop)))
         return 0;
-    uint8_t val = *pVal;
-    pVal += 1;
+    uint8_t val = *pBuf;
+    pBuf += varSize;
     return val;
 }
 
 // Get an int8_t value from the uint8_t pointer passed in
 // Increment the pointer (by 1)
 // Also checks endStop pointer value if provided
-int16_t Raft::getInt8AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+int16_t Raft::getInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal >= pEndStop)))
+    const size_t  varSize = sizeof(int8_t);
+    if (!pBuf || (pEndStop && (pBuf >= pEndStop)))
         return 0;
-    int8_t val = *((int8_t*)pVal);
-    pVal += 1;
+    int8_t val = *((int8_t*)pBuf);
+    pBuf += varSize;
     return val;
 }
 
 // Get a uint16_t little endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-uint16_t Raft::getLEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint16_t Raft::getLEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
+    const size_t  varSize = sizeof(uint16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
         return 0;
-    uint16_t val = ((((uint16_t)(*(pVal+1))) * 256) + *pVal);
-    pVal += 2;
+    uint16_t val = static_cast<uint16_t>(pBuf[0]) | (static_cast<uint16_t>(pBuf[1]) << 8);
+    pBuf += varSize;
     return val;
 }
 
 // Get a int16_t little endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-int16_t Raft::getLEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+int16_t Raft::getLEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
+    const size_t  varSize = sizeof(int16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
         return 0;
-    uint32_t val = ((((uint32_t)(*(pVal+1))) * 256) + *pVal);
-    pVal += 2;
-    if (val <= 32767)
-        return val;
-    return val-65536;
+    int16_t val = pBuf[0] | (pBuf[1] << 8);
+    pBuf += varSize;
+    return val;
 }
 
 // Get a uint16_t big endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-uint16_t Raft::getBEUint16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint16_t Raft::getBEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
+    const size_t  varSize = sizeof(uint16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
         return 0;
-    uint16_t val = ((((uint16_t)(*(pVal))) * 256) + *(pVal+1));
-    pVal += 2;
+    uint16_t val = (pBuf[0] << 8) | pBuf[1];
+    pBuf += varSize;
     return val;
 }
 
 // Get a int16_t big endian value from the uint8_t pointer passed in
 // Increment the pointer (by 2)
 // Also checks endStop pointer value if provided
-int16_t Raft::getBEInt16AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+int16_t Raft::getBEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal + 1 >= pEndStop)))
+    const size_t  varSize = sizeof(int16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
         return 0;
-    uint32_t val = ((((uint32_t)(*(pVal))) * 256) + *(pVal+1));
-    pVal += 2;
-    if (val <= 32767)
-        return val;
-    return val-65536;
-}
-
-// Get a uint32_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 4)
-// Also checks endStop pointer value if provided
-uint32_t Raft::getBEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
-{
-    if (!pVal || (pEndStop && (pVal + 3 >= pEndStop)))
-        return 0;
-    uint32_t val = ((((uint32_t)(*pVal)) << 24) + (((uint32_t)(*(pVal+1))) << 16) +
-                    + (((uint32_t)(*(pVal+2))) << 8) + *(pVal+3));
-    pVal += 4;
+    int16_t val = (pBuf[0] << 8) | pBuf[1];
+    pBuf += varSize;
     return val;
 }
 
 // Get a uint32_t little endian value from the uint8_t pointer passed in
 // Increment the pointer (by 4)
 // Also checks endStop pointer value if provided
-uint32_t Raft::getLEUint32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+uint32_t Raft::getLEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal + 3 >= pEndStop)))
+    const size_t  varSize = sizeof(uint32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
         return 0;
-    uint32_t val = ((((uint32_t)(*(pVal+3))) << 24) + (((uint32_t)(*(pVal+2))) << 16) +
-                    + (((uint32_t)(*(pVal+1))) << 8) + *pVal);
-    pVal += 4;
+    uint32_t val = pBuf[0] | (pBuf[1] << 8) | (pBuf[2] << 16) | (pBuf[3] << 24);
+    pBuf += varSize;
+    return val;
+}
+
+// Get a int32_t little endian value from the uint8_t pointer passed in
+// Increment the pointer (by 4)
+// Also checks endStop pointer value if provided
+int32_t Raft::getLEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int32_t val = pBuf[0] | (pBuf[1] << 8) | (pBuf[2] << 16) | (pBuf[3] << 24);
+    pBuf += varSize;
+    return val;
+}
+
+// Get a uint32_t big endian value from the uint8_t pointer passed in
+// Increment the pointer (by 4)
+// Also checks endStop pointer value if provided
+uint32_t Raft::getBEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint32_t val = (pBuf[0] << 24) | (pBuf[1] << 16) | (pBuf[2] << 8) | pBuf[3];
+    pBuf += varSize;
+    return val;
+}
+
+// Get a int32_t big endian value from the uint8_t pointer passed in
+// Increment the pointer (by 4)
+// Also checks endStop pointer value if provided
+int32_t Raft::getBEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int32_t val = (pBuf[0] << 24) | (pBuf[1] << 16) | (pBuf[2] << 8) | pBuf[3];
+    pBuf += varSize;
+    return val;
+}
+
+// Get a uint64_t little endian value from the uint8_t pointer passed in
+// Increment the pointer (by 8)
+// Also checks endStop pointer value if provided
+uint64_t Raft::getLEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint64_t val = 0;
+    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
+        val |= static_cast<uint64_t>(pBuf[i]) << (8 * i);
+    }
+    pBuf += varSize;
+    return val;
+}
+
+// Get an int64_t little endian value from the uint8_t pointer passed in
+// Increment the pointer (by 8)
+// Also checks endStop pointer value if provided
+int64_t Raft::getLEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int64_t val = 0;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        val |= static_cast<uint64_t>(pBuf[i]) << (8 * i);
+    }
+    pBuf += varSize;
+    return val;
+}
+
+// Get an uint64_t big endian value from the uint8_t pointer passed in
+// Increment the pointer (by 8)
+// Also checks endStop pointer value if provided
+uint64_t Raft::getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint64_t val = 0;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        val = (val << 8) | pBuf[i];
+    }
+    return val;
+}
+
+// Get an int64_t big endian value from the uint8_t pointer passed in
+// Increment the pointer (by 8)
+// Also checks endStop pointer value if provided
+int64_t Raft::getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int64_t val = 0;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        val = (val << 8) | pBuf[i];
+    }
+    return val;
+}
+
+// Get a float32_t little endian value from the uint8_t pointer passed in
+// Increment the pointer (by 4)
+// Also checks endStop pointer value if provided
+float Raft::getLEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    uint32_t temp = getLEUint32AndInc(pBuf, pEndStop);
+    float val;
+    memcpy(&val, &temp, sizeof(val));
     return val;
 }
 
 // Get a float32_t big endian value from the uint8_t pointer passed in
 // Increment the pointer (by 4)
 // Also checks endStop pointer value if provided
-float Raft::getBEfloat32AndInc(const uint8_t*& pVal, const uint8_t* pEndStop)
+float Raft::getBEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    if (!pVal || (pEndStop && (pVal + 3 >= pEndStop)))
-        return 0;
-    
-    float val = 0;
-    uint8_t* pFloat = (uint8_t*)(&val)+3;
-    for (int i = 0; i < 4; i++)
-        *pFloat-- = *pVal++;
+    uint32_t temp = getBEUint32AndInc(pBuf, pEndStop);
+    float val;
+    memcpy(&val, &temp, sizeof(val));
+    return val;
+}
+
+// Get a double64 little endian value from the uint8_t pointer passed in
+// Increment the pointer (by 8)
+// Also checks endStop pointer value if provided
+double Raft::getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    uint64_t temp = getLEUint64AndInc(pBuf, pEndStop);
+    double val;
+    memcpy(&val, &temp, sizeof(val));
+    return val;
+}
+
+// Get a double64 big endian value from the uint8_t pointer passed in
+// Increment the pointer (by 8)
+// Also checks endStop pointer value if provided
+double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    uint64_t temp = getBEUInt64AndInc(pBuf, pEndStop);
+    double val;
+    memcpy(&val, &temp, sizeof(val));
     return val;
 }
 
