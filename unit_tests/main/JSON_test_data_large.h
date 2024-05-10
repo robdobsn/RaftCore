@@ -603,3 +603,5 @@ static const char* JSON_test_data_large =
             R"(})"
         R"(])"
         ;
+
+static const char* JSON_test_data_large_end = JSON_test_data_large + strlen(JSON_test_data_large);

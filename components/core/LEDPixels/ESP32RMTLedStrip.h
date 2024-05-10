@@ -10,11 +10,12 @@
 
 #include <vector>
 #include <stdint.h>
-#include "driver/rmt_tx.h"
 #include "SpiramAwareAllocator.h"
 #include "LEDPixel.h"
 #include "LEDStripConfig.h"
 #include "LEDStripEncoder.h"
+#include "esp_idf_version.h"
+#include "driver/rmt_tx.h"
 
 class ESP32RMTLedStrip
 {

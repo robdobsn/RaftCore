@@ -14,6 +14,7 @@
 #include "RaftUtils.h"
 #include "RaftJsonPrefixed.h"
 #include "RaftJson.h"
+#include "esp_idf_version.h"
 
 class LEDStripHwConfig
 {

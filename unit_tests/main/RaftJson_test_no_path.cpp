@@ -22,7 +22,7 @@ static const char* MODULE_PREFIX = "RaftJsonNoPathTest";
 static const char* DEFAULT_STRING_VALUE = "<<<DEFAULT_STRING_VALUE>>>";
 static bool testGetString(const char* pSourceStr, const char* pDataPath, const char* expStr)
 {
-    String val = RaftJson::getStringIm(pSourceStr, pDataPath, DEFAULT_STRING_VALUE);
+    String val = RaftJson::getStringIm(pSourceStr, pSourceStr+strlen(pSourceStr), pDataPath, DEFAULT_STRING_VALUE);
     String expectedStr(expStr);
     expectedStr.trim();
     if (!val.equals(expectedStr))

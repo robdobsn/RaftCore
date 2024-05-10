@@ -9,6 +9,7 @@
 #include "LEDPixels.h"
 #include "RaftUtils.h"
 #include "RaftJsonIF.h"
+#include "esp_idf_version.h"
 
 // #define DEBUG_LED_PIXEL_VALUES
 

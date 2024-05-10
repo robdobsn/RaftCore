@@ -8,10 +8,11 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <sys/stat.h>
+#include <sys/unistd.h>
 #include "esp_spiffs.h"
-#include "esp_vfs.h"
 #include "esp_vfs_fat.h"
 #include "esp_err.h"
+#include "dirent.h"
 #include "driver/sdmmc_host.h"
 #include "driver/sdmmc_defs.h"
 #include "driver/sdspi_host.h"

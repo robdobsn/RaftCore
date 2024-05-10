@@ -7,6 +7,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <vector>
+#if defined(ARDUINO_ARCH_ESP32)
+#include "Arduino.h"
+#endif
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 #include "lwip/sys.h"

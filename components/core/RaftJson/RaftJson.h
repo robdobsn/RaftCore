@@ -54,7 +54,7 @@ public:
     /// @param makeCopy when false the string pointer must remain valid for the lifetime of this object
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @note The makeCopy option is provided to avoid copying strings in flash memory - please don't use it in other cases
-    RaftJson(const char* pJsonStr, const char* pJsonEnd = nullptr, bool makeCopy = true, RaftJsonIF* pChainedRaftJson = nullptr)
+    RaftJson(const char* pJsonStr, bool makeCopy = true, const char* pJsonEnd = nullptr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Store the source string
         setSourceStr(pJsonStr, makeCopy, pJsonEnd ? pJsonEnd : pJsonStr + strlen(pJsonStr));
@@ -847,7 +847,7 @@ public:
                     // Find the bounds of the current element
                     const char* pElemEnd = nullptr;
                     locateElementBounds(pCurrent, pDocEnd, pCurrent, pElemEnd);
-                    return RaftJson(pCurrent, pElemEnd, false);
+                    return RaftJson(pCurrent, false, pElemEnd);
                 }
 
                 // Move to next element
@@ -954,7 +954,7 @@ public:
             const char* pElemEnd = nullptr;
             const char* pElemStart = _pCurrent;
             locateElementBounds(_pCurrent, _pDocEnd, pElemStart, pElemEnd);
-            return RaftJson(pElemStart, pElemEnd, false);
+            return RaftJson(pElemStart, false, pElemEnd);
         }
 
         // Compare two iterators
@@ -1068,9 +1068,9 @@ public:
             if (*pJsonDocPos == ':')
                 pJsonDocPos++;
             skipWhitespace(pJsonDocPos, _pDocEnd);
-            const char* valueEnd;
-            locateElementBounds(pJsonDocPos, _pDocEnd, pJsonDocPos, valueEnd);
-            return {key, RaftJson(pJsonDocPos, valueEnd, false)};
+            const char* pValueEnd = nullptr;
+            locateElementBounds(pJsonDocPos, _pDocEnd, pJsonDocPos, pValueEnd);
+            return {key, RaftJson(pJsonDocPos, false, pValueEnd)};
         }
 
         bool operator!=(const ObjectIterator& other) const {

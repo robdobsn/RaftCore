@@ -28,3 +28,5 @@ static const char* JSON_test_data_small =
             R"(})"
         R"(})";
 
+static const char* JSON_test_data_small_end = JSON_test_data_small + strlen(JSON_test_data_small);
+
