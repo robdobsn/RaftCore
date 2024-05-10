@@ -9,6 +9,7 @@
 #include "Logger.h"
 #include "ESP32RMTLedStrip.h"
 #include "RaftUtils.h"
+#include "esp_idf_version.h"
 
 #define DEBUG_ESP32RMTLEDSTRIP_SETUP
 // #define DEBUG_ESP32RMTLEDSTRIP_DETAIL
@@ -71,13 +72,13 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
             .io_od_mode = false,                            // Not open drain
         },
 #else
+        .intr_priority = 0,                                  // Interrupt priority
         .flags = {
             .invert_out = false,                            // Invert output
             .with_dma = false,                              // No DMA
             .io_loop_back = false,                          // No loop
             .io_od_mode = false,                            // Not open drain
         },
-        .intr_priority = 0,                                  // Interrupt priority
 #endif
     };
 

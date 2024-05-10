@@ -14,6 +14,7 @@
 #include "LEDPixel.h"
 #include "ESP32RMTLedStrip.h"
 #include "LEDPatternBase.h"
+#include "esp_idf_version.h"
 
 class BusBase;
 class RaftJsonIF;
@@ -104,3 +105,4 @@ private:
     LEDPatternBase* _pCurrentPattern = nullptr;
     String _currentPatternName;
 };
+

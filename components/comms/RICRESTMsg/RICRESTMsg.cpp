@@ -95,7 +95,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             Raft::getHexStrFromBytes(pBuf, len, debugStr);
             LOG_I(MODULE_PREFIX, "decode CMDRESPJSON data %s len %d string form %s", debugStr.c_str(), len, _payloadJson.c_str());
 #endif
-            _req = RaftJson::getStringIm(_payloadJson.c_str(), "reqStr", "resp");
+            _req = RaftJson::getStringIm(_payloadJson.c_str(), _payloadJson.c_str()+_payloadJson.length(), "reqStr", "resp");
             break;
         }
         case RICREST_ELEM_CODE_BODY:
@@ -144,7 +144,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
 #ifdef DEBUG_RICREST_MSG
             LOG_I(MODULE_PREFIX, "RICREST_CMD_FRAME json %s binaryLen %d", _payloadJson.c_str(), _binaryLen);
 #endif
-            _req = RaftJson::getStringIm(_payloadJson.c_str(), "cmdName", "unknown");
+            _req = RaftJson::getStringIm(_payloadJson.c_str(), _payloadJson.c_str()+_payloadJson.length(), "cmdName", "unknown");
             break;
         }
         case RICREST_ELEM_CODE_FILEBLOCK:

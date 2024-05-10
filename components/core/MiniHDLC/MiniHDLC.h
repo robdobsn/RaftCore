@@ -15,7 +15,6 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
 #include "SimpleBuffer.h"
 
 // Compilation controls

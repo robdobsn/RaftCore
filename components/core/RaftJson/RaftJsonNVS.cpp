@@ -12,6 +12,7 @@
 #include "Logger.h"
 #include "RaftJsonNVS.h"
 #include "nvs_flash.h"
+#include "esp_idf_version.h"
 
 static const char *MODULE_PREFIX = "RaftJsonNVS";
 
@@ -246,7 +247,7 @@ void RaftJsonNVS::updateJsonDoc(const char* pJsonDoc, uint32_t jsonDocStrLen)
     }
 
     // Store value in parent object (makes a copy of the string)
-    setSourceStr(pJsonDoc, true, jsonDocStrLen);
+    setSourceStr(pJsonDoc, true, pJsonDoc+jsonDocStrLen);
 
 #ifdef DEBUG_NVS_READ_WRITE_OPERATIONS_VERBOSE
     // Debug

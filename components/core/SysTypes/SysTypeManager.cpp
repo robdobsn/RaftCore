@@ -491,7 +491,7 @@ void SysTypeManager::selectBest()
     const SysTypeInfoRec& sysTypeInfoRec = _pSysTypeInfoRecs[bestValidSysTypeInfoRecIdx];
 
     // Set into the main document of the chained RaftJson object
-    _baseSysTypeConfig.setSourceStr(sysTypeInfoRec.pSysTypeJSONDoc, false, strlen(sysTypeInfoRec.pSysTypeJSONDoc));
+    _baseSysTypeConfig.setSourceStr(sysTypeInfoRec.pSysTypeJSONDoc, false, sysTypeInfoRec.pSysTypeJSONDoc+strlen(sysTypeInfoRec.pSysTypeJSONDoc));
 
     // Set the chained RaftJson object into the system config
     _systemConfig.setChainedRaftJson(&_baseSysTypeConfig);

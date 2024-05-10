@@ -1,6 +1,6 @@
 {
   "name": "RaftCore",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "Core elements for the Raft ESP32 framework",
   "keywords": "esp32, esp32s3, framework",
   "repository": {
@@ -25,8 +25,8 @@
     "*"
   ],
   "build": {
-    "srcDir": ".",
-    "includeDir": ".",
+    "srcDir": "components",
+    "includeDir": "components",
     "libLDFMode": "deep+",
     "libArchive": false,
     "flags": [
@@ -75,54 +75,8 @@
       "-Icomponents/core/SysTypes",
       "-Icomponents/core/ThreadSafeQueue",
       "-Icomponents/core/Utils"
+    ],
+    "srcFilter": [
     ]
-  },
-  "srcFilter": [
-    "-<*>",
-    "+<components/comms/CommsBridgeMsg>",
-    "+<components/comms/CommsChannelMsg>",
-    "+<components/comms/CommsChannels>",
-    "+<components/comms/CommsCoreIF>",
-    "+<components/comms/FileStreamProtocols>",
-    "+<components/comms/ProtocolBase>",
-    "+<components/comms/ProtocolExchange>",
-    "+<components/comms/ProtocolOverAscii>",
-    "+<components/comms/ProtocolRawMsg>",
-    "+<components/comms/ProtocolRICFrame>",
-    "+<components/comms/ProtocolRICJSON>",
-    "+<components/comms/ProtocolRICSerial>",
-    "+<components/comms/RICRESTMsg>",
-    "+<components/comms/ROSSerial>",
-    "+<components/core/APICommon>",
-    "+<components/core/ArduinoUtils>",
-    "+<components/core/ArPreferences>",
-    "+<components/core/Bus>",
-    "+<components/core/ConfigPinMap>",
-    "+<components/core/DebounceButton>",
-    "+<components/core/DebugGlobals>",
-    "+<components/core/DNSResolver>",
-    "+<components/core/ExpressionEval>",
-    "+<components/core/FileSystem>",
-    "+<components/core/LEDPixels>",
-    "+<components/core/libb64>",
-    "+<components/core/Logger>",
-    "+<components/core/MiniHDLC>",
-    "+<components/core/MQTT>",
-    "+<components/core/NamedValueProvider>",
-    "+<components/core/NetworkSystem>",
-    "+<components/core/NumericalFilters>",
-    "+<components/core/RaftCoreApp>",
-    "+<components/core/RaftJson>",
-    "+<components/core/RestAPIEndpoints>",
-    "+<components/core/RingBuffer>",
-    "+<components/core/StatusIndicator>",
-    "+<components/core/SupervisorStats>",
-    "+<components/core/SysManager>",
-    "+<components/core/SysMod>",
-    "+<components/core/SysTypes>",
-    "+<components/core/ThreadSafeQueue>",
-    "+<components/core/Utils>"
-  ],
-  "includeDir": ".",
-  "srcDir": "."
+  }
 }

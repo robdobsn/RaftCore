@@ -44,6 +44,15 @@ public:
         return _raftJsonIF.getDouble(getPrefixedDataPath(dataPath).c_str(), defaultValue);
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get int value using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @return the value of the variable or the default value if not found
+    virtual int getInt(const char* pDataPath, int defaultValue) const override final
+    {
+        return _raftJsonIF.getInt(getPrefixedDataPath(pDataPath).c_str(), defaultValue);
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get long value using the member variable JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
@@ -107,6 +116,54 @@ public:
     virtual const char* getJsonDoc() const override final
     {
         return _raftJsonIF.getJsonDoc();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get JSON doc end
+    /// @return const char* : JSON doc end
+    virtual const char* getJsonDocEnd() const override final
+    {
+        return _raftJsonIF.getJsonDocEnd();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a string
+    /// @return String
+    virtual String toString() const override final
+    {
+        return _raftJsonIF.toString();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a double
+    /// @return double
+    virtual double toDouble() const override final
+    {
+        return _raftJsonIF.toDouble();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as an int
+    /// @return int
+    virtual int toInt() const override final
+    {
+        return _raftJsonIF.toInt();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a long
+    /// @return long
+    virtual long toLong() const override final
+    {
+        return _raftJsonIF.toLong();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get as a boolean
+    /// @return bool
+    virtual bool toBool() const override final
+    {
+        return _raftJsonIF.toBool();
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
