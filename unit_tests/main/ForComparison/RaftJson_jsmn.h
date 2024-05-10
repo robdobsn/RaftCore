@@ -50,6 +50,10 @@ public:
     {
         return getDouble(nullptr, pDataPath, defaultValue, nullptr, &_docAndCache);
     }
+    virtual int getInt(const char* pDataPath, int defaultValue) const override
+    {
+        return (int)getLong(nullptr, pDataPath, defaultValue, nullptr, &_docAndCache);
+    }
     virtual long getLong(const char* pDataPath, long defaultValue) const override
     {
         return getLong(nullptr, pDataPath, defaultValue, nullptr, &_docAndCache);
@@ -104,6 +108,10 @@ public:
     {
         return _docAndCache.getJsonDoc();
     }
+    virtual const char* getJsonDocEnd() const
+    {
+        return _docAndCache.getJsonDoc() + _docAndCache.getJsonDocLen();
+    }
     virtual uint32_t getJsonDocLen() const
     {
         return _docAndCache.getJsonDocLen();
@@ -151,6 +159,27 @@ public:
             int &arrayLen, 
             const char* pPathPrefix = nullptr, 
             const JSONDocAndCache* pDocAndCache = nullptr);
+
+    virtual String toString() const
+    {
+        return getString("", "");
+    }
+    virtual int toInt() const
+    {
+        return getInt("", 0);
+    }
+    virtual long toLong() const
+    {
+        return getLong("", 0);
+    }
+    virtual double toDouble() const
+    {
+        return getDouble("", 0.0);
+    }
+    virtual bool toBool() const
+    {
+        return getBool("", false);
+    }
 
     // Name value pair handling methods
     struct NameValuePair

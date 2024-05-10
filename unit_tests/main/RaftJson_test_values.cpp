@@ -22,7 +22,7 @@ static const char* MODULE_PREFIX = "RaftJsonValuesTest";
 static const char* DEFAULT_STRING_VALUE = "<<<DEFAULT_STRING_VALUE>>>";
 static bool testGetString(const char* pSourceStr, const char* pDataPath, const char* expStr)
 {
-    String val = RaftJson::getStringIm(pSourceStr, pDataPath, DEFAULT_STRING_VALUE);
+    String val = RaftJson::getStringIm(pSourceStr, pSourceStr+strlen(pSourceStr), pDataPath, DEFAULT_STRING_VALUE);
     String expectedStr(expStr);
     expectedStr.trim();
     // LOG_I(MODULE_PREFIX, "testGetString dataPath %s val %s", pDataPath, val.c_str());
@@ -37,7 +37,7 @@ static bool testGetString(const char* pSourceStr, const char* pDataPath, const c
 static bool testGetArrayElems(const char* pSourceStr, const char* pDataPath, const char* expStrs[], int numStrs)
 {
     std::vector<String> arrayElems;
-    bool isValid = RaftJson::getArrayElemsIm(pSourceStr, pDataPath, arrayElems);
+    bool isValid = RaftJson::getArrayElemsIm(pSourceStr, pSourceStr+strlen(pSourceStr), pDataPath, arrayElems);
     // LOG_I(MODULE_PREFIX, "testGetArrayElems pDataPath %s got len %d", pDataPath, arrayElems.size());
     if (!isValid)
     {
@@ -63,7 +63,7 @@ static bool testGetArrayElems(const char* pSourceStr, const char* pDataPath, con
 static bool testGetObjectKeys(const char* pSourceStr, const char* pDataPath, const char* expStrs[], int numStrs)
 {
     std::vector<String> objectKeys;
-    bool isValid = RaftJson::getKeysIm(pSourceStr, pDataPath, objectKeys);
+    bool isValid = RaftJson::getKeysIm(pSourceStr, pSourceStr+strlen(pSourceStr), pDataPath, objectKeys);
     // LOG_I(MODULE_PREFIX, "testGetObjectKeys pDataPath %s got len %d", pDataPath, objectKeys.size());
     if (!isValid)
     {
@@ -89,7 +89,7 @@ static bool testGetObjectKeys(const char* pSourceStr, const char* pDataPath, con
 static bool testObjectType(const char* pSourceStr, const char* pDataPath, RaftJson::RaftJsonType expType, int expArrayLen)
 {
     int arrayLen = 0;
-    RaftJson::RaftJsonType objType = RaftJson::getTypeIm(pSourceStr, pDataPath, arrayLen);
+    RaftJson::RaftJsonType objType = RaftJson::getTypeIm(pSourceStr, pSourceStr+strlen(pSourceStr), pDataPath, arrayLen);
     // LOG_I(MODULE_PREFIX, "testObjectType pDataPath %s got type %s arrayLen %d", pDataPath, RaftJson::getElemTypeStr(objType), arrayLen);
     if (objType != expType)
     {
@@ -162,11 +162,11 @@ TEST_CASE("test_raftjson_values", "[raftjson_values]")
     }
 
     // Test higher level methods
-    TEST_ASSERT_MESSAGE(4.0 == RaftJson::getDoubleIm(testJSON, "consts/oxis/coo[3]/minotaur/[2]", 0), "getDouble1");
+    TEST_ASSERT_MESSAGE(4.0 == RaftJson::getDoubleIm(testJSON, testJSON+strlen(testJSON),"consts/oxis/coo[3]/minotaur/[2]", 0), "getDouble1");
     TEST_ASSERT_MESSAGE(true == testGetString(testJSON, "consts/lastly", "elephant"), "getString1");
-    TEST_ASSERT_MESSAGE(5 == RaftJson::getLongIm(testJSON, "consts/comarr/[1]", -1), "getLong1");
-    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm(testJSON, "consts/bool1", -1), "getLongBool1");
-    TEST_ASSERT_MESSAGE(1 == RaftJson::getLongIm(testJSON, "consts/bool2", -1), "getLongBool2");
+    TEST_ASSERT_MESSAGE(5 == RaftJson::getLongIm(testJSON, testJSON+strlen(testJSON),"consts/comarr/[1]", -1), "getLong1");
+    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm(testJSON, testJSON+strlen(testJSON),"consts/bool1", -1), "getLongBool1");
+    TEST_ASSERT_MESSAGE(1 == RaftJson::getLongIm(testJSON, testJSON+strlen(testJSON),"consts/bool2", -1), "getLongBool2");
 
     // Test array elements
     const char* expectedStrs[] = {"6", "5", "4", "3", "3", "{\"fish\": \"stew\"}"};
@@ -199,32 +199,52 @@ TEST_CASE("test_raftjson_values", "[raftjson_values]")
 
     // Test get non-existent strings
     TEST_ASSERT_MESSAGE(true == testGetString(testJSON, "consts/oxis/coo[3]/slippery/nice/animal", DEFAULT_STRING_VALUE), "getString2");
-    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm(testJSON, "consts/oxis/coo[3]/slippery/nice/animal", 1234.567), "getDouble2");
-    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(testJSON, "consts/oxis/coo[3]/slippery/nice/animal", 1234), "getLong2");
+    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm(testJSON, testJSON+strlen(testJSON),"consts/oxis/coo[3]/slippery/nice/animal", 1234.567), "getDouble2");
+    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(testJSON, testJSON+strlen(testJSON),"consts/oxis/coo[3]/slippery/nice/animal", 1234), "getLong2");
 
     // Test documents containing only primitives
-    TEST_ASSERT_MESSAGE(true == testGetString("1234", "", "1234"), "getString3");
-    TEST_ASSERT_MESSAGE(1234.0 == RaftJson::getDoubleIm("1234", "", 1234.0), "getDouble3");
-    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm("1234", "", 1234), "getLong3");
-    TEST_ASSERT_MESSAGE(true == testGetString("1234.567", "", "1234.567"), "getString4");
-    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm("1234.567", "", 1234.567), "getDouble4");
-    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm("1234.567", "", 1234), "getLong4");
-    TEST_ASSERT_MESSAGE(true == testGetString("true", "", "true"), "getString5");
-    TEST_ASSERT_MESSAGE(1 == RaftJson::getLongIm("true", "", 1234), "getLong5");
-    TEST_ASSERT_MESSAGE(true == testGetString("false", "", "false"), "getString6");
-    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm("false", "", 1234), "getLong6");
-    TEST_ASSERT_MESSAGE(true == testGetString("null", "", "null"), "getString7");
-    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm("null", "", 1234.567), "getDouble7");
-    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm("null", "", 1234), "getLong7");
-    TEST_ASSERT_MESSAGE(true == testGetString("\"1234\"", "", "1234"), "getString8");
-    TEST_ASSERT_MESSAGE(1234.0 == RaftJson::getDoubleIm("\"1234\"", "", 1234.0), "getDouble8");
-    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm("\"1234\"", "", 1234), "getLong8");
-    TEST_ASSERT_MESSAGE(true == testGetString("\"1234.567\"", "", "1234.567"), "getString9");
-    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm("\"1234.567\"", "", 1234.567), "getDouble9");
-    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm("\"1234.567\"", "", 1234), "getLong9");
-    TEST_ASSERT_MESSAGE(true == testGetString("\"true\"", "", "true"), "getString10");
-    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm("\"true\"", "", 1234), "getLong10");
-    TEST_ASSERT_MESSAGE(true == testGetString("\"false\"", "", "false"), "getString11");
-    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm("\"false\"", "", 1234), "getLong11");
-    TEST_ASSERT_MESSAGE(true == testGetString("\"null\"", "", "null"), "getString12");
+    const char* test1234 = "1234";
+    const char* test1234End = test1234 + strlen(test1234);
+    const char* test1234pt567 = "1234.567";
+    const char* test1234pt567End = test1234pt567 + strlen(test1234pt567);
+    const char* testtrue = "true";
+    const char* testtrueEnd = testtrue + strlen(testtrue);
+    const char* testfalse = "false";
+    const char* testfalseEnd = testfalse + strlen(testfalse);
+    const char* testnull = "null";
+    const char* testnullEnd = testnull + strlen(testnull);
+    const char* test1234quotes = "\"1234\"";
+    const char* test1234quotesEnd = test1234quotes + strlen(test1234quotes);
+    const char* test1234pt567quotes = "\"1234.567\"";
+    const char* test1234pt567quotesEnd = test1234pt567quotes + strlen(test1234pt567quotes);
+    const char* testtruequotes = "\"true\"";
+    const char* testtruequotesEnd = testtruequotes + strlen(testtruequotes);
+    const char* testfalsequotes = "\"false\"";
+    const char* testfalsequotesEnd = testfalsequotes + strlen(testfalsequotes);
+    const char* testnullquotes = "\"null\"";
+    const char* testnullquotesEnd = testnullquotes + strlen(testnullquotes);
+    TEST_ASSERT_MESSAGE(true == testGetString(test1234, "", test1234), "getString3");
+    TEST_ASSERT_MESSAGE(1234.0 == RaftJson::getDoubleIm(test1234, test1234End, "", 1234.0), "getDouble3");
+    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(test1234, test1234End, "", 1234), "getLong3");
+    TEST_ASSERT_MESSAGE(true == testGetString(test1234pt567, "", "1234.567"), "getString4");
+    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm(test1234pt567, test1234pt567End, "", 1234.567), "getDouble4");
+    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(test1234pt567, test1234pt567End, "", 1234), "getLong4");
+    TEST_ASSERT_MESSAGE(true == testGetString(testtrue, "", testtrue), "getString5");
+    TEST_ASSERT_MESSAGE(1 == RaftJson::getLongIm(testtrue, testtrueEnd, "", 1234), "getLong5");
+    TEST_ASSERT_MESSAGE(true == testGetString(testfalse, "", "false"), "getString6");
+    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm(testfalse, testfalseEnd, "", 1234), "getLong6");
+    TEST_ASSERT_MESSAGE(true == testGetString(testnull, "", "null"), "getString7");
+    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm(testnull, testnullEnd, "", 1234.567), "getDouble7");
+    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(testnull, testnullEnd, "", 1234), "getLong7");
+    TEST_ASSERT_MESSAGE(true == testGetString(test1234quotes, "", "1234"), "getString8");
+    TEST_ASSERT_MESSAGE(1234.0 == RaftJson::getDoubleIm(test1234quotes, test1234quotesEnd, "", 1234.0), "getDouble8");
+    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(test1234quotes, test1234quotesEnd, "", 1234), "getLong8");
+    TEST_ASSERT_MESSAGE(true == testGetString(test1234pt567quotes, "", "1234.567"), "getString9");
+    TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm(test1234pt567quotes, test1234pt567quotesEnd, "", 1234.567), "getDouble9");
+    TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(test1234pt567quotes, test1234pt567quotesEnd, "", 1234), "getLong9");
+    TEST_ASSERT_MESSAGE(true == testGetString(testtruequotes, "", "true"), "getString10");
+    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm(testtruequotes, testtruequotesEnd, "", 1234), "getLong10");
+    TEST_ASSERT_MESSAGE(true == testGetString(testfalsequotes, "", "false"), "getString11");
+    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm(testfalsequotes, testfalsequotesEnd, "", 1234), "getLong11");
+    TEST_ASSERT_MESSAGE(true == testGetString(testnullquotes, "", "null"), "getString12");
 }
