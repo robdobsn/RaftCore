@@ -2,6 +2,7 @@ import argparse
 import json
 import os.path
 import re
+import shutil
 
 __version__ = "2.0.1"
 
@@ -181,15 +182,26 @@ class LibBuildFileManager:
             with open(self.lib_props_file_name, 'w') as f:
                 f.writelines([li+"\n" for li in self.lib_props_lines])
         
-        # Main include file - should be in the component folder
-        main_include_relative_path = self.main_include_file_name
+    def flatten_structure_for_arduino_ide(self):
+        # Arduino source folder
+        arduino_src_folder = "src"
         component_folder = self.cmakelists_sections.get("component_base_folder", "")
-        if component_folder != "":
-            main_include_relative_path = self.path_join(component_folder, self.main_include_file_name)
-        if not os.path.exists(main_include_relative_path) or not nooverwrite:
-            print(f'Writing {main_include_relative_path}')
-            with open(main_include_relative_path, 'w') as f:
-                f.writelines([li+"\n" for li in self.main_include_file_lines])
+        if arduino_src_folder == component_folder:
+            print("Component folder is already src - cannot flatten structure")
+            return
+        
+        # Flatten the structure
+        print(f'Flattening structure for Arduino IDE')
+
+        # For all files in the component_folder recursively, copy to the src folder
+        for root, dirs, files in os.walk(component_folder):
+            for file in files:
+                src_file = os.path.join(root, file)
+                dest_file = os.path.join(arduino_src_folder, file)
+                print(f'Copying {src_file} to {dest_file}')
+                os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+                # Copy file
+                shutil.copy2(src_file, dest_file)
 
 if __name__ == "__main__":
     print('-----------')
@@ -201,6 +213,7 @@ if __name__ == "__main__":
     parser.add_argument('-l', '--libjson', type=str, help='path to library.json', default='library.json')
     parser.add_argument('-c', '--cmake', type=str, help='path to CMakeLists.txt', default='CMakeLists.txt')
     parser.add_argument('-p', '--properties', type=str, help='path to library.properties', default='library.properties')
+    parser.add_argument('-a', '--arduinoide', action='store_true', help='flatten file structure for Arduino IDE')
     parser.add_argument('-i', '--includename', type=str, help='name of file included when library added to Arduino project', default='<libname>.h')
     parser.add_argument('-n', '--nooverwrite', action='store_true', help='do not overwrite existing files')
     parser.add_argument('-f', '--forceincludes', action='store_true', help='force recreation of library.json includes section')
@@ -232,8 +245,9 @@ if __name__ == "__main__":
     # Generate library.properties
     manager.generate_library_properties()
 
-    # Generate main include file
-    manager.generate_main_include_file()
-
     # Write out files if required
     manager.write_files(args.nooverwrite)
+
+    # Generate flattened structure for arduino ide
+    if args.arduinoide:
+        manager.flatten_structure_for_arduino_ide()
