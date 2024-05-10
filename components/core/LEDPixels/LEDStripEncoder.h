@@ -7,6 +7,9 @@
 
 #include <stdint.h>
 #include "esp_idf_version.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+
 #include "driver/rmt_encoder.h"
 
 #ifdef __cplusplus
@@ -41,3 +44,5 @@ esp_err_t rmt_new_led_strip_encoder(const led_strip_encoder_config_t *config, rm
 #ifdef __cplusplus
 }
 #endif
+
+#endif // ESP_IDF_VERSION

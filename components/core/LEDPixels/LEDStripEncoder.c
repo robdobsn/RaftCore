@@ -6,6 +6,10 @@
 
 // This code is from ESP IDF RMT LED strip example
 
+#include "esp_idf_version.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+
 #include "esp_check.h"
 #include "LEDStripEncoder.h"
 
@@ -124,3 +128,5 @@ err:
     }
     return ret;
 }
+
+#endif // ESP_IDF_VERSION

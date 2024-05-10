@@ -11,6 +11,8 @@
 #include "RaftUtils.h"
 #include "esp_idf_version.h"
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+
 #define DEBUG_ESP32RMTLEDSTRIP_SETUP
 // #define DEBUG_ESP32RMTLEDSTRIP_DETAIL
 
@@ -250,3 +252,5 @@ bool ESP32RMTLedStrip::rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_t
     // False indicates a higher-priority task hasn't been woken up
     return false;
 }
+
+#endif // ESP_IDF_VERSION

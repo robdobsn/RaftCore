@@ -16,6 +16,8 @@
 #include "LEDPatternBase.h"
 #include "esp_idf_version.h"
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+
 class BusBase;
 class RaftJsonIF;
 class BusRequestResult;
@@ -106,3 +108,4 @@ private:
     String _currentPatternName;
 };
 
+#endif

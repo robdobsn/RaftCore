@@ -15,6 +15,9 @@
 #include "LEDStripConfig.h"
 #include "LEDStripEncoder.h"
 #include "esp_idf_version.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+
 #include "driver/rmt_tx.h"
 
 class ESP32RMTLedStrip
@@ -65,3 +68,5 @@ private:
     static bool rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
     bool rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);
 };
+
+#endif // ESP_IDF_VERSION
