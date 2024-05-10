@@ -17,6 +17,7 @@
 
 class BusRequestInfo;
 class BusBase;
+class BusDeviceIF;
 
 typedef std::function<void(BusBase& bus, const std::vector<BusElemAddrAndStatus>& statusChanges)> BusElemStatusCB;
 typedef std::function<void(BusBase& bus, BusOperationStatus busOperationStatus)> BusOperationStatusCB;
@@ -58,6 +59,13 @@ public:
     /// @brief service (should be called frequently to service the bus)
     virtual void service()
     {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus device interface
+    virtual BusDeviceIF* getBusDeviceIF()
+    {
+        return nullptr;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
