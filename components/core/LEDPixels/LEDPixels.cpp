@@ -246,3 +246,4 @@ void LEDPixels::clear(bool showAfterClear)
     if (showAfterClear)
         show();
 }
+

@@ -105,3 +105,4 @@ private:
     LEDPatternBase* _pCurrentPattern = nullptr;
     String _currentPatternName;
 };
+
