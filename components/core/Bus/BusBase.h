@@ -221,26 +221,6 @@ public:
         return strtol(addrStr.c_str(), NULL, 0);
     }
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get device type information by address
-    /// @param address - address of device to get information for
-    /// @param includePlugAndPlayInfo - true to include plug and play information
-    /// @return JSON string
-    virtual String getDevTypeInfoJsonByAddr(uint32_t address, bool includePlugAndPlayInfo) const
-    {
-        return "{}";
-    }
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get device type information by device type name
-    /// @param deviceType - device type name
-    /// @param includePlugAndPlayInfo - true to include plug and play information
-    /// @return JSON string
-    virtual String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo) const
-    {
-        return "{}";
-    }
-
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Return addresses of devices attached to the bus
     /// @param addresses - vector to store the addresses of devices
