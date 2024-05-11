@@ -237,14 +237,8 @@ public:
         const char* pElemEnd = nullptr;
         if (!RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd))
             return defaultValue;
-        // Skip quotes
-        if (*pElemStart == '"')
-            pElemStart++;
-        if ((pElemEnd > pElemStart) && (*(pElemEnd-1) == '"'))
-            pElemEnd--;
-        String outStr = String(pElemStart, pElemEnd - pElemStart);
-        unescapeString(outStr);
-        return outStr;
+        // Get string without quotes
+        return getStringWithoutQuotes(pElemStart, pElemEnd, true);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -363,11 +357,8 @@ public:
             pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
             if (!pJsonDocPos)
                 return false;
-            // Skip quotes
-            if (*pElemStart == '"')
-                pElemStart++;
             // Add to list
-            strList.push_back(String(pElemStart, pElemEnd - pElemStart));
+            strList.push_back(getStringWithoutQuotes(pElemStart, pElemEnd, true));
         }
         return true;
     }
@@ -715,15 +706,8 @@ public:
     /// @return String : JSON doc contents
     virtual String toString() const
     {
-        // Check if string is in quotes
-        const char* pStart = _pSourceStr;
-        if ((*pStart == '\"') && (_pSourceEnd > pStart))
-            pStart++;
-        // Check end of string
-        const char* pEnd = _pSourceEnd;
-        if ((pEnd > pStart) && (*(pEnd - 1) == '\"'))
-            pEnd--;
-        return String(pStart, pEnd - pStart);
+        // Extract string
+        return getStringWithoutQuotes(_pSourceStr, _pSourceEnd, true);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1450,6 +1434,33 @@ private:
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get string without quotes from element bounds
+    /// @param pElemStart JSON string element start position (generally points to a quote mark)
+    /// @param pElemEnd JSON string element end position (generally points to the char after a quote mark)
+    /// @param unescape if true unescape if it is a string
+    /// @return string without quotes
+    /// @note This function is used to extract a string from the bounds of a JSON element which will generally
+    ///       include quote marks.
+    static String getStringWithoutQuotes(const char* pElemStart, const char* pElemEnd, bool unescape = true)
+    {
+        // Check valid
+        if (!pElemStart || !pElemEnd)
+            return String();
+        // Check if string start bounds is a quote
+        bool isString = (pElemEnd > pElemStart) && (*pElemStart == '"');
+        if (isString)
+            pElemStart++;
+        // Check if string end bounds is a quote
+        if ((pElemEnd > pElemStart) && (*(pElemEnd-1) == '"'))
+            pElemEnd--;
+        // Return string without quotes
+        String retStr = String(pElemStart, pElemEnd - pElemStart);
+        if (unescape && isString)
+            unescapeString(retStr);
+        return retStr;
+
+    }
 
 private:
     // JSON document string

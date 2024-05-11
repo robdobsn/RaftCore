@@ -189,6 +189,15 @@ int main()
     TEST_ASSERT(nvPairs[24].name == "0x010005", "testNVPair24Name");
     TEST_ASSERT(nvPairs[24].value == "", "testNVPair24Value");
 
+    // Test array access
+    const RaftJson testRaftJsonArray(testJSON);
+    std::vector<String> cooArrayElems;
+    bool getCooRslt = testRaftJsonArray.getArrayElems("consts/oxis/coo", cooArrayElems);
+    TEST_ASSERT(getCooRslt, "testRaftJsonArray1");
+    TEST_ASSERT(cooArrayElems.size() == 4, "testRaftJsonArray2");
+    TEST_ASSERT(cooArrayElems[0] == "pig", "testRaftJsonArray3");
+    TEST_ASSERT(cooArrayElems[2] == "dog", "testRaftJsonArray4");
+
     // Test array iterators
     const char* testArrayJSON = R"({"testArray":[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]})";
     RaftJson testArrayJson1(testArrayJSON);
@@ -199,7 +208,7 @@ int main()
         // printf("testArrayJSON %d\n", myTestVar.toInt());
         idx++;
     }
-    RaftJson testArrayJson2(R"({"testArray":["a", "bb", "ccc", "dddd", "eeeee", "ffffff", "", "bananas", "{}", {"a": 1, "b": 2, "c": 3}]})");
+    RaftJson testArrayJson2(R"({"testArray":["a", "bb", "ccc", "dd\\dd\ndd\n\n", "eeeee", "ffffff", "", "bananas", "{}", {"a": 1, "b": 2, "c": 3}]})");
     idx = 1;
     for (auto myTestVar : testArrayJson2.getArray("testArray"))
     {
@@ -208,7 +217,7 @@ int main()
             case 1: TEST_ASSERT(myTestVar.toString() == "a", "testArrayJSON2_1"); break;
             case 2: TEST_ASSERT(myTestVar.toString() == "bb", "testArrayJSON2_2"); break;
             case 3: TEST_ASSERT(myTestVar.toString() == "ccc", "testArrayJSON2_3"); break;
-            case 4: TEST_ASSERT(myTestVar.toString() == "dddd", "testArrayJSON2_4"); break;
+            case 4: TEST_ASSERT(myTestVar.toString() == "dd\\dd\ndd\n\n", "testArrayJSON2_4"); break;
             case 5: TEST_ASSERT(myTestVar.toString() == "eeeee", "testArrayJSON2_5"); break;
             case 6: TEST_ASSERT(myTestVar.toString() == "ffffff", "testArrayJSON2_6"); break;
             case 7: TEST_ASSERT(myTestVar.toString() == "", "testArrayJSON2_7"); break;
