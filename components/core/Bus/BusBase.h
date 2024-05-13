@@ -13,15 +13,17 @@
 #include "RaftArduino.h"
 #include "BusConsts.h"
 #include "BusStats.h"
-#include "RaftJsonIF.h"
+#include "BusDeviceIF.h"
 
 class BusRequestInfo;
 class BusBase;
-class BusDeviceIF;
 
 typedef std::function<void(BusBase& bus, const std::vector<BusElemAddrAndStatus>& statusChanges)> BusElemStatusCB;
 typedef std::function<void(BusBase& bus, BusOperationStatus busOperationStatus)> BusOperationStatusCB;
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Base class for a bus
+/// @class BusBase
 class BusBase
 {
 public:

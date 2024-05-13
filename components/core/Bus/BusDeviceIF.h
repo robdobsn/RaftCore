@@ -10,6 +10,20 @@
 
 #include "RaftJson.h"
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Device decode state
+/// @class BusDeviceDecodeState
+class BusDeviceDecodeState
+{
+public:
+    uint64_t lastReportTimestampUs = 0;
+    uint64_t reportTimestampOffsetUs = 0;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Device Interface
+/// @class BusDeviceIF
 class BusDeviceIF
 {
 public:
@@ -33,4 +47,17 @@ public:
     /// @return JSON string
     virtual String getPollResponsesJson() const = 0;
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Decode one or more poll responses for a device
+    /// @param deviceTypeIndex index of device type
+    /// @param pPollBuf buffer containing poll responses
+    /// @param pollBufLen length of poll response buffer
+    /// @param pStructOut pointer to structure (or array of structures) to receive decoded data
+    /// @param structOutSize size of structure (in bytes) to receive decoded data
+    /// @param maxRecCount maximum number of records to decode
+    /// @return number of records decoded
+    virtual uint32_t decodePollResponses(uint16_t deviceTypeIndex, 
+                    const uint8_t* pPollBuf, uint32_t pollBufLen, 
+                    void* pStructOut, uint32_t structOutSize, 
+                    uint16_t maxRecCount, BusDeviceDecodeState& decodeState) = 0;
 };
