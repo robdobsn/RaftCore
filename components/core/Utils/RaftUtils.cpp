@@ -1054,7 +1054,7 @@ String Raft::getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHe
 void Raft::logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro)
 {
     if (!pBuf)
-        return offset;
+        return;
     // Output log string with prefix and length only if > 16 bytes
     if (bufLen > 16) {
         LOG_I(logPrefix, "%s len %d", logIntro, bufLen);
