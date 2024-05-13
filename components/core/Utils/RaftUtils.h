@@ -197,111 +197,129 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setInt8(uint8_t* pBuf, uint32_t offset, int8_t val);
-    void setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val);
+    /// @return New offset
+    uint32_t setInt8(uint8_t* pBuf, uint32_t offset, int8_t val);
+    uint32_t setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val);
 
     /// @brief Set a uint8_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
-    void setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
+    /// @return New offset
+    uint32_t setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
+    uint32_t setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
 
     /// @brief Set a int16_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val);
+    /// @return New offset
+    uint32_t setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val);
 
     /// @brief Set a int16_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEInt16(uint8_t* pBuf, uint32_t offset, int16_t val);
+    /// @return New offset
+    uint32_t setLEInt16(uint8_t* pBuf, uint32_t offset, int16_t val);
 
     /// @brief Set a uint16_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
+    /// @return New offset
+    uint32_t setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
 
     /// @brief Set a uint16_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
+    /// @return New offset
+    uint32_t setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
 
     /// @brief Set a uint32_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
+    /// @return New offset
+    uint32_t setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
 
     /// @brief Set a uint32_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
+    /// @return New offset
+    uint32_t setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
 
     /// @brief Set a int32_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEInt32(uint8_t* pBuf, uint32_t offset, int32_t val);
+    /// @return New offset
+    uint32_t setBEInt32(uint8_t* pBuf, uint32_t offset, int32_t val);
 
     /// @brief Set a int32_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEInt32(uint8_t* pBuf, uint32_t offset, int32_t val);
+    /// @return New offset
+    uint32_t setLEInt32(uint8_t* pBuf, uint32_t offset, int32_t val);
 
     /// @brief Set a uint64_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
+    /// @return New offset
+    uint32_t setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
 
     /// @brief Set a uint64_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
+    /// @return New offset
+    uint32_t setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
 
     /// @brief Set a int64_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEInt64(uint8_t* pBuf, uint32_t offset, int64_t val);
+    /// @return New offset
+    uint32_t setBEInt64(uint8_t* pBuf, uint32_t offset, int64_t val);
 
     /// @brief Set a int64_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEInt64(uint8_t* pBuf, uint32_t offset, int64_t val);
+    /// @return New offset
+    uint32_t setLEInt64(uint8_t* pBuf, uint32_t offset, int64_t val);
 
     /// @brief Set a float (32 bit) value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEFloat32(uint8_t* pBuf, uint32_t offset, float val);
+    /// @return New offset
+    uint32_t setBEFloat32(uint8_t* pBuf, uint32_t offset, float val);
 
     /// @brief Set a float (32 bit) value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEFloat32(uint8_t* pBuf, uint32_t offset, float val);
+    /// @return New offset
+    uint32_t setLEFloat32(uint8_t* pBuf, uint32_t offset, float val);
 
     /// @brief Set a double (64 bit) value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setBEDouble64(uint8_t* pBuf, uint32_t offset, double val);
+    /// @return New offset
+    uint32_t setBEDouble64(uint8_t* pBuf, uint32_t offset, double val);
 
     /// @brief Set a double (64 bit) value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
-    void setLEDouble64(uint8_t* pBuf, uint32_t offset, double val);
+    /// @return New offset
+    uint32_t setLEDouble64(uint8_t* pBuf, uint32_t offset, double val);
 
     /// @brief Clamp a value between two values
     /// @param val input value

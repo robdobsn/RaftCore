@@ -592,248 +592,288 @@ double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
+/// @return New offset
+uint32_t Raft::setInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val;
+    return offset + sizeof(int8_t);
 }
 
-void Raft::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
+/// @return New offset
+uint32_t Raft::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val;
+    return offset + sizeof(int8_t);
 }
 
 /// @brief Set an uint8_t value into a buffer
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
+/// @return New offset
+uint32_t Raft::setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val;
+    return offset + sizeof(uint8_t);
 }
 
-void Raft::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
+/// @return New offset
+uint32_t Raft::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val;
+    return offset + sizeof(uint8_t);
 }
 
 /// @brief Set a int16_t value into a buffer in big-endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
+/// @return New offset
+uint32_t Raft::setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = (val >> 8) & 0x0ff;
     *(pBuf+offset+1) = val & 0xff;
+    return offset + sizeof(int16_t);
 }
 
 /// @brief Set a int16_t value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
+/// @return New offset
+uint32_t Raft::setLEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val & 0xff;
     *(pBuf+offset+1) = (val >> 8) & 0x0ff;
+    return offset + sizeof(int16_t);
 }
 
 /// @brief Set a uint16_t value into a buffer in big-endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
+/// @return New offset
+uint32_t Raft::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = (val >> 8) & 0x0ff;
     *(pBuf+offset+1) = val & 0xff;
+    return offset + sizeof(uint16_t);
 }
 
 /// @brief Set a uint16_t value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
+/// @return New offset
+uint32_t Raft::setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val & 0xff;
     *(pBuf+offset+1) = (val >> 8) & 0x0ff;
+    return offset + sizeof(uint16_t);
 }
 
 /// @brief Set a uint32_t value into a buffer in big endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
+/// @return New offset
+uint32_t Raft::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = (val >> 24) & 0x0ff;
     *(pBuf+offset+1) = (val >> 16) & 0x0ff;
     *(pBuf+offset+2) = (val >> 8) & 0x0ff;
     *(pBuf+offset+3) = val & 0xff;
+    return offset + sizeof(uint32_t);
 }
 
 /// @brief Set a uint32_t value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
+/// @return New offset
+uint32_t Raft::setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val & 0xff;
     *(pBuf+offset+1) = (val >> 8) & 0x0ff;
     *(pBuf+offset+2) = (val >> 16) & 0x0ff;
     *(pBuf+offset+3) = (val >> 24) & 0xff;
+    return offset + sizeof(uint32_t);
 }
 
 /// @brief Set a int32_t value into a buffer in big endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEInt32(uint8_t* pBuf, uint32_t offset, int32_t val)
+/// @return New offset
+uint32_t Raft::setBEInt32(uint8_t* pBuf, uint32_t offset, int32_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = (val >> 24) & 0x0ff;
     *(pBuf+offset+1) = (val >> 16) & 0x0ff;
     *(pBuf+offset+2) = (val >> 8) & 0x0ff;
     *(pBuf+offset+3) = val & 0xff;
+    return offset + sizeof(int32_t);
 }
 
 /// @brief Set a int32_t value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEInt32(uint8_t* pBuf, uint32_t offset, int32_t val)
+/// @return New offset
+uint32_t Raft::setLEInt32(uint8_t* pBuf, uint32_t offset, int32_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     *(pBuf+offset) = val & 0xff;
     *(pBuf+offset+1) = (val >> 8) & 0x0ff;
     *(pBuf+offset+2) = (val >> 16) & 0x0ff;
     *(pBuf+offset+3) = (val >> 24) & 0xff;
+    return offset + sizeof(int32_t);
 }
 
 /// @brief Set a uint64_t value into a buffer in big endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
+/// @return New offset
+uint32_t Raft::setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     for (size_t i = 0; i < sizeof(uint64_t); ++i) {
         pBuf[offset + i] = (val >> (8 * (sizeof(uint64_t) - i - 1))) & 0xff;
     }
+    return offset + sizeof(uint64_t);
 }
 
 /// @brief Set a uint64_t value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
+/// @return New offset
+uint32_t Raft::setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     for (size_t i = 0; i < sizeof(uint64_t); ++i) {
         pBuf[offset + i] = (val >> (8 * i)) & 0xff;
     }
+    return offset + sizeof(uint64_t);
 }
 
 /// @brief Set a int64_t value into a buffer in big endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEInt64(uint8_t* pBuf, uint32_t offset, int64_t val)
+/// @return New offset
+uint32_t Raft::setBEInt64(uint8_t* pBuf, uint32_t offset, int64_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     for (size_t i = 0; i < sizeof(int64_t); ++i) {
         pBuf[offset + i] = (val >> (8 * (sizeof(int64_t) - i - 1))) & 0xff;
     }
+    return offset + sizeof(int64_t);
 }
 
 /// @brief Set a int64_t value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEInt64(uint8_t* pBuf, uint32_t offset, int64_t val)
+/// @return New offset
+uint32_t Raft::setLEInt64(uint8_t* pBuf, uint32_t offset, int64_t val)
 {
     if (!pBuf)
-        return;
+        return offset;
     for (size_t i = 0; i < sizeof(int64_t); ++i) {
         pBuf[offset + i] = (val >> (8 * i)) & 0xff;
     }
+    return offset + sizeof(int64_t);
 }
 
 /// @brief Set a float32_t value into a buffer in big endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEFloat32(uint8_t* pBuf, uint32_t offset, float val)
+/// @return New offset
+uint32_t Raft::setBEFloat32(uint8_t* pBuf, uint32_t offset, float val)
 {
     if (!pBuf)
-        return;
+        return offset;
     uint8_t* pFloat = (uint8_t*)(&val)+3;
     uint8_t* pBufOff = pBuf + offset;
     for (int i = 0; i < 4; i++)
         *pBufOff++ = *pFloat--;
+    return offset + sizeof(float);
 }
 
 /// @brief Set a float32_t value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEFloat32(uint8_t* pBuf, uint32_t offset, float val)
+/// @return New offset
+uint32_t Raft::setLEFloat32(uint8_t* pBuf, uint32_t offset, float val)
 {
     if (!pBuf)
-        return;
+        return offset;
     uint8_t* pFloat = (uint8_t*)(&val);
     uint8_t* pBufOff = pBuf + offset;
     for (int i = 0; i < 4; i++)
         *pBufOff++ = *pFloat++;
+    return offset + sizeof(float);
 }
 
 /// @brief Set a double64 value into a buffer in big endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setBEDouble64(uint8_t* pBuf, uint32_t offset, double val)
+/// @return New offset
+uint32_t Raft::setBEDouble64(uint8_t* pBuf, uint32_t offset, double val)
 {
     if (!pBuf)
-        return;
+        return offset;
     uint8_t* pDouble = (uint8_t*)(&val)+7;
     uint8_t* pBufOff = pBuf + offset;
     for (int i = 0; i < 8; i++)
         *pBufOff++ = *pDouble--;
+    return offset + sizeof(double);
 }
 
 /// @brief Set a double64 value into a buffer in little endian format
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
 /// @param val Value to set
-void Raft::setLEDouble64(uint8_t* pBuf, uint32_t offset, double val)
+/// @return New offset
+uint32_t Raft::setLEDouble64(uint8_t* pBuf, uint32_t offset, double val)
 {
     if (!pBuf)
-        return;
+        return offset;
     uint8_t* pDouble = (uint8_t*)(&val);
     uint8_t* pBufOff = pBuf + offset;
     for (int i = 0; i < 8; i++)
         *pBufOff++ = *pDouble++;
+    return offset + sizeof(double);
 }
 
 /// @brief Clamp a value between two values
@@ -1014,7 +1054,7 @@ String Raft::getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHe
 void Raft::logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro)
 {
     if (!pBuf)
-        return;
+        return offset;
     // Output log string with prefix and length only if > 16 bytes
     if (bufLen > 16) {
         LOG_I(logPrefix, "%s len %d", logIntro, bufLen);
