@@ -588,6 +588,34 @@ double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
     return val;
 }
 
+/// @brief Set a value into a byte buffer with big or little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+/// @param numBytes Number of bytes to set
+/// @param bigEndian true if big-endian format
+/// @return New offset
+uint32_t setBytesFromValue(uint8_t* pBuf, uint32_t offset, uint64_t val, uint32_t numBytes, bool bigEndian)
+{
+    if (!pBuf)
+        return offset;
+    if (bigEndian)
+    {
+        for (uint32_t i = 0; i < numBytes; ++i)
+        {
+            pBuf[offset + i] = (val >> (8 * (numBytes - i - 1))) & 0xff;
+        }
+    }
+    else
+    {
+        for (uint32_t i = 0; i < numBytes; ++i)
+        {
+            pBuf[offset + i] = (val >> (8 * i)) & 0xff;
+        }
+    }
+    return offset + numBytes;
+}
+
 /// @brief Set an int8_t value into a buffer
 /// @param pBuf Pointer to the buffer
 /// @param offset Offset into the buffer
