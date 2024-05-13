@@ -200,7 +200,7 @@ namespace Raft
     /// @param numBytes Number of bytes to set
     /// @param bigEndian true if big-endian format
     /// @return New offset
-    uint32_t setBytesFromValue(uint8_t* pBuf, uint32_t offset, uint64_t val, uint32_t numBytes, bool bigEndian);
+    uint32_t setBytes(uint8_t* pBuf, uint32_t offset, uint64_t val, uint32_t numBytes, bool bigEndian);
 
     /// @brief Set an int8_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
