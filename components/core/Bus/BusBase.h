@@ -17,6 +17,7 @@
 
 class BusRequestInfo;
 class BusBase;
+class RaftJsonIF;
 
 typedef std::function<void(BusBase& bus, const std::vector<BusElemAddrAndStatus>& statusChanges)> BusElemStatusCB;
 typedef std::function<void(BusBase& bus, BusOperationStatus busOperationStatus)> BusOperationStatusCB;
