@@ -595,7 +595,7 @@ double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param numBytes Number of bytes to set
 /// @param bigEndian true if big-endian format
 /// @return New offset
-uint32_t setBytesFromValue(uint8_t* pBuf, uint32_t offset, uint64_t val, uint32_t numBytes, bool bigEndian)
+uint32_t Raft::setBytesFromValue(uint8_t* pBuf, uint32_t offset, uint64_t val, uint32_t numBytes, bool bigEndian)
 {
     if (!pBuf)
         return offset;
