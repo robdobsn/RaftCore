@@ -9,7 +9,6 @@
 #include <limits.h>
 #include "Logger.h"
 #include "RaftUtils.h"
-#include "MiniHDLC.h"
 
 #ifndef INADDR_NONE
 #define INADDR_NONE         ((uint32_t)0xffffffffUL)
@@ -21,10 +20,12 @@
 static const char* MODULE_PREFIX = "Utils";
 #endif
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Timeouts
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Check if a time limit has expired (taking into account counter wrapping)
+/// @param curTime Current time (in the same units as other parameters)
+/// @param lastTime Time of last event
+/// @param maxDuration Maximum duration before timeout
+/// @return true if the time limit has expired
+/// @example isTimeout(millis(), myLastTime, 1000) - returns true if myLastTime was set to millis() more than 1000 milliseconds ago
 bool Raft::isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 {
     if (curTime >= lastTime)
@@ -34,10 +35,11 @@ bool Raft::isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
     return (ULONG_LONG_MAX - (lastTime - curTime) > maxDuration);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Time before time-out occurs - handling counter wrapping
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Calculate the before a time-out occurs (handling counter wrapping)
+/// @param curTime Current time (in the same units as other parameters)
+/// @param lastTime Time of last event
+/// @param maxDuration Maximum duration before timeout
+/// @return Time before timeout (0 if already expired)
 uint64_t Raft::timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration)
 {
     if (curTime >= lastTime)
@@ -55,10 +57,10 @@ uint64_t Raft::timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDu
     return maxDuration - (ULONG_LONG_MAX - (lastTime - curTime));
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Elapsed time handling counter wrapping
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Calculate the time elapsed since a timer started (handling counter wrapping)
+/// @param curTime Current time (in the same units as other parameters)
+/// @param lastTime Timer started
+/// @return Time elapsed
 uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
 {
     if (curTime >= lastTime)
@@ -66,10 +68,12 @@ uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
     return (ULONG_LONG_MAX - lastTime) + 1 + curTime;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set results for JSON communications
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Set results for JSON comms to a bool value
+/// @param pReq Request string
+/// @param resp Response string
+/// @param rslt Result value
+/// @param otherJson Additional JSON to add to the response
+/// @return RaftRetCode
 RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
 {
     String additionalJson = "";
@@ -84,7 +88,12 @@ RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, c
     return rslt ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_OTHER_FAILURE;
 }
 
-// Set a result error
+/// @brief Set results for JSON comms with an error message
+/// @param pReq Request string
+/// @param resp Response string
+/// @param errorMsg Error message
+/// @param otherJson Additional JSON to add to the response
+/// @return RaftRetCode
 RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson)
 {
     String additionalJson = "";
@@ -98,7 +107,13 @@ RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char*
     return RaftRetCode::RAFT_OTHER_FAILURE;
 }
 
-// Set result
+/// @brief Set results for JSON comms with result type, error message and additional JSON
+/// @param pReq Request string
+/// @param resp Response string
+/// @param rslt Result value
+/// @param errorMsg Error message
+/// @param otherJson Additional JSON to add to the response
+/// @return RaftRetCode
 RaftRetCode Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg, const char* otherJson)
 {
     if (rslt)
@@ -108,10 +123,9 @@ RaftRetCode Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const
     return rslt ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_OTHER_FAILURE;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Escape string
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Escape string using hex character encoding for control characters
+/// @param inStr Input string
+/// @return Escaped string
 String Raft::escapeString(const String& inStr)
 {
     String outStr;
@@ -137,10 +151,9 @@ String Raft::escapeString(const String& inStr)
     return outStr;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Unescape string
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Unescape string handling hex character encoding for control characters
+/// @param inStr Input string
+/// @return Unescaped string
 String Raft::unescapeString(const String& inStr)
 {
     String outStr;
@@ -196,11 +209,10 @@ String Raft::unescapeString(const String& inStr)
     return outStr;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Convert HTTP query format to JSON
-// JSON only contains name/value pairs and not {}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Convert HTTP query format to JSON
+/// @param inStr Input string
+/// @param mustStartWithQuestionMark true if the input string must start with a question mark
+/// @return JSON string (only contains name/value pairs and not {})
 String Raft::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark)
 {
     String outStr;
@@ -274,10 +286,11 @@ String Raft::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuesti
     return outStr;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get Nth field from delimited string
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get Nth field from delimited string
+/// @param inStr Input string
+/// @param N Field number
+/// @param separator Field separator character
+/// @return Nth field
 String Raft::getNthField(const char* inStr, int N, char separator)
 {
 	String retStr;
@@ -321,59 +334,569 @@ String Raft::getNthField(const char* inStr, int N, char separator)
 	return retStr;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get a string from a fixed-length buffer
-// false if the string was truncated
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool Raft::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly)
+/// @brief Get a uint8_t value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return uint8_t value
+uint16_t Raft::getUint8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    // Handling on stack or heap?
-    static const uint32_t STR_FROM_BUFFER_STACK_MAXLEN = 250;
-    static const uint32_t STR_FROM_BUFFER_MAXLEN = 5000;
-    uint32_t lenToCopy = (bufLen < STR_FROM_BUFFER_MAXLEN ? bufLen : STR_FROM_BUFFER_MAXLEN);
-
-    // Check if we can use stack
-    if (lenToCopy <= STR_FROM_BUFFER_STACK_MAXLEN)
-    {
-        char tmpStr[lenToCopy+1];
-        char* pOut = tmpStr;
-        for (uint32_t i = 0; i < lenToCopy; i++)
-        {
-            if ((pBuf[i] == 0) || (asciiOnly && (pBuf[i] > 127)))
-                break;
-            *pOut++ = pBuf[i];
-        }
-        *pOut = 0;
-        outStr = tmpStr;
-        return lenToCopy == bufLen;
-    }
-
-    // Use heap
-    char* tmpStr = new char[lenToCopy+1];
-    if (!tmpStr)
-    {
-        outStr = "";
-        return false;
-    }
-    char* pOut = tmpStr;
-    for (uint32_t i = 0; i < lenToCopy; i++)
-    {
-        if ((pBuf[i] == 0) || (asciiOnly && (pBuf[i] > 127)))
-            break;
-        *pOut++ = pBuf[i];
-    }
-    *pOut = 0;
-    outStr = tmpStr;
-    delete [] tmpStr;
-    return lenToCopy == bufLen;
+    const size_t varSize = sizeof(uint8_t);
+    if (!pBuf || (pEndStop && (pBuf >= pEndStop)))
+        return 0;
+    uint8_t val = *pBuf;
+    pBuf += varSize;
+    return val;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get bytes from hex-encoded string
-// Assumes no space between hex digits (e.g. 55aa55aa, etc)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a int8_t value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return int8_t value
+int16_t Raft::getInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int8_t);
+    if (!pBuf || (pEndStop && (pBuf >= pEndStop)))
+        return 0;
+    int8_t val = *((int8_t*)pBuf);
+    pBuf += varSize;
+    return val;
+}
 
+/// @brief Get a uint16_t little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return uint16_t value
+uint16_t Raft::getLEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint16_t val = static_cast<uint16_t>(pBuf[0]) | (static_cast<uint16_t>(pBuf[1]) << 8);
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a int16_t little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return int16_t value
+int16_t Raft::getLEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int16_t val = pBuf[0] | (pBuf[1] << 8);
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a uint16_t big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return uint16_t value
+uint16_t Raft::getBEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint16_t val = (pBuf[0] << 8) | pBuf[1];
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a int16_t big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return int16_t value
+int16_t Raft::getBEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int16_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int16_t val = (pBuf[0] << 8) | pBuf[1];
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a uint32_t little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return uint32_t value
+uint32_t Raft::getLEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint32_t val = pBuf[0] | (pBuf[1] << 8) | (pBuf[2] << 16) | (pBuf[3] << 24);
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a int32_t little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return int32_t value
+int32_t Raft::getLEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int32_t val = pBuf[0] | (pBuf[1] << 8) | (pBuf[2] << 16) | (pBuf[3] << 24);
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a uint32_t big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return uint32_t value
+uint32_t Raft::getBEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint32_t val = (pBuf[0] << 24) | (pBuf[1] << 16) | (pBuf[2] << 8) | pBuf[3];
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a int32_t big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return int32_t value
+int32_t Raft::getBEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int32_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int32_t val = (pBuf[0] << 24) | (pBuf[1] << 16) | (pBuf[2] << 8) | pBuf[3];
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a uint64_t little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return uint64_t value
+uint64_t Raft::getLEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint64_t val = 0;
+    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
+        val |= static_cast<uint64_t>(pBuf[i]) << (8 * i);
+    }
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a int64_t little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return int64_t value
+int64_t Raft::getLEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int64_t val = 0;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        val |= static_cast<uint64_t>(pBuf[i]) << (8 * i);
+    }
+    pBuf += varSize;
+    return val;
+}
+
+/// @brief Get a uint64_t big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return uint64_t value
+uint64_t Raft::getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(uint64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    uint64_t val = 0;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        val = (val << 8) | pBuf[i];
+    }
+    return val;
+}
+
+/// @brief Get a int64_t big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return int64_t value
+int64_t Raft::getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    const size_t  varSize = sizeof(int64_t);
+    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
+        return 0;
+    int64_t val = 0;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        val = (val << 8) | pBuf[i];
+    }
+    return val;
+}
+
+/// @brief Get a float32_t little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return float32_t value
+float Raft::getLEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    uint32_t temp = getLEUint32AndInc(pBuf, pEndStop);
+    float val;
+    memcpy(&val, &temp, sizeof(val));
+    return val;
+}
+
+/// @brief Get a float32_t big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return float32_t value
+float Raft::getBEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    uint32_t temp = getBEUint32AndInc(pBuf, pEndStop);
+    float val;
+    memcpy(&val, &temp, sizeof(val));
+    return val;
+}
+
+/// @brief Get a double64 little endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return double64 value
+double Raft::getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    uint64_t temp = getLEUint64AndInc(pBuf, pEndStop);
+    double val;
+    memcpy(&val, &temp, sizeof(val));
+    return val;
+}
+
+/// @brief Get a double64 big endian value from the uint8_t pointer passed in and increment the pointer
+/// @param pBuf Pointer to the buffer
+/// @param pEndStop Pointer to the end of the buffer
+/// @return double64 value
+double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+{
+    uint64_t temp = getBEUInt64AndInc(pBuf, pEndStop);
+    double val;
+    memcpy(&val, &temp, sizeof(val));
+    return val;
+}
+
+/// @brief Set an int8_t value into a buffer
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val;
+}
+
+void Raft::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val;
+}
+
+/// @brief Set an uint8_t value into a buffer
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val;
+}
+
+void Raft::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val;
+}
+
+/// @brief Set a int16_t value into a buffer in big-endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = (val >> 8) & 0x0ff;
+    *(pBuf+offset+1) = val & 0xff;
+}
+
+/// @brief Set a int16_t value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val & 0xff;
+    *(pBuf+offset+1) = (val >> 8) & 0x0ff;
+}
+
+/// @brief Set a uint16_t value into a buffer in big-endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = (val >> 8) & 0x0ff;
+    *(pBuf+offset+1) = val & 0xff;
+}
+
+/// @brief Set a uint16_t value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val & 0xff;
+    *(pBuf+offset+1) = (val >> 8) & 0x0ff;
+}
+
+/// @brief Set a uint32_t value into a buffer in big endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = (val >> 24) & 0x0ff;
+    *(pBuf+offset+1) = (val >> 16) & 0x0ff;
+    *(pBuf+offset+2) = (val >> 8) & 0x0ff;
+    *(pBuf+offset+3) = val & 0xff;
+}
+
+/// @brief Set a uint32_t value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val & 0xff;
+    *(pBuf+offset+1) = (val >> 8) & 0x0ff;
+    *(pBuf+offset+2) = (val >> 16) & 0x0ff;
+    *(pBuf+offset+3) = (val >> 24) & 0xff;
+}
+
+/// @brief Set a int32_t value into a buffer in big endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEInt32(uint8_t* pBuf, uint32_t offset, int32_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = (val >> 24) & 0x0ff;
+    *(pBuf+offset+1) = (val >> 16) & 0x0ff;
+    *(pBuf+offset+2) = (val >> 8) & 0x0ff;
+    *(pBuf+offset+3) = val & 0xff;
+}
+
+/// @brief Set a int32_t value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEInt32(uint8_t* pBuf, uint32_t offset, int32_t val)
+{
+    if (!pBuf)
+        return;
+    *(pBuf+offset) = val & 0xff;
+    *(pBuf+offset+1) = (val >> 8) & 0x0ff;
+    *(pBuf+offset+2) = (val >> 16) & 0x0ff;
+    *(pBuf+offset+3) = (val >> 24) & 0xff;
+}
+
+/// @brief Set a uint64_t value into a buffer in big endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
+{
+    if (!pBuf)
+        return;
+    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
+        pBuf[offset + i] = (val >> (8 * (sizeof(uint64_t) - i - 1))) & 0xff;
+    }
+}
+
+/// @brief Set a uint64_t value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
+{
+    if (!pBuf)
+        return;
+    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
+        pBuf[offset + i] = (val >> (8 * i)) & 0xff;
+    }
+}
+
+/// @brief Set a int64_t value into a buffer in big endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEInt64(uint8_t* pBuf, uint32_t offset, int64_t val)
+{
+    if (!pBuf)
+        return;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        pBuf[offset + i] = (val >> (8 * (sizeof(int64_t) - i - 1))) & 0xff;
+    }
+}
+
+/// @brief Set a int64_t value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEInt64(uint8_t* pBuf, uint32_t offset, int64_t val)
+{
+    if (!pBuf)
+        return;
+    for (size_t i = 0; i < sizeof(int64_t); ++i) {
+        pBuf[offset + i] = (val >> (8 * i)) & 0xff;
+    }
+}
+
+/// @brief Set a float32_t value into a buffer in big endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEFloat32(uint8_t* pBuf, uint32_t offset, float val)
+{
+    if (!pBuf)
+        return;
+    uint8_t* pFloat = (uint8_t*)(&val)+3;
+    uint8_t* pBufOff = pBuf + offset;
+    for (int i = 0; i < 4; i++)
+        *pBufOff++ = *pFloat--;
+}
+
+/// @brief Set a float32_t value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEFloat32(uint8_t* pBuf, uint32_t offset, float val)
+{
+    if (!pBuf)
+        return;
+    uint8_t* pFloat = (uint8_t*)(&val);
+    uint8_t* pBufOff = pBuf + offset;
+    for (int i = 0; i < 4; i++)
+        *pBufOff++ = *pFloat++;
+}
+
+/// @brief Set a double64 value into a buffer in big endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setBEDouble64(uint8_t* pBuf, uint32_t offset, double val)
+{
+    if (!pBuf)
+        return;
+    uint8_t* pDouble = (uint8_t*)(&val)+7;
+    uint8_t* pBufOff = pBuf + offset;
+    for (int i = 0; i < 8; i++)
+        *pBufOff++ = *pDouble--;
+}
+
+/// @brief Set a double64 value into a buffer in little endian format
+/// @param pBuf Pointer to the buffer
+/// @param offset Offset into the buffer
+/// @param val Value to set
+void Raft::setLEDouble64(uint8_t* pBuf, uint32_t offset, double val)
+{
+    if (!pBuf)
+        return;
+    uint8_t* pDouble = (uint8_t*)(&val);
+    uint8_t* pBufOff = pBuf + offset;
+    for (int i = 0; i < 8; i++)
+        *pBufOff++ = *pDouble++;
+}
+
+/// @brief Clamp a value between two values
+/// @param val input value
+/// @param lo lower limit (inclusive)
+/// @param hi upper limit (inclusive)
+/// @return clamped value
+uint32_t Raft::clamp(uint32_t val, uint32_t lo, uint32_t hi)
+{
+    if (val < lo)
+        val = lo;
+    if (val > hi)
+        val = hi;
+    return val;
+}
+
+/// @brief Get an RGB value from a hex string which may be in the form of RRGGBB or #RRGGBB
+/// @param colourStr String containing the hex colour
+/// @return RGBValue structure containing the RGB values
+Raft::RGBValue Raft::getRGBFromHex(const String& colourStr)
+{
+    uint32_t colourRGB = strtoul(colourStr.startsWith("#") ? colourStr.c_str() + 1 : colourStr.c_str(), nullptr, 16);
+    return RGBValue((colourRGB >> 16) & 0xff, (colourRGB >> 8) & 0xff, colourRGB & 0xff);
+}
+
+/// @brief Get decimal value of a hex character
+/// @param ch Hex character
+/// @return Decimal value of the hex character
+uint32_t Raft::getHexFromChar(int ch)
+{
+    ch = toupper(ch);
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    else if (ch >= 'A' && ch <= 'F')
+        return ch - 'A' + 10;
+    return 0;
+}
+
+/// @brief Extract bytes from hex encoded string
+/// @param inStr Hex encoded string
+/// @param outBuf Buffer to receive the bytes
+/// @param maxOutBufLen Maximum length of the output buffer
+/// @return Number of bytes extracted
+uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
+
+/// @brief Generate a hex string from bytes
+/// @param pBuf Pointer to the byte array
+/// @param bufLen Length of the byte array
+/// @param outStr String to receive the hex string
+void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
+
+/// @brief Generate a hex string from uint32_t array
+/// @param pBuf Pointer to the uint32_t array
+/// @param bufLen Length of the uint32_t array
+/// @param outStr String to receive the hex string
+void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, 
+            const char* separator);
+
+/// @brief Get bytes from hex-encoded string
+/// @param inStr Input string
+/// @param outBuf Buffer to receive the bytes
+/// @param maxOutBufLen Maximum length of the output buffer
+/// @return Number of bytes copied
 uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen)
 {
     // Mapping ASCII to hex
@@ -396,6 +919,16 @@ uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t max
         outBuf[byteIdx] = (chToNyb[nyb0Idx] << 4) + chToNyb[nyb1Idx];
     };
     return numBytes;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Convert a byte array to a hex string (no separator)
+/// @param pBuf Pointer to the byte array
+/// @param bufLen Length of the byte array
+/// @param outStr String to receive the hex string
+void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr)
+{
+    hexDump(pBuf, bufLen, outStr, "");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -426,21 +959,11 @@ void Raft::hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const c
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Convert a byte array to a hex string (no separator)
-/// @param pBuf Pointer to the byte array
-/// @param bufLen Length of the byte array
+/// @brief Generate a hex string from uInt32 with no space between hex digits (e.g. 55aa55aa, etc)
+/// @param pBuf Pointer to the uint32_t array
+/// @param bufLen Length of the array
 /// @param outStr String to receive the hex string
-void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr)
-{
-    hexDump(pBuf, bufLen, outStr, "");
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Generate a hex string from uInt32
-// Generates no space between hex digits (e.g. 55aa55aa, etc)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @param separator Separator between hex digits
 void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, const char* separator)
 {
     // Setup outStr
@@ -458,11 +981,73 @@ void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& ou
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Convert IP string to IP address bytes
-// This code from Unix sources
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get string from part of buffer with optional hex and ascii
+/// @param pBuf Pointer to the buffer
+/// @param bufLen Length of the buffer
+/// @param includeHex Include hex in the output
+/// @param includeAscii Include ascii in the output
+/// @return String containing the buffer contents
+String Raft::getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHex, bool includeAscii)
+{
+    String outStr;
+    if (includeHex)
+    {
+        getHexStrFromBytes((const uint8_t*)pBuf, bufLen, outStr);
+    }
+    if (includeAscii)
+    {
+        if (outStr.length() > 0)
+            outStr += " ";
+        String asciiBuf = String((const char*)pBuf, bufLen);
+        asciiBuf.replace("\n", "<LF>");
+        asciiBuf.replace("\r", "<CR>");
+        outStr += asciiBuf;
+    }
+    return outStr;
+}
 
+/// @brief Log out a buffer in hex format
+/// @param pBuf Pointer to the buffer
+/// @param bufLen Length of the buffer
+/// @param logPrefix Prefix for the log message
+/// @param logIntro Intro for the log message
+void Raft::logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro)
+{
+    if (!pBuf)
+        return;
+    // Output log string with prefix and length only if > 16 bytes
+    if (bufLen > 16) {
+        LOG_I(logPrefix, "%s len %d", logIntro, bufLen);
+    }
+
+    // Iterate over buffer
+    uint32_t bufPos = 0;
+    while (bufPos < bufLen)
+    {
+        char outBuf[400];
+        strcpy(outBuf, "");
+        char tmpBuf[10];
+        uint32_t linePos = 0;
+        while ((linePos < 16) && (bufPos < bufLen))
+        {
+            snprintf(tmpBuf, sizeof(tmpBuf), "%02x ", pBuf[bufPos]);
+            strlcat(outBuf, tmpBuf, sizeof(outBuf));
+            bufPos++;
+            linePos++;
+        }
+        if (bufLen <= 16) {
+            LOG_I(logPrefix, "%s len %d: %s", logIntro, bufLen, outBuf);
+        } else {
+            LOG_I(logPrefix, "%s", outBuf);
+        }
+    }
+}
+
+/// @brief Convert IP string to IP address bytes
+/// @param inStr Input string
+/// @param pIpAddr Pointer to the IP address bytes
+/// @return true if the conversion was successful
+/// @note This code from Unix sources
 unsigned long Raft::convIPStrToAddr(String &inStr)
 {
     char buf[30];
@@ -575,7 +1160,10 @@ unsigned long Raft::convIPStrToAddr(String &inStr)
     return (val);
 }
 
-// Format MAC address
+/// @brief Format MAC address
+/// @param pMacAddr Pointer to the MAC address bytes
+/// @param separator Separator between MAC address bytes
+/// @return Formatted MAC address
 String Raft::formatMACAddr(const uint8_t* pMacAddr, const char* separator)
 {
     String outStr;
@@ -591,391 +1179,12 @@ String Raft::formatMACAddr(const uint8_t* pMacAddr, const char* separator)
     return outStr;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Buffer utilities
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Get a uint8_t value from the uint8_t pointer passed in
-// Increment the pointer (by 1)
-// Also checks endStop pointer value if provided
-uint16_t Raft::getUint8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t varSize = sizeof(uint8_t);
-    if (!pBuf || (pEndStop && (pBuf >= pEndStop)))
-        return 0;
-    uint8_t val = *pBuf;
-    pBuf += varSize;
-    return val;
-}
-
-// Get an int8_t value from the uint8_t pointer passed in
-// Increment the pointer (by 1)
-// Also checks endStop pointer value if provided
-int16_t Raft::getInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(int8_t);
-    if (!pBuf || (pEndStop && (pBuf >= pEndStop)))
-        return 0;
-    int8_t val = *((int8_t*)pBuf);
-    pBuf += varSize;
-    return val;
-}
-
-// Get a uint16_t little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 2)
-// Also checks endStop pointer value if provided
-uint16_t Raft::getLEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(uint16_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    uint16_t val = static_cast<uint16_t>(pBuf[0]) | (static_cast<uint16_t>(pBuf[1]) << 8);
-    pBuf += varSize;
-    return val;
-}
-
-// Get a int16_t little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 2)
-// Also checks endStop pointer value if provided
-int16_t Raft::getLEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(int16_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    int16_t val = pBuf[0] | (pBuf[1] << 8);
-    pBuf += varSize;
-    return val;
-}
-
-// Get a uint16_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 2)
-// Also checks endStop pointer value if provided
-uint16_t Raft::getBEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(uint16_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    uint16_t val = (pBuf[0] << 8) | pBuf[1];
-    pBuf += varSize;
-    return val;
-}
-
-// Get a int16_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 2)
-// Also checks endStop pointer value if provided
-int16_t Raft::getBEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(int16_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    int16_t val = (pBuf[0] << 8) | pBuf[1];
-    pBuf += varSize;
-    return val;
-}
-
-// Get a uint32_t little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 4)
-// Also checks endStop pointer value if provided
-uint32_t Raft::getLEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(uint32_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    uint32_t val = pBuf[0] | (pBuf[1] << 8) | (pBuf[2] << 16) | (pBuf[3] << 24);
-    pBuf += varSize;
-    return val;
-}
-
-// Get a int32_t little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 4)
-// Also checks endStop pointer value if provided
-int32_t Raft::getLEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(int32_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    int32_t val = pBuf[0] | (pBuf[1] << 8) | (pBuf[2] << 16) | (pBuf[3] << 24);
-    pBuf += varSize;
-    return val;
-}
-
-// Get a uint32_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 4)
-// Also checks endStop pointer value if provided
-uint32_t Raft::getBEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(uint32_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    uint32_t val = (pBuf[0] << 24) | (pBuf[1] << 16) | (pBuf[2] << 8) | pBuf[3];
-    pBuf += varSize;
-    return val;
-}
-
-// Get a int32_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 4)
-// Also checks endStop pointer value if provided
-int32_t Raft::getBEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(int32_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    int32_t val = (pBuf[0] << 24) | (pBuf[1] << 16) | (pBuf[2] << 8) | pBuf[3];
-    pBuf += varSize;
-    return val;
-}
-
-// Get a uint64_t little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 8)
-// Also checks endStop pointer value if provided
-uint64_t Raft::getLEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(uint64_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    uint64_t val = 0;
-    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
-        val |= static_cast<uint64_t>(pBuf[i]) << (8 * i);
-    }
-    pBuf += varSize;
-    return val;
-}
-
-// Get an int64_t little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 8)
-// Also checks endStop pointer value if provided
-int64_t Raft::getLEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(int64_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    int64_t val = 0;
-    for (size_t i = 0; i < sizeof(int64_t); ++i) {
-        val |= static_cast<uint64_t>(pBuf[i]) << (8 * i);
-    }
-    pBuf += varSize;
-    return val;
-}
-
-// Get an uint64_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 8)
-// Also checks endStop pointer value if provided
-uint64_t Raft::getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(uint64_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    uint64_t val = 0;
-    for (size_t i = 0; i < sizeof(int64_t); ++i) {
-        val = (val << 8) | pBuf[i];
-    }
-    return val;
-}
-
-// Get an int64_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 8)
-// Also checks endStop pointer value if provided
-int64_t Raft::getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    const size_t  varSize = sizeof(int64_t);
-    if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
-        return 0;
-    int64_t val = 0;
-    for (size_t i = 0; i < sizeof(int64_t); ++i) {
-        val = (val << 8) | pBuf[i];
-    }
-    return val;
-}
-
-// Get a float32_t little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 4)
-// Also checks endStop pointer value if provided
-float Raft::getLEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    uint32_t temp = getLEUint32AndInc(pBuf, pEndStop);
-    float val;
-    memcpy(&val, &temp, sizeof(val));
-    return val;
-}
-
-// Get a float32_t big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 4)
-// Also checks endStop pointer value if provided
-float Raft::getBEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    uint32_t temp = getBEUint32AndInc(pBuf, pEndStop);
-    float val;
-    memcpy(&val, &temp, sizeof(val));
-    return val;
-}
-
-// Get a double64 little endian value from the uint8_t pointer passed in
-// Increment the pointer (by 8)
-// Also checks endStop pointer value if provided
-double Raft::getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    uint64_t temp = getLEUint64AndInc(pBuf, pEndStop);
-    double val;
-    memcpy(&val, &temp, sizeof(val));
-    return val;
-}
-
-// Get a double64 big endian value from the uint8_t pointer passed in
-// Increment the pointer (by 8)
-// Also checks endStop pointer value if provided
-double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
-{
-    uint64_t temp = getBEUInt64AndInc(pBuf, pEndStop);
-    double val;
-    memcpy(&val, &temp, sizeof(val));
-    return val;
-}
-
-// Set values into a buffer
-void Raft::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
-{
-    if (!pBuf)
-        return;
-    *(pBuf+offset) = val;
-}
-
-// Set values into a buffer
-void Raft::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
-{
-    if (!pBuf)
-        return;
-    *(pBuf+offset) = val;
-}
-
-// Set values into a buffer
-void Raft::setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
-{
-    if (!pBuf)
-        return;
-    *(pBuf+offset) = (val >> 8) & 0x0ff;
-    *(pBuf+offset+1) = val & 0xff;
-}
-
-// Set values into a buffer
-void Raft::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
-{
-    if (!pBuf)
-        return;
-    *(pBuf+offset) = (val >> 8) & 0x0ff;
-    *(pBuf+offset+1) = val & 0xff;
-}
-
-// Set values into a buffer
-void Raft::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
-{
-    if (!pBuf)
-        return;
-    *(pBuf+offset) = (val >> 24) & 0x0ff;
-    *(pBuf+offset+1) = (val >> 16) & 0x0ff;
-    *(pBuf+offset+2) = (val >> 8) & 0x0ff;
-    *(pBuf+offset+3) = val & 0xff;
-}
-
-// Set values into a buffer
-// Since ESP32 is little-endian this means reversing the order
-void Raft::setBEFloat32(uint8_t* pBuf, uint32_t offset, float val)
-{
-    if (!pBuf)
-        return;
-    uint8_t* pFloat = (uint8_t*)(&val)+3;
-    uint8_t* pBufOff = pBuf + offset;
-    for (int i = 0; i < 4; i++)
-        *pBufOff++ = *pFloat--;
-}
-
-// Get a string from a fixed-length buffer
-// false if the string was truncated
-bool Raft::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly);
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Clamp
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Clamp - like std::clamp but for uint32_t
-uint32_t Raft::clamp(uint32_t val, uint32_t lo, uint32_t hi)
-{
-    if (val < lo)
-        val = lo;
-    if (val > hi)
-        val = hi;
-    return val;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Hex string handling
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Get RGB from hex string
-Raft::RGBValue Raft::getRGBFromHex(const String& colourStr)
-{
-    uint32_t colourRGB = strtoul(colourStr.c_str(), nullptr, 16);
-    return RGBValue((colourRGB >> 16) & 0xff, (colourRGB >> 8) & 0xff, colourRGB & 0xff);
-}
-
-// Get decimal value of hex char
-uint32_t Raft::getHexFromChar(int ch)
-{
-    ch = toupper(ch);
-    if (ch >= '0' && ch <= '9')
-        return ch - '0';
-    else if (ch >= 'A' && ch <= 'F')
-        return ch - 'A' + 10;
-    return 0;
-}
-
-// Extract bytes from hex encoded string
-uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
-
-// Generate a hex string from bytes
-void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
-
-// Generate a hex string from uint32_t
-void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, 
-            const char* separator);
-
-void Raft::logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro)
-{
-    if (!pBuf)
-        return;
-    // Output log string with prefix and length only if > 16 bytes
-    if (bufLen > 16) {
-        LOG_I(logPrefix, "%s len %d", logIntro, bufLen);
-    }
-
-    // Iterate over buffer
-    uint32_t bufPos = 0;
-    while (bufPos < bufLen)
-    {
-        char outBuf[400];
-        strcpy(outBuf, "");
-        char tmpBuf[10];
-        uint32_t linePos = 0;
-        while ((linePos < 16) && (bufPos < bufLen))
-        {
-            snprintf(tmpBuf, sizeof(tmpBuf), "%02x ", pBuf[bufPos]);
-            strlcat(outBuf, tmpBuf, sizeof(outBuf));
-            bufPos++;
-            linePos++;
-        }
-        if (bufLen <= 16) {
-            LOG_I(logPrefix, "%s len %d: %s", logIntro, bufLen, outBuf);
-        } else {
-            LOG_I(logPrefix, "%s", outBuf);
-        }
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Find 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Find match in buffer (like strstr for unterminated strings)
-// Returns position in buffer of val or -1 if not found
+/// @brief Find match in buffer (like strstr for unterminated strings)
+/// @param pBuf Pointer to the buffer
+/// @param bufLen Length of the buffer
+/// @param pToFind Pointer to the string to find
+/// @param toFindLen Length of the string to find
+/// @return Position in buffer of val or -1 if not found
 int Raft::findInBuf(const uint8_t* pBuf, uint32_t bufLen, 
             const uint8_t* pToFind, uint32_t toFindLen)
 {
@@ -998,10 +1207,10 @@ int Raft::findInBuf(const uint8_t* pBuf, uint32_t bufLen,
     return -1;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Parse a string into a list of integers
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Parse a string into a list of integers
+/// @param pInStr Pointer to the input string
+/// @param outList List to receive the integers
+/// @param pSep Separator string
 void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep)
 {
     outList.clear();
@@ -1018,10 +1227,8 @@ void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const cha
     free(pStr);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get string for RaftRetCode
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get string for RaftRetCode
+/// @param retc RaftRetCode value
 const char* Raft::getRetCodeStr(RaftRetCode retc)
 {
     switch(retc)
@@ -1043,33 +1250,11 @@ const char* Raft::getRetCodeStr(RaftRetCode retc)
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get string from part of buffer with optional hex and ascii
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-String Raft::getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHex, bool includeAscii)
-{
-    String outStr;
-    if (includeHex)
-    {
-        getHexStrFromBytes((const uint8_t*)pBuf, bufLen, outStr);
-    }
-    if (includeAscii)
-    {
-        if (outStr.length() > 0)
-            outStr += " ";
-        String asciiBuf = String((const char*)pBuf, bufLen);
-        asciiBuf.replace("\n", "<LF>");
-        asciiBuf.replace("\r", "<CR>");
-        outStr += asciiBuf;
-    }
-    return outStr;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Convert UUID128 string to uint8_t array
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Convert UUID128 string to uint8_t array
+/// @param uuid128Str UUID128 string
+/// @param pUUID128 Pointer to the UUID128 array
+/// @param reverseOrder Reverse the order of the UUID128 array
+/// @return true if successful
 bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool reverseOrder)
 {
     // Check length (handle version with or without dashes)
@@ -1079,7 +1264,7 @@ bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool rev
 
     // Convert
     uint32_t byteIdx = 0;
-    for (int i = 0; i < slen; i++)
+    for (uint32_t i = 0; i < slen; i++)
     {
         // Skip dashes (actually any non-alphanumeric in case any other punctuation used)
         if (!isalnum(uuid128Str[i]))
@@ -1111,3 +1296,52 @@ bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool rev
     }
     return true;
 }
+
+/// @brief Get a string from a fixed-length buffer
+// /// @param pBuf Pointer to the buffer
+// /// @param bufLen Length of the buffer
+// /// @param outStr String to receive the string
+// /// @param asciiOnly true if only ASCII characters are allowed
+// /// @return false if the string was truncated
+// bool Raft::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly)
+// {
+//     // Handling on stack or heap?
+//     static const uint32_t STR_FROM_BUFFER_STACK_MAXLEN = 250;
+//     static const uint32_t STR_FROM_BUFFER_MAXLEN = 5000;
+//     uint32_t lenToCopy = (bufLen < STR_FROM_BUFFER_MAXLEN ? bufLen : STR_FROM_BUFFER_MAXLEN);
+
+//     // Check if we can use stack
+//     if (lenToCopy <= STR_FROM_BUFFER_STACK_MAXLEN)
+//     {
+//         char tmpStr[lenToCopy+1];
+//         char* pOut = tmpStr;
+//         for (uint32_t i = 0; i < lenToCopy; i++)
+//         {
+//             if ((pBuf[i] == 0) || (asciiOnly && (pBuf[i] > 127)))
+//                 break;
+//             *pOut++ = pBuf[i];
+//         }
+//         *pOut = 0;
+//         outStr = tmpStr;
+//         return lenToCopy == bufLen;
+//     }
+
+//     // Use heap
+//     char* tmpStr = new char[lenToCopy+1];
+//     if (!tmpStr)
+//     {
+//         outStr = "";
+//         return false;
+//     }
+//     char* pOut = tmpStr;
+//     for (uint32_t i = 0; i < lenToCopy; i++)
+//     {
+//         if ((pBuf[i] == 0) || (asciiOnly && (pBuf[i] > 127)))
+//             break;
+//         *pOut++ = pBuf[i];
+//     }
+//     *pOut = 0;
+//     outStr = tmpStr;
+//     delete [] tmpStr;
+//     return lenToCopy == bufLen;
+// }

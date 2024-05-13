@@ -16,162 +16,302 @@
 
 namespace Raft
 {
-    // Test for a timeout handling wrap around
-    // Usage example: isTimeout(millis(), myLastTime, 1000)
-    // This will return true if myLastTime was set to millis() more than 1000 milliseconds ago
+    /// @brief Check if a time limit has expired (taking into account counter wrapping)
+    /// @param curTime Current time (in the same units as other parameters)
+    /// @param lastTime Time of last event
+    /// @param maxDuration Maximum duration before timeout
+    /// @return true if the time limit has expired
+    /// @example isTimeout(millis(), myLastTime, 1000) - returns true if myLastTime was set to millis() more than 1000 milliseconds ago
     bool isTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration);
 
-    // Get time until a timeout handling wrap around
-    // Usage example: timeToTimeout(millis(), myLastTime)
-    // Returns milliseconds since myLastTime
+    /// @brief Calculate the before a time-out occurs (handling counter wrapping)
+    /// @param curTime Current time (in the same units as other parameters)
+    /// @param lastTime Time of last event
+    /// @param maxDuration Maximum duration before timeout
+    /// @return Time before timeout (0 if already expired)
     uint64_t timeToTimeout(uint64_t curTime, uint64_t lastTime, uint64_t maxDuration);
 
-    // Get time elapsed handling wrap around
-    // Usage example: timeElapsed(millis(), myLastTime)
+    /// @brief Calculate the time elapsed since a timer started (handling counter wrapping)
+    /// @param curTime Current time (in the same units as other parameters)
+    /// @param lastTime Timer started
+    /// @return Time elapsed
     uint64_t timeElapsed(uint64_t curTime, uint64_t lastTime);
 
-    // Setup a result string
+    /// @brief Set results for JSON comms to a bool value
+    /// @param pReq Request string
+    /// @param resp Response string
+    /// @param rslt Result value
+    /// @param otherJson Additional JSON to add to the response
+    /// @return RaftRetCode
     RaftRetCode setJsonBoolResult(const char* req, String& resp, bool rslt, const char* otherJson = nullptr);
 
-    // Set a result error
+    /// @brief Set results for JSON comms with an error message
+    /// @param pReq Request string
+    /// @param resp Response string
+    /// @param errorMsg Error message
+    /// @param otherJson Additional JSON to add to the response
+    /// @return RaftRetCode
     RaftRetCode setJsonErrorResult(const char* req, String& resp, const char* errorMsg, const char* otherJson = nullptr);
 
-    // Set a JSON result
+    /// @brief Set results for JSON comms with result type, error message and additional JSON
+    /// @param pReq Request string
+    /// @param resp Response string
+    /// @param rslt Result value
+    /// @param errorMsg Error message
+    /// @param otherJson Additional JSON to add to the response
+    /// @return RaftRetCode
     RaftRetCode setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg = nullptr, const char* otherJson = nullptr);
 
-    // Following code from Unix sources
-    unsigned long convIPStrToAddr(String &inStr);
-
-    // Escape a string
+    /// @brief Escape string using hex character encoding for control characters
+    /// @param inStr Input string
+    /// @return Escaped string
     String escapeString(const String& inStr);
 
-    // Unescape a string
+    /// @brief Unescape string handling hex character encoding for control characters
+    /// @param inStr Input string
+    /// @return Unescaped string
     String unescapeString(const String& inStr);
 
-    // Convert HTTP query format to JSON
-    // JSON only contains name/value pairs and not {}
+    /// @brief Convert HTTP query format to JSON
+    /// @param inStr Input string
+    /// @param mustStartWithQuestionMark true if the input string must start with a question mark
+    /// @return JSON string (only contains name/value pairs and not {})
     String getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark = true);
 
-    // Get Nth field from string
+    /// @brief Get Nth field from delimited string
+    /// @param inStr Input string
+    /// @param N Field number
+    /// @param separator Field separator character
+    /// @return Nth field
     String getNthField(const char* inStr, int N, char separator);
 
-    // Get a uint8_t value from the uint8_t pointer passed in
-    // Increment the pointer (by 1)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a uint8_t value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return uint8_t value
     uint16_t getUint8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get an int8_t value from the uint8_t pointer passed in
-    // Increment the pointer (by 1)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a int8_t value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return int8_t value
     int16_t getInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a uint16_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 2)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a uint16_t little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return uint16_t value
     uint16_t getLEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a int16_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 2)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a int16_t little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return int16_t value
     int16_t getLEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a uint16_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 2)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a uint16_t big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return uint16_t value
     uint16_t getBEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a int16_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 2)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a int16_t big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return int16_t value
     int16_t getBEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a uint32_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 4)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a uint32_t little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return uint32_t value
     uint32_t getLEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a int32_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 4)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a int32_t little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return int32_t value
     int32_t getLEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a uint32_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 4)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a uint32_t big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return uint32_t value
     uint32_t getBEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a int32_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 4)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a int32_t big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return int32_t value
     int32_t getBEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a uint64_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 8)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a uint64_t little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return uint64_t value
     uint64_t getLEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
 
-    // Get an int64_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 8)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a int64_t little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return int64_t value
     int64_t getLEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
 
-    // Get an uint64_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 8)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a uint64_t big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return uint64_t value
     uint64_t getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
 
-    // Get an int64_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 8)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a int64_t big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return int64_t value
     int64_t getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
 
-    // Get a float32_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 4)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a float32_t little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return float32_t value
     float getLEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a float32_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 4)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a float32_t big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return float32_t value
     float getBEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a double64_t little endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 8)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a double64 little endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return double64 value
     double getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Get a double64_t big endian value from the uint8_t pointer passed in
-    // Increment the pointer (by 8)
-    // Also checks endStop pointer value if provided
+    /// @brief Get a double64 big endian value from the uint8_t pointer passed in and increment the pointer
+    /// @param pBuf Pointer to the buffer
+    /// @param pEndStop Pointer to the end of the buffer
+    /// @return double64 value
     double getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
-    // Set values into a buffer
+    /// @brief Set an int8_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setInt8(uint8_t* pBuf, uint32_t offset, int8_t val);
     void setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val);
 
-    // Set values into a buffer
+    /// @brief Set a uint8_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
     void setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
 
-    // Set values into a buffer
+    /// @brief Set a int16_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
     void setBEInt16(uint8_t* pBuf, uint32_t offset, int16_t val);
 
-    // Set values into a buffer
+    /// @brief Set a int16_t value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEInt16(uint8_t* pBuf, uint32_t offset, int16_t val);
+
+    /// @brief Set a uint16_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
     void setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
 
-    // Set values into a buffer
+    /// @brief Set a uint16_t value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
+
+    /// @brief Set a uint32_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
     void setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
 
-    // Set values into a buffer
-    // Since ESP32 is little-endian this means reversing the order
+    /// @brief Set a uint32_t value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
+
+    /// @brief Set a int32_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setBEInt32(uint8_t* pBuf, uint32_t offset, int32_t val);
+
+    /// @brief Set a int32_t value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEInt32(uint8_t* pBuf, uint32_t offset, int32_t val);
+
+    /// @brief Set a uint64_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
+
+    /// @brief Set a uint64_t value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
+
+    /// @brief Set a int64_t value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setBEInt64(uint8_t* pBuf, uint32_t offset, int64_t val);
+
+    /// @brief Set a int64_t value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEInt64(uint8_t* pBuf, uint32_t offset, int64_t val);
+
+    /// @brief Set a float (32 bit) value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
     void setBEFloat32(uint8_t* pBuf, uint32_t offset, float val);
 
-    // Get a string from a fixed-length buffer
-    // false if the string was truncated
-    bool strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly=true);
+    /// @brief Set a float (32 bit) value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEFloat32(uint8_t* pBuf, uint32_t offset, float val);
 
-    // Clamp - like std::clamp but for uint32_t
+    /// @brief Set a double (64 bit) value into a buffer in big-endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setBEDouble64(uint8_t* pBuf, uint32_t offset, double val);
+
+    /// @brief Set a double (64 bit) value into a buffer in little endian format
+    /// @param pBuf Pointer to the buffer
+    /// @param offset Offset into the buffer
+    /// @param val Value to set
+    void setLEDouble64(uint8_t* pBuf, uint32_t offset, double val);
+
+    /// @brief Clamp a value between two values
+    /// @param val input value
+    /// @param lo lower limit (inclusive)
+    /// @param hi upper limit (inclusive)
+    /// @return clamped value
     uint32_t clamp(uint32_t val, uint32_t lo, uint32_t hi);
 
-    // RGB Value
+    /// @brief RGB value
+    /// @struct RGBValue
     struct RGBValue
     {
         RGBValue()
@@ -191,21 +331,22 @@ namespace Raft
         uint8_t b;
     };
 
-    // Get RGB from hex string
+    /// @brief Get an RGB value from a hex string which may be in the form of RRGGBB or #RRGGBB
+    /// @param colourStr String containing the hex colour
+    /// @return RGBValue structure containing the RGB values
     RGBValue getRGBFromHex(const String& colourStr);
 
-    // Get decimal value of hex char
+    /// @brief Get decimal value of a hex character
+    /// @param ch Hex character
+    /// @return Decimal value of the hex character
     uint32_t getHexFromChar(int ch);
 
-    // Extract bytes from hex encoded string
+    /// @brief Extract bytes from hex encoded string
+    /// @param inStr Hex encoded string
+    /// @param outBuf Buffer to receive the bytes
+    /// @param maxOutBufLen Maximum length of the output buffer
+    /// @return Number of bytes extracted
     uint32_t getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
-
-    /// @brief Convert a byte array to a hex string
-    /// @param pBuf Pointer to the byte array
-    /// @param bufLen Length of the byte array
-    /// @param outStr String to receive the hex string
-    /// @param separator Separator between bytes
-    void hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* separator = "");
 
     /// @brief Convert a byte array to a hex string (no separator)
     /// @param pBuf Pointer to the byte array
@@ -213,36 +354,87 @@ namespace Raft
     /// @param outStr String to receive the hex string
     void getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
     
-    // Generate a hex string from uint32_t
+    /// @brief Convert a byte array to a hex string
+    /// @param pBuf Pointer to the byte array
+    /// @param bufLen Length of the byte array
+    /// @param outStr String to receive the hex string
+    /// @param separator Separator between bytes
+    void hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* separator = "");
+
+    /// @brief Generate a hex string from uInt32 with no space between hex digits (e.g. 55aa55aa, etc)
+    /// @param pBuf Pointer to the uint32_t array
+    /// @param bufLen Length of the array
+    /// @param outStr String to receive the hex string
+    /// @param separator Separator between hex digits
     void getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, 
                 const char* separator);
-    
-    // Find match in buffer (like strstr for unterminated strings)
-    // Returns position in buffer of val or -1 if not found
+
+    /// @brief Log out a buffer in hex format
+    /// @param pBuf Pointer to the buffer
+    /// @param bufLen Length of the buffer
+    /// @param logPrefix Prefix for the log message
+    /// @param logIntro Intro for the log message
+    void logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro);
+
+    /// @brief Get string from part of buffer with optional hex and ascii
+    /// @param pBuf Pointer to the buffer
+    /// @param bufLen Length of the buffer
+    /// @param includeHex Include hex in the output
+    /// @param includeAscii Include ascii in the output
+    /// @return String containing the buffer contents
+    String getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHex, bool includeAscii);
+
+    /// @brief Convert IP string to IP address bytes
+    /// @param inStr Input string
+    /// @param pIpAddr Pointer to the IP address bytes
+    /// @return true if the conversion was successful
+    /// @note This code from Unix sources
+    unsigned long convIPStrToAddr(String &inStr);
+
+    /// @brief Format MAC address
+    /// @param pMacAddr Pointer to the MAC address bytes
+    /// @param separator Separator between MAC address bytes
+    /// @return Formatted MAC address
+    String formatMACAddr(const uint8_t* pMacAddr, const char* separator);
+
+    /// @brief Find match in buffer (like strstr for unterminated strings)
+    /// @param pBuf Pointer to the buffer
+    /// @param bufLen Length of the buffer
+    /// @param pToFind Pointer to the string to find
+    /// @param toFindLen Length of the string to find
+    /// @return Position in buffer of val or -1 if not found
     int findInBuf(const uint8_t* pBuf, uint32_t bufLen, 
                 const uint8_t* pToFind, uint32_t toFindLen);
 
-    // Parse a string into a list of integers
+    /// @brief Parse a string into a list of integers
+    /// @param pInStr Pointer to the input string
+    /// @param outList List to receive the integers
+    /// @param pSep Separator string
     void parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep = ",");
 
-    // Log a buffer
-    void logHexBuf(const uint8_t* pBuf, uint32_t bufLen, const char* logPrefix, const char* logIntro);
-
-    // Format MAC address
-    String formatMACAddr(const uint8_t* pMacAddr, const char* separator);
-
-    // Get string for RaftRetCode
+    /// @brief Get string for RaftRetCode
+    /// @param retc RaftRetCode value
     const char* getRetCodeStr(RaftRetCode retc);
 
-    // Get string from part of buffer with optional hex and ascii
-    String getBufStrHexAscii(const void* pBuf, uint32_t bufLen, bool includeHex, bool includeAscii);
-
-    // Convert UUID128 string to uint8_t array
+    /// @brief Convert UUID128 string to uint8_t array
+    /// @param uuid128Str UUID128 string
+    /// @param pUUID128 Pointer to the UUID128 array
+    /// @param reverseOrder Reverse the order of the UUID128 array
+    /// @return true if successful
     static const uint32_t UUID128_BYTE_COUNT = 16;
     bool uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool reverseOrder = true);
+
+    /// @brief Get a string from a fixed-length buffer
+    // /// @param pBuf Pointer to the buffer
+    // /// @param bufLen Length of the buffer
+    // /// @param outStr String to receive the string
+    // /// @param asciiOnly true if only ASCII characters are allowed
+    // /// @return false if the string was truncated
+    // bool strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly);
 };
 
-// Name value pair double
+/// @brief Name value pair double
+/// @struct NameValuePairDouble
 struct NameValuePairDouble
 {
     NameValuePairDouble(const char* itemName, double itemValue)
