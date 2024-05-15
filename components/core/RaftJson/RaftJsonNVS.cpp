@@ -262,7 +262,13 @@ void RaftJsonNVS::debugShowNVSInfo(bool showContents)
 {
     std::list<nvs_entry_info_t> nvsEntries;
     nvs_iterator_t it = NULL;
-    esp_err_t res = nvs_entry_find("nvs", nullptr, NVS_TYPE_ANY, &it);
+    esp_err_t res = ESP_OK;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    res = nvs_entry_find("nvs", nullptr, NVS_TYPE_ANY, &it);
+#else
+    it = nvs_entry_find("nvs", NULL, NVS_TYPE_ANY);
+    res = it == NULL ? ESP_FAIL : ESP_OK;
+#endif
     while (res == ESP_OK)
     {
         nvs_entry_info_t info;
@@ -274,7 +280,12 @@ void RaftJsonNVS::debugShowNVSInfo(bool showContents)
         // Extract strings if required
         if (showContents)
             nvsEntries.push_back(info);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
         res = nvs_entry_next(&it);
+#else
+        it = nvs_entry_next(it);
+        res = it == NULL ? ESP_FAIL : ESP_OK;
+#endif
     }
     nvs_release_iterator(it);
 

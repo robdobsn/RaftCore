@@ -12,3 +12,23 @@
 [] 
 
 [] build with web server fails sometimes due to output names changing - need a different way to determine destination output - maybe a dummy file?
+
+
+build script thoughts:
+- a python script to do the pre-build
+- consistent way of defining Raft libs and git tags
+- process web ui properly
+- handle systype
+-- if no systype specified then look for the last one built? if nothing built then find the first one? if no systype folder then what?
+- does running idf.py with -b build/<systype> work?
+- how does it work for arduino IDE
+- and for platformio
+- what about sdkconfig.defaults
+- what about partitions.csv which is named in sdkconfig? plaformio has its own way of handling this
+- platform io boards, etc
+
+questions:
+- how does the python script get into place?
+-- if it is part of RaftCore then what loads RaftCore?
+-- maybe it is part of RaftCLI but then what if using Ardunino IDE or PlatformIO?
+
