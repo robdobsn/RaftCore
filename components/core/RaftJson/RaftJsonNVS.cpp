@@ -23,6 +23,13 @@ static const char *MODULE_PREFIX = "RaftJsonNVS";
 // #define DEBUG_NVS_READ_WRITE_OPERATIONS_VERBOSE
 // #define WARN_ON_NVS_NAMESPACE_NOT_FOUND_FAILURES
 
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+#define NVS_DEFAULT_PART_NAME               "nvs"   /*!< Default partition name of the NVS partition in the partition table */
+#define NVS_PART_NAME_MAX_SIZE              16   /*!< maximum length of partition name (excluding null terminator) */
+#define NVS_KEY_NAME_MAX_SIZE               16   /*!< Maximum length of NVS key name (including null terminator) */
+#define NVS_NS_NAME_MAX_SIZE                NVS_KEY_NAME_MAX_SIZE /*!< Maximum length of NVS namespace name (including null terminator) */
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Statics
 bool RaftJsonNVS::_nvsInitialised = RaftJsonNVS::initNVS(true);
