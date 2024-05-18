@@ -212,34 +212,33 @@ if(DEFINED UI_SOURCE_PATH)
     # Process WebUI files into a temporary folder
     set(_full_web_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
     set(_web_ui_build_folder_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/BuildWebUI")
-    # Ensure the WebUI build folder exists
+    # Ensure the WebUI build folder exists and is clean
     file(MAKE_DIRECTORY ${_web_ui_build_folder_path})
 
     # Custom command to generate the WebUI
-    file(GLOB_RECURSE WebUI_SOURCES "${_full_web_ui_source_path}/*")
+    file(GLOB_RECURSE WebUI_SOURCES "${_full_web_ui_source_path}/src/*")
     add_custom_command(
-        OUTPUT ${_web_ui_build_folder_path}
+        OUTPUT ${_web_ui_build_folder_path}/.built
+        COMMAND ${CMAKE_COMMAND} -E rm -rf ${_web_ui_build_folder_path}/*
         COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenWebUI.py ${WEB_UI_GEN_FLAGS} ${_full_web_ui_source_path} ${_web_ui_build_folder_path}
+        COMMAND ${CMAKE_COMMAND} -E touch ${_web_ui_build_folder_path}/.built
+        WORKING_DIRECTORY ${_full_web_ui_source_path}
         DEPENDS ${WebUI_SOURCES}
         COMMENT "Generating WebUI"
     )
 
-    # Add the WebUI generation as a dependency
+    # Add the WebUI generation as a target
     add_custom_target(
         WebUI ALL
-        DEPENDS ${_web_ui_build_folder_path}
+        DEPENDS ${_web_ui_build_folder_path}/.built
         COMMENT "Generating WebUI"
     )
-
-    # Dependency on WebUI
-    set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} WebUI)
 
 else()
     add_custom_target(
         WebUI ALL
         COMMENT "No WebUI defined"
     )
-
 endif()
 
 ################################################

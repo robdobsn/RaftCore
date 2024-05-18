@@ -253,7 +253,7 @@ void SysTypeManager::addRestAPIEndpoints(RestAPIEndpointManager& endpointManager
                             RestAPIEndpoint::ENDPOINT_CALLBACK, 
                             RestAPIEndpoint::ENDPOINT_POST,
                             std::bind(&SysTypeManager::apiSysTypePostSettings, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            "Set non-volatile systype config, for system add /reboot to restart after settings the value",
+                            "Set non-volatile systype config, for system add /reboot to restart after setting the value",
                             "application/json", 
                             NULL,
                             RestAPIEndpoint::ENDPOINT_CACHE_NEVER,
