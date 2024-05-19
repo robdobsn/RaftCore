@@ -144,7 +144,7 @@ void RaftSysMod::configSaveData(const String& configStr)
 }
 
 // Get JSON status of another SysMod
-String RaftSysMod::sysModGetStatusJSON(const char* sysModName)
+String RaftSysMod::sysModGetStatusJSON(const char* sysModName) const
 {
     if (_pSysManager)
         return _pSysManager->getStatusJSON(sysModName);

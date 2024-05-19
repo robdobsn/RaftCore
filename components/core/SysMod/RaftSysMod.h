@@ -112,7 +112,7 @@ public:
     }
 
     // Get JSON status string
-    virtual String getStatusJSON()
+    virtual String getStatusJSON() const
     {
         return "{\"rslt\":\"ok\"}";
     }
@@ -198,7 +198,7 @@ public:
     void sysModSetStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
 
     // Get JSON status of another SysMod
-    String sysModGetStatusJSON(const char* sysModName);
+    String sysModGetStatusJSON(const char* sysModName) const;
 
     // Send JSON command to another SysMod
     RaftRetCode sysModSendCmdJSON(const char* sysModName, const char* jsonCmd);

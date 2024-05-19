@@ -111,7 +111,7 @@ public:
     void setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
 
     // Get status from SysMod
-    String getStatusJSON(const char* sysModName);
+    String getStatusJSON(const char* sysModName) const;
 
     // Get debug from SysMod
     String getDebugJSON(const char* sysModName) const;
