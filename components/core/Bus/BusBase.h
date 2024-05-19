@@ -59,8 +59,8 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief service (should be called frequently to service the bus)
-    virtual void service()
+    /// @brief loop (should be called frequently to service the bus)
+    virtual void loop()
     {
     }
 

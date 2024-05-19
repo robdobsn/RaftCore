@@ -47,7 +47,7 @@ StreamDatagramProtocol::StreamDatagramProtocol(FileStreamBlockWriteFnType fileBl
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void StreamDatagramProtocol::service()
+void StreamDatagramProtocol::loop()
 {
     // Nothing to do
 }

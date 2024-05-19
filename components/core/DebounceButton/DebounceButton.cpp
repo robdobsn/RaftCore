@@ -67,7 +67,7 @@ void DebounceButton::setup(int pin, bool pullup, bool activeLevel,
     }
 }
 
-void DebounceButton::service()
+void DebounceButton::loop()
 {
     // Pin valid check
     if (_buttonPin < 0)

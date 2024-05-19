@@ -105,7 +105,7 @@ void CommsChannelManager::loop()
 
                     // Debug
     #ifdef DEBUG_COMMS_MANAGER_SERVICE
-                        LOG_I(MODULE_PREFIX, "service outbound msg chanID %d, msgType %s msgNum %d, len %d",
+                        LOG_I(MODULE_PREFIX, "loop outbound msg chanID %d, msgType %s msgNum %d, len %d",
                             msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
     #endif
                         // Handle the message
@@ -114,7 +114,7 @@ void CommsChannelManager::loop()
                     else
                     {
     #ifdef DEBUG_COMMS_MANAGER_SERVICE
-                        LOG_I(MODULE_PREFIX, "service, NOCONNDISCARD chanID %d, msgType %s msgNum %d, len %d",
+                        LOG_I(MODULE_PREFIX, "loop, NOCONNDISCARD chanID %d, msgType %s msgNum %d, len %d",
                             msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
     #endif                    
                     }
@@ -123,7 +123,7 @@ void CommsChannelManager::loop()
             else
             {
     #ifdef DEBUG_COMMS_MANAGER_SERVICE_NOTSENT
-                LOG_I(MODULE_PREFIX, "service MSGNOTSENT chanID %d canAccept %d noConn %d", 
+                LOG_I(MODULE_PREFIX, "loop MSGNOTSENT chanID %d canAccept %d noConn %d", 
                             channelID, canAccept, noConn);
     #endif
             }

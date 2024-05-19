@@ -37,7 +37,7 @@ FileUploadHTTPProtocol::FileUploadHTTPProtocol(FileStreamBlockWriteFnType fileBl
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadHTTPProtocol::service()
+void FileUploadHTTPProtocol::loop()
 {
     // Nothing to do
 }

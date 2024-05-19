@@ -186,7 +186,7 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void NetworkSystem::service()
+void NetworkSystem::loop()
 {
     // Get WiFi RSSI value if connected
     // Don't set WIFI_RSSI_CHECK_MS too low as getting AP info takes ~2ms
@@ -204,14 +204,14 @@ void NetworkSystem::service()
             _wifiRSSI = ap.rssi;
 #ifdef DEBUG_RSSI_GET_TIME
             uint64_t endUs = micros();
-            LOG_I(MODULE_PREFIX, "service get RSSI %d us", (int)(endUs - startUs));
+            LOG_I(MODULE_PREFIX, "loop get RSSI %d us", (int)(endUs - startUs));
 #endif
             if (rslt != ESP_OK)
             {
                 _wifiRSSI = 0;
                 // Debug
 #ifdef DEBUG_RSSI_GET_TIME
-                LOG_W(MODULE_PREFIX, "service get RSSI failed %s", esp_err_to_name(rslt));
+                LOG_W(MODULE_PREFIX, "loop get RSSI failed %s", esp_err_to_name(rslt));
 #endif
             }
         }

@@ -40,7 +40,7 @@ public:
         bool cacheFileSystemInfo);
 
     // Service
-    void service();
+    void loop();
 
     // Reformat
     bool reformat(const String& fileSystemStr, String& respStr, bool force);

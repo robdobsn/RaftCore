@@ -26,7 +26,7 @@ public:
     // A code of 3 means three pulses (short gaps between) followed by a long gap, etc
     // The timeout returns to code of 0 after the specified time
     void setStatusCode(int code, uint32_t timeoutMs = 0);
-    void service();
+    void loop();
 
 private:
     // Settings

@@ -76,7 +76,7 @@ public:
     virtual ~FileStreamBase();
 
     // Service file/stream
-    virtual void service() = 0;
+    virtual void loop() = 0;
 
     virtual void resetCounters(uint32_t fileStreamLength){};
 

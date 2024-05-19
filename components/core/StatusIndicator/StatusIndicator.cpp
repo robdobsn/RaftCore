@@ -114,7 +114,7 @@ void StatusIndicator::setStatusCode(int code, uint32_t timeoutMs)
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void StatusIndicator::service()
+void StatusIndicator::loop()
 {
     // Check if active
     if (!_isSetup)

@@ -66,7 +66,7 @@ public:
     {
         return true;
     }
-    void service();
+    void loop();
 
     void resetCounters(uint32_t fileStreamLength);
 

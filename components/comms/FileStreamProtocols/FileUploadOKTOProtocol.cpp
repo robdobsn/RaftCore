@@ -182,7 +182,7 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
 // Service file transfer
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileUploadOKTOProtocol::service()
+void FileUploadOKTOProtocol::loop()
 {
 #ifdef DEBUG_SHOW_FILE_UPLOAD_PROGRESS
     // Stats display
@@ -213,7 +213,7 @@ void FileUploadOKTOProtocol::service()
 
         // Debug
 #ifdef DEBUG_RICREST_FILEUPLOAD
-        LOG_I(MODULE_PREFIX, "service Sending OkTo %d batchCount %d", 
+        LOG_I(MODULE_PREFIX, "loop Sending OkTo %d batchCount %d", 
                 getOkTo(), _batchBlockCount);
 #endif
 

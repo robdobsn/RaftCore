@@ -80,14 +80,14 @@ void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsForma
 
     // Service a few times to setup caches
     for (uint32_t i = 0; i < SERVICE_COUNT_FOR_CACHE_PRIMING; i++)
-        service();
+        loop();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileSystem::service()
+void FileSystem::loop()
 {
     if (!_cacheFileSystemInfo)
         return;

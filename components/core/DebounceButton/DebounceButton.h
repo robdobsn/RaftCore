@@ -30,7 +30,7 @@ public:
                 uint16_t activeRepeatTimeMs = DEFAULT_ACTIVE_REPEAT_MS);
 
     // Service - must be called frequently to check button state
-    void service();
+    void loop();
 
     // Get button pressed state
     bool isButtonPressed()

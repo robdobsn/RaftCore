@@ -19,7 +19,7 @@ public:
     RaftMQTTClient();
     ~RaftMQTTClient();
     void setup(bool isEnabled, const char *brokerHostname, uint32_t brokerPort, const char* clientID);
-    void service();
+    void loop();
     bool publishToTopic(const String& topicName, const String& msgStr);
     void addTopic(const char* topicName, bool isInbound, const char* topicPath, uint8_t qos);
     void getTopicNames(std::vector<String>& topicNames, bool includeInbound, bool includeOutbound);

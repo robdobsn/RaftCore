@@ -30,7 +30,7 @@ public:
     virtual void setup(const char* pParamsJson = nullptr) = 0;
 
     // Service
-    virtual void service() = 0;
+    virtual void loop() = 0;
 
 protected:
 

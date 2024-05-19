@@ -26,7 +26,7 @@ public:
             const char* fileStreamName);
 
     // Service
-    virtual void service() override final;
+    virtual void loop() override final;
 
     void resetCounters(uint32_t fileStreamLength);
 

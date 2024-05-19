@@ -90,7 +90,7 @@ RaftRetCode FileDownloadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTR
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileDownloadOKTOProtocol::service()
+void FileDownloadOKTOProtocol::loop()
 {
 #ifdef DEBUG_SHOW_FILE_DOWNLOAD_PROGRESS
     // Stats display

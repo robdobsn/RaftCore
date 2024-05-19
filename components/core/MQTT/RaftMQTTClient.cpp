@@ -118,7 +118,7 @@ void RaftMQTTClient::getTopicNames(std::vector<String>& topicNames, bool include
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftMQTTClient::service()
+void RaftMQTTClient::loop()
 {
     // Check if enabled
     if (!_isEnabled)
@@ -160,7 +160,7 @@ void RaftMQTTClient::service()
                 // Go back to connecting
                 _connState = MQTT_STATE_DISCONNECTED;
                 _lastConnStateChangeMs = millis();
-                ESP_LOGW(MODULE_PREFIX, "service socket select error %d", errno);
+                ESP_LOGW(MODULE_PREFIX, "loop socket select error %d", errno);
                 isError = true;
                 break;
             }
@@ -171,7 +171,7 @@ void RaftMQTTClient::service()
                 // Go back to connecting
                 _connState = MQTT_STATE_DISCONNECTED;
                 _lastConnStateChangeMs = millis();
-                ESP_LOGW(MODULE_PREFIX, "service socket select timeout");
+                ESP_LOGW(MODULE_PREFIX, "loop socket select timeout");
                 isError = true;
                 break;
             }
@@ -182,13 +182,13 @@ void RaftMQTTClient::service()
                 if (Raft::isTimeout(millis(), _internalSocketCreateSlowLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
                 {
                     _internalSocketCreateSlowLastTime = millis();
-                    ESP_LOGW(MODULE_PREFIX, "service socket select still waiting");
+                    ESP_LOGW(MODULE_PREFIX, "loop socket select still waiting");
                 }
                 break;
             }
 
             // Connected
-            ESP_LOGI(MODULE_PREFIX, "service connId %d CONNECTED to %s", _clientHandle, _dnsResolver.getHostname());
+            ESP_LOGI(MODULE_PREFIX, "loop connId %d CONNECTED to %s", _clientHandle, _dnsResolver.getHostname());
 
             // Send MQTT CONNECT packet
             std::vector<uint8_t> msgBuf;
@@ -211,7 +211,7 @@ void RaftMQTTClient::service()
                 String rxDataStr;
                 Raft::getHexStrFromBytes(rxData.data(), rxData.size(), rxDataStr);
 #ifdef DEBUG_MQTT_CLIENT_RX
-                ESP_LOGI(MODULE_PREFIX, "service rx %s", rxDataStr.c_str());
+                ESP_LOGI(MODULE_PREFIX, "loop rx %s", rxDataStr.c_str());
 #endif
 
                 // Check response
@@ -251,7 +251,7 @@ void RaftMQTTClient::service()
                 String rxDataStr;
                 Raft::getHexStrFromBytes(rxData.data(), rxData.size(), rxDataStr);
 #ifdef DEBUG_MQTT_CLIENT_RX
-                ESP_LOGI(MODULE_PREFIX, "service rx %s", rxDataStr.c_str());
+                ESP_LOGI(MODULE_PREFIX, "loop rx %s", rxDataStr.c_str());
 #endif
             }
             break;
@@ -267,7 +267,7 @@ void RaftMQTTClient::service()
             if (Raft::isTimeout(millis(), _internalClosedErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
                 _internalClosedErrorLastTime = millis();
-                ESP_LOGW(MODULE_PREFIX, "service ERROR connId %d CLOSED", _clientHandle);
+                ESP_LOGW(MODULE_PREFIX, "loop ERROR connId %d CLOSED", _clientHandle);
             }
         }
         // Conn closed so we'll need to retry sometime later

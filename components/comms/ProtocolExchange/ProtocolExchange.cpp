@@ -75,7 +75,7 @@ void ProtocolExchange::loop()
     for (FileStreamSession* pSession : _sessions)
     {
         // Service the session
-        pSession->service();
+        pSession->loop();
 
         // Update status
         isMainFWUpdate = pSession->isMainFWUpdate();
@@ -86,7 +86,7 @@ void ProtocolExchange::loop()
         if (!pSession->isActive())
         {
 #ifdef DEBUG_FILE_STREAM_SESSIONS
-            LOG_I(MODULE_PREFIX, "service session inactive name %s channel %d streamID %d pSession %p",
+            LOG_I(MODULE_PREFIX, "loop session inactive name %s channel %d streamID %d pSession %p",
                         pSession->getFileStreamName().c_str(), pSession->getChannelID(), 
                         pSession->getStreamID(), pSession);
 #endif            

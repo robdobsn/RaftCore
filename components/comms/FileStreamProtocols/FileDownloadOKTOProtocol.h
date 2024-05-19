@@ -38,7 +38,7 @@ public:
             const char* fileStreamName);
 
     // Service
-    virtual void service() override final;
+    virtual void loop() override final;
 
     // Handle command frame
     virtual RaftRetCode handleCmdFrame(FileStreamBase::FileStreamMsgType fsMsgType, 

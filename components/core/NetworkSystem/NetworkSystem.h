@@ -55,7 +55,7 @@ public:
     bool setup(const NetworkSettings& networkSettings);
 
     // Service
-    void service();
+    void loop();
 
     // Connected indicators
     bool isWifiStaConnectedWithIP() const;

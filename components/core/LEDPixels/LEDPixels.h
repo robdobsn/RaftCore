@@ -40,7 +40,7 @@ public:
     bool setup(LEDStripConfig& ledStripConfig);
 
     // Service
-    void service();
+    void loop();
 
     // Set a mapping function to map from a pixel index to a physical LED index
     void setPixelMappingFn(LEDPixelMappingFn pixelMappingFn)

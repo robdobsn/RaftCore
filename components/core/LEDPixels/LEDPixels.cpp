@@ -80,12 +80,12 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void LEDPixels::service()
+void LEDPixels::loop()
 {
     // Service pattern that is active
     if (_pCurrentPattern)
     {
-        _pCurrentPattern->service();
+        _pCurrentPattern->loop();
     }
 }
 

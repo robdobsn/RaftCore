@@ -189,16 +189,16 @@ FileStreamSession::~FileStreamSession()
 // Handle command frame
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FileStreamSession::service()
+void FileStreamSession::loop()
 {
     // Service file/stream protocol
     if (_pFileStreamProtocolHandler)
     {
-        _pFileStreamProtocolHandler->service();
+        _pFileStreamProtocolHandler->loop();
         if (!_pFileStreamProtocolHandler->isActive())
         {
 #ifdef DEBUG_FILE_STREAM_START_END
-            LOG_I(MODULE_PREFIX, "service handler-is-inactive filename %s channelID %d isActive %d pSession %p", 
+            LOG_I(MODULE_PREFIX, "loop handler-is-inactive filename %s channelID %d isActive %d pSession %p", 
                         _fileStreamName.c_str(), _channelID, _isActive, this);
 #endif
             _isActive = false;
@@ -209,7 +209,7 @@ void FileStreamSession::service()
     if (_isActive && Raft::isTimeout(millis(), _sessionLastActiveMs, MAX_SESSION_IDLE_TIME_MS))
     {
 #ifdef DEBUG_FILE_STREAM_START_END
-        LOG_I(MODULE_PREFIX, "service timeout filename %s channelID %d isActive %d", 
+        LOG_I(MODULE_PREFIX, "loop timeout filename %s channelID %d isActive %d", 
                     _fileStreamName.c_str(), _channelID, _isActive);
 #endif
         _isActive = false;

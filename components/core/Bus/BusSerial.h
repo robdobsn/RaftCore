@@ -28,7 +28,7 @@ public:
     virtual bool setup(const RaftJsonIF& config) override final;
 
     // Service
-    virtual void service() override final;
+    virtual void loop() override final;
 
     // Clear
     virtual void clear(bool incPolling) override final;

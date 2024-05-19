@@ -198,7 +198,7 @@ bool MQTTProtocol::checkForConnAck(const std::vector<uint8_t>& buf, bool& isErro
     }
 
 #ifdef DEBUG_MQTT_CONN_ACK
-    LOG_I(MODULE_PREFIX, "service conn ack ok");
+    LOG_I(MODULE_PREFIX, "loop conn ack ok");
 #endif
     return true;
 }
