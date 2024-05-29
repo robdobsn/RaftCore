@@ -175,8 +175,8 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} partitions_csv)
 # Iterate over list of raft components
 foreach(_raft_component ${RAFT_COMPONENTS})
 
-    # Split the component name into the component name and the optional tag on the @ symbol
-    string(REPLACE "@" ";" _raft_component_split ${_raft_component})
+    # Split the component name into the component name and the optional tag on the @ or # symbol
+    string(REGEX REPLACE "[@#]" ";" _raft_component_split ${_raft_component})
     list(GET _raft_component_split 0 _raft_component_name)
     string(TOLOWER ${_raft_component_name} _raft_component_lower)
 
