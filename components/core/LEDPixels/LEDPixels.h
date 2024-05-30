@@ -23,8 +23,8 @@ class RaftJsonIF;
 class BusRequestResult;
 class NamedValueProvider;
 
-// Build function for LED pattern factory
-typedef LEDPatternBase* (*LEDPatternBuildFn)(NamedValueProvider* pNamedValueProvider, LEDPixels& pixels);
+// Create function for LED pattern factory
+typedef LEDPatternBase* (*LEDPatternCreateFn)(NamedValueProvider* pNamedValueProvider, LEDPixels& pixels);
 
 // Pixel mapping function
 typedef std::function<uint32_t(uint32_t)> LEDPixelMappingFn;
@@ -50,7 +50,7 @@ public:
 
     // Pattern handling
     void setPattern(const String& patternName, const char* pParamsJson=nullptr);
-    void addPattern(const String& patternName, LEDPatternBuildFn buildFn);
+    void addPattern(const String& patternName, LEDPatternCreateFn createFn);
 
     // Write to an individual LED
     void setRGB(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness=true);
@@ -97,7 +97,7 @@ private:
     struct LEDPatternListItem
     {
         String name;
-        LEDPatternBuildFn buildFn;
+        LEDPatternCreateFn createFn;
     };
 
     // LED patterns

@@ -93,7 +93,7 @@ void LEDPixels::loop()
 // Add a pattern
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void LEDPixels::addPattern(const String& patternName, LEDPatternBuildFn buildFn)
+void LEDPixels::addPattern(const String& patternName, LEDPatternCreateFn createFn)
 {
     // Check for existing pattern with same name and remove if so
     for (auto it = _ledPatterns.begin(); it != _ledPatterns.end(); ++it)
@@ -106,7 +106,7 @@ void LEDPixels::addPattern(const String& patternName, LEDPatternBuildFn buildFn)
     }
 
     // Add pattern
-    _ledPatterns.push_back(LEDPatternListItem(patternName, buildFn));
+    _ledPatterns.push_back(LEDPatternListItem(patternName, createFn));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -128,8 +128,8 @@ void LEDPixels::setPattern(const String& patternName, const char* pParamsJson)
     {
         if (pattern.name.equalsIgnoreCase(patternName))
         {
-            // Build pattern
-            LEDPatternBase* pPattern = pattern.buildFn(_pNamedValueProvider, *this);
+            // Create pattern
+            LEDPatternBase* pPattern = pattern.createFn(_pNamedValueProvider, *this);
             if (pPattern)
             {
                 // Set pattern
