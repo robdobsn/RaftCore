@@ -83,7 +83,7 @@ public:
     bool setup(const RaftJsonIF& config)
     {
         // Colour order
-        String colourOrderStr = config.getString("colourOrder", "GRB");
+        String colourOrderStr = config.getString("colorOrder", config.getString("colourOrder", "GRB"));
         colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
 
         // Get pattern
