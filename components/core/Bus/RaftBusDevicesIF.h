@@ -31,8 +31,8 @@ public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get list of device addresses attached to the bus
     /// @param pAddrList pointer to array to receive addresses
-    /// @param includeOfflineDevices - true to include offline devices
-    virtual String getDeviceAddresses(std::vector<uint32_t>& addresses, bool includeOfflineDevices) const = 0;
+    /// @param onlyAddressesWithIdentPollResponses true to only return addresses with ident poll responses
+    virtual String getDeviceAddresses(std::vector<uint32_t>& addresses, bool onlyAddressesWithIdentPollResponses) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type information by address
