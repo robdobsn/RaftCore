@@ -18,7 +18,6 @@
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 
-class BusBase;
 class RaftJsonIF;
 class BusRequestResult;
 class NamedValueProvider;

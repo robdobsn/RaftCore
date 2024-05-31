@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Device Interface
+// Bus Devices Interface
 //
 // Rob Dobson 2024
 //
@@ -22,11 +22,17 @@ public:
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Device Interface
-/// @class BusDeviceIF
-class BusDeviceIF
+/// @brief Bus Devices Interface
+/// @class RaftBusDevicesIF
+class RaftBusDevicesIF
 {
 public:
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get list of device addresses attached to the bus
+    /// @param pAddrList pointer to array to receive addresses
+    /// @param includeOfflineDevices - true to include offline devices
+    virtual String getDeviceAddresses(std::vector<uint32_t>& addresses, bool includeOfflineDevices) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type information by address
@@ -48,7 +54,7 @@ public:
     virtual String getPollResponsesJson() const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Decode one or more poll responses for a device
+    /// @brief Get decoded poll responses
     /// @param deviceTypeIndex index of device type
     /// @param pPollBuf buffer containing poll responses
     /// @param pollBufLen length of poll response buffer

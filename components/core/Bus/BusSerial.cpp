@@ -26,7 +26,7 @@ static const char* MODULE_PREFIX = "BusSerial";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 BusSerial::BusSerial(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
-    : BusBase(busElemStatusCB, busOperationStatusCB)
+    : RaftBus(busElemStatusCB, busOperationStatusCB)
 {
     // Clear vars
     _uartNum = 0;

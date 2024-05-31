@@ -11,35 +11,35 @@
 #include <vector>
 #include <functional>
 #include "RaftArduino.h"
-#include "BusConsts.h"
-#include "BusStats.h"
-#include "BusDeviceIF.h"
+#include "RaftBusConsts.h"
+#include "RaftBusStats.h"
+#include "RaftBusDevicesIF.h"
 
 class BusRequestInfo;
-class BusBase;
+class RaftBus;
 class RaftJsonIF;
 
-typedef std::function<void(BusBase& bus, const std::vector<BusElemAddrAndStatus>& statusChanges)> BusElemStatusCB;
-typedef std::function<void(BusBase& bus, BusOperationStatus busOperationStatus)> BusOperationStatusCB;
+typedef std::function<void(RaftBus& bus, const std::vector<BusElemAddrAndStatus>& statusChanges)> BusElemStatusCB;
+typedef std::function<void(RaftBus& bus, BusOperationStatus busOperationStatus)> BusOperationStatusCB;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Base class for a bus
-/// @class BusBase
-class BusBase
+/// @class RaftBus
+class RaftBus
 {
 public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Constructor
     /// @param busElemStatusCB - callback for bus element status changes
     /// @param busOperationStatusCB - callback for bus operation status changes
-    BusBase(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
+    RaftBus(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
         : _busElemStatusCB(busElemStatusCB), _busOperationStatusCB(busOperationStatusCB)
     {
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Destructor
-    virtual ~BusBase()
+    virtual ~RaftBus()
     {
     }
 
@@ -65,8 +65,8 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get bus device interface
-    virtual BusDeviceIF* getBusDeviceIF()
+    /// @brief Get bus devices interface
+    virtual RaftBusDevicesIF* getBusDevicesIF()
     {
         return nullptr;
     }
@@ -299,13 +299,13 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    BusStats& getBusStats()
+    RaftBusStats& getBusStats()
     {
         return _busStats;
     }
 
 protected:
-    BusStats _busStats;
+    RaftBusStats _busStats;
     BusElemStatusCB _busElemStatusCB;
     BusOperationStatusCB _busOperationStatusCB;
 };

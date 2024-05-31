@@ -9,7 +9,7 @@
 [] raftcli program could handle monitoring over WiFi - maybe a stretch too far?
 [] when ethernet is enabled but there is no ethernet hardware there is a long delay (5s?) on boot
 [] wifi password less than 8 --- what does this mean?
-[] 
+[] maybe implement DeviceSystem which has a device factory and basically does what HWElemManager does - perhaps change HWElemBase to RaftDevice? - basically make it so that devices can be registered from anywhere and dynamically appear from RaftI2C and will be handled by DeviceSystem so that at any time connected devices can be queried through a consistent interface - any API stuff will happen in a SysMod called DeviceManager maybe in RaftSysMods like the relationship between networkSystem and networkManager - perhaps deviceSystem is a singleton like networkSystem? - and devices can be configured from main config through DeviceManager
 
 [] build with web server fails sometimes due to output names changing - need a different way to determine destination output - maybe a dummy file?
 

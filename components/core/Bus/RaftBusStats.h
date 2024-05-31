@@ -10,15 +10,15 @@
 
 #include <stdio.h>
 #include "RaftArduino.h"
-#include "BusStats.h"
+#include "RaftBusStats.h"
 
-class BusStats
+class RaftBusStats
 {
 public:
     
 public:
     // Constructor
-    BusStats()
+    RaftBusStats()
     {
         _busInteractionCount = 0;
         _respBufferFulls = 0;
@@ -31,7 +31,7 @@ public:
         _reqQueuePeak = 0;
         _respLengthError = 0;
     }
-    virtual ~BusStats()
+    virtual ~RaftBusStats()
     {
     }
 

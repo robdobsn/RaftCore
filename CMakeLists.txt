@@ -44,7 +44,7 @@ idf_component_register(
     "components/core/ArduinoUtils/ArduinoTime.cpp"
     "components/core/ArduinoUtils/ArduinoWString.cpp"
     "components/core/ArPreferences/ArPreferences.cpp"
-    "components/core/Bus/BusManager.cpp"
+    "components/core/Bus/RaftBusSystem.cpp"
     "components/core/Bus/BusSerial.cpp"
     "components/core/ConfigPinMap/ConfigPinMap.cpp"
     "components/core/DebounceButton/DebounceButton.cpp"

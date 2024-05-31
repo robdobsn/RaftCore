@@ -13,11 +13,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "BusBase.h"
+#include "RaftBus.h"
 #include "RaftArduino.h"
 #include "RaftJsonIF.h"
 
-class BusSerial : public BusBase
+class BusSerial : public RaftBus
 {
 public:
     // Constructor
@@ -66,7 +66,7 @@ public:
     virtual uint32_t rxDataGet(uint8_t* pData, uint32_t maxLen) override final;
 
     // Creator fn
-    static BusBase* createFn(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
+    static RaftBus* createFn(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
     {
         return new BusSerial(busElemStatusCB, busOperationStatusCB);
     }

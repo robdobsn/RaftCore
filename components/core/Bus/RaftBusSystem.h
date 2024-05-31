@@ -9,23 +9,23 @@
 #pragma once
 
 #include "RaftArduino.h"
-#include "BusBase.h"
+#include "RaftBus.h"
 #include "SupervisorStats.h"
 #include <list>
 
 // Bus factory creator function
-typedef BusBase* (*BusFactoryCreatorFn)(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB);
+typedef RaftBus* (*RaftBusFactoryCreatorFn)(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB);
 
 // Bus factory type
-class BusFactoryTypeDef
+class RaftBusFactoryTypeDef
 {
 public:
-    BusFactoryTypeDef(const String& name, BusFactoryCreatorFn createFn)
+    RaftBusFactoryTypeDef(const String& name, RaftBusFactoryCreatorFn createFn)
     {
         _name = name;
         _createFn = createFn;
     }
-    bool isIdenticalTo(const BusFactoryTypeDef& other) const
+    bool isIdenticalTo(const RaftBusFactoryTypeDef& other) const
     {
         if (!_name.equalsIgnoreCase(other._name))
             return false;
@@ -36,20 +36,20 @@ public:
         return _name.equalsIgnoreCase(name);
     }
     String _name;
-    BusFactoryCreatorFn _createFn;
+    RaftBusFactoryCreatorFn _createFn;
 };
 
-// Bus manager
-class BusManager
+// Bus system
+class RaftBusSystem
 {
 public:
-    BusManager();
-    virtual ~BusManager();
+    RaftBusSystem();
+    virtual ~RaftBusSystem();
 
     /// @brief Register a bus type
     /// @param busConstrName Name of the bus type
     /// @param busCreateFn Function to create a bus of this type
-    void registerBus(const char* busConstrName, BusFactoryCreatorFn busCreateFn);
+    void registerBus(const char* busConstrName, RaftBusFactoryCreatorFn busCreateFn);
 
     /// @brief Setup buses
     void setup(const char* busConfigName, const RaftJsonIF& config, 
@@ -64,25 +64,25 @@ public:
     /// @brief Get a bus by name
     /// @param busName Name of the bus
     /// @return Pointer to the bus or nullptr if not found
-    BusBase* getBusByName(const String& busName);
+    RaftBus* getBusByName(const String& busName);
 
     /// @brief Get the list of buses
     /// @return List of buses
-    const std::list<BusBase*>& getBusList() const
+    const std::list<RaftBus*>& getBusList() const
     {
         return _busList;
     }
 
 private:
     // List of bus types that can be created
-    std::list<BusFactoryTypeDef> _busFactoryTypeList;
+    std::list<RaftBusFactoryTypeDef> _busFactoryTypeList;
 
     // Bus Factory
-    BusBase* busFactoryCreate(const char* busName, BusElemStatusCB busElemStatusCB, 
+    RaftBus* busFactoryCreate(const char* busName, BusElemStatusCB busElemStatusCB, 
                         BusOperationStatusCB busOperationStatusCB);
 
     // List of buses
-    std::list<BusBase*> _busList;
+    std::list<RaftBus*> _busList;
 
     // Supervisor statistics for bus stats
     SupervisorStats _supervisorStats;

@@ -1,19 +1,19 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Bus Manager
+// Bus System
 //
 // Rob Dobson 2024
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "BusManager.h"
+#include "RaftBusSystem.h"
 #include "RaftJsonPrefixed.h"
 #include "RaftJson.h"
 
 // Warn
 #define WARN_ON_NO_BUSES_DEFINED
 
-static const char *MODULE_PREFIX = "BusManager";
+static const char *MODULE_PREFIX = "RaftBusSystem";
 
 // Debug supervisor step (for hangup detection within a service call)
 // Uses global logger variables - see logger.h
@@ -23,7 +23,7 @@ static const char *MODULE_PREFIX = "BusManager";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-BusManager::BusManager()
+RaftBusSystem::RaftBusSystem()
 {
 }
 
@@ -31,7 +31,7 @@ BusManager::BusManager()
 // Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-BusManager::~BusManager()
+RaftBusSystem::~RaftBusSystem()
 {
 }
 
@@ -39,7 +39,7 @@ BusManager::~BusManager()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void BusManager::setup(const char* busConfigName, const RaftJsonIF& config, 
+void RaftBusSystem::setup(const char* busConfigName, const RaftJsonIF& config, 
                 BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
 {
     // Config prefixed for buses
@@ -66,7 +66,7 @@ void BusManager::setup(const char* busConfigName, const RaftJsonIF& config,
 #endif
 
         // Create bus
-        BusBase* pNewBus = busFactoryCreate(busType.c_str(), busElemStatusCB, busOperationStatusCB);
+        RaftBus* pNewBus = busFactoryCreate(busType.c_str(), busElemStatusCB, busOperationStatusCB);
 
         // Setup if valid
         if (pNewBus)
@@ -87,10 +87,10 @@ void BusManager::setup(const char* busConfigName, const RaftJsonIF& config,
 // Loop
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void BusManager::loop()
+void RaftBusSystem::loop()
 {
     uint32_t busIdx = 0;
-    for (BusBase* pBus : _busList)
+    for (RaftBus* pBus : _busList)
     {
         if (pBus)
         {
@@ -104,9 +104,9 @@ void BusManager::loop()
 // Deinit
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void BusManager::deinit()
+void RaftBusSystem::deinit()
 {
-    for (BusBase* pBus : _busList)
+    for (RaftBus* pBus : _busList)
     {
         if (pBus)
             delete pBus;
@@ -118,11 +118,11 @@ void BusManager::deinit()
 // Register Bus type
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void BusManager::registerBus(const char* busConstrName, BusFactoryCreatorFn busCreateFn)
+void RaftBusSystem::registerBus(const char* busConstrName, RaftBusFactoryCreatorFn busCreateFn)
 {
     // See if already registered
-    BusFactoryTypeDef newElem(busConstrName, busCreateFn);
-    for (const BusFactoryTypeDef& el : _busFactoryTypeList)
+    RaftBusFactoryTypeDef newElem(busConstrName, busCreateFn);
+    for (const RaftBusFactoryTypeDef& el : _busFactoryTypeList)
     {
         if (el.isIdenticalTo(newElem))
             return;
@@ -134,7 +134,7 @@ void BusManager::registerBus(const char* busConstrName, BusFactoryCreatorFn busC
 // Create bus of specified type
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-BusBase* BusManager::busFactoryCreate(const char* busConstrName, BusElemStatusCB busElemStatusCB, 
+RaftBus* RaftBusSystem::busFactoryCreate(const char* busConstrName, BusElemStatusCB busElemStatusCB, 
                         BusOperationStatusCB busOperationStatusCB)
 {
     for (const auto& el : _busFactoryTypeList)
@@ -154,9 +154,9 @@ BusBase* BusManager::busFactoryCreate(const char* busConstrName, BusElemStatusCB
 // Get bus by name
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-BusBase* BusManager::getBusByName(const String& busName)
+RaftBus* RaftBusSystem::getBusByName(const String& busName)
 {
-    for (BusBase* pBus : _busList)
+    for (RaftBus* pBus : _busList)
     {
         if (pBus && pBus->getBusName().equalsIgnoreCase(busName))
             return pBus;
