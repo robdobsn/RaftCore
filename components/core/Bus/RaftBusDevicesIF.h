@@ -66,5 +66,5 @@ public:
     ///       decodeState should be maintained between calls for the same device
     virtual uint32_t decodePollResponses(uint32_t address, 
                     void* pStructOut, uint32_t structOutSize, 
-                    uint16_t maxRecCount, BusDeviceDecodeState& decodeState) = 0;
+                    uint16_t maxRecCount, BusDeviceDecodeState& decodeState) const = 0;
 };
