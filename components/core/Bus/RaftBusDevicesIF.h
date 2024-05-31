@@ -14,8 +14,8 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Device decode state
-/// @class BusDeviceDecodeState
-class BusDeviceDecodeState
+/// @class RaftBusDeviceDecodeState
+class RaftBusDeviceDecodeState
 {
 public:
     uint64_t lastReportTimestampUs = 0;
@@ -66,5 +66,5 @@ public:
     ///       decodeState should be maintained between calls for the same device
     virtual uint32_t getDecodedPollResponses(uint32_t address, 
                     void* pStructOut, uint32_t structOutSize, 
-                    uint16_t maxRecCount, BusDeviceDecodeState& decodeState) const = 0;
+                    uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) const = 0;
 };
