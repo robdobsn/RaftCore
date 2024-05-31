@@ -64,7 +64,7 @@ public:
     /// @return number of records decoded
     /// @note the pStructOut should generally point to structures of the correct type for the device data and the
     ///       decodeState should be maintained between calls for the same device
-    virtual uint32_t decodePollResponses(uint32_t address, 
+    virtual uint32_t getDecodedPollResponses(uint32_t address, 
                     void* pStructOut, uint32_t structOutSize, 
                     uint16_t maxRecCount, BusDeviceDecodeState& decodeState) const = 0;
 };
