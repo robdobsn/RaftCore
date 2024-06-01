@@ -119,8 +119,8 @@ public:
     // Send command to SysMod
     RaftRetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
 
-    // Send message-generator callback to SysMod
-    void sendMsgGenCB(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
+    // Register data source (message generator functions)
+    void registerDataSource(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
 
     // Get named value 
     double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const;

@@ -636,10 +636,10 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Send message-generator callback to SysMod
+// Register data source (message generator) with SysMod
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::sendMsgGenCB(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+void SysManager::registerDataSource(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
     // See if the sysmod is in the list
     for (RaftSysMod* pSysMod : _sysModuleList)
@@ -647,14 +647,14 @@ void SysManager::sendMsgGenCB(const char* sysModName, const char* msgGenID, SysM
         if (pSysMod->modNameStr().equals(sysModName))
         {
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
-            LOG_I(MODULE_PREFIX, "sendMsgGenCB registered %s with the %s sysmod", msgGenID, sysModName);
+            LOG_I(MODULE_PREFIX, "registerDataSource registered %s with the %s sysmod", msgGenID, sysModName);
 #endif
-            pSysMod->receiveMsgGenCB(msgGenID, msgGenCB, stateDetectCB);
+            pSysMod->registerDataSource(msgGenID, msgGenCB, stateDetectCB);
             return;
         }
     }
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
-    LOG_W(MODULE_PREFIX, "sendMsgGenCB NOT FOUND %s %s", sysModName, msgGenID);
+    LOG_W(MODULE_PREFIX, "registerDataSource NOT FOUND %s %s", sysModName, msgGenID);
 #endif
 }
 

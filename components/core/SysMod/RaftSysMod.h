@@ -123,11 +123,6 @@ public:
         return RaftRetCode::RAFT_INVALID_OPERATION;
     }
 
-    // Receive msg generator callback function
-    virtual void receiveMsgGenCB(const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
-    {
-    }
-
     // Static function to define the manager for system modules
     static void setSysManager(SysManager* pSysManager)
     {
