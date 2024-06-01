@@ -123,6 +123,12 @@ public:
         return RaftRetCode::RAFT_INVALID_OPERATION;
     }
 
+    // Register data source (msg generator callback functions)
+    // This is generally only implemented by a SysMod that handles message publishing 
+    virtual void registerDataSource(const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+    {
+    }
+
     // Static function to define the manager for system modules
     static void setSysManager(SysManager* pSysManager)
     {
