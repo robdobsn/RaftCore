@@ -24,7 +24,9 @@
 #include "ESPUtils.h"
 #include "RaftArduino.h"
 #include "mdns.h"
+#include "esp_idf_version.h"
 
+// Check if Ethernet is enabled
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"

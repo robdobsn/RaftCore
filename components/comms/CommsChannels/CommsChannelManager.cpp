@@ -312,8 +312,10 @@ void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const uint8_t* pM
 
     // Debug
 #ifdef DEBUG_INBOUND_MESSAGE
-    LOG_I(MODULE_PREFIX, "inboundHandleMsg, channel Id %d channel name %s, msglen %d", channelID, 
-                pChannel->getInterfaceName().c_str(), msgLen);
+    LOG_I(MODULE_PREFIX, "inboundHandleMsg, channel Id %d channel name %s pcol %s, msglen %d", channelID, 
+                pChannel->getChannelName().c_str(), 
+                pChannel->getProtocolCodec() ? pChannel->getProtocolCodec()->getProtocolName() : "UNKNOWN", 
+                msgLen);
 #endif
 
     // Ensure we have a handler for this msg
@@ -364,7 +366,7 @@ CommsCoreRetCode CommsChannelManager::outboundHandleMsg(CommsChannelMsg& msg)
         {
             CommsChannel* pChannel = _commsChannelVec[channelID];
             LOG_I(MODULE_PREFIX, "outboundHandleMsg chanId %d chanName %s msgLen %d retc %d", 
-                        channelID, pChannel ? pChannel->getInterfaceName().c_str() : "UNKNONW", msg.getBufLen(), retcode)
+                        channelID, pChannel ? pChannel->getChannelName().c_str() : "UNKNONW", msg.getBufLen(), retcode)
         }
 #endif
     }
@@ -381,7 +383,7 @@ CommsCoreRetCode CommsChannelManager::outboundHandleMsg(CommsChannelMsg& msg)
 #ifdef DEBUG_OUTBOUND_MSG_ALL_CHANNELS
             CommsChannel* pChannel = _commsChannelVec[specificChannelID];
             LOG_W(MODULE_PREFIX, "outboundHandleMsg, all chanId %u chanName %s msglen %d", 
-                            specificChannelID, pChannel ? pChannel->getInterfaceName().c_str() : "UNKNONW", msg.getBufLen());
+                            specificChannelID, pChannel ? pChannel->getChannelName().c_str() : "UNKNONW", msg.getBufLen());
 #endif            
         }
     }
@@ -459,7 +461,7 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
         // Debug
         LOG_I(MODULE_PREFIX, "handleOutboundMessage queued channel Id %d channel name %s, msglen %d, msgType %s msgNum %d numQueued %d", 
                     channelID, 
-                    pChannel->getInterfaceName().c_str(), msg.getBufLen(), msg.getMsgTypeAsString(msg.getMsgTypeCode()),
+                    pChannel->getChannelName().c_str(), msg.getBufLen(), msg.getMsgTypeAsString(msg.getMsgTypeCode()),
                     msg.getMsgNumber(), pChannel->outboundQueuedCount());
 #endif
     }
@@ -576,7 +578,7 @@ bool CommsChannelManager::frameSendCB(CommsChannelMsg& msg)
 #ifdef DEBUG_FRAME_SEND
     // Debug
     LOG_I(MODULE_PREFIX, "frameSendCB channel Id %d channel name %s msglen %d", channelID, 
-                pChannel->getInterfaceName().c_str(), msg.getBufLen());
+                pChannel->getChannelName().c_str(), msg.getBufLen());
 #endif
 
     // Send back to the channel
