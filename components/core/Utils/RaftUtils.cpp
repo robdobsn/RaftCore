@@ -1365,51 +1365,11 @@ bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool rev
     return true;
 }
 
-/// @brief Get a string from a fixed-length buffer
-// /// @param pBuf Pointer to the buffer
-// /// @param bufLen Length of the buffer
-// /// @param outStr String to receive the string
-// /// @param asciiOnly true if only ASCII characters are allowed
-// /// @return false if the string was truncated
-// bool Raft::strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly)
-// {
-//     // Handling on stack or heap?
-//     static const uint32_t STR_FROM_BUFFER_STACK_MAXLEN = 250;
-//     static const uint32_t STR_FROM_BUFFER_MAXLEN = 5000;
-//     uint32_t lenToCopy = (bufLen < STR_FROM_BUFFER_MAXLEN ? bufLen : STR_FROM_BUFFER_MAXLEN);
-
-//     // Check if we can use stack
-//     if (lenToCopy <= STR_FROM_BUFFER_STACK_MAXLEN)
-//     {
-//         char tmpStr[lenToCopy+1];
-//         char* pOut = tmpStr;
-//         for (uint32_t i = 0; i < lenToCopy; i++)
-//         {
-//             if ((pBuf[i] == 0) || (asciiOnly && (pBuf[i] > 127)))
-//                 break;
-//             *pOut++ = pBuf[i];
-//         }
-//         *pOut = 0;
-//         outStr = tmpStr;
-//         return lenToCopy == bufLen;
-//     }
-
-//     // Use heap
-//     char* tmpStr = new char[lenToCopy+1];
-//     if (!tmpStr)
-//     {
-//         outStr = "";
-//         return false;
-//     }
-//     char* pOut = tmpStr;
-//     for (uint32_t i = 0; i < lenToCopy; i++)
-//     {
-//         if ((pBuf[i] == 0) || (asciiOnly && (pBuf[i] > 127)))
-//             break;
-//         *pOut++ = pBuf[i];
-//     }
-//     *pOut = 0;
-//     outStr = tmpStr;
-//     delete [] tmpStr;
-//     return lenToCopy == bufLen;
-// }
+/// @brief Trim a String including removing trailing null terminators
+/// @param str String to trim
+void Raft::trimString(String& str)
+{
+    str.trim();
+    while (str.length() > 0 && str[str.length()-1] == 0)
+        str.remove(str.length()-1);
+}

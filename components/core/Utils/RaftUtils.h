@@ -451,13 +451,9 @@ namespace Raft
     static const uint32_t UUID128_BYTE_COUNT = 16;
     bool uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool reverseOrder = true);
 
-    /// @brief Get a string from a fixed-length buffer
-    // /// @param pBuf Pointer to the buffer
-    // /// @param bufLen Length of the buffer
-    // /// @param outStr String to receive the string
-    // /// @param asciiOnly true if only ASCII characters are allowed
-    // /// @return false if the string was truncated
-    // bool strFromBuffer(const uint8_t* pBuf, uint32_t bufLen, String& outStr, bool asciiOnly);
+    /// @brief Trim a String including removing trailing null terminators
+    /// @param str String to trim
+    void trimString(String& str);
 };
 
 /// @brief Name value pair double
