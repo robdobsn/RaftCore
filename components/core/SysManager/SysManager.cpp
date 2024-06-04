@@ -1051,7 +1051,7 @@ String SysManager::getBaseSysVersJson()
         altHwRevStr = ",\"" + _altHardwareRevisionPrefix + "\":" + hWRevStr;
     }
     // Form JSON
-    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"hwRev\":" + hWRevStr + altHwRevStr;
+    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"HwRev\":" + hWRevStr + altHwRevStr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
