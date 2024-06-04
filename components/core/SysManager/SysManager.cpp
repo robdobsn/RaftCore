@@ -131,8 +131,8 @@ void SysManager::preSetup()
     bool friendlyNameIsSet = false;
     String friendlyName = getFriendlyName(friendlyNameIsSet);
 
-    // Hardware revision reporting prefix
-    _hardwareRevisionPrefix = sysManConfig.getString("hwRevPrefix", _hardwareRevisionPrefix.c_str());
+    // Alternate Hardware revision reporting prefix
+    _altHardwareRevisionPrefix = sysManConfig.getString("altHwPrefix", _altHardwareRevisionPrefix.c_str());
 
     // Debug
     LOG_I(MODULE_PREFIX, "systemName %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
@@ -1043,8 +1043,15 @@ String SysManager::getBaseSysVersJson()
     }
     if ((hWRevStr.length() == 0) || !allDigits)
         hWRevStr = "\"" + hWRevStr + "\"";
+
+    // Alt hardware rev string
+    String altHwRevStr = "";
+    if (_altHardwareRevisionPrefix.length() > 0)
+    {
+        altHwRevStr = ",\"" + _altHardwareRevisionPrefix + "\":" + hWRevStr;
+    }
     // Form JSON
-    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"" + _hardwareRevisionPrefix + "\":" + hWRevStr;
+    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"hwRev\":" + hWRevStr + altHwRevStr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
