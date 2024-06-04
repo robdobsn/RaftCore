@@ -131,6 +131,9 @@ void SysManager::preSetup()
     bool friendlyNameIsSet = false;
     String friendlyName = getFriendlyName(friendlyNameIsSet);
 
+    // Hardware revision reporting prefix
+    _hardwareRevisionPrefix = sysManConfig.getString("hwRevPrefix", _hardwareRevisionPrefix.c_str());
+
     // Debug
     LOG_I(MODULE_PREFIX, "systemName %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
                 _systemName.c_str(),
@@ -1024,7 +1027,7 @@ String SysManager::getBaseSysVersJson()
 {
     // Get hardware revision string (if all digits then set in JSON as a number for backward compatibility)
     String baseSysTypeVersStr = _sysTypeManager.getBaseSysTypeVersion();
-    String ricHWRevStr = _sysTypeManager.getBaseSysTypeVersion();
+    String hWRevStr = _sysTypeManager.getBaseSysTypeVersion();
     bool allDigits = true;
     for (int i = 0; i < ricHWRevStr.length(); i++)
     {
@@ -1034,10 +1037,10 @@ String SysManager::getBaseSysVersJson()
             break;
         }
     }
-    if ((ricHWRevStr.length() == 0) || !allDigits)
-        ricHWRevStr = "\"" + ricHWRevStr + "\"";
+    if ((hWRevStr.length() == 0) || !allDigits)
+        hWRevStr = "\"" + hWRevStr + "\"";
     // Form JSON
-    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"RicHwRevNo\":" + ricHWRevStr;
+    return "\"SysTypeVers\":\"" + baseSysTypeVersStr + "\",\"" + _hardwareRevisionPrefix + "\":" + hWRevStr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

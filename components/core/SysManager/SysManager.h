@@ -271,6 +271,9 @@ private:
     // Hardware revision
     String _hardwareRevision;
 
+    // Hardware revision reporting prefix
+    String _hardwareRevisionPrefix = "HwRevNo";
+
     // System config
     RaftJsonIF& _systemConfig;
 
