@@ -1033,9 +1033,9 @@ String SysManager::getBaseSysVersJson()
     String baseSysTypeVersStr = _sysTypeManager.getBaseSysTypeVersion();
     String hWRevStr = _sysTypeManager.getBaseSysTypeVersion();
     bool allDigits = true;
-    for (int i = 0; i < ricHWRevStr.length(); i++)
+    for (int i = 0; i < hWRevStr.length(); i++)
     {
-        if (!isdigit(ricHWRevStr.charAt(i)))
+        if (!isdigit(hWRevStr.charAt(i)))
         {
             allDigits = false;
             break;
