@@ -89,11 +89,8 @@ SysManager::SysManager(const char* pModuleName,
 
 void SysManager::preSetup()
 {
-    // Extract system name from root level of config
-    String sysTypeName = _systemConfig.getString("SysTypeName", _systemName.c_str());
-
     // Override system name if it is specified in the config
-    _systemName = _systemConfig.getString("SystemName", sysTypeName.c_str());
+    _systemName = _systemConfig.getString("SystemName", _systemName.c_str());
     _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
 
     // System config for this module
