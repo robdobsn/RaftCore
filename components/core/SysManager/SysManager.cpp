@@ -677,14 +677,18 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
     // Get serial number
     String serialNo = _mutableConfig.getString("serialNo", "");
     char versionJson[225];
+    // Friendly name
+    bool friendlyNameIsSet = false;
+    String friendlyName = getFriendlyName(friendlyNameIsSet);
     // Hardware revision Json
     String hwRevJson = getBaseSysVersJson();
     snprintf(versionJson, sizeof(versionJson),
-             R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","SerialNo":"%s",)"
+             R"({"req":"%s","rslt":"ok","SystemName":"%s","SystemVersion":"%s","Friendly":"%s","SerialNo":"%s",)"
             R"("MAC":"%s",%s})",
              reqStr.c_str(), 
              _systemName.c_str(), 
-             _systemVersion.c_str(), 
+             _systemVersion.c_str(),
+             friendlyNameIsSet ? friendlyName.c_str() : "",
              serialNo.c_str(),
              _systemUniqueString.c_str(),
             hwRevJson.c_str());
