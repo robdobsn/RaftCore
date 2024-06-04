@@ -422,6 +422,7 @@ bool NetworkSystem::startWifi()
 
             // Set SSID we're trying to connect to
             String ssid = String((char*)currentWifiConfig.sta.ssid, sizeof(currentWifiConfig.sta.ssid));
+            ssid.trim();
             _wifiStaSSIDConnectingTo = ssid;
 
             // Debug
@@ -862,6 +863,7 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
         _wifiStaSSID = String((const char*)(pEvent->ssid),
                     pEvent->ssid_len > sizeof(wifi_event_sta_connected_t::ssid) ?
                     sizeof(wifi_event_sta_connected_t::ssid) : pEvent->ssid_len);
+        _wifiStaSSID.trim();
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station connected");
         break;
