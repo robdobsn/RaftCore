@@ -15,12 +15,13 @@
 /// @note isChangeToOnline indicates that the device was either in an unknown state or offline and has now become online
 /// @note isChangeToOffline indicates that the device was online has now become offline
 /// @note neither is set if the device was in an unknown state and is now known to be offline
+/// @note deviceTypeIndex is the index of the device type that can be discovered from the bus
 struct BusElemAddrAndStatus
 {
     uint32_t address;
     bool isChangeToOnline:1;
     bool isChangeToOffline:1;
-    String deviceType;
+    uint16_t deviceTypeIndex;
 };
 
 enum BusOperationStatus
