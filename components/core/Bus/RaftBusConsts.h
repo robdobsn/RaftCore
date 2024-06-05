@@ -20,6 +20,7 @@ struct BusElemAddrAndStatus
     uint32_t address;
     bool isChangeToOnline:1;
     bool isChangeToOffline:1;
+    String deviceType;
 };
 
 enum BusOperationStatus
