@@ -66,8 +66,9 @@ public:
     {
     public:
         std::vector<uint8_t> writeData;
-        std::vector<uint8_t> readDataMask;
-        std::vector<uint8_t> readDataCheck;
+        // First value is a mask and second value is the expected value to check against
+        // Result is true if any of the pairs match the read values
+        std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>> checkValues;
         uint16_t pauseAfterSendMs;
     };
 
@@ -103,6 +104,8 @@ private:
     static bool extractBufferDataFromHexStr(const String& writeStr, std::vector<uint8_t>& writeData);
     static bool extractMaskAndDataFromHexStr(const String& readStr, std::vector<uint8_t>& readDataMask, 
                 std::vector<uint8_t>& readDataCheck, bool maskToZeros);
+    static bool extractCheckInfoFromHexStr(const String& readStr, std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>& checkValues,
+                bool maskToZeros);
     static uint32_t extractReadDataSize(const String& readStr);
     static uint32_t extractBarAccessMs(const String& readStr);
 };

@@ -341,6 +341,37 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Extract check info from hex string
+/// @param readStr hex string
+/// @param checkValues (out) check values
+/// @param maskToZeros true if mask should be set to zeros
+bool DeviceTypeRecords::extractCheckInfoFromHexStr(const String& readStr, std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>& checkValues,
+            bool maskToZeros)
+{
+    checkValues.clear();
+    // Iterate over comma separated sections of string
+    String readStrLC = readStr;
+    readStrLC.toLowerCase();
+    while (readStrLC.length() > 0)
+    {
+        // Find next comma
+        int sectionIdx = readStrLC.indexOf(",");
+        if (sectionIdx < 0)
+            sectionIdx = readStrLC.length();
+        // Extract the check data
+        std::vector<uint8_t> readDataMask;
+        std::vector<uint8_t> readDataCheck;
+        if (!extractMaskAndDataFromHexStr(readStrLC.substring(0, sectionIdx), readDataMask, readDataCheck, maskToZeros))
+        {
+            return false;
+        }
+        checkValues.push_back(std::make_pair(readDataMask, readDataCheck));
+        readStrLC = readStrLC.substring(sectionIdx + 1);
+    }
+    return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Extract read data size
 /// @param readStr hex string
 /// @return number of bytes to read
@@ -402,7 +433,7 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
         DeviceDetectionRec detectionRec;
         if (!extractBufferDataFromHexStr(detectionNameValue.name, detectionRec.writeData))
             continue;
-        if (!extractMaskAndDataFromHexStr(detectionNameValue.value, detectionRec.readDataMask, detectionRec.readDataCheck, true))
+        if (!extractCheckInfoFromHexStr(detectionNameValue.value, detectionRec.checkValues, true))
             continue;
         detectionRec.pauseAfterSendMs = extractBarAccessMs(detectionNameValue.value);
         detectionRecs.push_back(detectionRec);
