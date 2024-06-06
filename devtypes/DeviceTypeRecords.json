@@ -193,7 +193,7 @@
             "_notes": "0x0a00 (FIFO disable), 0x1048 (Accel ODR 104Hz, FS 4g), 0x114c (Gyro ODR 104Hz, FS 2000dps), 0x22=r12 (read samples). Detection: 0x0f (WHOAMI) = 0x69 (LSM6DS3 & LSM6DS33), 0x6a (LSM6DSM) 0x6c (LSM6DSOX).",
             "addresses": "0x6a",
             "deviceType": "LSM6DS",
-            "detectionValues": "0x0f=0b01101x0x,0b01100x1x",
+            "detectionValues": "0x0f=0x69,0x6a,0x6c",
             "initValues": "0x0a00&0x1048&0x114c&0x1640",
             "pollInfo": {
                 "c": "0x22=r12",
