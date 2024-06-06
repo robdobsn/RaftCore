@@ -89,4 +89,5 @@ private:
     uint8_t _supervisorBusFirstIdx = 0;
 };
 
-
+// Access to single instance
+extern RaftBusSystem raftBusSystem;
