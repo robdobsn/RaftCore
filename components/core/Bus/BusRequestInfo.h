@@ -11,6 +11,7 @@
 #include <vector>
 #include "RaftArduino.h"
 #include "HWElemReq.h"
+#include "RaftBusConsts.h"
 
 class BusRequestResult;
 typedef void (*BusRequestCallbackType) (void*, BusRequestResult&);
@@ -34,19 +35,38 @@ public:
         clear();
     }
 
-    BusRequestInfo(const String& elemName, uint32_t address)
+    BusRequestInfo(const String& elemName, BusElemAddrType address)
     {
         clear();
         _elemName = elemName;
         _address = address;
     }
 
-    BusRequestInfo(const String& elemName, uint32_t address, const uint8_t* pData, uint32_t dataLen)
+    BusRequestInfo(const String& elemName, BusElemAddrType address, const uint8_t* pData, uint32_t dataLen)
     {
         clear();
         _elemName = elemName;
         _address = address;
         _writeData.assign(pData, pData+dataLen);
+    }
+
+    BusRequestInfo(BusReqType busReqType, BusElemAddrType address, uint32_t cmdId, uint32_t writeDataLen, 
+                const uint8_t* pWriteData, uint16_t readReqLen, uint16_t barAccessForMsAfterSend,
+                BusRequestCallbackType busReqCallback, void* pCallbackData)
+    {
+        clear();
+        _busReqType = busReqType;
+        _address = address;
+        _cmdId = cmdId;
+        if (writeDataLen > 0)
+            _writeData.assign(pWriteData, pWriteData+writeDataLen);
+        else
+            _writeData.clear();
+        _readReqLen = readReqLen;
+        _pCallbackData = pCallbackData;
+        _busReqCallback = busReqCallback;
+        _pollFreqHz = 1;
+        _barAccessForMsAfterSend = barAccessForMsAfterSend;
     }
 
     void set(BusReqType reqType, const HWElemReq& hwElemReq, 
@@ -110,17 +130,17 @@ public:
         return _writeData.data();
     }
 
-    uint32_t getWriteDataLen()
+    uint16_t getWriteDataLen()
     {
         return _writeData.size();
     }
 
-    uint32_t getReadReqLen()
+    uint16_t getReadReqLen()
     {
         return _readReqLen;
     }
 
-    uint32_t getAddressUint32()
+    BusElemAddrType getAddressUint32()
     {
         return _address;
     }
@@ -130,12 +150,12 @@ public:
         return _cmdId;
     }
 
-    void setBarAccessForMsAfterSend(uint32_t barMs)
+    void setBarAccessForMsAfterSend(uint16_t barMs)
     {
         _barAccessForMsAfterSend = barMs;
     }    
 
-    uint32_t getBarAccessForMsAfterSend()
+    uint16_t getBarAccessForMsAfterSend()
     {
         return _barAccessForMsAfterSend;
     }    
@@ -156,7 +176,7 @@ private:
     BusReqType _busReqType;
 
     // Address
-    uint32_t _address;
+    BusElemAddrType _address;
 
     // CmdId
     uint32_t _cmdId;
@@ -165,7 +185,7 @@ private:
     std::vector<uint8_t> _writeData;
 
     // Read data
-    uint32_t _readReqLen;
+    uint16_t _readReqLen;
 
     // Elem name
     String _elemName;
@@ -180,5 +200,5 @@ private:
     float _pollFreqHz;
 
     // Bar access to element after request for a period
-    uint32_t _barAccessForMsAfterSend;
+    uint16_t _barAccessForMsAfterSend;
 };

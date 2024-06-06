@@ -1,0 +1,22 @@
+{
+    "SysTypeName": "unittest",
+    "SysManager": {
+        "monitorPeriodMs":10000,
+        "reportList":[
+            "NetMan",
+            "SysMan"
+        ],
+        "slowSysModMs": 50
+    },
+    "SerialConsole": {
+        "enable": 1,
+        "uartNum": 0,
+        "rxBuf": 5000,
+        "txBuf": 1500,
+        "crlfOnTx": 1,
+        "protocol": "RICSerial",
+        "logLevel": "D"
+    },
+    "unittest": {    
+    }
+}

@@ -1,6 +1,10 @@
 # Ensure CMake supports FetchContent
 cmake_minimum_required(VERSION 3.16)
 
+# Set the build artifacts directory
+set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
+file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
+
 set(RAFT_CORE_REQUIRES 
   nvs_flash
   driver
@@ -49,6 +53,7 @@ idf_component_register(
     "components/core/ConfigPinMap/ConfigPinMap.cpp"
     "components/core/DebounceButton/DebounceButton.cpp"
     "components/core/DebugGlobals/DebugGlobals.cpp"
+    "components/core/DeviceTypes/DeviceTypeRecords.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
@@ -97,6 +102,7 @@ idf_component_register(
     "components/core/ConfigPinMap"
     "components/core/DebounceButton"
     "components/core/DebugGlobals"
+    "components/core/DeviceTypes"
     "components/core/DNSResolver"
     "components/core/ExpressionEval"
     "components/core/FileSystem"
@@ -123,3 +129,23 @@ idf_component_register(
   REQUIRES
     ${RAFT_CORE_REQUIRES}
 )
+
+# Find Python
+find_package(Python3 REQUIRED)
+
+# Device type record paths
+set(JSON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/devtypes/DeviceTypeRecords.json")
+set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
+set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
+
+# Custom command to generate device type records header file from JSON
+add_custom_command(
+    OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "${JSON_FILE}" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
+    DEPENDS ${JSON_FILE}
+    COMMENT "---------------------- Generating Device Record headers from JSON ---------------------------"
+)
+
+add_custom_target(generate_dev_ident_header DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
+
+add_dependencies(${COMPONENT_LIB} generate_dev_ident_header)
