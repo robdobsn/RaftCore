@@ -50,6 +50,7 @@ public:
     // Pattern handling
     void setPattern(const String& patternName, const char* pParamsJson=nullptr);
     void addPattern(const String& patternName, LEDPatternCreateFn createFn);
+    void getPatternNames(std::vector<String>& patternNames);
 
     // Write to an individual LED
     void setRGB(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness=true);
@@ -105,6 +106,8 @@ private:
     // Current pattern
     LEDPatternBase* _pCurrentPattern = nullptr;
     String _currentPatternName;
+    uint32_t _patternStartMs = 0;
+    uint32_t _patternDurationMs = 0;
 };
 
 #endif

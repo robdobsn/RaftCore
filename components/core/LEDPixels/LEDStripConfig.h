@@ -86,8 +86,9 @@ public:
         String colourOrderStr = config.getString("colorOrder", config.getString("colourOrder", "GRB").c_str());
         colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
 
-        // Get pattern
+        // Get initial pattern
         initialPattern = config.getString("pattern", "");
+        initialPatternMs = config.getLong("patternMs", 0);
 
         // Brightness percent
         pixelBrightnessFactor = config.getDouble("brightnessPC", pixelBrightnessFactor*100.0) / 100.0;
@@ -137,6 +138,7 @@ public:
     // Parameters
     LEDPixel::ColourOrder colourOrder = LEDPixel::RGB;
     String initialPattern;
+    uint32_t initialPatternMs = 0;
     Raft::RGBValue startupFirstPixelColour;
     float pixelBrightnessFactor = 1.0;
 

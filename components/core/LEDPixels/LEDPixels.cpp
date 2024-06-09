@@ -68,7 +68,10 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
     }
 
     // Set pattern
-    setPattern(_ledStripConfig.initialPattern);
+    if (_ledStripConfig.initialPattern.length() > 0)
+    {
+        setPattern(_ledStripConfig.initialPattern, ("{\"forMs\":" + String(_ledStripConfig.initialPatternMs) + "}").c_str());
+    }
 
     // Log
     LOG_I(MODULE_PREFIX, "setup %s numStrips %d totalPixels %d", 
@@ -82,9 +85,16 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
 
 void LEDPixels::loop()
 {
-    // Service pattern that is active
+    // Check if pattern active
     if (_pCurrentPattern)
     {
+        if ((_patternDurationMs > 0) && Raft::isTimeout(millis(), _patternStartMs, _patternDurationMs))
+        {
+            setPattern("");
+            return;
+        }
+
+        // Service pattern
         _pCurrentPattern->loop();
     }
 }
@@ -139,15 +149,39 @@ void LEDPixels::setPattern(const String& patternName, const char* pParamsJson)
                 // Setup
                 _pCurrentPattern->setup(pParamsJson);
 
+                // Check if pattern duration is specified
+                if (pParamsJson)
+                {
+                    RaftJson paramsJson(pParamsJson);
+                    _patternDurationMs = paramsJson.getInt("forMs", 0);
+                }
+                _patternStartMs = millis();
+
                 // Debug
-                LOG_I(MODULE_PREFIX, "setPattern %s OK", patternName.c_str());
+                LOG_I(MODULE_PREFIX, "setPattern %s OK paramsJson %s durationMs %d", 
+                        patternName.c_str(), pParamsJson ? pParamsJson : "NONE", _patternDurationMs);
             }
             return;
         }
     }
 
+    // Clear LEDs
+    clear(true);
+
     // Debug
-    LOG_W(MODULE_PREFIX, "setPattern %s PATTERN NOT FOUND", patternName.c_str());
+    LOG_I(MODULE_PREFIX, "setPattern %s", patternName.length() > 0 ? "PATTERN NOT FOUND" : "pattern cleared");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get pattern names
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void LEDPixels::getPatternNames(std::vector<String>& patternNames)
+{
+    for (auto& pattern : _ledPatterns)
+    {
+        patternNames.push_back(pattern.name);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +199,7 @@ void LEDPixels::setRGB(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool
     // Set pixel
     _pixels[ledIdx].fromRGB(r, g, b, _ledStripConfig.colourOrder, applyBrightness ? _ledStripConfig.pixelBrightnessFactor : 1.0f);
 #ifdef DEBUG_LED_PIXEL_VALUES
-    LOG_I(MODULE_PREFIX, "setPixelColor %d r %d g %d b %d order %d val %08x", ledIdx, r, g, b, _colourOrder, _pixels[ledIdx].getRaw());
+    LOG_I(MODULE_PREFIX, "setPixelColor %d r %d g %d b %d order %d val %08x", ledIdx, r, g, b, _ledStripConfig.colourOrder, _pixels[ledIdx].getRaw());
 #endif
 }
 
@@ -241,6 +275,7 @@ void LEDPixels::waitUntilShowComplete()
 
 void LEDPixels::clear(bool showAfterClear)
 {
+    // Clear pixels
     for (auto& pix : _pixels)
     {
         pix.clear();
