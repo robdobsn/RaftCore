@@ -97,7 +97,7 @@ public:
         String startupFirstPixelStr = config.getString("startupFirstPixel", "000000");
         startupFirstPixelColour = Raft::getRGBFromHex(startupFirstPixelStr);
 
-        // Power pin for LED strips (powerLevel is the pin level to turn power on)
+        // Power pin for LED strips (powerOnLevel is the pin level to turn power on)
         powerPin = config.getLong("powerPin", -1);
         powerOnLevel = config.getLong("powerOnLevel", 1);
 
@@ -146,7 +146,7 @@ public:
     Raft::RGBValue startupFirstPixelColour;
     float pixelBrightnessFactor = 1.0;
     int powerPin = -1;
-    int powerLevel = 1;
+    int powerOnLevel = 1;
 
     // LED strips
     uint32_t totalPixels = 0;
