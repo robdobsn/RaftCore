@@ -57,6 +57,13 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
     // Setup pixels
     _pixels.resize(_ledStripConfig.totalPixels);
 
+    // Turn power on if required
+    if (_ledStripConfig.powerPin >= 0)
+    {
+        pinMode(_ledStripConfig.powerPin, OUTPUT);
+        digitalWrite(_ledStripConfig.powerPin, _ledStripConfig.powerOnLevel);
+    }
+
     // Setup hardware
     _ledStrips.resize(_ledStripConfig.hwConfigs.size());
     bool rslt = false;
