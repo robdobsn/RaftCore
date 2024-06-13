@@ -260,7 +260,7 @@ def genCppFileFromJSON(inFile, outFile, template) -> None:
             for line in sys_type_lines:
                 indentGrp = re.search(r'^\s*', line)
                 indentText = indentGrp.group(0) if indentGrp else ""
-                outFile.write(f'    {indentText}R"({line.strip()})"\n')
+                outFile.write(f'    {indentText}R"~_~({line.strip()})~_~"\n')
 
             # Closing brace for the JSON
             outFile.write('}')
