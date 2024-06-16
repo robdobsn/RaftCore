@@ -13,6 +13,7 @@
 #ifndef INADDR_NONE
 #define INADDR_NONE         ((uint32_t)0xffffffffUL)
 #endif
+#include <stdarg.h>
 
 // Debug
 // #define DEBUG_EXTRACT_NAME_VALUES
@@ -1372,4 +1373,18 @@ void Raft::trimString(String& str)
     str.trim();
     while (str.length() > 0 && str[str.length()-1] == 0)
         str.remove(str.length()-1);
+}
+
+/// @brief Format a string with a variable number of arguments
+/// @param fmt Format string
+/// @param ... Variable arguments
+/// @return Formatted string
+String Raft::formatString(uint32_t maxLen, const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    char buf[maxLen];
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    return String(buf);
 }

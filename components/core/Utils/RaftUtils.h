@@ -454,6 +454,12 @@ namespace Raft
     /// @brief Trim a String including removing trailing null terminators
     /// @param str String to trim
     void trimString(String& str);
+
+    /// @brief Format a string with a variable number of arguments
+    /// @param fmt Format string
+    /// @param ... Variable arguments
+    /// @return Formatted string
+    String formatString(const char* fmt, ...);
 };
 
 /// @brief Name value pair double
