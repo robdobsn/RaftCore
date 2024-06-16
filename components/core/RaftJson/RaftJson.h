@@ -181,6 +181,23 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get array integers using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param strList a vector which is filled with the array integers
+    /// @return true if the array was found
+    /// @note This is a convenience function for the common case of an array of integers and assumes that
+    ///       the array elements are all integers - any non-integer elements will be converted to 0
+    virtual bool getArrayInts(const char *pDataPath, std::vector<int>& intList) const override
+    {
+        std::vector<String> strList;
+        if (!getArrayElemsIm(_pSourceStr, _pSourceEnd, pDataPath, strList, _pChainedRaftJson))
+            return false;
+        for (String& str : strList)
+            intList.push_back(str.toInt());
+        return true;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get keys of an object using the member variable JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param keysVector a vector which is filled with the keys
