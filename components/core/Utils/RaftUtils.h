@@ -456,10 +456,11 @@ namespace Raft
     void trimString(String& str);
 
     /// @brief Format a string with a variable number of arguments
+    /// @param maxLen Maximum length of the formatted string
     /// @param fmt Format string
     /// @param ... Variable arguments
     /// @return Formatted string
-    String formatString(const char* fmt, ...);
+    String formatString(uint32_t maxLen, const char* fmt, ...);
 };
 
 /// @brief Name value pair double

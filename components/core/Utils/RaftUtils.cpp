@@ -1376,6 +1376,7 @@ void Raft::trimString(String& str)
 }
 
 /// @brief Format a string with a variable number of arguments
+/// @param maxLen Maximum length of the formatted string
 /// @param fmt Format string
 /// @param ... Variable arguments
 /// @return Formatted string
