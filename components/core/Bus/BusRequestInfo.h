@@ -79,42 +79,47 @@ public:
         _barAccessForMsAfterSend = hwElemReq._barAccessAfterSendMs;
     }
 
-    BusReqType getBusReqType()
+    BusReqType getBusReqType() const
     {
         return _busReqType;
     }
 
-    BusRequestCallbackType getCallback()
+    BusRequestCallbackType getCallback() const
     {
         return _busReqCallback;
     }
 
-    void* getCallbackParam()
+    void* getCallbackParam() const
     {
         return _pCallbackData; 
     }
 
-    bool isPolling()
+    bool isPolling() const
     {
         return _busReqType == BUS_REQ_TYPE_POLL;
     }
 
-    double getPollFreqHz()
+    double getPollFreqHz() const
     {
         return _pollFreqHz;
     }
 
-    bool isFWUpdate()
+    bool isFWUpdate() const
     {
         return _busReqType == BUS_REQ_TYPE_FW_UPDATE;
     }
 
-    bool isFastScan()
+    bool isFastScan() const
     {
         return _busReqType == BUS_REQ_TYPE_FAST_SCAN;
     }
 
-    bool isSlowScan()
+    bool isScan() const
+    {
+        return _busReqType == BUS_REQ_TYPE_FAST_SCAN || _busReqType == BUS_REQ_TYPE_SLOW_SCAN;
+    }
+
+    bool isSlowScan() const
     {
         return _busReqType == BUS_REQ_TYPE_SLOW_SCAN;
     }
@@ -126,22 +131,22 @@ public:
         return _writeData.data();
     }
 
-    uint16_t getWriteDataLen()
+    uint16_t getWriteDataLen() const
     {
         return _writeData.size();
     }
 
-    uint16_t getReadReqLen()
+    uint16_t getReadReqLen() const
     {
         return _readReqLen;
     }
 
-    BusElemAddrType getAddress()
+    BusElemAddrType getAddress() const
     {
         return _address;
     }
 
-    uint32_t getCmdId()
+    uint32_t getCmdId() const
     {
         return _cmdId;
     }
@@ -151,7 +156,7 @@ public:
         _barAccessForMsAfterSend = barMs;
     }    
 
-    uint16_t getBarAccessForMsAfterSend()
+    uint16_t getBarAccessForMsAfterSend() const
     {
         return _barAccessForMsAfterSend;
     }
