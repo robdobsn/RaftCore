@@ -124,7 +124,7 @@ public:
         return _busReqType == BUS_REQ_TYPE_SLOW_SCAN;
     }
 
-    uint8_t* getWriteData()
+    uint8_t* getWriteData() const
     {
         if (_writeData.size() == 0)
             return NULL;
