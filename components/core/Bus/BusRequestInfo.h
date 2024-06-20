@@ -32,19 +32,16 @@ class BusRequestInfo
 public:
     BusRequestInfo()
     {
-        clear();
     }
 
     BusRequestInfo(const String& elemName, BusElemAddrType address)
     {
-        clear();
         _elemName = elemName;
         _address = address;
     }
 
     BusRequestInfo(const String& elemName, BusElemAddrType address, const uint8_t* pData, uint32_t dataLen)
     {
-        clear();
         _elemName = elemName;
         _address = address;
         _writeData.assign(pData, pData+dataLen);
@@ -54,7 +51,6 @@ public:
                 const uint8_t* pWriteData, uint16_t readReqLen, uint16_t barAccessForMsAfterSend,
                 BusRequestCallbackType busReqCallback, void* pCallbackData)
     {
-        clear();
         _busReqType = busReqType;
         _address = address;
         _cmdId = cmdId;
@@ -173,32 +169,32 @@ private:
     }
 
     // Request type
-    BusReqType _busReqType;
+    BusReqType _busReqType = BUS_REQ_TYPE_STD;
 
     // Address
-    BusElemAddrType _address;
+    BusElemAddrType _address = 0;
 
     // CmdId
-    uint32_t _cmdId;
+    uint32_t _cmdId = 0;
 
     // Write data
     std::vector<uint8_t> _writeData;
 
     // Read data
-    uint16_t _readReqLen;
+    uint16_t _readReqLen = 0;
 
     // Elem name
     String _elemName;
 
     // Data to include in callback
-    void* _pCallbackData;
+    void* _pCallbackData = nullptr;
 
     // Callback
-    BusRequestCallbackType _busReqCallback;
+    BusRequestCallbackType _busReqCallback = nullptr;
 
     // Polling
-    float _pollFreqHz;
+    float _pollFreqHz = 0;
 
     // Bar access to element after request for a period
-    uint16_t _barAccessForMsAfterSend;
+    uint16_t _barAccessForMsAfterSend = 0;
 };
