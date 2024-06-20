@@ -154,9 +154,8 @@ public:
     uint16_t getBarAccessForMsAfterSend()
     {
         return _barAccessForMsAfterSend;
-    }    
-
-private:
+    }
+    
     void clear()
     {
         _pollFreqHz = 1.0;
@@ -168,6 +167,7 @@ private:
         _barAccessForMsAfterSend = 0;
     }
 
+private:
     // Request type
     BusReqType _busReqType = BUS_REQ_TYPE_STD;
 
