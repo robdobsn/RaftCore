@@ -136,7 +136,7 @@ public:
         return _readReqLen;
     }
 
-    BusElemAddrType getAddressUint32()
+    BusElemAddrType getAddress()
     {
         return _address;
     }
