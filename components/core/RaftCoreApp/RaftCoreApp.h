@@ -12,6 +12,7 @@
 #include "SysTypeManager.h"
 #include "CommsChannelManager.h"
 #include "ProtocolExchange.h"
+#include "DeviceManager.h"
 
 class RaftCoreApp
 {
@@ -86,6 +87,9 @@ private:
 
     // ProtocolExchange
     ProtocolExchange _protocolExchange;
+
+    // Device manager
+    DeviceManager _deviceManager;
 
     // SysManager is setup
     bool _sysManagerSetupDone = false;
