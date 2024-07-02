@@ -91,23 +91,23 @@ public:
     /// @param buf (out) buffer to receive the binary data
     /// @param bufMaxLen maximum length of data to return
     /// @return RaftRetCode
-    virtual RaftRetCode getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen);
+    virtual RaftRetCode getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen) const;
 
     /// @brief Get JSON data from the device
     /// @param level Level of data to return
     /// @return JSON string
-    virtual String getDataJSON(RaftDeviceJSONLevel level = DEVICE_JSON_LEVEL_MIN);
+    virtual String getDataJSON(RaftDeviceJSONLevel level = DEVICE_JSON_LEVEL_MIN) const;
 
     /// @brief Get named value from the device
     /// @param pParam Parameter name
     /// @param isFresh (out) true if the value is fresh
     /// @return double value
-    virtual double getNamedValue(const char* pParam, bool& isFresh);
+    virtual double getNamedValue(const char* pParam, bool& isFresh) const;
 
     /// @brief Check if device has capability
     /// @param pCapabilityStr capability string
     /// @return true if the device has the capability
-    virtual bool hasCapability(const char* pCapabilityStr);    
+    virtual bool hasCapability(const char* pCapabilityStr) const;
 
 protected:
     // Device configuration

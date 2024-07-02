@@ -96,7 +96,7 @@ RaftRetCode RaftDevice::sendCmdJSON(const char* jsonCmd)
 /// @param buf (out) buffer to receive the binary data
 /// @param bufMaxLen maximum length of data to return
 /// @return RaftRetCode
-RaftRetCode RaftDevice::getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen)
+RaftRetCode RaftDevice::getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen) const
 {
     return RAFT_NOT_IMPLEMENTED;
 }
@@ -104,7 +104,7 @@ RaftRetCode RaftDevice::getDataBinary(uint32_t formatCode, std::vector<uint8_t>&
 /// @brief Get JSON data from the device
 /// @param level Level of data to return
 /// @return JSON string
-String RaftDevice::getDataJSON(RaftDeviceJSONLevel level)
+String RaftDevice::getDataJSON(RaftDeviceJSONLevel level) const
 {
     return "{}";
 }
@@ -113,7 +113,7 @@ String RaftDevice::getDataJSON(RaftDeviceJSONLevel level)
 /// @param pParam Parameter name
 /// @param isFresh (out) true if the value is fresh
 /// @return double value
-double RaftDevice::getNamedValue(const char* pParam, bool& isFresh)
+double RaftDevice::getNamedValue(const char* pParam, bool& isFresh) const
 {
     isFresh = false;
     return 0.0;
@@ -122,7 +122,7 @@ double RaftDevice::getNamedValue(const char* pParam, bool& isFresh)
 /// @brief Check if device has capability
 /// @param pCapabilityStr capability string
 /// @return true if the device has the capability
-bool RaftDevice::hasCapability(const char* pCapabilityStr)
+bool RaftDevice::hasCapability(const char* pCapabilityStr) const
 {
     return false;
 }
