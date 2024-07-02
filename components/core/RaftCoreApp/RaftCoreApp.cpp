@@ -71,7 +71,7 @@ RaftCoreApp::RaftCoreApp() :
     _sysManager("SysManager", _systemConfig, "system", _sysTypeManager),
     _commsChannelManager("CommsMan", _systemConfig),
     _protocolExchange("ProtExchg", _systemConfig),
-    _deviceManager("DevMan", _systemConfig),
+    _deviceManager("DevMan", _systemConfig)
 {
     // Chain the default config to the SysType so that it is used as a fallback
     // if no SysTypes are specified
