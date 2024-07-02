@@ -33,7 +33,6 @@ static bool testGetString(const char* pathPrefix,
 }
 
 #define SYSTEM_NAME "FirmwareESP32"
-#define SYSTEM_VERSION "0.0.3"
 const char* testJSONConfigBase =
     R"({)"
     R"("SystemName":")" SYSTEM_NAME R"(",)"
