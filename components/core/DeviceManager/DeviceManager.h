@@ -26,6 +26,11 @@ public:
         return new DeviceManager(pModuleName, sysConfig);
     }
 
+    /// @brief Get a device by name
+    /// @param pDeviceName Name of the device
+    /// @return RaftDevice* Pointer to the device or nullptr if not found
+    RaftDevice* getDevice(const char* pDeviceName) const;
+
 protected:
 
     // Setup

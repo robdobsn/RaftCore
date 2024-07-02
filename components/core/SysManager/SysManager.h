@@ -23,6 +23,7 @@
 #include "RaftJsonNVS.h"
 #include "SysModFactory.h"
 #include "ProtocolExchange.h"
+#include "DeviceManager.h"
 #include "SysTypeManager.h"
 
 typedef String (*SysManager_statsCB)();
@@ -162,6 +163,16 @@ public:
     ProtocolExchange* getProtocolExchange()
     {
         return _pProtocolExchange;
+    }
+
+    // Device manager
+    void setDeviceManager(DeviceManager* pDeviceManager)
+    {
+        _pDeviceManager = pDeviceManager;
+    }
+    DeviceManager* getDeviceManager()
+    {
+        return _pDeviceManager;
     }
 
     // Get supervisor stats
@@ -324,6 +335,9 @@ private:
 
     // Protocol exchange
     ProtocolExchange* _pProtocolExchange = nullptr;
+
+    // Device manager
+    DeviceManager* _pDeviceManager = nullptr;
 
     // API to reset system
     RaftRetCode apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);

@@ -279,3 +279,17 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
     LOG_I(MODULE_PREFIX, "getDevicesHash %s", ("Hash " + String(stateHash[0],16) + String(stateHash[1],16)).c_str());
 #endif
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a device by name
+/// @param pDeviceName Name of the device
+/// @return RaftDevice* Pointer to the device or nullptr if not found
+RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
+{
+    for (auto* pDevice : _deviceList)
+    {
+        if (pDevice && pDevice->getDeviceName() == pDeviceName)
+            return pDevice;
+    }
+    return nullptr;
+}

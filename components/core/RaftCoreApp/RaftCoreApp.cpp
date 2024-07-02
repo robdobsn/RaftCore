@@ -90,6 +90,7 @@ RaftCoreApp::RaftCoreApp() :
     _sysManager.setRestAPIEndpoints(_restAPIEndpointManager);
     _sysManager.setCommsCore(&_commsChannelManager);
     _sysManager.setProtocolExchange(&_protocolExchange);
+    _sysManager.setDeviceManager(&_deviceManager);
     _sysManager.preSetup();
 
     // Get the app version (maybe overridden by SysType)
