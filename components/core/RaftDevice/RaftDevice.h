@@ -10,6 +10,7 @@
 
 #include "RaftArduino.h"
 #include "RaftJson.h"
+#include "RaftRetCode.h"
 
 class RestAPIEndpointManager;
 class CommsCoreIF;
@@ -45,6 +46,9 @@ public:
         return publishDeviceType;
     }
 
+    // @brief Setup the device
+    virtual void setup();
+
     // @brief Main loop for the device (called frequently)
     virtual void loop();
 
@@ -68,6 +72,31 @@ public:
     // @brief Get the device status as JSON
     // @return JSON string
     virtual String getStatusJSON() const;
+
+    /// @brief Send a binary command to the device
+    /// @param formatCode Format code for the command
+    /// @param pData Pointer to the data
+    /// @param dataLen Length of the data
+    /// @return RaftRetCode
+    virtual RaftRetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen);
+
+    /// @brief Send a JSON command to the device
+    /// @param jsonCmd JSON command
+    /// @return RaftRetCode
+    virtual RaftRetCode sendCmdJSON(const char* jsonCmd);
+
+    /// @brief Get binary values from the device
+    /// @param formatCode format code for the command
+    /// @param buf (out) buffer to receive the binary values
+    /// @param bufMaxLen maximum length of data to return
+    /// @return RaftRetCode
+    virtual RaftRetCode getValsBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen);
+
+    /// @brief Get named value from the device
+    /// @param pParam Parameter name
+    /// @param isFresh (out) true if the value is fresh
+    /// @return double value
+    virtual double getNamedValue(const char* pParam, bool& isFresh);
 
 protected:
     // Device configuration

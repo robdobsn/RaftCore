@@ -30,6 +30,11 @@ RaftDevice::~RaftDevice()
 {
 }
 
+// @brief Setup the device
+void RaftDevice::setup()
+{
+}
+
 // @brief Main loop for the device
 void RaftDevice::loop()
 {
@@ -66,4 +71,42 @@ uint32_t RaftDevice::getLastStatusUpdateMs(bool includeElemOnlineStatusChanges, 
 String RaftDevice::getStatusJSON() const
 {
     return "{}";
+}
+
+/// @brief Send a binary command to the device
+/// @param formatCode Format code for the command
+/// @param pData Pointer to the data
+/// @param dataLen Length of the data
+/// @return RaftRetCode
+RaftRetCode RaftDevice::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
+{
+    return RAFT_NOT_IMPLEMENTED;
+}
+
+/// @brief Send a JSON command to the device
+/// @param jsonCmd JSON command
+/// @return RaftRetCode
+RaftRetCode RaftDevice::sendCmdJSON(const char* jsonCmd)
+{
+    return RAFT_NOT_IMPLEMENTED;
+}
+
+/// @brief Get binary values from the device
+/// @param formatCode format code for the command
+/// @param buf (out) buffer to receive the binary values
+/// @param bufMaxLen maximum length of data to return
+/// @return RaftRetCode
+RaftRetCode RaftDevice::getValsBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen)
+{
+    return RAFT_NOT_IMPLEMENTED;
+}
+
+/// @brief Get named value from the device
+/// @param pParam Parameter name
+/// @param isFresh (out) true if the value is fresh
+/// @return double value
+double RaftDevice::getNamedValue(const char* pParam, bool& isFresh)
+{
+    isFresh = false;
+    return 0.0;
 }
