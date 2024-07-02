@@ -91,14 +91,22 @@ RaftRetCode RaftDevice::sendCmdJSON(const char* jsonCmd)
     return RAFT_NOT_IMPLEMENTED;
 }
 
-/// @brief Get binary values from the device
+/// @brief Get binary data from the device
 /// @param formatCode format code for the command
-/// @param buf (out) buffer to receive the binary values
+/// @param buf (out) buffer to receive the binary data
 /// @param bufMaxLen maximum length of data to return
 /// @return RaftRetCode
-RaftRetCode RaftDevice::getValsBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen)
+RaftRetCode RaftDevice::getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen)
 {
     return RAFT_NOT_IMPLEMENTED;
+}
+
+/// @brief Get JSON data from the device
+/// @param level Level of data to return
+/// @return JSON string
+String RaftDevice::getDataJSON(RaftDeviceJSONLevel level = DEVICE_JSON_LEVEL_MIN)
+{
+    return "{}";
 }
 
 /// @brief Get named value from the device
@@ -109,4 +117,12 @@ double RaftDevice::getNamedValue(const char* pParam, bool& isFresh)
 {
     isFresh = false;
     return 0.0;
+}
+
+/// @brief Check if device has capability
+/// @param pCapabilityStr capability string
+/// @return true if the device has the capability
+bool RaftDevice::hasCapability(const char* pCapabilityStr)
+{
+    return false;
 }

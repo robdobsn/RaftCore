@@ -11,6 +11,7 @@
 #include "RaftArduino.h"
 #include "RaftJson.h"
 #include "RaftRetCode.h"
+#include "RaftDeviceJSONLevel.h"
 
 class RestAPIEndpointManager;
 class CommsCoreIF;
@@ -85,18 +86,28 @@ public:
     /// @return RaftRetCode
     virtual RaftRetCode sendCmdJSON(const char* jsonCmd);
 
-    /// @brief Get binary values from the device
+    /// @brief Get binary data from the device
     /// @param formatCode format code for the command
-    /// @param buf (out) buffer to receive the binary values
+    /// @param buf (out) buffer to receive the binary data
     /// @param bufMaxLen maximum length of data to return
     /// @return RaftRetCode
-    virtual RaftRetCode getValsBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen);
+    virtual RaftRetCode getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen);
+
+    /// @brief Get JSON data from the device
+    /// @param level Level of data to return
+    /// @return JSON string
+    virtual String getDataJSON(RaftDeviceJSONLevel level = DEVICE_JSON_LEVEL_MIN);
 
     /// @brief Get named value from the device
     /// @param pParam Parameter name
     /// @param isFresh (out) true if the value is fresh
     /// @return double value
     virtual double getNamedValue(const char* pParam, bool& isFresh);
+
+    /// @brief Check if device has capability
+    /// @param pCapabilityStr capability string
+    /// @return true if the device has the capability
+    virtual bool hasCapability(const char* pCapabilityStr);    
 
 protected:
     // Device configuration

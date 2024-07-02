@@ -13,7 +13,6 @@
 #include "BusRequestInfo.h"
 #include "RaftJsonPrefixed.h"
 #include "ConfigPinMap.h"
-#include "HWElemConsts.h"
 #include "RaftUtils.h"
 #include "RaftArduino.h"
 

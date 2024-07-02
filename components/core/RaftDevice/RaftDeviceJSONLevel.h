@@ -1,17 +1,16 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Hardware Element Constants
+// Device JSON Level
 //
-// Rob Dobson 2022
+// Rob Dobson 2024
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
 
-// Status level
-enum HWElemStatusLevel_t
+enum RaftDeviceJSONLevel
 {
-    ELEM_STATUS_LEVEL_NONE,
-    ELEM_STATUS_LEVEL_MIN,
-    ELEM_STATUS_LEVEL_FULL
+    DEVICE_JSON_LEVEL_MIN = 0,
+    DEVICE_JSON_LEVEL_BASIC = 1,
+    DEVICE_JSON_LEVEL_FULL = 2
 };
