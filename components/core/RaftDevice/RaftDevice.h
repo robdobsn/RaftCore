@@ -45,9 +45,6 @@ public:
         return publishDeviceType;
     }
 
-    // @brief Setup the device
-    virtual void setup();
-
     // @brief Main loop for the device (called frequently)
     virtual void loop();
 

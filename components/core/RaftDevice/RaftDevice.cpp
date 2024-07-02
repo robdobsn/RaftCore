@@ -30,11 +30,6 @@ RaftDevice::~RaftDevice()
 {
 }
 
-// @brief Setup the device
-void RaftDevice::setup()
-{
-}
-
 // @brief Main loop for the device
 void RaftDevice::loop()
 {
