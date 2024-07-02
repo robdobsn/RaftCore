@@ -104,7 +104,7 @@ RaftRetCode RaftDevice::getDataBinary(uint32_t formatCode, std::vector<uint8_t>&
 /// @brief Get JSON data from the device
 /// @param level Level of data to return
 /// @return JSON string
-String RaftDevice::getDataJSON(RaftDeviceJSONLevel level = DEVICE_JSON_LEVEL_MIN)
+String RaftDevice::getDataJSON(RaftDeviceJSONLevel level)
 {
     return "{}";
 }
