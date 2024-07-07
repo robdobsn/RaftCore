@@ -188,6 +188,8 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
                 pDevice ? pDevice->getDeviceName() : "UNKNOWN");
             
     }
+    if (_deviceList.size() == 0)
+        LOG_I(MODULE_PREFIX, "No devices found");
 #endif
 }
 
