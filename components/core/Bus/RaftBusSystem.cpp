@@ -13,7 +13,8 @@
 // Warn
 #define WARN_ON_NO_BUSES_DEFINED
 
-static const char *MODULE_PREFIX = "RaftBusSystem";
+// Debug
+#define DEBUG_BUSES_CONFIGURATION
 
 // Debug supervisor step (for hangup detection within a service call)
 // Uses global logger variables - see logger.h

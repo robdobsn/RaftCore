@@ -74,6 +74,9 @@ public:
     }
 
 private:
+    // Debug
+    static constexpr const char *MODULE_PREFIX = "RaftBusSystem";
+
     // List of bus types that can be created
     std::list<RaftBusFactoryTypeDef> _busFactoryTypeList;
 
