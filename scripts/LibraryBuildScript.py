@@ -35,4 +35,4 @@ def generate_device_records(source, target, env):
         print("Generated device records successfully")
 
 # Register the custom builder
-env.AddPreAction("buildprog", generate_device_records)
+env.AddPreAction("checkprogsize", generate_device_records)
