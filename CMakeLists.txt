@@ -15,7 +15,6 @@ set(RAFT_CORE_REQUIRES
   esp_wifi
   esp_eth
   esp_timer
-  mdns
 )
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
@@ -57,6 +56,7 @@ idf_component_register(
     "components/core/DeviceManager/DeviceManager.cpp"
     "components/core/DeviceTypes/DeviceTypeRecords.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
+    "components/core/ESPMDNS/mdns.c"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
     "components/core/ExpressionEval/tinyexpr.c"
@@ -108,6 +108,7 @@ idf_component_register(
     "components/core/DeviceManager"
     "components/core/DeviceTypes"
     "components/core/DNSResolver"
+    "components/core/ESPMDNS"
     "components/core/ExpressionEval"
     "components/core/FileSystem"
     "components/core/LEDPixels"

@@ -1,6 +1,6 @@
 {
     "name": "RaftCore",
-    "version": "1.11.14",
+    "version": "1.11.15",
     "description": "Core elements for the Raft ESP32 framework",
     "keywords": "esp32, esp32s3, framework",
     "category": "Communication",
@@ -16,68 +16,33 @@
     }],
     "license": "MIT",
     "homepage": "https://github.com/robdobsn/RaftCore",
-    "frameworks": [
-        "arduino",
-        "espidf"
-    ],
-    "platforms": [
-        "*"
+    "frameworks": "*",
+    "platforms": "*",
+    "export": {
+        "include": ["components", "LICENSE.txt", "RaftCore.h"]
+      },
+    "headers": "RaftCore.h",
+    "dependencies": [
+        { 
+            "name": "littlefs",
+            "version": "https://github.com/joltwallet/esp_littlefs.git"
+        },
+        { 
+            "name": "ESPProtocols",
+            "version": "https://github.com/espressif/esp-protocols/archive/refs/tags/mqtt_cxx-v0.4.0.zip"
+        }
     ],
     "build": {
         "srcDir": "components",
-        "includeDir": "components",
-        "libLDFMode": "deep+",
-        "libArchive": false,
-        "extraScript": "scripts/LibraryBuildScript.py",
-        "flags": [
-            "-DJSMN_PARENT_LINKS",
-            "-DJSMN_STRICT",
-            "-Icomponents/comms/CommsBridgeMsg",
-            "-Icomponents/comms/CommsChannelMsg",
-            "-Icomponents/comms/CommsChannels",
-            "-Icomponents/comms/CommsCoreIF",
-            "-Icomponents/comms/FileStreamProtocols",
-            "-Icomponents/comms/ProtocolBase",
-            "-Icomponents/comms/ProtocolExchange",
-            "-Icomponents/comms/ProtocolOverAscii",
-            "-Icomponents/comms/ProtocolRawMsg",
-            "-Icomponents/comms/ProtocolRICFrame",
-            "-Icomponents/comms/ProtocolRICJSON",
-            "-Icomponents/comms/ProtocolRICSerial",
-            "-Icomponents/comms/RICRESTMsg",
-            "-Icomponents/comms/ROSSerial",
-            "-Icomponents/core/APICommon",
-            "-Icomponents/core/ArduinoUtils",
-            "-Icomponents/core/ArPreferences",
-            "-Icomponents/core/Bus",
-            "-Icomponents/core/ConfigPinMap",
-            "-Icomponents/core/DebounceButton",
-            "-Icomponents/core/DebugGlobals",
-            "-Icomponents/core/DeviceManager",
-            "-Icomponents/core/DNSResolver",
-            "-Icomponents/core/ExpressionEval",
-            "-Icomponents/core/FileSystem",
-            "-Icomponents/core/LEDPixels",
-            "-Icomponents/core/libb64",
-            "-Icomponents/core/Logger",
-            "-Icomponents/core/MiniHDLC",
-            "-Icomponents/core/MQTT",
-            "-Icomponents/core/NamedValueProvider",
-            "-Icomponents/core/NetworkSystem",
-            "-Icomponents/core/NumericalFilters",
-            "-Icomponents/core/RaftCoreApp",
-            "-Icomponents/core/RaftDevice",
-            "-Icomponents/core/RaftJson",
-            "-Icomponents/core/RestAPIEndpoints",
-            "-Icomponents/core/RingBuffer",
-            "-Icomponents/core/StatusIndicator",
-            "-Icomponents/core/SupervisorStats",
-            "-Icomponents/core/SysManager",
-            "-Icomponents/core/SysMod",
-            "-Icomponents/core/SysTypes",
-            "-Icomponents/core/ThreadSafeQueue",
-            "-Icomponents/core/Utils"
+        "srcFilter": [
+            "+<**/*.c>",
+            "+<**/*.cpp>",
+            "+<**/*.h>"
         ],
-        "srcFilter": []
+        "flags": [
+            "!python scripts/BuildFlags.py"
+        ],
+        "extraScript": "scripts/LibraryBuildScript.py",
+        "libArchive": false
     }
 }
