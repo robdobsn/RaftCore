@@ -28,7 +28,7 @@
         "includeDir": "components",
         "libLDFMode": "deep+",
         "libArchive": false,
-        "extraScript": "scripts/LibJsonBuildScript.py",
+        "extraScript": "scripts/LibraryBuildScript.py",
         "flags": [
             "-DJSMN_PARENT_LINKS",
             "-DJSMN_STRICT",
