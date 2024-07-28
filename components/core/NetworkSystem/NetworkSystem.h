@@ -23,7 +23,7 @@
 #include "sdkconfig.h"
 
 // Check if any ethernet phy type is enabled
-#if defined(CONFIG_ETH_USE_ESP32_EMAC) || defined(CONFIG_ETH_USE_SPI_ETHERNET) || defined(CONFIG_ETH_USE_RMII_ETHERNET) || defined(CONFIG_ETH_USE_OPENETH)
+#if defined(CONFIG_ETH_USE_ESP32_EMAC)
 #define ETHERNET_IS_ENABLED
 #endif
 
