@@ -2,9 +2,13 @@ import os
 import subprocess
 from SCons.Script import DefaultEnvironment
 
+print("----------------- Running LibraryBuildScript.py -----------------")
+
 env = DefaultEnvironment()
 
 def generate_device_records(source, target, env):
+
+    print("----------------- Generating Device Records -----------------")
     # Define paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
     json_file = os.path.join(current_dir, 'devtypes', 'DeviceTypeRecords.json')
