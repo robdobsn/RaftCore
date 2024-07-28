@@ -1,6 +1,6 @@
 {
     "name": "RaftCore",
-    "version": "1.11.15",
+    "version": "1.11.16",
     "description": "Core elements for the Raft ESP32 framework",
     "keywords": "esp32, esp32s3, framework",
     "category": "Communication",
@@ -26,10 +26,6 @@
         { 
             "name": "littlefs",
             "version": "https://github.com/joltwallet/esp_littlefs.git"
-        },
-        { 
-            "name": "ESPProtocols",
-            "version": "https://github.com/espressif/esp-protocols/archive/refs/tags/mqtt_cxx-v0.4.0.zip"
         }
     ],
     "build": {
