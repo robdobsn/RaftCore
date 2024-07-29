@@ -4,6 +4,8 @@
 #pragma once
 
 #include "RaftArduino.h"
+#include "RaftCoreApp.h"
+#include "RaftDevice.h"
 #include "RaftJson.h"
 #include "RaftJsonPrefixed.h"
 #include "RaftJsonNVS.h"

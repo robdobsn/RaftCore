@@ -57,6 +57,8 @@ idf_component_register(
     "components/core/DeviceTypes/DeviceTypeRecords.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ESPMDNS/mdns.c"
+    # "components/core/ESPMDNS/mdns_networking_lwip.c"
+    "components/core/ESPMDNS/mdns_networking_socket.c"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
     "components/core/ExpressionEval/tinyexpr.c"
