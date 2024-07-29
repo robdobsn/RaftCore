@@ -1,95 +1,123 @@
 import os
 import subprocess
 from GenKconfigDefinesForPIO import process_kconfig_file 
-from SCons.Script import DefaultEnvironment
+Import('env')
 
-def is_pio_build():
-    from SCons.Script import DefaultEnvironment
-    env = DefaultEnvironment()
+def determine_build_systype(env, current_dir, source_dir):
+    print("--------------- Determining build systype PIDENV: ", env['PIOENV'], " current_dir: ", current_dir, " source_dir: ", source_dir)
+    # build_config_name = os.path.basename(build_dir)
+    # test_build_base_folder = os.path.basename(os.path.dirname(build_dir))
 
-# print("----------------- Running LibraryBuildScript.py -----------------")
+    # if build_config_name == "build" and test_build_base_folder != "build":
+    #     build_config_name = ""
+    #     systype_dirs = [d for d in os.listdir(os.path.join(source_dir, 'systypes')) 
+    #                     if os.path.isdir(os.path.join(source_dir, 'systypes', d)) and d != "Common"]
+    #     if not systype_dirs:
+    #         raise RuntimeError("No valid systype found in systypes folder")
+    #     build_config_name = systype_dirs[0]
+    # else:
+    #     if not os.path.isdir(os.path.join(source_dir, 'systypes', build_config_name)):
+    #         raise RuntimeError(f"Config directory {os.path.join(source_dir, 'systypes', build_config_name)} not found.")
+    
+    return env['PIOENV']
+
+def save_build_config(build_config_name, artifacts_folder):
+    with open(os.path.join(artifacts_folder, 'cursystype.txt'), 'w') as f:
+        f.write(build_config_name)
+
+def generate_systypes_file(env, build_systype, project_dir, current_dir, artifacts_folder):
+
+    # Folder containing SysTypes.json
+    systypes_json = os.path.join(project_dir, "systypes", build_systype, 'SysTypes.json')
+
+    # Check folder exists
+    if not os.path.exists(systypes_json):
+        print(f"SysTypes.json not found: {systypes_json}")
+        return
+
+    # Template file for generating SysTypeInfoRecs.h
+    systypes_template = os.path.join(current_dir, '..', 'components', 'core', 'SysTypes', 'SysTypeInfoRecs.cpp.template')
+
+    # Output file for generated SysTypeInfoRecs.h
+    systypes_out = os.path.join(artifacts_folder, 'SysTypeInfoRecs.h')
+
+    if not os.path.exists(artifacts_folder):
+        os.makedirs(artifacts_folder)
+
+    command = [
+        env['PYTHONEXE'], os.path.join(current_dir, 'GenerateSysTypes.py'),
+        systypes_json, systypes_out, '--cpp_template', systypes_template
+    ]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error generating SysTypeInfoRecs.h: {result.stderr}")
+        env.Exit(result.returncode)
+    else:
+        print("Generated SysTypeInfoRecs.h successfully")
+
+def generate_device_records(env, current_dir, artifacts_folder):
+    json_file = os.path.join(current_dir, '..', 'devtypes', 'DeviceTypeRecords.json')
+    dev_type_recs_header = os.path.join(artifacts_folder, 'DeviceTypeRecords_generated.h')
+    dev_poll_recs_header = os.path.join(artifacts_folder, 'DevicePollRecords_generated.h')
+
+    if not os.path.exists(artifacts_folder):
+        os.makedirs(artifacts_folder)
+
+    command = [
+        env['PYTHONEXE'], os.path.join(current_dir, 'ProcessDevTypeJsonToC.py'),
+        json_file, dev_type_recs_header, dev_poll_recs_header
+    ]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error generating device records: {result.stderr}")
+        env.Exit(result.returncode)
+    else:
+        print("Generated device records successfully")
+
+def process_kconfig(env, current_dir):
+    kconfig_file = os.path.join(env['PROJECT_LIBDEPS_DIR'], env['PIOENV'], "littlefs", 'Kconfig')
+    if os.path.exists(kconfig_file):
+        defines = process_kconfig_file(kconfig_file)
+        for key, value in defines.items():
+            if value is not None and value != '"n"':
+                key = "CONFIG_" + key
+                env.Append(CPPDEFINES=[(key, value)])
+                # print(f"----------------- Added define: {key}={value}")
+    else:
+        print(f"Kconfig file not found: {kconfig_file}")
 
 env = DefaultEnvironment()
 
-print(env.Dump())
+# print(env.Dump())
 
-# print("----------------- Generating Device Records -----------------")
-# Define paths
 current_dir = os.getcwd()
-# print("----- Current Dir: ", current_dir)
-json_file = os.path.join(current_dir, '..', 'devtypes', 'DeviceTypeRecords.json')
-# print("----- JSON File: ", json_file)
-artifacts_folder = os.path.join(env['PROJECT_BUILD_DIR'], 'build_raft_artifacts')
-# print("----- Artifacts Folder: ", artifacts_folder)
-dev_type_recs_header = os.path.join(artifacts_folder, 'DeviceTypeRecords_generated.h')
-# print("----- Device Type Records Header: ", dev_type_recs_header)
-dev_poll_recs_header = os.path.join(artifacts_folder, 'DevicePollRecords_generated.h')
-# print("----- Device Poll Records Header: ", dev_poll_recs_header)
+project_dir = env['PROJECT_DIR']
+source_dir = os.path.dirname(current_dir)
+build_dir = env['PROJECT_BUILD_DIR']
+build_systype = determine_build_systype(env, current_dir, source_dir)
+artifacts_folder = os.path.join(build_dir, build_systype, 'build_raft_artifacts')
 
-# Create artifacts folder if it doesn't exist
-if not os.path.exists(artifacts_folder):
-    os.makedirs(artifacts_folder)
+print(f"\n------------------ RaftCore systype {build_systype} ------------------")
+print(f"\n------------------ RaftCore build folder {build_dir} ------------------")
 
-# Command to generate device records headers
-command = [
-    env['PYTHONEXE'], os.path.join(current_dir, 'ProcessDevTypeJsonToC.py'),
-    json_file, dev_type_recs_header, dev_poll_recs_header
-]
+# env.Append(CPPDEFINES=[("PROJECT_BASENAME", build_systype)])
 
-# print("----- Command: ", command)
+# Convert SysTypes.json to C header
+generate_systypes_file(env, build_systype, project_dir, current_dir, artifacts_folder)
 
-# Run the command
-result = subprocess.run(command, capture_output=True, text=True)
-if result.returncode != 0:
-    print(f"Error generating device records: {result.stderr}")
-    env.Exit(result.returncode)
-else:
-    print("Generated device records successfully")
+# Generate device records
+generate_device_records(env, current_dir, artifacts_folder)
+env.Append(CPPPATH=[os.path.abspath(artifacts_folder)])
 
-# Add the artifacts folder to the include path
-env.Append(
-    CPPPATH=[
-        os.path.abspath(artifacts_folder)
-    ]
-)
+# save_build_config(build_config_name, artifacts_folder)
 
 print("----------------- Generating Kconfig Defines for LittleFS -----------------")
+process_kconfig(env, current_dir)
 
-kconfig_file = os.path.join(env['PROJECT_LIBDEPS_DIR'], env['PIOENV'], "littlefs", 'Kconfig')
-if os.path.exists(kconfig_file):
-    defines = process_kconfig_file(kconfig_file)
-    for key, value in defines.items():
-        if value is not None and value != '"n"':
-            key = "CONFIG_" + key
-            env.Append(CPPDEFINES=[(key, value)])
-            print(f"----------------- Added define: {key}={value}")
-            # for lb in env.GetLibBuilders():
-            #     lb.env.Append(CPPDEFINES=[(key, value)])
-else:
-    print(f"Kconfig file not found: {kconfig_file}")
-
-# Add flags for littlefs
 env.Append(
     CCFLAGS=[
         "-Wno-missing-field-initializers"
     ]
 )
-
-# Search for all folders in the components folder and add to the include path
-#components_folder = os.path.normpath(os.path.join(current_dir, '..', 'components'))
-# print("----- Components Folder: ", components_folder)
-
-# Get all folders in the components folder and in subfolders
-#components = [os.path.join(dp, f) for dp, dn, filenames in os.walk(components_folder) for f in dn]
-
-# Get all folders in the components folder
-#print("----- Components: ", components)
-
-# Add each component folder to the include path
-#for component in components:
-#    env.Append(
-#        CPPPATH=[
-#            os.path.abspath(component)
-#        ]
-#    )
-
