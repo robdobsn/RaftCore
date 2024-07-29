@@ -84,6 +84,7 @@ idf_component_register(
     "components/core/Utils/ESPUtils.cpp"
     "components/core/Utils/RaftUtils.cpp"
   INCLUDE_DIRS
+    "components"
     "components/comms/CommsBridgeMsg"
     "components/comms/CommsChannels"
     "components/comms/CommsChannelMsg"
