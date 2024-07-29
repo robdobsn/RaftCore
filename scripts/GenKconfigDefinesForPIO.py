@@ -1,5 +1,8 @@
 import os
 
+# Script to generate defines from a kconfig file for use in PlatformIO build environment
+# Rob Dobson 2024
+
 def process_kconfig_file(kconfig_file):
     defines = {}
     with open(kconfig_file, 'r') as file:

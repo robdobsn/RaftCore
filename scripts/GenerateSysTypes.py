@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 """ Raft system configuration files contain JSON
+    Rob Dobson 2021-2024
 
     SysTypes.json file(s) are present in a folder containing details of the system configuration.
     The SysTypes.json file can include versioned keys (see below for details of versioning)

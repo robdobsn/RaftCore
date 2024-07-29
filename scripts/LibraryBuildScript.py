@@ -4,21 +4,7 @@ from GenKconfigDefinesForPIO import process_kconfig_file
 Import('env')
 
 def determine_build_systype(env, current_dir, source_dir):
-    print("--------------- Determining build systype PIDENV: ", env['PIOENV'], " current_dir: ", current_dir, " source_dir: ", source_dir)
-    # build_config_name = os.path.basename(build_dir)
-    # test_build_base_folder = os.path.basename(os.path.dirname(build_dir))
-
-    # if build_config_name == "build" and test_build_base_folder != "build":
-    #     build_config_name = ""
-    #     systype_dirs = [d for d in os.listdir(os.path.join(source_dir, 'systypes')) 
-    #                     if os.path.isdir(os.path.join(source_dir, 'systypes', d)) and d != "Common"]
-    #     if not systype_dirs:
-    #         raise RuntimeError("No valid systype found in systypes folder")
-    #     build_config_name = systype_dirs[0]
-    # else:
-    #     if not os.path.isdir(os.path.join(source_dir, 'systypes', build_config_name)):
-    #         raise RuntimeError(f"Config directory {os.path.join(source_dir, 'systypes', build_config_name)} not found.")
-    
+    # print("--------------- Determining build systype PIDENV: ", env['PIOENV'], " current_dir: ", current_dir, " source_dir: ", source_dir)
     return env['PIOENV']
 
 def save_build_config(build_config_name, artifacts_folder):
@@ -32,7 +18,7 @@ def generate_systypes_file(env, build_systype, project_dir, current_dir, artifac
 
     # Check folder exists
     if not os.path.exists(systypes_json):
-        print(f"SysTypes.json not found: {systypes_json}")
+        print(f"!!!!!!!!!!!!!!!!!!!!!!!!!! SysTypes.json not found: {systypes_json}")
         return
 
     # Template file for generating SysTypeInfoRecs.h
@@ -51,10 +37,10 @@ def generate_systypes_file(env, build_systype, project_dir, current_dir, artifac
 
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Error generating SysTypeInfoRecs.h: {result.stderr}")
+        print(f"!!!!!!!!!!!!!!!!!! Error generating SysTypeInfoRecs.h: {result.stderr}")
         env.Exit(result.returncode)
     else:
-        print("Generated SysTypeInfoRecs.h successfully")
+        print("------------------ Generated SysTypeInfoRecs.h successfully")
 
 def generate_device_records(env, current_dir, artifacts_folder):
     json_file = os.path.join(current_dir, '..', 'devtypes', 'DeviceTypeRecords.json')
@@ -71,10 +57,10 @@ def generate_device_records(env, current_dir, artifacts_folder):
 
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Error generating device records: {result.stderr}")
+        print(f"!!!!!!!!!!!!!!!!!!!!! Error generating device records: {result.stderr}")
         env.Exit(result.returncode)
     else:
-        print("Generated device records successfully")
+        print("------------------ Generated device records successfully")
 
 def process_kconfig(env, current_dir):
     kconfig_file = os.path.join(env['PROJECT_LIBDEPS_DIR'], env['PIOENV'], "littlefs", 'Kconfig')
@@ -86,12 +72,13 @@ def process_kconfig(env, current_dir):
                 env.Append(CPPDEFINES=[(key, value)])
                 # print(f"----------------- Added define: {key}={value}")
     else:
-        print(f"Kconfig file not found: {kconfig_file}")
+        print(f"!!!!!!!!!!!!!!!!!!!!!! Kconfig file not found: {kconfig_file}")
 
 env = DefaultEnvironment()
 
 # print(env.Dump())
 
+# Paths
 current_dir = os.getcwd()
 project_dir = env['PROJECT_DIR']
 source_dir = os.path.dirname(current_dir)
@@ -99,8 +86,8 @@ build_dir = env['PROJECT_BUILD_DIR']
 build_systype = determine_build_systype(env, current_dir, source_dir)
 artifacts_folder = os.path.join(build_dir, build_systype, 'build_raft_artifacts')
 
-print(f"\n------------------ RaftCore systype {build_systype} ------------------")
-print(f"\n------------------ RaftCore build folder {build_dir} ------------------")
+print(f"------------------ RaftCore systype {build_systype} ------------------")
+print(f"------------------ RaftCore build folder {build_dir} ------------------")
 
 # env.Append(CPPDEFINES=[("PROJECT_BASENAME", build_systype)])
 
@@ -111,9 +98,9 @@ generate_systypes_file(env, build_systype, project_dir, current_dir, artifacts_f
 generate_device_records(env, current_dir, artifacts_folder)
 env.Append(CPPPATH=[os.path.abspath(artifacts_folder)])
 
-# save_build_config(build_config_name, artifacts_folder)
+save_build_config(build_systype, artifacts_folder)
 
-print("----------------- Generating Kconfig Defines for LittleFS -----------------")
+print("------------------ Generating Kconfig Defines for LittleFS -----------------")
 process_kconfig(env, current_dir)
 
 env.Append(

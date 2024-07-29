@@ -9,6 +9,9 @@ import subprocess
 import gzip
 import sys
 
+# Script to generate WebUI with a parcel build
+# Rob Dobson 2024
+
 logging.basicConfig(format="[%(asctime)s] %(levelname)s:%(name)s: %(message)s",
                     level=logging.INFO)
 _log = logging.getLogger(__name__ if __name__ != '__main__' else Path(__file__).name)

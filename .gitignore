@@ -15,6 +15,7 @@ test/eepromPartitionTest/prewritedata.bin
 test/eepromPartitionTest/readbackdata.bin
 linux_unit_tests/linux_unit_tests
 build_raft_artifacts
+__pycache__
 
 # Generated updater files
 current_version.json
