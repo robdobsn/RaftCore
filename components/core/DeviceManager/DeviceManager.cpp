@@ -20,7 +20,7 @@
 // #define DEBUG_JSON_DEVICE_DATA
 // #define DEBUG_JSON_DEVICE_HASH
 
-static const char *MODULE_PREFIX = "DeviceManager";
+static const char *MODULE_PREFIX = "DevMan";
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
