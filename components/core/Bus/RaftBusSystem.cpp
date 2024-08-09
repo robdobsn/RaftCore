@@ -14,7 +14,11 @@
 #define WARN_ON_NO_BUSES_DEFINED
 
 // Debug
-#define DEBUG_BUSES_CONFIGURATION
+// #define DEBUG_BUSES_CONFIGURATION
+// #define DEBUG_GET_BUS_BY_NAME
+// #define DEBUG_GET_BUS_BY_NAME_DETAIL
+// #define DEBUG_BUS_FACTORY_CREATE
+// #define DEBUG_BUS_FACTORY_CREATE_DETAIL
 
 // Debug supervisor step (for hangup detection within a service call)
 // Uses global logger variables - see logger.h
@@ -66,7 +70,7 @@ void RaftBusSystem::setup(const char* busConfigName, const RaftJsonIF& config,
         String busType = busConfig.getString("type", "");
 
 #ifdef DEBUG_BUSES_CONFIGURATION
-        LOG_I(MODULE_PREFIX, "setting up bus type %s with %s", busType.c_str(), busConfig.c_str());
+        LOG_I(MODULE_PREFIX, "setting up bus type %s with %s (raftBusSystem %p)", busType.c_str(), busConfig.c_str(), this);
 #endif
 
         // Create bus
@@ -83,6 +87,10 @@ void RaftBusSystem::setup(const char* busConfigName, const RaftJsonIF& config,
                 // Add to supervisory
                 _supervisorStats.add(pNewBus->getBusName().c_str());
             }
+        }
+        else
+        {
+            LOG_E(MODULE_PREFIX, "Failed to create bus type %s (pBusSystem %p)", busType.c_str(), this);
         }
     }
 }
@@ -141,16 +149,27 @@ void RaftBusSystem::registerBus(const char* busConstrName, RaftBusFactoryCreator
 RaftBus* RaftBusSystem::busFactoryCreate(const char* busConstrName, BusElemStatusCB busElemStatusCB, 
                         BusOperationStatusCB busOperationStatusCB)
 {
+#ifdef DEBUG_BUS_FACTORY_CREATE_DETAIL
+    LOG_I(MODULE_PREFIX, "busFactoryCreate %s numBusTypes %d (pThis %p)", busConstrName, 
+                _busFactoryTypeList.size(), this);
+#endif    
     for (const auto& el : _busFactoryTypeList)
     {
+#ifdef DEBUG_BUS_FACTORY_CREATE_DETAIL
+        LOG_I(MODULE_PREFIX, "busFactoryCreate %s checking %s", busConstrName, el._name.c_str());
+#endif
         if (el.nameMatch(busConstrName))
         {
+            RaftBus* pBus = el._createFn(busElemStatusCB, busOperationStatusCB);
 #ifdef DEBUG_BUS_FACTORY_CREATE
-            LOG_I(MODULE_PREFIX, "create bus %s", busConstrName);
+            LOG_I(MODULE_PREFIX, "creating bus %s %s", busConstrName, pBus ? "OK" : "FAILED");
 #endif
-            return el._createFn(busElemStatusCB, busOperationStatusCB);
+            return pBus;
         }
     }
+#ifdef DEBUG_BUS_FACTORY_CREATE
+    LOG_I(MODULE_PREFIX, "creating bus %s not found", busConstrName);
+#endif
     return nullptr;
 }
 
@@ -160,10 +179,25 @@ RaftBus* RaftBusSystem::busFactoryCreate(const char* busConstrName, BusElemStatu
 
 RaftBus* RaftBusSystem::getBusByName(const String& busName)
 {
+#ifdef DEBUG_GET_BUS_BY_NAME_DETAIL
+    LOG_I(MODULE_PREFIX, "getBusByName %s numBuses %d (raftBusSystem %p)", 
+                busName.c_str(), _busList.size(), this);
+#endif
     for (RaftBus* pBus : _busList)
     {
+#ifdef DEBUG_GET_BUS_BY_NAME_DETAIL
+        LOG_I(MODULE_PREFIX, "getBusByName %s checking %s", busName.c_str(), pBus->getBusName().c_str());
+#endif
         if (pBus && pBus->getBusName().equalsIgnoreCase(busName))
+        {
+#ifdef DEBUG_GET_BUS_BY_NAME
+            LOG_I(MODULE_PREFIX, "getBusByName %s found", busName.c_str());
+#endif
             return pBus;
+        }
     }
+#ifdef DEBUG_GET_BUS_BY_NAME
+    LOG_I(MODULE_PREFIX, "getBusByName %s not found", busName.c_str());
+#endif
     return nullptr;
 }

@@ -380,7 +380,31 @@ namespace Raft
     /// @param bufLen Length of the byte array
     /// @param outStr String to receive the hex string
     void getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
-    
+
+    /// @brief Get a hex string from byte array
+    /// @param pBuf Pointer to the byte array
+    /// @param bufLen Length of the byte array
+    /// @return Hex string
+    String getHexStr(const uint8_t* pBuf, uint32_t bufLen);
+
+    /// @brief Get a zero padded hex string from uint32_t value
+    /// @param val Value to convert
+    /// @param prefixOx Include 0x prefix
+    /// @return Hex string
+    String getHexStr(uint32_t val, bool prefixOx);
+
+    /// @brief Get a zero padded hex string from uint16_t value
+    /// @param val Value to convert
+    /// @param prefixOx Include 0x prefix
+    /// @return Hex string
+    String getHexStr(uint16_t val, bool prefixOx);
+
+    /// @brief Get a zero padded hex string from uint8_t value
+    /// @param val Value to convert
+    /// @param prefixOx Include 0x prefix
+    /// @return Hex string
+    String getHexStr(uint8_t val, bool prefixOx);
+
     /// @brief Convert a byte array to a hex string
     /// @param pBuf Pointer to the byte array
     /// @param bufLen Length of the byte array

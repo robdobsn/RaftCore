@@ -9,7 +9,7 @@
 #include "RaftDevice.h"
 #include "RaftUtils.h"
 
-#define DEBUG_RAFT_DEVICE_CONSTRUCTOR
+// #define DEBUG_RAFT_DEVICE_CONSTRUCTOR
 
 static const char *MODULE_PREFIX = "RaftDevice";
 
