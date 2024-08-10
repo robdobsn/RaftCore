@@ -29,7 +29,7 @@ public:
 
         // Extract enables from config
         enableWifiSTAMode = configPrefixed.getBool("wifiSTAEn", false) || 
-                            configPrefixed.getBool("WiFiEnabled", true);
+                            configPrefixed.getBool("WiFiEnabled", false);
         enableWifiAPMode = configPrefixed.getBool("wifiAPEn", false);
         enableEthernet = configPrefixed.getBool("ethEn", false) || 
                          configPrefixed.getBool("EthEnabled", false);
