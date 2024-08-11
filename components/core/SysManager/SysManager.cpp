@@ -29,9 +29,6 @@ static const char *MODULE_PREFIX = "SysMan";
 
 // #define ONLY_ONE_MODULE_PER_LOOP 1
 
-// Warn
-#define WARN_ON_SYSMOD_SLOW_LOOP
-
 // Debug supervisor step (for hangup detection within a loop call)
 // Uses global logger variables - see logger.h
 #define DEBUG_GLOB_SYSMAN 0
@@ -106,6 +103,7 @@ void SysManager::preSetup()
 
     // Slow SysMod threshold
     _slowSysModThresholdUs = sysManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
+    _reportSlowSysMod = sysManConfig.getBool("reportSlowSysMod", true);
 
     // Monitoring period and monitoring timer
     _monitorPeriodMs = sysManConfig.getLong("monitorPeriodMs", 10000);
@@ -379,22 +377,31 @@ void SysManager::loop()
 #ifdef DEBUG_SYSMOD_WITH_GLOBAL_VALUE
         DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _loopCurModIdx;
 #endif
-#ifdef WARN_ON_SYSMOD_SLOW_LOOP
-        uint64_t sysModExecStartUs = micros();
-#endif
 
-        // Call the SysMod's loop method to allow code inside the module to run
-        _supervisorStats.execStarted(_loopCurModIdx);
-        _sysModLoopVector[_loopCurModIdx]->loop();
-        _supervisorStats.execEnded(_loopCurModIdx);
-
-#ifdef WARN_ON_SYSMOD_SLOW_LOOP
-        uint64_t sysModLoopUs = micros() - sysModExecStartUs;
-        if (sysModLoopUs > _slowSysModThresholdUs)
+        // Check if the SysMod slow check is enabled
+        if (_reportSlowSysMod)
         {
-            LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %lldms", _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
+            // Start time
+            uint64_t sysModExecStartUs = micros();
+
+            // Call the SysMod's loop method to allow code inside the module to run
+            _supervisorStats.execStarted(_loopCurModIdx);
+            _sysModLoopVector[_loopCurModIdx]->loop();
+            _supervisorStats.execEnded(_loopCurModIdx);
+
+            uint64_t sysModLoopUs = micros() - sysModExecStartUs;
+            if (sysModLoopUs > _slowSysModThresholdUs)
+            {
+                LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %lldms", _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
+            }
         }
-#endif
+        else
+        {
+            // Call the SysMod's loop method to allow code inside the module to run
+            _supervisorStats.execStarted(_loopCurModIdx);
+            _sysModLoopVector[_loopCurModIdx]->loop();
+            _supervisorStats.execEnded(_loopCurModIdx);
+        }
     }
 
 #ifndef ONLY_ONE_MODULE_PER_LOOP

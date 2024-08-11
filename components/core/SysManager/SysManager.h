@@ -252,6 +252,7 @@ private:
     // Threshold of time for SysMod loop considered too slow
     static const uint32_t SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT = 50;
     uint32_t _slowSysModThresholdUs = SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT * 1000;
+    bool _reportSlowSysMod = true;
 
     // Monitor timer and period
     unsigned long _monitorPeriodMs = 0;
