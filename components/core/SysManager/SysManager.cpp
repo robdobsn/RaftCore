@@ -110,6 +110,7 @@ void SysManager::preSetup()
     // Monitoring period and monitoring timer
     _monitorPeriodMs = sysManConfig.getLong("monitorPeriodMs", 10000);
     _monitorTimerMs = millis();
+    _reportEnable = sysManConfig.getBool("reportEnable", true);
     sysManConfig.getArrayElems("reportList", _monitorReportList);
 
     // System restart flag
@@ -920,6 +921,10 @@ String SysManager::getMutableConfigJson()
 
 void SysManager::statsShow()
 {
+    // Check enabled
+    if (!_reportEnable)
+        return;
+
     // Generate stats
     char statsStr[200];
     String friendlyNameStr;

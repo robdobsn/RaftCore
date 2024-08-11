@@ -259,6 +259,7 @@ private:
     bool _monitorTimerStarted = false;
     bool _monitorShownFirstTime = false;
     static const unsigned long MONITOR_PERIOD_FIRST_SHOW_MS = 5000;
+    bool _reportEnable = true;
     std::vector<String> _monitorReportList;
 
     // Stats available callback
