@@ -227,9 +227,11 @@ private:
     uint32_t _serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES;
     String _serialMagicStr;
 
-    // Loop supervisor
-    void supervisorSetup();
-    bool _supervisorDirty = false;
+    // SysMod loop
+    void sysModListSetup();
+    bool _sysmodListDirty = false;
+    bool _supervisorEnable = true;
+    bool _loopAllSysMods = true;
 
     // SysMods to loop over
     std::vector<RaftSysMod*> _sysModLoopVector;

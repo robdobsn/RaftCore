@@ -41,7 +41,7 @@ public:
 
     // Called to encode a frame
     // Returns encoded length
-    uint32_t encodeFrame(const uint8_t *pData, uint32_t frameLen, 
+    static uint32_t encodeFrame(const uint8_t *pData, uint32_t frameLen, 
                 uint8_t* pEncoded, uint32_t encodedMaxLen);
 
 private:
@@ -59,6 +59,6 @@ private:
     uint8_t _escapeSeqCode;
 
     // Helpers
-    uint32_t addBytes(uint8_t* pEncoded, uint32_t encodedMaxLen, uint32_t bufPos, uint32_t escCode, uint32_t byteCode);
-    uint32_t addByte(uint8_t* pEncoded, uint32_t encodedMaxLen, uint32_t bufPos, uint32_t byteCode);
+    static uint32_t addBytes(uint8_t* pEncoded, uint32_t encodedMaxLen, uint32_t bufPos, uint32_t escCode, uint32_t byteCode);
+    static uint32_t addByte(uint8_t* pEncoded, uint32_t encodedMaxLen, uint32_t bufPos, uint32_t byteCode);
 };

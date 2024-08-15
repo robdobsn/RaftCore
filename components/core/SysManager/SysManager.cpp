@@ -101,9 +101,11 @@ void SysManager::preSetup()
     _mutableConfigCache.friendlyNameIsSet = _mutableConfig.getBool("nameSet", 0);
     _mutableConfigCache.serialNo = _mutableConfig.getString("serialNo", "");
 
-    // Slow SysMod threshold
+    // SysMod looping
+    _loopAllSysMods = sysManConfig.getBool("loopAllSysMods", true);
+    _supervisorEnable = sysManConfig.getBool("supervisorEnable", true);
     _slowSysModThresholdUs = sysManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
-    _reportSlowSysMod = sysManConfig.getBool("reportSlowSysMod", true);
+    _reportSlowSysMod = _supervisorEnable ? sysManConfig.getBool("reportSlowSysMod", true) : false;
 
     // Monitoring period and monitoring timer
     _monitorPeriodMs = sysManConfig.getLong("monitorPeriodMs", 10000);
@@ -140,11 +142,12 @@ void SysManager::preSetup()
                 _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
                 _mutableConfig.getNVSNamespace().c_str());
-    LOG_I(MODULE_PREFIX, "slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d",
+    LOG_I(MODULE_PREFIX, "slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d supervisorEnable %s",
                 _slowSysModThresholdUs,
                 _monitorPeriodMs,
                 _rebootAfterNHours, 
-                _rebootIfDiscMins);
+                _rebootIfDiscMins,
+                _supervisorEnable ? "Y" : "N");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -319,42 +322,49 @@ void SysManager::postSetup()
 
 void SysManager::loop()
 {
-    // Check if supervisory info is dirty
-    if (_supervisorDirty)
+    // Check if sysmod list is dirty
+    if (_sysmodListDirty)
     {
         // Ideally this operation should be atomic but we assume currently system modules
         // are only added before the main program loop is entered
-        supervisorSetup();
-        _supervisorDirty = false;
+        sysModListSetup();
+        _sysmodListDirty = false;
     }
-       
-    // Loop monitor periodically records timing
-    if (_monitorTimerStarted)
-    {
-        // Check if monitor period is up
-        if (Raft::isTimeout(millis(), _monitorTimerMs, 
-                            _monitorShownFirstTime ? _monitorPeriodMs :MONITOR_PERIOD_FIRST_SHOW_MS))
+
+    // Check if supervisor is enabled
+    if (_supervisorEnable)
+    {        
+        // Loop monitor periodically records timing
+        if (_monitorTimerStarted)
         {
-            // Wait until next period
-            _monitorTimerMs = millis();
-            _monitorShownFirstTime = true;
-            
-            // Calculate supervisory stats
-            _supervisorStats.calculate();
+            // Check if monitor period is up
+            if (Raft::isTimeout(millis(), _monitorTimerMs, 
+                                _monitorShownFirstTime ? _monitorPeriodMs :MONITOR_PERIOD_FIRST_SHOW_MS))
+            {
+                // Wait until next period
+                _monitorTimerMs = millis();
+                _monitorShownFirstTime = true;
+                
+                // Calculate supervisory stats
+                _supervisorStats.calculate();
 
-            // Show stats
-            statsShow();
+                // Show stats
+                statsShow();
 
-            // Clear stats for start of next monitor period
-            _supervisorStats.clear();
+                // Clear stats for start of next monitor period
+                _supervisorStats.clear();
+            }
         }
-    }
-    else
-    {
-        // Start monitoring
-        _supervisorStats.clear();
-        _monitorTimerMs = millis();
-        _monitorTimerStarted = true;
+        else
+        {
+            // Start monitoring
+            _supervisorStats.clear();
+            _monitorTimerMs = millis();
+            _monitorTimerStarted = true;
+        }
+
+        // Monitor how long it takes to go around loop
+        _supervisorStats.outerLoopStarted();
     }
 
     // Check the index into list of sys-mods to loop over is valid
@@ -364,55 +374,53 @@ void SysManager::loop()
     if (_loopCurModIdx >= numSysMods)
         _loopCurModIdx = 0;
 
-    // Monitor how long it takes to go around loop
-    _supervisorStats.outerLoopStarted();
-
-#ifndef ONLY_ONE_MODULE_PER_LOOP
-    for (_loopCurModIdx = 0; _loopCurModIdx < numSysMods; _loopCurModIdx++)
+    // Loop over sysmods
+    for (uint32_t loopIdx = 0; loopIdx < numSysMods; loopIdx++)
     {
-#endif
-
-    if (_sysModLoopVector[_loopCurModIdx])
-    {
-#ifdef DEBUG_SYSMOD_WITH_GLOBAL_VALUE
-        DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _loopCurModIdx;
-#endif
-
-        // Check if the SysMod slow check is enabled
-        if (_reportSlowSysMod)
+        if (_sysModLoopVector[_loopCurModIdx])
         {
-            // Start time
-            uint64_t sysModExecStartUs = micros();
+#ifdef DEBUG_SYSMOD_WITH_GLOBAL_VALUE
+            DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _loopCurModIdx;
+#endif
 
-            // Call the SysMod's loop method to allow code inside the module to run
-            _supervisorStats.execStarted(_loopCurModIdx);
-            _sysModLoopVector[_loopCurModIdx]->loop();
-            _supervisorStats.execEnded(_loopCurModIdx);
-
-            uint64_t sysModLoopUs = micros() - sysModExecStartUs;
-            if (sysModLoopUs > _slowSysModThresholdUs)
+            // Check if the SysMod slow check is enabled
+            if (_reportSlowSysMod)
             {
-                LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %lldms", _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
+                // Start time
+                uint64_t sysModExecStartUs = micros();
+
+                // Call the SysMod's loop method to allow code inside the module to run
+                _supervisorStats.execStarted(_loopCurModIdx);
+                _sysModLoopVector[_loopCurModIdx]->loop();
+                _supervisorStats.execEnded(_loopCurModIdx);
+
+                uint64_t sysModLoopUs = micros() - sysModExecStartUs;
+                if (sysModLoopUs > _slowSysModThresholdUs)
+                {
+                    LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %lldms", _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
+                }
+            }
+            else
+            {
+                // Call the SysMod's loop method to allow code inside the module to run
+                if (_supervisorEnable)
+                    _supervisorStats.execStarted(_loopCurModIdx);
+                _sysModLoopVector[_loopCurModIdx]->loop();
+                if (_supervisorEnable)
+                    _supervisorStats.execEnded(_loopCurModIdx);
             }
         }
-        else
-        {
-            // Call the SysMod's loop method to allow code inside the module to run
-            _supervisorStats.execStarted(_loopCurModIdx);
-            _sysModLoopVector[_loopCurModIdx]->loop();
-            _supervisorStats.execEnded(_loopCurModIdx);
-        }
-    }
 
-#ifndef ONLY_ONE_MODULE_PER_LOOP
+        // Next SysMod
+        _loopCurModIdx++;
+
+        // Check if looping over all sysmods (otherwise just do one)
+        if (!_loopAllSysMods)
+            break;
     }
-#endif
 
     // Debug
     // LOG_D(MODULE_PREFIX, "loop module %s", sysModInfo._pSysMod->modName());
-
-    // Next SysMod
-    _loopCurModIdx++;
 
     // Check system restart pending
     if (_systemRestartPending)
@@ -425,7 +433,8 @@ void SysManager::loop()
     }
 
     // End loop
-    _supervisorStats.outerLoopEnded();
+    if (_supervisorEnable)
+        _supervisorStats.outerLoopEnded();
 
     // Stress testing
     if (_stressTestLoopDelayMs > 0)
@@ -450,17 +459,20 @@ void SysManager::loop()
     }
 
     // Check for reboot after N mins if disconnected
-    if (networkSystem.isIPConnected())
+    if (_rebootIfDiscMins != 0)
     {
-        _rebootLastNetConnMs = millis();
-    }
-    else
-    {
-        if ((_rebootIfDiscMins != 0) && Raft::isTimeout(millis(), _rebootLastNetConnMs, _rebootIfDiscMins * (uint64_t)60000))
+        if (networkSystem.isIPConnected())
         {
-            LOG_I(MODULE_PREFIX, "Rebooting after %d mins disconnected", _rebootIfDiscMins);
-            delay(500);
-            esp_restart();
+            _rebootLastNetConnMs = millis();
+        }
+        else
+        {
+            if (Raft::isTimeout(millis(), _rebootLastNetConnMs, _rebootIfDiscMins * (uint64_t)60000))
+            {
+                LOG_I(MODULE_PREFIX, "Rebooting after %d mins disconnected", _rebootIfDiscMins);
+                delay(500);
+                esp_restart();
+            }
         }
     }
 }
@@ -478,15 +490,15 @@ void SysManager::addManagedSysMod(RaftSysMod* pSysMod)
     // Add to module list
     _sysModuleList.push_back(pSysMod);
 
-    // Supervisor info now dirty
-    _supervisorDirty = true;
+    // SysMod info now dirty
+    _sysmodListDirty = true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Supervisor Setup
+// Setup SysMod list
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::supervisorSetup()
+void SysManager::sysModListSetup()
 {
     // Reset iterator to start of list
     _loopCurModIdx = 0;
