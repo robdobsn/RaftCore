@@ -11,8 +11,6 @@
 
 // #define DEBUG_RAFT_DEVICE_CONSTRUCTOR
 
-static const char *MODULE_PREFIX = "RaftDevice";
-
 // @brief Construct a new Raft Device object
 // @param pDevConfigJson JSON configuration for the device
 RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson) :

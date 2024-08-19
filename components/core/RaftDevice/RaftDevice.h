@@ -118,4 +118,7 @@ protected:
 
     // Publish device type
     String publishDeviceType;
+
+    // Debug
+    static constexpr const char *MODULE_PREFIX = "RaftDevice";
 };
