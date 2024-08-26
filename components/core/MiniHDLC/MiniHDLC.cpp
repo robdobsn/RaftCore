@@ -13,6 +13,7 @@
 
 #include <string.h>
 #include "MiniHDLC.h"
+#include "Logger.h"
 
 #define WARN_ON_HDLC_FRAME_TOO_LONG
 // #define DEBUG_HDLC
