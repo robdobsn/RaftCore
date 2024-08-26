@@ -187,6 +187,9 @@ private:
     static constexpr const char* SD_FILE_SYSTEM_PATH_ELEMENT = "sd/";
     static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL = "fs";
     static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT = "spiffs";
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "FileSys";
 };
 
 extern FileSystem fileSystem;

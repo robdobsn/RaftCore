@@ -101,4 +101,7 @@ private:
 
     // Consts
     static const int MAX_INBOUND_MSGS_IN_LOOP = 1;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "CommsMan";
 };

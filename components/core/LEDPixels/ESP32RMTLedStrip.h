@@ -67,6 +67,9 @@ private:
     void releaseResources();
     static bool rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
     bool rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RMTLedSt";
 };
 
 #endif // ESP_IDF_VERSION

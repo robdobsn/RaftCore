@@ -20,8 +20,6 @@
 // #define DEBUG_JSON_DEVICE_DATA
 // #define DEBUG_JSON_DEVICE_HASH
 
-static const char *MODULE_PREFIX = "DevMan";
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
 DeviceManager::DeviceManager(const char *pModuleName, RaftJsonIF& sysConfig)
@@ -47,7 +45,12 @@ void DeviceManager::setup()
 
     // Setup device classes (these are the keys into the device factory)
     setupDevices("Devices", modConfig());
+}
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Post setup function
+void DeviceManager::postSetup()
+{
     // Register data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
         [this](const char* messageName, CommsChannelMsg& msg) {
@@ -59,6 +62,13 @@ void DeviceManager::setup()
             return getDevicesHash(stateHash);
         }
     );    
+
+    // Post-setup - called after setup of all sysMods complete
+    for (auto* pDevice : _deviceList)
+    {
+        if (pDevice)
+            pDevice->postSetup();
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -171,13 +181,6 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
             if (getCommsCore())
                 pDevice->addCommsChannels(*getCommsCore());
         }            
-    }
-
-    // Post-setup - called after setup of all sysMods complete
-    for (auto* pDevice : _deviceList)
-    {
-        if (pDevice)
-            pDevice->postSetup();
     }
 
 #ifdef DEBUG_LIST_DEVICES
@@ -294,4 +297,47 @@ RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
             return pDevice;
     }
     return nullptr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get JSON status string
+/// @return JSON string
+String DeviceManager::getDebugJSON() const
+{
+    // JSON strings
+    String jsonStrBus, jsonStrDev;
+
+    // Check all buses for data
+    for (RaftBus* pBus : raftBusSystem.getBusList())
+    {
+        if (!pBus)
+            continue;
+        // Get device interface
+        RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+        if (!pDevicesIF)
+            continue;
+        String jsonRespStr = pDevicesIF->getDebugJSON(true);
+
+        // Check for empty string or empty JSON object
+        if (jsonRespStr.length() > 2)
+        {
+            jsonStrBus += (jsonStrBus.length() == 0 ? "\"" : ",\"") + pBus->getBusName() + "\":" + jsonRespStr;
+        }
+    }
+
+    // Check all devices for data
+    for (RaftDevice* pDevice : _deviceList)
+    {
+        if (!pDevice)
+            continue;
+        String jsonRespStr = pDevice->getStatusJSON();
+
+        // Check for empty string or empty JSON object
+        if (jsonRespStr.length() > 2)
+        {
+            jsonStrDev += (jsonStrDev.length() == 0 ? "\"" : ",\"") + pDevice->getPublishDeviceType() + "\":" + jsonRespStr;
+        }
+    }
+
+    return "{" + (jsonStrBus.length() == 0 ? (jsonStrDev.length() == 0 ? "" : jsonStrDev) : (jsonStrDev.length() == 0 ? jsonStrBus : jsonStrBus + "," + jsonStrDev)) + "}";
 }

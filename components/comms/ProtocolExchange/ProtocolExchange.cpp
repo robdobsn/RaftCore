@@ -19,8 +19,6 @@
 #include "RaftJson.h"
 #include "CommsBridgeMsg.h"
 
-static const char* MODULE_PREFIX = "ProtExchg";
-
 // Warn
 #define WARN_ON_SLOW_PROC_ENDPOINT_MESSAGE
 #define WARN_ON_FILE_UPLOAD_FAILED

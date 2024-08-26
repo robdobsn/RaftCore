@@ -136,4 +136,7 @@ private:
 
     // Helpers
     static void computeMaxRestBodySize();
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RICRESTMsg";
 };

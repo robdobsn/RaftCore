@@ -54,4 +54,8 @@ public:
     {
         return "RICJSON";
     }
+
+private:
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RICJSON";
 };

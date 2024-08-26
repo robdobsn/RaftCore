@@ -19,8 +19,6 @@
 // #define DEBUG_EXPRESSION_EVAL 1
 // #define DEBUG_EXPRESSION_EVAL_VAR_DETAIL 1
 
-static const char* MODULE_PREFIX = "ExprEval";
-
 #ifndef NAN
 #define NAN (0.0/0.0)
 #endif

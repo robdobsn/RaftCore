@@ -15,11 +15,6 @@
 
 // #define DEBUG_RICREST_MSG
 
-// Logging
-#ifdef DEBUG_RICREST_MSG
-static const char* MODULE_PREFIX = "RICRESTMsg";
-#endif
-
 uint32_t RICRESTMsg::_maxRestBodySize = 0;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

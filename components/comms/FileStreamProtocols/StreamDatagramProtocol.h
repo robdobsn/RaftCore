@@ -57,4 +57,6 @@ private:
     uint32_t _streamPos;
     bool _continuingStream = false;
 
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "StrmDgram";
 };

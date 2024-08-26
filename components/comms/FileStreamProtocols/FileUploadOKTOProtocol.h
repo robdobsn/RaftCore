@@ -140,4 +140,7 @@ private:
     uint32_t _debugLastStatsMs = millis();
     static const uint32_t DEBUG_STATS_MS = 10000;
     bool _debugFinalMsgToSend = false;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "FileULOKTO";
 };

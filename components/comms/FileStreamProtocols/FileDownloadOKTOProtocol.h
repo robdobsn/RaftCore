@@ -135,4 +135,7 @@ private:
     static const uint32_t DEBUG_STATS_MS = 10000;
     bool _debugFinalMsgToSend = false;
     uint32_t _betweenBlocksMs = 0;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "FileDLOKTO";
 };

@@ -58,4 +58,7 @@ private:
 
     // Helpers
     void hdlcFrameRxCB(const uint8_t* pFrame, int frameLen);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RICSerial";    
 };

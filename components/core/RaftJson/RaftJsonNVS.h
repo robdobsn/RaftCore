@@ -120,4 +120,7 @@ private:
     /// @param nvsType the NVS type enumeration
     /// @return the string name of the type
     static const char* getNVSTypeName(nvs_type_t nvsType);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RaftJsonNVS";
 };

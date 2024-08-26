@@ -53,8 +53,6 @@
 
 #endif
 
-static const char* MODULE_PREFIX = "NetworkSystem";
-
 // Global object
 NetworkSystem networkSystem;
 

@@ -20,16 +20,6 @@
 // #define DEBUG_FILE_CHUNKER_CONTENTS
 #define DEBUG_FILE_CHUNKER_READ_THRESH_MS 100
 
-// Module prefix
-#if defined(WARN_ON_FILE_CHUNKER_START_FAIL) || \
-    defined(DEBUG_FILE_CHUNKER_START_END) || \
-    defined(DEBUG_FILE_CHUNKER_CHUNKS) || \
-    defined(DEBUG_FILE_CHUNKER_CONTENTS) || \
-    defined(DEBUG_FILE_CHUNKER_PERFORMANCE) || \
-    defined(DEBUG_FILE_CHUNKER_READ_THRESH_MS)
-static const char* MODULE_PREFIX = "FileSystemChunker";
-#endif
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

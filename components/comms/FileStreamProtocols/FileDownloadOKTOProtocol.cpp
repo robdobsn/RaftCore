@@ -13,9 +13,6 @@
 #include "CommsCoreIF.h"
 #include "FileStreamBlockOwned.h"
 
-// Log prefix
-static const char *MODULE_PREFIX = "FileDnldOKTO";
-
 #define WARN_ON_TRANSFER_CANCEL
 
 // #define DEBUG_SHOW_FILE_DOWNLOAD_PROGRESS

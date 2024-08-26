@@ -15,9 +15,6 @@
 #include "RaftArduino.h"
 #include "ESPUtils.h"
 
-// Logging
-static const char* MODULE_PREFIX = "RICSerial";
-
 // Warn
 #define WARN_ON_NO_HDLC_HANDLER
 #define WARN_ON_ENCODED_MSG_LEN_MISMATCH

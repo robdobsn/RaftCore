@@ -51,4 +51,8 @@ public:
     {
         return "RICFrame";
     }
+
+private:
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RICFrame";
 };

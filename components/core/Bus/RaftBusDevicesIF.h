@@ -67,4 +67,14 @@ public:
     virtual uint32_t getDecodedPollResponses(uint32_t address, 
                     void* pStructOut, uint32_t structOutSize, 
                     uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) const = 0;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get debug JSON
+    /// @return JSON string
+    virtual String getDebugJSON(bool includeBraces) const
+    {
+        if (!includeBraces)
+            return "";
+        return "{}";
+    }
 };

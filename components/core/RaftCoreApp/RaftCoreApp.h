@@ -93,4 +93,7 @@ private:
 
     // SysManager is setup
     bool _sysManagerSetupDone = false;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RaftApp";
 };

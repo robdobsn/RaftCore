@@ -87,4 +87,7 @@ private:
     void debugEndpointMessage(const CommsChannelMsg& msg);
     void debugRICRESTMessage(const CommsChannelMsg &cmdMsg, const RICRESTMsg& ricRESTReqMsg);
     void debugRICRESTResponse(const CommsChannelMsg &endpointMsg);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "ProtExch";
 };

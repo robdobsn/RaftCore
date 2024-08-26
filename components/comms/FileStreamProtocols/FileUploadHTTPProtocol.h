@@ -41,4 +41,9 @@ public:
 
     // Is active
     virtual bool isActive() override final;
+
+private:
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "FileULHTTP";
+
 };

@@ -18,10 +18,6 @@
 // #define DEBUG_OUTBOUND_QUEUE
 // #define DEBUG_INBOUND_QUEUE
 
-#if defined(DEBUG_COMMS_CHANNEL) || defined(DEBUG_COMMS_CHANNEL_CREATE_DELETE) || defined(DEBUG_OUTBOUND_QUEUE) || defined(DEBUG_INBOUND_QUEUE) || defined(WARN_ON_INBOUND_QUEUE_FULL)
-static const char* MODULE_PREFIX = "CommsChan";
-#endif
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 // xxBlockMax and xxQueueMaxLen parameters can be 0 for defaults to be used

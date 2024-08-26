@@ -29,8 +29,6 @@
 #include "ArduinoStdlibNonISO.h"
 #include "Logger.h"
 
-#define MODULE_PREFIX "ArdWString"
-
 /*********************************************/
 /*  Constructors                             */
 /*********************************************/

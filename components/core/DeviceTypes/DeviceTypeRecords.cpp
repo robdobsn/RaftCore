@@ -14,10 +14,6 @@
 // #define DEBUG_DEVICE_INFO_PERFORMANCE
 // #define DEBUG_DEVICE_INIT_REQS
 
-#if defined(DEBUG_DEVICE_INFO_RECORDS) || defined(DEBUG_DEVICE_INFO_PERFORMANCE) || defined(DEBUG_POLL_REQUEST_REQS) || defined(DEBUG_DEVICE_INIT_REQS)
-static const char* MODULE_PREFIX = "DeviceTypeRecords";
-#endif
-
 // Global object
 DeviceTypeRecords deviceTypeRecords;
 

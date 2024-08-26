@@ -42,4 +42,7 @@ private:
 
     // Helper
     static void dnsResultCallback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "DNSResolver";
 };

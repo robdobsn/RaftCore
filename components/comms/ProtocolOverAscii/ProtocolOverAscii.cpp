@@ -12,11 +12,6 @@
 
 // #define DEBUG_OVERASCII
 
-// #ifdef DEBUG_OVERASCII
-// #include <Logger.h>
-// static const char* MODULE_PREFIX = "OverAscii";
-// #endif
-
 // Constructor for HDLC with frame-wise transmit
 ProtocolOverAscii::ProtocolOverAscii()
 {

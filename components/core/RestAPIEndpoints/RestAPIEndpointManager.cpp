@@ -20,14 +20,6 @@
 // #define DEBUG_HANDLE_API_REQUEST_AND_RESPONSE
 // #define DEBUG_NAME_VALUE_PAIR_EXTRACTION
 
-#if defined(DEBUG_REST_API_ENDPOINTS_ADD) || \
-    defined(DEBUG_REST_API_ENDPOINTS_GET) || \
-    defined(DEBUG_HANDLE_API_REQUEST_AND_RESPONSE) || \
-    defined(DEBUG_NAME_VALUE_PAIR_EXTRACTION) || \
-    defined(WARN_ON_NON_MATCHING_ENDPOINTS)
-static const char* MODULE_PREFIX = "RestAPIEndpointManager";
-#endif
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

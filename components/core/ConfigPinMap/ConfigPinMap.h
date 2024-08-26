@@ -61,4 +61,9 @@ public:
 
     // Pin mode mapping
     static int mapPinModeToArduino(PinMode pinMode);
+
+private:
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "ConfigPinMap";
+
 };

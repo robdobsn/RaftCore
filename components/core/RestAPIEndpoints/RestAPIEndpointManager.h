@@ -89,4 +89,7 @@ public:
 private:
     // Vector of endpoints
     std::vector<RestAPIEndpoint> _endpointsList;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RestAPI";
 };

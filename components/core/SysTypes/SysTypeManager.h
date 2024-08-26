@@ -145,4 +145,7 @@ private:
     RaftRetCode apiSysTypePostSettingsBody(const String& reqStr, const uint8_t *pData, size_t len, 
                         size_t index, size_t total, const APISourceInfo& sourceInfo);
     RaftRetCode apiSysTypeClearSettings(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "SysTypeMgr";
 };

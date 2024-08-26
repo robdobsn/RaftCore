@@ -102,4 +102,7 @@ private:
     // Helpers
     bool nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_t& handledBytes, 
                         bool& finalChunk, uint32_t numToRead);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "FSChunker";
 };

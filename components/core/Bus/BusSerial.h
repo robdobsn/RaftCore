@@ -93,4 +93,8 @@ private:
 
     // Helpers
     bool serialInit();
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "BusSerial";
+
 };

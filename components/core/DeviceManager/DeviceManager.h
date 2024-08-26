@@ -35,9 +35,15 @@ protected:
 
     // Setup
     virtual void setup() override final;
+    
+    // Post-setup - called after setup of all sysMods complete
+    virtual void postSetup() override final;
 
     // Loop (called frequently)
     virtual void loop() override final;
+
+    // Get JSON debug string
+    virtual String getDebugJSON() const override final;
 
 private:
 
@@ -57,4 +63,7 @@ private:
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "DevMan";
 };

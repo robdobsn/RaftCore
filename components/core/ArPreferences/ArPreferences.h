@@ -67,6 +67,10 @@ class ArPreferences {
 	size_t getBytesLength(const char* key);
         size_t getBytes(const char* key, void * buf, size_t maxLen);
         size_t freeEntries();
+
+    private:
+        // Debug
+        static constexpr const char* MODULE_PREFIX = "ArPrefs";
 };
 
 #endif

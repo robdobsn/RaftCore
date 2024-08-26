@@ -14,8 +14,6 @@
 #include "nvs_flash.h"
 #include "esp_idf_version.h"
 
-static const char *MODULE_PREFIX = "RaftJsonNVS";
-
 // #define WARN_ON_NVS_JSON_DOC_TOO_SHORT
 // #define WARN_ON_NVS_JSON_DOC_TOO_LONG
 #define WARN_ON_NVS_ACCESS_FAILURES

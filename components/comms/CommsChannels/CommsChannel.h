@@ -145,4 +145,7 @@ private:
 
     // Outbound message queue for response messages
     ThreadSafeQueue<CommsChannelMsg> _outboundQueue;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "CommsChan";
 };

@@ -13,10 +13,6 @@
 // Debug
 // #define DEBUG_STATUS_INDICATOR_SETUP
 // #define DEBUG_STATUS_INDICATOR_CODE
-#if defined(DEBUG_STATUS_INDICATOR_CODE) || defined(DEBUG_STATUS_INDICATOR_SETUP)
-// Log prefix
-static const char *MODULE_PREFIX = "StInd";
-#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor

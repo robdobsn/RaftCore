@@ -24,9 +24,6 @@
 #include "NetworkSystem.h"
 #include "DebugGlobals.h"
 
-// Log prefix
-static const char *MODULE_PREFIX = "SysMan";
-
 // #define ONLY_ONE_MODULE_PER_LOOP 1
 
 // Debug supervisor step (for hangup detection within a loop call)
@@ -659,23 +656,24 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 // Register data source (message generator) with SysMod
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SysManager::registerDataSource(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+bool SysManager::registerDataSource(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
     // See if the sysmod is in the list
     for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
+            bool rslt = pSysMod->registerDataSource(msgGenID, msgGenCB, stateDetectCB);
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
-            LOG_I(MODULE_PREFIX, "registerDataSource registered %s with the %s sysmod", msgGenID, sysModName);
+            LOG_I(MODULE_PREFIX, "registerDataSource %s register %s with the %s sysmod", rslt ? "OK" : "FAILED", msgGenID, sysModName);
 #endif
-            pSysMod->registerDataSource(msgGenID, msgGenCB, stateDetectCB);
-            return;
+            return rslt;
         }
     }
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
     LOG_W(MODULE_PREFIX, "registerDataSource NOT FOUND %s %s", sysModName, msgGenID);
 #endif
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

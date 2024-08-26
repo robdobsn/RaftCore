@@ -19,11 +19,6 @@
 // #define DEBUG_HDLC_CRC
 // #define DEBUG_HDLC_DETAIL
 
-#if defined(DEBUG_HDLC) || defined(DEBUG_HDLC_CRC) || defined(DEBUG_HDLC_DETAIL) || defined(WARN_ON_HDLC_FRAME_TOO_LONG)
-#include "Logger.h"
-static const char* MODULE_PREFIX = "MiniHDLC";
-#endif
-
 // CRC Lookup table
 const uint16_t MiniHDLC::_CRCTable[256] = { 
     0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef,

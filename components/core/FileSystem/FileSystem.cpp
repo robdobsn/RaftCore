@@ -25,8 +25,6 @@
 #include "esp_littlefs.h"
 #endif
 
-static const char* MODULE_PREFIX = "FileSystem";
-
 FileSystem fileSystem;
 
 // Warn

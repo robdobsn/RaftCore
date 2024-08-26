@@ -205,6 +205,9 @@ private:
     void handleWiFiStaDisconnectEvent();
     void warnOnWiFiDisconnectIfEthNotConnected();
     void setupMDNS();
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "NetSys";
 };
 
 // Access to single instance

@@ -108,6 +108,9 @@ private:
                 bool maskToZeros);
     static uint32_t extractReadDataSize(const String& readStr);
     static uint32_t extractBarAccessMs(const String& readStr);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "DevTypeRecs";
 };
 
 // Access to single instance

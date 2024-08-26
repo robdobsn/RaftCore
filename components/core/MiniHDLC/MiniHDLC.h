@@ -235,4 +235,7 @@ private:
             return _rxBuffer.getAt(_framePos - 1) | (((uint16_t)_rxBuffer.getAt(_framePos-2)) << 8);
         return _rxBuffer.getAt(_framePos - 2) | (((uint16_t)_rxBuffer.getAt(_framePos-1)) << 8);
     }
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MiniHDLC";
 };

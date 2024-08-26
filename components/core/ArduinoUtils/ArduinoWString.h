@@ -353,6 +353,10 @@ class String {
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
         void move(String &rhs);
 #endif
+
+    private:
+        // Debug
+        static constexpr const char* MODULE_PREFIX = "ArduinoStr";
 };
 
 class StringSumHelper: public String {

@@ -147,4 +147,7 @@ private:
 
     // Debug - get expression info
     void debugGetExprInfo(const te_expr *n, int depth, bool logExpr, uint32_t& curCompiledSize);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "ExprEval";
 };

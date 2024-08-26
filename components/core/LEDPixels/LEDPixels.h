@@ -108,6 +108,9 @@ private:
     String _currentPatternName;
     uint32_t _patternStartMs = 0;
     uint32_t _patternDurationMs = 0;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "LEDPix";
 };
 
 #endif

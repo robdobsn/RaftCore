@@ -14,8 +14,6 @@
 #include "RaftUtils.h"
 #include "SysTypeManager.h"
 
-static const char* MODULE_PREFIX = "SysTypeManager";
-
 // #define DEBUG_SYS_TYPE_MANAGER_API
 // #define DEBUG_SYS_TYPE_SET_BEST
 

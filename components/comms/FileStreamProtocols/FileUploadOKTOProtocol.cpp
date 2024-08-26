@@ -12,9 +12,6 @@
 #include "CommsChannelMsg.h"
 #include "CommsCoreIF.h"
 
-// Log prefix
-static const char *MODULE_PREFIX = "FileUpldOKTO";
-
 // #define DEBUG_SHOW_FILE_UPLOAD_PROGRESS
 // #define DEBUG_RICREST_FILEUPLOAD
 // #define DEBUG_RICREST_FILEUPLOAD_FIRST_AND_LAST_BLOCK

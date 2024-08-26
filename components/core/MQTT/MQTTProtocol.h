@@ -127,4 +127,7 @@ private:
 
     // Helpers
     uint32_t bufferAppendString(std::vector<uint8_t>& buf, const char* pStr);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MQTTProto";
 };

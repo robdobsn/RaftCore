@@ -17,8 +17,6 @@
 #include "MiniHDLC.h"
 #include "SpiramAwareAllocator.h"
 
-static const char* MODULE_PREFIX = "FSSess";
-
 // Warn
 #define WARN_ON_FW_UPDATE_FAILED
 #define WARN_ON_STREAM_FAILED

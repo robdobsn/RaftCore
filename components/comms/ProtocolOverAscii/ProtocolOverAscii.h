@@ -61,4 +61,7 @@ private:
     // Helpers
     static uint32_t addBytes(uint8_t* pEncoded, uint32_t encodedMaxLen, uint32_t bufPos, uint32_t escCode, uint32_t byteCode);
     static uint32_t addByte(uint8_t* pEncoded, uint32_t encodedMaxLen, uint32_t bufPos, uint32_t byteCode);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "ProtOvAscii";
 };

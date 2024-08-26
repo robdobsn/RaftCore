@@ -16,10 +16,6 @@
 
 // #define DEBUG_CONFIG_MULTIPLE
 
-#ifdef DEBUG_CONFIG_MULTIPLE
-static const char* MODULE_PREFIX = "ConfigPinMap";
-#endif
-
 #if defined(ESP32) || defined(IDF_VER)
 #if defined(ARDUINO_FEATHER_ESP32)
 #define CONFIG_PINMAP_INCLUDES_DIGITAL

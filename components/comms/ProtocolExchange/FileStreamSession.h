@@ -147,4 +147,8 @@ private:
     RaftRetCode writeFirmwareBlock(FileStreamBlock& fileStreamBlock);
     RaftRetCode writeFileBlock(FileStreamBlock& fileStreamBlock);
     RaftRetCode writeRealTimeStreamBlock(FileStreamBlock& fileStreamBlock);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "FSess";
+
 };

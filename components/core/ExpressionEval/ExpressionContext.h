@@ -83,5 +83,8 @@ private:
     // Tinyexpr variables
     static const uint32_t ADDITIONAL_TEVARS_TO_RESERVE = 10;
     bool _teVarsAllocated;
-    std::vector<te_variable> _teVars;    
+    std::vector<te_variable> _teVars;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "ExprCtx";
 };

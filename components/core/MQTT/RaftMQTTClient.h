@@ -96,4 +96,7 @@ private:
     bool getRxData(std::vector<uint8_t>& rxData, bool& isError, bool& connClosed);
     bool sendTxData(std::vector<uint8_t>& txData, bool& isError, bool& connClosed);
     void subscribeToTopics();
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MQTTClient";
 };

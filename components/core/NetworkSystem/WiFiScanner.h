@@ -60,5 +60,8 @@ private:
     // Helpers
     String getCipherString(uint16_t cipher);
     String getAuthModeString(uint16_t authMode);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "WiFiScan";   
 };
 

@@ -46,4 +46,7 @@ private:
     bool _isOn = false;
     uint32_t _changeLastMs = 0;
     uint32_t _timeoutMs = 0;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "StInd";
 };
