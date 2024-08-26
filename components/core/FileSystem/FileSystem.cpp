@@ -1118,12 +1118,18 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
         .max_files = 5,
         .allocation_unit_size = 16 * 1024,
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-        .disk_status_check_enable = false
+        .disk_status_check_enable = false,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+        .use_one_fat = false
 #endif
     };
 
     // Setup SD using SPI (single bit data)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+#pragma GCC diagnostic pop
     sdmmc_card_t* pCard = nullptr;
 
     // Handle differences in ESP IDF versions
