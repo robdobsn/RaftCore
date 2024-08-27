@@ -232,6 +232,8 @@ private:
     bool _sysmodListDirty = false;
     bool _supervisorEnable = true;
     bool _loopAllSysMods = true;
+    static const uint32_t LOOP_SLEEP_MS_DEFAULT = 1;
+    uint32_t _loopSleepMs = LOOP_SLEEP_MS_DEFAULT;
 
     // SysMods to loop over
     std::vector<RaftSysMod*> _sysModLoopVector;

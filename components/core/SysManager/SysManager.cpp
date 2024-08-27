@@ -100,6 +100,7 @@ void SysManager::preSetup()
 
     // SysMod looping
     _loopAllSysMods = sysManConfig.getBool("loopAllSysMods", true);
+    _loopSleepMs = sysManConfig.getLong("loopSleepMs", LOOP_SLEEP_MS_DEFAULT);
     _supervisorEnable = sysManConfig.getBool("supervisorEnable", true);
     _slowSysModThresholdUs = sysManConfig.getLong("slowSysModMs", SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT) * 1000;
     _reportSlowSysMod = _supervisorEnable ? sysManConfig.getBool("reportSlowSysMod", true) : false;
@@ -472,6 +473,10 @@ void SysManager::loop()
             }
         }
     }
+
+    // Sleep the task
+    if (_loopSleepMs > 0)
+        vTaskDelay(_loopSleepMs);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
