@@ -35,7 +35,7 @@
 #include "esp_eth_netif_glue.h"
 #endif
 
-// This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
+// TODO - This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
 #define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(servers_in_list, list_of_servers)   {   \
             .smooth_sync = false,                   \
             .server_from_dhcp = false,              \
@@ -401,6 +401,7 @@ bool NetworkSystem::startWifi()
     if (enWifiSTAMode)
     {
         // Get the config from NVS if present
+        // TODO - this is a hacky fix to avoid a warning - need to fix properly
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
         wifi_config_t currentWifiConfig = {0};
@@ -489,6 +490,7 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
         return false;
 
     // Populate configuration for WiFi
+    // TODO - this is a hacky fix to avoid a warning - need to fix properly
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     wifi_config_t currentWifiConfig = {};
@@ -542,6 +544,7 @@ bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
         return false;
 
     // Populate configuration for AP
+    // TODO - this is a hacky fix to avoid a warning - need to fix properly
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     wifi_config_t wifiAPConfig = {0};
@@ -748,12 +751,57 @@ bool NetworkSystem::startEthernet()
 
     // Create Ethernet driver
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-    // Init vendor specific MAC config to default
-    eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+// TODO - This is a hacky fix - hopefully temporary - for ESP IDF 5.3.0 which throws a compile error
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+#if CONFIG_ETH_RMII_CLK_INPUT // IDF-9724
+    #define DEFAULT_RMII_CLK_MODE EMAC_CLK_EXT_IN
+#if CONFIG_ETH_RMII_CLK_IN_GPIO == 0
+    #define DEFAULT_RMII_CLK_GPIO CONFIG_ETH_RMII_CLK_IN_GPIO
+#else
+    #error "ESP32 EMAC only support input RMII clock to GPIO0"
+#endif // CONFIG_ETH_RMII_CLK_IN_GPIO == 0
+#elif CONFIG_ETH_RMII_CLK_OUTPUT
+    #define DEFAULT_RMII_CLK_MODE EMAC_CLK_OUT
+#if CONFIG_ETH_RMII_CLK_OUTPUT_GPIO0
+    #define DEFAULT_RMII_CLK_GPIO EMAC_APPL_CLK_OUT_GPIO
+#else
+    #undef DEFAULT_RMII_CLK_GPIO
+    #define DEFAULT_RMII_CLK_GPIO ((emac_rmii_clock_gpio_t)CONFIG_ETH_RMII_CLK_OUT_GPIO)
+#endif // CONFIG_ETH_RMII_CLK_OUTPUT_GPIO0
+#else
+#error "Unsupported RMII clock mode"
+#endif // CONFIG_ETH_RMII_CLK_INPUT
+    eth_esp32_emac_config_t esp32_emac_config = 
+    {
+        .smi_gpio =
+        {
+            .mdc_num = 23,
+            .mdio_num = 18
+        },
+        .interface = EMAC_DATA_INTERFACE_RMII,
+        .clock_config =
+        {
+            .rmii =
+            {
+                .clock_mode = DEFAULT_RMII_CLK_MODE,
+                .clock_gpio = DEFAULT_RMII_CLK_GPIO
+            }
+        },
+        .dma_burst_len = ETH_DMA_BURST_LEN_32,
+        .intr_priority = 0,
+    };
     esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
     esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
     // Create new ESP32 Ethernet MAC instance
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#else
+    // Init vendor specific MAC config to default
+    eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+    esp32_emac_config.smi_gpio.mdc_num = (gpio_num_t) _networkSettings.smiMDCPin;
+    esp32_emac_config.smi_gpio.mdio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    // Create new ESP32 Ethernet MAC instance
+    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#endif
 #else
     mac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
     mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;

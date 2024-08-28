@@ -33,7 +33,7 @@ public:
     void loop();
 
     // Get button pressed state
-    bool isButtonPressed()
+    bool isButtonPressed() const
     {
         return _lastStableVal;
     }
