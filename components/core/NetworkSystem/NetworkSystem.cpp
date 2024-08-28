@@ -790,15 +790,15 @@ bool NetworkSystem::startEthernet()
         .dma_burst_len = ETH_DMA_BURST_LEN_32,
         .intr_priority = 0,
     };
-    esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
-    esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    esp32_emac_config.smi_gpio.mdc_num = (gpio_num_t) _networkSettings.smiMDCPin;
+    esp32_emac_config.smi_gpio.mdio_num= (gpio_num_t) _networkSettings.smiMDIOPin;
     // Create new ESP32 Ethernet MAC instance
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
 #else
     // Init vendor specific MAC config to default
     eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
-    esp32_emac_config.smi_gpio.mdc_num = (gpio_num_t) _networkSettings.smiMDCPin;
-    esp32_emac_config.smi_gpio.mdio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
+    esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
     // Create new ESP32 Ethernet MAC instance
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
 #endif
