@@ -121,6 +121,10 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
     devManConfig.getArrayElems(pConfigPrefix, deviceConfigs);
     for (RaftJson devConf : deviceConfigs)
     {
+        // Check if enable is explicitly set to false
+        if (!devConf.getBool("enable", true))
+            continue;
+
         // Get class of device
         String devClass = devConf.getString("class", "");
 
