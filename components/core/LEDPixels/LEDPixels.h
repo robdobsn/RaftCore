@@ -51,6 +51,7 @@ public:
     void setPattern(const String& patternName, const char* pParamsJson=nullptr);
     void addPattern(const String& patternName, LEDPatternCreateFn createFn);
     void getPatternNames(std::vector<String>& patternNames);
+    void stopPattern(bool clearPixels);
 
     // Write to an individual LED
     void setRGB(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness=true);

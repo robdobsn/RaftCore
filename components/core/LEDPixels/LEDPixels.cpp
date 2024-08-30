@@ -129,13 +129,8 @@ void LEDPixels::addPattern(const String& patternName, LEDPatternCreateFn createF
 
 void LEDPixels::setPattern(const String& patternName, const char* pParamsJson)
 {
-    // Check for existing pattern with differnt name and remove if so
-    if (_pCurrentPattern && _currentPatternName != patternName)
-    {
-        delete _pCurrentPattern;
-        _pCurrentPattern = nullptr;
-        _currentPatternName = "";
-    }
+    // Stop existing pattern 
+    stopPattern(true);
 
     // Find pattern
     for (auto& pattern : _ledPatterns)
@@ -169,11 +164,26 @@ void LEDPixels::setPattern(const String& patternName, const char* pParamsJson)
         }
     }
 
-    // Clear LEDs
-    clear(true);
-
     // Debug
     LOG_I(MODULE_PREFIX, "setPattern %s", patternName.length() > 0 ? "PATTERN NOT FOUND" : "pattern cleared");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Stop the current pattern
+/// @param clearPixels - clear the pixels
+void LEDPixels::stopPattern(bool clearPixels)
+{
+    // Clear pattern
+    if (_pCurrentPattern)
+    {
+        delete _pCurrentPattern;
+        _pCurrentPattern = nullptr;
+        _currentPatternName = "";
+    }
+
+    // Clear pixels
+    if (clearPixels)
+        clear(true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
