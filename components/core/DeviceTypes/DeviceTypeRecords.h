@@ -12,7 +12,11 @@
 #include "RaftJson.h"
 #include "RaftBusConsts.h"
 #include "DeviceTypeRecord.h"
+#include "DeviceTypeRecordDynamic.h"
 #include "DevicePollingInfo.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecords
@@ -99,7 +103,19 @@ public:
     /// @param priorityLists (out) priority lists
     static void getScanPriorityLists(std::vector<std::vector<BusElemAddrType>>& priorityLists);
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Add extended device type records
+    /// @param devTypeRec device type record
+    /// @return true if added
+    bool addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec);
+
 private:
+    // Mutex for access to device type records
+    SemaphoreHandle_t _deviceTypeRecordsMutex;
+
+    // Extended device type records
+    std::vector<DeviceTypeRecordDynamic> _extendedDevTypeRecords;
+
     // Helpers
     static bool extractBufferDataFromHexStr(const String& writeStr, std::vector<uint8_t>& writeData);
     static bool extractMaskAndDataFromHexStr(const String& readStr, std::vector<uint8_t>& readDataMask, 

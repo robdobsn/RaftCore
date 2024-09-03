@@ -26,6 +26,8 @@ static const uint32_t BASE_DEV_TYPE_ARRAY_SIZE = sizeof(baseDevTypeRecords) / si
 /// @brief Constructor
 DeviceTypeRecords::DeviceTypeRecords()
 {
+    // Create mutex
+    _deviceTypeRecordsMutex = xSemaphoreCreateMutex();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -508,4 +510,34 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
             priorityLists[i].push_back(scanPriorityLists[i][j]);
         }
     }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Add extended device type record
+/// @param devTypeRec device type record
+/// @return true if added
+bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec)
+{
+    // Lock
+    if (!xSemaphoreTake(_deviceTypeRecordsMutex,  pdMS_TO_TICKS(2)))
+        return false;
+
+    // Check if already added
+    bool recFound = false;
+    for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+    {
+        if (extDevTypeRec.nameMatches(devTypeRec))
+        {
+            recFound = true;
+            break;
+        }
+    }
+
+    // Add to list
+    if (!recFound)
+        _extendedDevTypeRecords.push_back(devTypeRec);
+
+    // Unlock
+    xSemaphoreGive(_deviceTypeRecordsMutex);
+    return !recFound;
 }

@@ -10,6 +10,9 @@
 #include "RaftSysMod.h"
 #include "RaftBusSystem.h"
 #include "DeviceFactory.h"
+#include "BusRequestResult.h"
+
+class APISourceInfo;
 
 class DeviceManager : public RaftSysMod
 {
@@ -45,6 +48,9 @@ protected:
     // Get JSON debug string
     virtual String getDebugJSON() const override final;
 
+    // Add endpoints
+    virtual void addRestAPIEndpoints(RestAPIEndpointManager& pEndpoints) override final;
+
 private:
 
     // List of instantiated devices
@@ -60,6 +66,12 @@ private:
     // Access to devices' data
     String getDevicesDataJSON() const;
     void getDevicesHash(std::vector<uint8_t>& stateHash) const;
+
+    // API callback
+    RaftRetCode apiDevMan(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+
+    // Callback for command results
+    void cmdResultReportCallback(BusRequestResult& reqResult);
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;
