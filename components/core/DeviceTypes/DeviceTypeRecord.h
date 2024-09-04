@@ -27,6 +27,7 @@ typedef uint32_t (*DeviceTypeRecordDecodeFn)(const uint8_t* pPollBuf, uint32_t p
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecord
 /// @brief Device Type Record
+/// @note This must be a POD type as it is used to describe the device type records in the flash memory
 class DeviceTypeRecord
 {
 public:
@@ -44,20 +45,25 @@ public:
         // Check if plug and play info required
         if (!includePlugAndPlayInfo)
         {
-            return devInfoJson;
+            return devInfoJson ? String(devInfoJson) : "{}";
         }
 
         // Form JSON string
         String devTypeInfo = "{";
-        devTypeInfo += "\"type\":\"" + String(deviceType) + "\",";
-        devTypeInfo += "\"addr\":\"" + String(addresses) + "\",";
-        devTypeInfo += "\"det\":\"" + String(detectionValues) + "\",";
-        devTypeInfo += "\"init\":\"" + String(initValues) + "\",";
-        devTypeInfo += "\"poll\":\"" + String(pollInfo) + "\",";
-        devTypeInfo += "\"pollSize\":" + String(pollDataSizeBytes) + ",";
-        devTypeInfo += "\"info\":" + String(devInfoJson);
+        if (deviceType)
+            devTypeInfo += "\"type\":\"" + String(deviceType) + "\",";
+        if (addresses)
+            devTypeInfo += "\"addr\":\"" + String(addresses) + "\",";
+        if (detectionValues)
+            devTypeInfo += "\"det\":\"" + String(detectionValues) + "\",";
+        if (initValues)
+            devTypeInfo += "\"init\":\"" + String(initValues) + "\",";
+        if (pollInfo)
+            devTypeInfo += "\"poll\":\"" + String(pollInfo) + "\",";
+        if (devInfoJson)
+            devTypeInfo += "\"info\":" + String(devInfoJson) + ",";
+        devTypeInfo += "\"pollSize\":" + String(pollDataSizeBytes);
         devTypeInfo += "}";
         return devTypeInfo;
     }
 };
-

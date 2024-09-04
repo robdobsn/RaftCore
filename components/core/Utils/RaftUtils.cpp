@@ -1338,7 +1338,7 @@ void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const cha
     char* pTok = strtok(pStr, pSep);
     while (pTok)
     {
-        outList.push_back(atoi(pTok));
+        outList.push_back(strtol(pTok, nullptr, 0));
         pTok = strtok(nullptr, pSep);
     }
     free(pStr);

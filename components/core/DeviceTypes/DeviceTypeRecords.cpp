@@ -13,6 +13,9 @@
 // #define DEBUG_POLL_REQUEST_REQS
 // #define DEBUG_DEVICE_INFO_PERFORMANCE
 // #define DEBUG_DEVICE_INIT_REQS
+// #define DEBUG_LOOKUP_DEVICE_TYPE_BY_INDEX
+// #define DEBUG_LOOKUP_DEVICE_TYPE_BY_NAME
+// #define DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
 
 // Global object
 DeviceTypeRecords deviceTypeRecords;
@@ -27,7 +30,10 @@ static const uint32_t BASE_DEV_TYPE_ARRAY_SIZE = sizeof(baseDevTypeRecords) / si
 DeviceTypeRecords::DeviceTypeRecords()
 {
     // Create mutex
-    _deviceTypeRecordsMutex = xSemaphoreCreateMutex();
+    _extDeviceTypeRecordsMutex = xSemaphoreCreateMutex();
+
+    // Reserve space for extended device type records (to avoid changing absolute pointer values)
+    _extendedDevTypeRecords.reserve(MAX_EXTENDED_DEV_TYPE_RECORDS);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -40,18 +46,42 @@ std::vector<uint16_t> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrTyp
     uint64_t startTimeUs = micros();
 #endif
 
+    // Return value
+    std::vector<uint16_t> devTypeIdxsForAddr;
+
+    // Check if any of the extended device type records match
+    if (_extendedRecordsAdded && (xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY) == pdTRUE))
+    {
+        // Ext devType indices continue on from the base devType indices
+        uint16_t devTypeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
+        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+        {
+            std::vector<int> addressList;
+            Raft::parseIntList(extDevTypeRec.addresses_.c_str(), addressList, ",");
+            for (int devAddr : addressList)
+            {
+                if (devAddr == addr)
+                {
+                    devTypeIdxsForAddr.push_back(devTypeIdx);
+                    break;
+                }
+            }
+            devTypeIdx++;
+        }
+        xSemaphoreGive(_extDeviceTypeRecordsMutex);
+    }
+
     // Check valid
     if ((addr < BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR) || (addr > BASE_DEV_INDEX_BY_ARRAY_MAX_ADDR))
-        return std::vector<uint16_t>();
+        return devTypeIdxsForAddr;
     uint32_t addrIdx = addr - BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR;
     
     // Get number of types for this addr - if none then return
     uint32_t numTypes = baseDevTypeCountByAddr[addrIdx];
     if (numTypes == 0)
-        return std::vector<uint16_t>();
+        return devTypeIdxsForAddr;
 
     // Iterate the types for this address
-    std::vector<uint16_t> devTypeIdxsForAddr;
     for (uint32_t i = 0; i < numTypes; i++)
     {
         devTypeIdxsForAddr.push_back(baseDevTypeIndexByAddr[addrIdx][i]);
@@ -72,28 +102,77 @@ std::vector<uint16_t> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrTyp
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device type for a device type index
 /// @param deviceTypeIdx device type index
-/// @return pointer to device type record if device type found, nullptr if not
-const DeviceTypeRecord* DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx) const
+/// @param devTypeRec (out) device type record
+/// @return true if device type found
+bool DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& devTypeRec) const
 {
     // Check if in range
+    bool isValid = false;
     if (deviceTypeIdx >= BASE_DEV_TYPE_ARRAY_SIZE)
-        return nullptr;
-    return &baseDevTypeRecords[deviceTypeIdx];
+    {
+        // Check extended device type records
+        if (_extendedRecordsAdded && (xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY) == pdTRUE))
+        {
+            const uint32_t extDevTypeIdx = deviceTypeIdx - BASE_DEV_TYPE_ARRAY_SIZE;
+            if (extDevTypeIdx < _extendedDevTypeRecords.size())
+                isValid = _extendedDevTypeRecords[extDevTypeIdx].getDeviceTypeRecord(devTypeRec);
+            xSemaphoreGive(_extDeviceTypeRecordsMutex);
+        }
+    }
+    else
+    {
+        devTypeRec = baseDevTypeRecords[deviceTypeIdx];
+        isValid = true;
+    }
+#ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_INDEX
+    LOG_I(MODULE_PREFIX, "getDeviceInfo %d %s %s", deviceTypeIdx, 
+                isValid ? "OK" : "NOT FOUND", 
+                isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
+#endif
+    return isValid;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device type for a device type name
 /// @param deviceTypeName device type name
-/// @return pointer to device type record if device type found, nullptr if not
-const DeviceTypeRecord* DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName) const
+/// @param devTypeRec (out) device type record
+/// @return true if device type found
+bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec) const
 {
-    // Iterate the device types
-    for (uint16_t i = 0; i < BASE_DEV_TYPE_ARRAY_SIZE; i++)
+    // Iterate the extended device types first - so that device type names can be overridden
+    bool isValid = false;
+    if (_extendedRecordsAdded && (xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY) == pdTRUE))
     {
-        if (deviceTypeName == baseDevTypeRecords[i].deviceType)
-            return &baseDevTypeRecords[i];
+        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+        {
+            if (extDevTypeRec.deviceTypeName_ == deviceTypeName)
+            {
+                isValid = extDevTypeRec.getDeviceTypeRecord(devTypeRec);
+                break;
+            }
+        }
+        xSemaphoreGive(_extDeviceTypeRecordsMutex);
     }
-    return nullptr;
+
+    // Iterate the device types
+    if (!isValid)
+    {
+        for (uint16_t i = 0; i < BASE_DEV_TYPE_ARRAY_SIZE; i++)
+        {
+            if (deviceTypeName == baseDevTypeRecords[i].deviceType)
+            {
+                devTypeRec = baseDevTypeRecords[i];
+                isValid = true;
+                break;
+            }
+        }
+    }
+#ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_NAME
+    LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s devTypeInfo %s", deviceTypeName.c_str(), 
+                isValid ? "OK" : "NOT FOUND", 
+                isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
+#endif
+    return isValid;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -466,17 +545,11 @@ String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline
 /// @return JSON string
 String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(uint16_t deviceTypeIdx, bool includePlugAndPlayInfo) const
 {
-    // Check if in range
-    if (deviceTypeIdx >= BASE_DEV_TYPE_ARRAY_SIZE)
-        return "{}";
-
-    // Get the device type record
-    const DeviceTypeRecord* pDevTypeRec = &baseDevTypeRecords[deviceTypeIdx];
-    if (!pDevTypeRec)
-        return "{}";
-
-    // Get JSON for device type
-    return pDevTypeRec->getJson(includePlugAndPlayInfo);
+    // Get device type record
+    DeviceTypeRecord devTypeRec;
+    if (getDeviceInfo(deviceTypeIdx, devTypeRec))
+        return devTypeRec.getJson(includePlugAndPlayInfo);
+    return "{}";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -487,10 +560,10 @@ String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(uint16_t deviceTypeIdx, bo
 String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeName, bool includePlugAndPlayInfo) const
 {
     // Get the device type info
-    const DeviceTypeRecord* pDevTypeRec = getDeviceInfo(deviceTypeName);
-
-    // Get JSON for device type
-    return pDevTypeRec ? pDevTypeRec->getJson(includePlugAndPlayInfo) : "{}";
+    DeviceTypeRecord devTypeRec;
+    if (getDeviceInfo(deviceTypeName, devTypeRec))
+        return devTypeRec.getJson(includePlugAndPlayInfo);
+    return "{}";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -510,6 +583,23 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
             priorityLists[i].push_back(scanPriorityLists[i][j]);
         }
     }
+
+    // Add any extended device type record addresses to the highest priority list
+    if (_extendedRecordsAdded && (xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY) == pdTRUE))
+    {
+        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+        {
+            std::vector<int> addressList;
+            Raft::parseIntList(extDevTypeRec.addresses_.c_str(), addressList, ",");
+            for (int devAddr : addressList)
+            {
+                if (priorityLists.size() == 0)
+                    priorityLists.push_back(std::vector<BusElemAddrType>());
+                priorityLists[0].push_back(devAddr);
+            }
+        }
+        xSemaphoreGive(_extDeviceTypeRecordsMutex);
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -519,8 +609,18 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
 bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec)
 {
     // Lock
-    if (!xSemaphoreTake(_deviceTypeRecordsMutex,  pdMS_TO_TICKS(2)))
+    if (!xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY))
         return false;
+
+    // Check if max number of records reached
+    if (_extendedDevTypeRecords.size() >= MAX_EXTENDED_DEV_TYPE_RECORDS)
+    {
+        xSemaphoreGive(_extDeviceTypeRecordsMutex);
+#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
+        LOG_W(MODULE_PREFIX, "addExtendedDeviceTypeRecord MAX_EXTENDED_DEV_TYPE_RECORDS reached");
+#endif
+        return false;
+    }
 
     // Check if already added
     bool recFound = false;
@@ -535,9 +635,19 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 
     // Add to list
     if (!recFound)
+    {
         _extendedDevTypeRecords.push_back(devTypeRec);
+        _extendedRecordsAdded = true;
+    }
 
     // Unlock
-    xSemaphoreGive(_deviceTypeRecordsMutex);
+    xSemaphoreGive(_extDeviceTypeRecordsMutex);
+
+#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
+    LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s addrs %s detVals %s initVals %s pollInfo %s",
+                recFound ? "ALREADY PRESENT" : "ADDED OK",
+                devTypeRec.deviceTypeName_.c_str(), devTypeRec.addresses_.c_str(), devTypeRec.detectionValues_.c_str(),
+                devTypeRec.initValues_.c_str(), devTypeRec.pollInfo_.c_str());
+#endif
     return !recFound;
 }

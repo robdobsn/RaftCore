@@ -11,6 +11,7 @@
 #include "RaftBusSystem.h"
 #include "DeviceFactory.h"
 #include "BusRequestResult.h"
+#include "DeviceTypeRecords.h"
 
 class APISourceInfo;
 
@@ -33,6 +34,13 @@ public:
     /// @param pDeviceName Name of the device
     /// @return RaftDevice* Pointer to the device or nullptr if not found
     RaftDevice* getDevice(const char* pDeviceName) const;
+
+    /// @brief Get device type records
+    /// @return DeviceTypeRecords (reference to device type records)
+    DeviceTypeRecords& getDeviceTypeRecords()
+    {
+        return deviceTypeRecords;
+    }
 
 protected:
 

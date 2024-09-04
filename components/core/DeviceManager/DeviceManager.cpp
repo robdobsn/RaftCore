@@ -19,6 +19,8 @@
 // #define DEBUG_LIST_DEVICES
 // #define DEBUG_JSON_DEVICE_DATA
 // #define DEBUG_JSON_DEVICE_HASH
+// #define DEBUG_DEVMAN_API
+// #define DEBUG_DEVICE_SETUP
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -167,10 +169,19 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
     {
         if (pDevice)
         {
-            // TODO - remove
-            LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", 
-                    pDevice, pDevice->getDeviceName());
+#ifdef DEBUG_DEVICE_SETUP            
+            LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", pDevice, pDevice->getDeviceName());
+#endif
+            // Setup device
             pDevice->setup();
+
+            // See if the device has a device type record
+            DeviceTypeRecordDynamic devTypeRec;
+            if (pDevice->getDeviceTypeRecord(devTypeRec))
+            {
+                // Add the device type record to the device type records
+                deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec);
+            }
         }
     }
 
@@ -389,22 +400,37 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         if (devTypeName.length() == 0)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeMissing");
 
-        // Find the bus
+        // Check if the bus name is valid and, if so, use the bus devices interface to get the device info
+        String devInfo;
         RaftBus* pBus = raftBusSystem.getBusByName(busName);
-        if (!pBus)
-            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
-
-        // Get devices interface
-        RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
-        if (!pDevicesIF)
-            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
-
-        // Get device info
-        String devInfo = pDevicesIF->getDevTypeInfoJsonByTypeName(devTypeName, false);
-        if (devInfo.length() == 0)
+        if (pBus)
         {
+            // Get devices interface
+            RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+            if (!pDevicesIF)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
+
+            // Get device info
+            devInfo = pDevicesIF->getDevTypeInfoJsonByTypeName(devTypeName, false);
+        }
+        else
+        {
+            // Use the global device type info to get the device info
+            devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(devTypeName, false);
+        }
+
+        // Check valid
+        if ((devInfo.length() == 0) || (devInfo == "{}"))
+        {
+#ifdef DEBUG_DEVMAN_API
+            LOG_I(MODULE_PREFIX, "apiHWDevice bus %s type %s DEVICE NOT FOUND", busName.c_str(), devTypeName.c_str());
+#endif
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
         }
+
+#ifdef DEBUG_DEVMAN_API
+        LOG_I(MODULE_PREFIX, "apiHWDevice bus %s type %s devInfo %s", busName.c_str(), devTypeName.c_str(), devInfo.c_str());
+#endif
 
         // Set result
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, ("\"devinfo\":" + devInfo).c_str());

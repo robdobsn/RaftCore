@@ -15,6 +15,7 @@
 
 class RestAPIEndpointManager;
 class CommsCoreIF;
+class DeviceTypeRecordDynamic;
 
 class RaftDevice
 {
@@ -45,6 +46,14 @@ public:
     virtual String getPublishDeviceType() const
     {
         return publishDeviceType;
+    }
+
+    /// @brief Get the device type record for this device so that it can be added to the device type records
+    /// @param devTypeRec (out) Device type record
+    /// @return true if the device has a device type record
+    virtual bool getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
+    {
+        return false;
     }
 
     // @brief Setup the device

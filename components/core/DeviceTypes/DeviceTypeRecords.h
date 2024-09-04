@@ -35,14 +35,16 @@ public:
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type record for a device type index
     /// @param deviceTypeIdx device type index
-    /// @return pointer to info record if device type found, nullptr if not
-    const DeviceTypeRecord* getDeviceInfo(uint16_t deviceTypeIdx) const;
+    /// @param devTypeRec (out) device type record
+    /// @return true if device type found
+    bool getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& devTypeRec) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type record for a device type name
     /// @param deviceType device type name
-    /// @return pointer to info record if device type found, nullptr if not
-    const DeviceTypeRecord* getDeviceInfo(const String& deviceType) const;
+    /// @param devTypeRec (out) device type record
+    /// @return true if device type found
+    bool getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device polling info
@@ -101,7 +103,7 @@ public:
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get scan priority lists
     /// @param priorityLists (out) priority lists
-    static void getScanPriorityLists(std::vector<std::vector<BusElemAddrType>>& priorityLists);
+    void getScanPriorityLists(std::vector<std::vector<BusElemAddrType>>& priorityLists);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Add extended device type records
@@ -110,10 +112,21 @@ public:
     bool addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec);
 
 private:
-    // Mutex for access to device type records
-    SemaphoreHandle_t _deviceTypeRecordsMutex;
+    // Mutex for access to extended device type records
+    SemaphoreHandle_t _extDeviceTypeRecordsMutex;
+
+    // Flag indicating if any extended records have been added - since this is set only once and
+    // never cleared it is used to avoid taking the mutex in the common case where no extended records
+    // have been added
+    bool _extendedRecordsAdded = false;
+
+    // Maximum number of added device type records (see note below about absolute pointers)
+    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 10;
 
     // Extended device type records
+    // This list MUST only ever be extended and the absolute pointers to 
+    // the DeviceTypeRecordDynamic instances must not change so storage MUST
+    // be allocated in a way that does not move the instances
     std::vector<DeviceTypeRecordDynamic> _extendedDevTypeRecords;
 
     // Helpers

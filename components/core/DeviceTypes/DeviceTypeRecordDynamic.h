@@ -14,6 +14,20 @@
 class DeviceTypeRecordDynamic
 {
 public:
+    /// @brief Constructor
+    DeviceTypeRecordDynamic()
+    {
+    }
+
+    /// @brief Constructor
+    /// @param deviceTypeName 
+    /// @param addresses - comma separated list of addresses (e.g. "0x10,0x11") - ranges are not accepted
+    /// @param detectionValues 
+    /// @param initValues 
+    /// @param pollInfo 
+    /// @param pollDataSizeBytes 
+    /// @param devInfoJson 
+    /// @param pollResultDecodeFn 
     DeviceTypeRecordDynamic(const char* deviceTypeName,
             const char* addresses,
             const char* detectionValues,
@@ -24,60 +38,65 @@ public:
             DeviceTypeRecordDecodeFn pollResultDecodeFn)
     {
         // Check valid
-        if (!_deviceTypeName)
+        if (!deviceTypeName)
             return;
         // Store values
-        _deviceTypeName = deviceTypeName;
-        _addresses = addresses ? addresses : "";
-        _detectionValues = detectionValues ? detectionValues : "";
-        _initValues = initValues ? initValues : "";
-        _pollInfo = pollInfo ? pollInfo : "";
-        _pollDataSizeBytes = pollDataSizeBytes;
+        deviceTypeName_ = deviceTypeName;
+        addresses_ = addresses ? addresses : "";
+        detectionValues_ = detectionValues ? detectionValues : "";
+        initValues_ = initValues ? initValues : "";
+        pollInfo_ = pollInfo ? pollInfo : "";
+        pollDataSizeBytes_ = pollDataSizeBytes;
         if (devInfoJson)
         {
-            _devInfoJson.resize(strlen(devInfoJson) + 1);
-            strlcpy(_devInfoJson.data(), devInfoJson, _devInfoJson.size());
+            devInfoJson_.resize(strlen(devInfoJson) + 1);
+            strlcpy(devInfoJson_.data(), devInfoJson, devInfoJson_.size());
+        }
+        else
+        {
+            devInfoJson_.resize(1);
+            devInfoJson_[0] = 0;
         }
 
         // Store function
-        _pollResultDecodeFn = pollResultDecodeFn;
-
-        // Update device type record
-        _devTypeRec = {
-            _deviceTypeName.c_str(),
-            _addresses.c_str(),
-            _detectionValues.c_str(),
-            _initValues.c_str(),
-            _pollInfo.c_str(),
-            _pollDataSizeBytes,
-            _devInfoJson.data(),
-            _pollResultDecodeFn
-        };
+        pollResultDecodeFn_ = pollResultDecodeFn;
     }
 
     /// @brief Get device type record
-    const DeviceTypeRecord* getDeviceTypeRecord() const
+    /// @param devTypeRec (out) device type record
+    /// @return true if device type found
+    bool getDeviceTypeRecord(DeviceTypeRecord& devTypeRec) const
     {
-        return &_devTypeRec;
+        // Check if in range
+        if (deviceTypeName_.length() == 0)
+            return false;
+
+        // Update device type record
+        devTypeRec.deviceType = deviceTypeName_.c_str();
+        devTypeRec.addresses = addresses_.c_str();
+        devTypeRec.detectionValues = detectionValues_.c_str();
+        devTypeRec.initValues = initValues_.c_str();
+        devTypeRec.pollInfo = pollInfo_.c_str();
+        devTypeRec.pollDataSizeBytes = pollDataSizeBytes_;
+        devTypeRec.devInfoJson = devInfoJson_.data();
+        devTypeRec.pollResultDecodeFn = pollResultDecodeFn_;
+
+        return true;
     }
 
     /// @brief Get device type name matches
     bool nameMatches(const DeviceTypeRecordDynamic& other) const
     {
-        return _deviceTypeName == other._deviceTypeName;
+        return deviceTypeName_ == other.deviceTypeName_;
     }
 
-private:
     // Device type storage
-    String _deviceTypeName;
-    String _addresses;
-    String _detectionValues;
-    String _initValues;
-    String _pollInfo;
-    uint16_t _pollDataSizeBytes;
-    std::vector<char, SpiramAwareAllocator<char>> _devInfoJson;
-    DeviceTypeRecordDecodeFn _pollResultDecodeFn;
-
-    // Device type record (which contains pointers to the above)
-    DeviceTypeRecord _devTypeRec;
+    String deviceTypeName_;
+    String addresses_;
+    String detectionValues_;
+    String initValues_;
+    String pollInfo_;
+    uint16_t pollDataSizeBytes_ = 0;
+    std::vector<char, SpiramAwareAllocator<char>> devInfoJson_;
+    DeviceTypeRecordDecodeFn pollResultDecodeFn_ = nullptr;
 };
