@@ -140,7 +140,8 @@ void SysManager::preSetup()
                 _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
                 _mutableConfig.getNVSNamespace().c_str());
-    LOG_I(MODULE_PREFIX, "slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d supervisorEnable %s",
+    LOG_I(MODULE_PREFIX, "loopSleepMs %d slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d supervisorEnable %s",
+                _loopSleepMs,
                 _slowSysModThresholdUs,
                 _monitorPeriodMs,
                 _rebootAfterNHours, 
