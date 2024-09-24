@@ -29,6 +29,9 @@ public:
     // Setup
     bool setup(uint32_t ledStripIdx, const LEDStripConfig& ledStripConfig);
 
+    // Loop
+    void loop();
+
     // Show pixels
     void showPixels(std::vector<LEDPixel>& pixels);
 
@@ -37,20 +40,34 @@ public:
 
 private:
 
+    // RMT channel config
+    rmt_tx_channel_config_t _rmtChannelConfig;
+
+    // Encoder config
+    led_strip_encoder_config_t _ledStripEncoderConfig;
+
     // RMT channel
     rmt_channel_handle_t _rmtChannelHandle = nullptr;
 
-    // Setup ok
+    // Setup & init flags
     bool _isSetup = false;
+    bool _isInit = false;
 
     // Tx in progress
     volatile bool _txInProgress = false;
 
     // LED strip pixel indexing start offset
     uint32_t _pixelIdxStartOffset = 0;
+
+    // Stop after transmit
+    bool _stopAfterTx = false;
     
     // LED strip encoder
     rmt_encoder_handle_t _ledStripEncoderHandle = nullptr;
+
+    // Last pixel transmit activity time
+    static const uint32_t STOP_AFTER_TX_TIME_MS = 2;
+    uint32_t _lastTxTimeMs = 0;
 
     // Num pixels in strip - this is recorded here rather than using _pixelBuffer.size()
     // because the buffer is lazily allocated and is multiplied by size of one pixel
@@ -64,7 +81,8 @@ private:
     static const uint32_t WAIT_RMT_PER_PIX_US = 5;
 
     // Helpers
-    void releaseResources();
+    bool initRMTPeripheral();
+    void deinitRMTPeripheral();
     static bool rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
     bool rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);
 

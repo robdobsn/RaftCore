@@ -101,6 +101,9 @@ public:
         powerPin = config.getLong("powerPin", -1);
         powerOnLevel = config.getLong("powerOnLevel", 1);
 
+        // Stop RMT peripheral after transmit
+        stopAfterTx = config.getBool("stopAfterTx", false);
+
         // Strip hardware configs
         std::vector<String> stripHwConfigStrs;
         config.getArrayElems("strips", stripHwConfigStrs);
@@ -147,6 +150,7 @@ public:
     float pixelBrightnessFactor = 1.0;
     int powerPin = -1;
     int powerOnLevel = 1;
+    bool stopAfterTx = false;
 
     // LED strips
     uint32_t totalPixels = 0;

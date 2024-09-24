@@ -76,6 +76,10 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
     {
         setPattern(_ledStripConfig.initialPattern, ("{\"forMs\":" + String(_ledStripConfig.initialPatternMs) + "}").c_str());
     }
+    else
+    {
+        clear(true);
+    }
 
     // Log
     LOG_I(MODULE_PREFIX, "setup %s numStrips %d totalPixels %d", 
@@ -89,6 +93,12 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
 
 void LEDPixels::loop()
 {
+    // Loop over LED strips
+    for (auto& ledStrip : _ledStrips)
+    {
+        ledStrip.loop();
+    }
+    
     // Check if pattern active
     if (_pCurrentPattern)
     {

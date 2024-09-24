@@ -26,7 +26,7 @@ ESP32RMTLedStrip::ESP32RMTLedStrip()
 
 ESP32RMTLedStrip::~ESP32RMTLedStrip()
 {
-    releaseResources();
+    deinitRMTPeripheral();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -42,11 +42,11 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
         return false;
     }
 
-    // Can't setup twice
+    // If already setup then release resources first
     if (_isSetup)
     {
-        LOG_E(MODULE_PREFIX, "setup already called");
-        return true;
+        deinitRMTPeripheral();
+        _isSetup = false;
     }
 
     // Hardware config
@@ -56,8 +56,11 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
     // Get the offset to the first pixel
     _pixelIdxStartOffset = ledStripConfig.getPixelStartOffset(ledStripIdx);
 
+    // Get stop after transmit flag
+    _stopAfterTx = ledStripConfig.stopAfterTx;
+
     // Setup the RMT channel
-    rmt_tx_channel_config_t rmtChannelConfig = {
+    _rmtChannelConfig = {
         .gpio_num = (gpio_num_t)hwConfig.ledDataPin,              // LED strip data pin
         .clk_src = RMT_CLK_SRC_DEFAULT,                     // Default clock
         .resolution_hz = hwConfig.rmtResolutionHz,
@@ -82,15 +85,7 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
 #endif
     };
 
-    // Create RMT TX channel
-    esp_err_t err = rmt_new_tx_channel(&rmtChannelConfig, &_rmtChannelHandle);
-    if (err != ESP_OK)
-    {
-        LOG_E(MODULE_PREFIX, "setup FAILED rmt_new_tx_channel error %d", err);
-        return false;
-    }
-
-    led_strip_encoder_config_t encoder_config = {
+    _ledStripEncoderConfig = {
         .resolution = hwConfig.rmtResolutionHz,
         .bit0Duration0Us = hwConfig.bit0Duration0Us,
         .bit0Duration1Us = hwConfig.bit0Duration1Us,
@@ -99,21 +94,66 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
         .resetDurationUs = hwConfig.resetDurationUs,
         .msbFirst = hwConfig.msbFirst,
     };
-    err = rmt_new_led_strip_encoder(&encoder_config, &_ledStripEncoderHandle);
+
+    // Now setup
+    _isSetup = true;
+
+#ifdef DEBUG_ESP32RMTLEDSTRIP_SETUP
+    // Debug
+    LOG_I(MODULE_PREFIX, "setup ok numPixels %d hw %s", 
+                _numPixels, hwConfig.debugStr().c_str());
+#endif
+
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Loop
+void ESP32RMTLedStrip::loop()
+{
+    if (_isSetup && _isInit && _stopAfterTx && !_txInProgress && Raft::isTimeout(millis(), _lastTxTimeMs, STOP_AFTER_TX_TIME_MS))
+    {
+        // LOG_I(MODULE_PREFIX, "loop deinitRMTPeripheral");
+        deinitRMTPeripheral();
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Initialization of RMT TX peripheral
+bool ESP32RMTLedStrip::initRMTPeripheral()
+{
+    // Check if busy
+    if (_isInit || _txInProgress)
+    {
+        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED already init or busy");
+        return false;
+    }
+
+    // Create RMT TX channel
+    esp_err_t err = rmt_new_tx_channel(&_rmtChannelConfig, &_rmtChannelHandle);
     if (err != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "setup FAILED rmt_new_led_strip_encoder error %d", err);
+        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_new_tx_channel error %d", err);
+        return false;
+    }
+
+    err = rmt_new_led_strip_encoder(&_ledStripEncoderConfig, &_ledStripEncoderHandle);
+    if (err != ESP_OK)
+    {
+        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_new_led_strip_encoder error %d", err);
         return false;
     }
 
     // Setup callback on completion
+    _lastTxTimeMs = millis();
+    _txInProgress = false;
     rmt_tx_event_callbacks_t cbs = {
         .on_trans_done = rmtTxCompleteCBStatic,
     };
     err = rmt_tx_register_event_callbacks(_rmtChannelHandle, &cbs, this);
     if (err != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "setup FAILED rmt_tx_register_event_callbacks error %d", err);
+        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_tx_register_event_callbacks error %d", err);
         return false;
     }
 
@@ -121,22 +161,33 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
     err = rmt_enable(_rmtChannelHandle);
     if (err != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "setup FAILED rmt_enable error %d", err);
+        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_enable error %d", err);
         return false;
     }
 
-    // Setup ok
-    _isSetup = true;
-    _txInProgress = false;
-
-#ifdef DEBUG_ESP32RMTLEDSTRIP_SETUP
-    // Debug
-    LOG_I(MODULE_PREFIX, "setup ok numPixels %d rmtChannelHandle %p encoderHandle %p hw %s", 
-                _numPixels, _rmtChannelHandle, _ledStripEncoderHandle,
-                hwConfig.debugStr().c_str());
-#endif
-
+    // Init ok
+    _isInit = true;
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// De-init RMT peripheral
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ESP32RMTLedStrip::deinitRMTPeripheral()
+{
+    if (_rmtChannelHandle)
+    {
+        rmt_disable(_rmtChannelHandle);
+        rmt_del_channel(_rmtChannelHandle);
+        _rmtChannelHandle = nullptr;
+    }
+    if (_ledStripEncoderHandle)
+    {
+        rmt_del_encoder(_ledStripEncoderHandle);
+        _ledStripEncoderHandle = nullptr;
+    }
+    _isInit = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -148,6 +199,10 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     // Can't show pixels if not setup
     if (!_isSetup)
         return;
+
+    // Init if not already done
+    if (!_isInit)
+        initRMTPeripheral();
 
     // Get numnber of pixels to copy
     if (pixels.size() < _pixelIdxStartOffset)
@@ -173,13 +228,15 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
 #endif
         }
     };
+    _txInProgress = true;
+    _lastTxTimeMs = millis();
     esp_err_t err = rmt_transmit(_rmtChannelHandle, _ledStripEncoderHandle, _pixelBuffer.data(), numBytesToCopy, &tx_config);
     if (err != ESP_OK)
     {
         LOG_E(MODULE_PREFIX, "rmt_transmit failed: %d", err);
-        _isSetup = false;
+        _txInProgress = false;
+        deinitRMTPeripheral();
     }
-    _txInProgress = true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -189,7 +246,7 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
 void ESP32RMTLedStrip::waitUntilShowComplete()
 {
     // Can't wait if not setup
-    if (!_isSetup)
+    if (!_isSetup || !_isInit)
         return;
 
     // Check if already complete
@@ -211,24 +268,6 @@ void ESP32RMTLedStrip::waitUntilShowComplete()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Release resources
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void ESP32RMTLedStrip::releaseResources()
-{
-    if (_rmtChannelHandle)
-    {
-        rmt_del_channel(_rmtChannelHandle);
-        _rmtChannelHandle = nullptr;
-    }
-    if (_ledStripEncoderHandle)
-    {
-        rmt_del_encoder(_ledStripEncoderHandle);
-        _ledStripEncoderHandle = nullptr;
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // RMT TX complete callback
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -246,7 +285,10 @@ bool ESP32RMTLedStrip::rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const
 
 bool ESP32RMTLedStrip::rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata)
 {
+    // No longer transmitting
+    _lastTxTimeMs = millis();
     _txInProgress = false;
+
     // False indicates a higher-priority task hasn't been woken up
     return false;
 }
