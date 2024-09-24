@@ -124,7 +124,7 @@ bool BusSerial::serialInit()
 #else
                 .source_clk = UART_SCLK_DEFAULT,
 #endif
-#if ESP_IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 3, 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 1)
                 .flags = 0,
 #endif
     };
