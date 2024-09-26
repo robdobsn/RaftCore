@@ -622,7 +622,7 @@ void DeviceManager::cmdResultReportCallback(BusRequestResult &reqResult)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Register for device data notifications
+/// @brief Register for device data notifications (note that callbacks may occur on different threads)
 /// @param pDeviceName Name of the device
 /// @param dataChangeCB Callback for data change
 /// @param minTimeBetweenReportsMs Minimum time between reports (ms)

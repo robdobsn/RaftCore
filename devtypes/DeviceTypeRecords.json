@@ -816,6 +816,44 @@
                     }
                 ]
             }
+        },
+        "HX711": {
+            "deviceType": "HX711",
+            "detectionValues": "",
+            "initValues": "",
+            "pollInfo": {
+                "c": "=r5",
+                "i": 100,
+                "s": 10
+            },
+            "devInfoJson": {
+                "name": "HX711",
+                "desc": "Weight Sensor",
+                "manu": "Avia",
+                "type": "HX711",
+                "resp": {
+                    "b": 5,
+                    "a": [
+                        {
+                            "n": "weight",
+                            "t": ">I",
+                            "u": "g",
+                            "r": [-1000,1000],
+                            "d": 440,
+                            "a": 280,
+                            "sb": 23,
+                            "f": "3.1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "valid",
+                            "t": "B",
+                            "u": "",
+                            "r": [0,1]
+                        }
+                    ]
+                }
+            }
         }
     }
 }

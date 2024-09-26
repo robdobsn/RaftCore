@@ -50,21 +50,22 @@ def process_dev_types(json_path, dev_type_header_path, dev_poll_header_path, gen
         # Extract list of addresses from addresses field
         # Addresses field can be of the form 0xXX or 0xXX-0xYY or 0xXX,0xYY,0xZZ
         addr_list = []
-        addresses = dev_type["addresses"]
-        addr_range_list = addresses.split(",")
-        for addr_range in addr_range_list:
-            addr_range = addr_range.strip()
-            if re.match(r'^0x[0-9a-fA-F]{2}-0x[0-9a-fA-F]{2}$', addr_range):
-                addr_range_parts = addr_range.split("-")
-                addr_start = int(addr_range_parts[0], 16)
-                addr_end = int(addr_range_parts[1], 16)
-                for addr in range(addr_start, addr_end+1):
-                    addr_list.append(addr)
-            elif re.match(r'^0x[0-9a-fA-F]{2}$', addr_range):
-                addr_list.append(int(addr_range, 16))
-            else:
-                print(f"Invalid address range {addr_range}")
-                sys.exit(1)
+        addresses = dev_type.get("addresses", "").strip()
+        if addresses != "":
+            addr_range_list = addresses.split(",")
+            for addr_range in addr_range_list:
+                addr_range = addr_range.strip()
+                if re.match(r'^0x[0-9a-fA-F]{2}-0x[0-9a-fA-F]{2}$', addr_range):
+                    addr_range_parts = addr_range.split("-")
+                    addr_start = int(addr_range_parts[0], 16)
+                    addr_end = int(addr_range_parts[1], 16)
+                    for addr in range(addr_start, addr_end+1):
+                        addr_list.append(addr)
+                elif re.match(r'^0x[0-9a-fA-F]{2}$', addr_range):
+                    addr_list.append(int(addr_range, 16))
+                else:
+                    print(f"Invalid address range {addr_range}")
+                    sys.exit(1)
 
         # Debug
         addr_list_hex = ",".join([f'0x{addr:02x}' for addr in addr_list])
@@ -72,7 +73,7 @@ def process_dev_types(json_path, dev_type_header_path, dev_poll_header_path, gen
 
         # Scan priority
         if "scanPriority" in dev_type:
-            scan_priority = dev_type["scanPriority"]
+            scan_priority = dev_type.get("scanPriority", 0)
 
             # If scan_priority is an array then set scan priority for primary address to first
             # element and for all other addresses to the second element
@@ -153,13 +154,13 @@ def process_dev_types(json_path, dev_type_header_path, dev_poll_header_path, gen
                 sys.exit(1)
 
             # Convert JSON parts to strings without unnecessary spaces
-            polling_config_json_str = json.dumps(dev_type["pollInfo"], separators=(',', ':'))
-            dev_info_json_str = json.dumps(dev_type["devInfoJson"], separators=(',', ':'))
+            polling_config_json_str = json.dumps(dev_type.get("pollInfo",{}), separators=(',', ':'))
+            dev_info_json_str = json.dumps(dev_type.get("devInfoJson",{}), separators=(',', ':'))
             header_file.write('    {\n')
-            header_file.write(f'        R"({dev_type["deviceType"]})",\n')
-            header_file.write(f'        R"({dev_type["addresses"]})",\n')
-            header_file.write(f'        R"({dev_type["detectionValues"]})",\n')
-            header_file.write(f'        R"({dev_type["initValues"]})",\n')
+            header_file.write(f'        R"({dev_type.get("deviceType","")})",\n')
+            header_file.write(f'        R"({dev_type.get("addresses","")})",\n')
+            header_file.write(f'        R"({dev_type.get("detectionValues","")})",\n')
+            header_file.write(f'        R"({dev_type.get("initValues","")})",\n')
             header_file.write(f'        R"({polling_config_json_str})",\n')
             header_file.write(f'        {str(poll_data_size_bytes)},\n')
             if gen_options.get("inc_dev_info_json", False):
