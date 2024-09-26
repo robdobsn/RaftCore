@@ -42,6 +42,18 @@ public:
         return deviceTypeRecords;
     }
 
+    /// @brief Register for device data notifications
+    /// @param pDeviceName Name of the device
+    /// @param dataChangeCB Callback for data change
+    /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+    /// @param pCallbackInfo Callback info (passed to the callback)
+    void registerForDeviceData(const char* pDeviceName, RaftDeviceDataChangeCB dataChangeCB, 
+            uint32_t minTimeBetweenReportsMs = DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS,
+            const void* pCallbackInfo = nullptr);
+
+    // Default minimum time between reports
+    static constexpr uint32_t DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS = 1000;
+
 protected:
 
     // Setup
@@ -63,6 +75,28 @@ private:
 
     // List of instantiated devices
     std::list<RaftDevice*> _deviceList;
+
+    // Device data change record
+    class DeviceDataChangeRec
+    {
+    public:
+        DeviceDataChangeRec(const char* pDeviceName, RaftDeviceDataChangeCB dataChangeCB, 
+                uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo) :
+            deviceName(pDeviceName),
+            dataChangeCB(dataChangeCB),
+            minTimeBetweenReportsMs(minTimeBetweenReportsMs),
+            pCallbackInfo(pCallbackInfo)
+        {
+        }
+        String deviceName;
+        RaftDeviceDataChangeCB dataChangeCB = nullptr;
+        uint32_t minTimeBetweenReportsMs = 1000;
+        uint32_t lastReportTime = 0;
+        const void* pCallbackInfo = nullptr;
+    };
+
+    // Device data change callbacks
+    std::list<DeviceDataChangeRec> _deviceDataChangeCBList;
 
     // Setup device instances
     void setupDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);

@@ -7,6 +7,7 @@
 #include "DeviceManager.h"
 #include "RaftUtils.h"
 #include "RaftDevice.h"
+#include "RaftBusDevice.h"
 #include "SysManager.h"
 #include <functional>
 
@@ -71,6 +72,28 @@ void DeviceManager::postSetup()
         if (pDevice)
             pDevice->postSetup();
     }
+
+    // Check for any device data change callbacks
+    for (auto& rec : _deviceDataChangeCBList)
+    {
+        // Get device
+        RaftDevice* pDevice = getDevice(rec.deviceName.c_str());
+        if (!pDevice)
+        {
+            LOG_W(MODULE_PREFIX, "postSetup deviceDataChangeCB %s not found", rec.deviceName.c_str());
+            continue;
+        }
+
+        // Register for device data notification with the device
+        pDevice->registerForDeviceData(
+            rec.dataChangeCB,
+            rec.minTimeBetweenReportsMs,
+            rec.pCallbackInfo
+        );
+
+        // Debug
+        LOG_I(MODULE_PREFIX, "postSetup registered deviceDataChangeCB for %s", rec.deviceName.c_str());
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -83,8 +106,12 @@ void DeviceManager::loop()
     // Loop through the devices
     for (auto* pDevice : _deviceList)
     {
-        if (pDevice)
-            pDevice->loop();
+        // Check valid
+        if (!pDevice)
+            continue;
+
+        // Handle device loop
+        pDevice->loop();
     }
 }
 
@@ -105,12 +132,77 @@ void DeviceManager::busOperationStatusCB(RaftBus& bus, BusOperationStatus busOpe
 /// @param statusChanges - an array of status changes (online/offline) for bus elements
 void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrAndStatus>& statusChanges)
 {
-    // Debug
+    // Locate (or add) the device and handle the status change
     for (const auto& el : statusChanges)
     {
-        LOG_I(MODULE_PREFIX, "busElemStatusInfo %s %s %s %s", bus.getBusName().c_str(), 
-            bus.addrToString(el.address).c_str(), el.isChangeToOnline ? "Online" : ("Offline" + String(el.isChangeToOffline ? " (was online)" : "")).c_str(),
-            el.isNewlyIdentified ? ("DevTypeIdx " + String(el.deviceTypeIndex)).c_str() : "");
+        // Check if device is in the device list
+        RaftDevice* pFoundDevice = nullptr;
+        String deviceId = bus.formUniqueId(el.address);
+        for (auto* pDevice : _deviceList)
+        {
+            if (pDevice && (pDevice->idMatches(deviceId.c_str())))
+            {
+                pFoundDevice = pDevice;
+                break;
+            }
+        }
+        bool newlyCreated = false;
+        if (!pFoundDevice)
+        {
+            // Check if device newly created
+            if (el.isNewlyIdentified)
+            {
+                // Generate config JSON for the device
+                String devConfig = "{\"name\":" + deviceId + "}";
+
+                // Create the device
+                pFoundDevice = new RaftBusDevice(bus.getBusName().c_str(), el.address, "RaftBusDevice", devConfig.c_str());
+                newlyCreated = true;
+
+                // Add to the list of instantiated devices
+                _deviceList.push_back(pFoundDevice);
+
+                // Setup device
+                pFoundDevice->setup();
+            }
+            else
+            {
+                // Debug
+                LOG_W(MODULE_PREFIX, "busElemStatusCB %s %s not found - shouldn't happen!", bus.getBusName().c_str(), 
+                    bus.addrToString(el.address).c_str());
+            }
+        }
+
+        // Handle status update
+        if (pFoundDevice)
+        {
+            // Handle device status change
+            pFoundDevice->handleStatusChange(el.isChangeToOnline, el.isChangeToOffline, el.isNewlyIdentified, el.deviceTypeIndex);
+
+            // Register for device data notifications if required
+            for (auto& rec : _deviceDataChangeCBList)
+            {
+                if (rec.deviceName == pFoundDevice->getDeviceName())
+                {
+                    // Register for device data notification with the device
+                    pFoundDevice->registerForDeviceData(
+                        rec.dataChangeCB,
+                        rec.minTimeBetweenReportsMs,
+                        rec.pCallbackInfo
+                    );
+
+                    // Debug
+                    LOG_I(MODULE_PREFIX, "busElemStatusCB registered deviceDataChangeCB for %s", rec.deviceName.c_str());
+                }
+            }
+        }
+
+        // Debug
+        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s %s %s %s", 
+                        deviceId.c_str(), 
+                        el.isChangeToOnline ? "Online" : ("Offline" + String(el.isChangeToOffline ? " (was online)" : "")).c_str(),
+                        el.isNewlyIdentified ? ("DevTypeIdx " + String(el.deviceTypeIndex)).c_str() : "",
+                        newlyCreated ? "NewlyCreated Y" : "");
     }
 }
 
@@ -527,4 +619,20 @@ void DeviceManager::cmdResultReportCallback(BusRequestResult &reqResult)
     LOG_I(MODULE_PREFIX, "cmdResultReportCallback len %d", reqResult.getReadDataLen());
     Raft::logHexBuf(reqResult.getReadData(), reqResult.getReadDataLen(), MODULE_PREFIX, "cmdResultReportCallback");
 #endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Register for device data notifications
+/// @param pDeviceName Name of the device
+/// @param dataChangeCB Callback for data change
+/// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+/// @param pCallbackInfo Callback info (passed to the callback)
+void DeviceManager::registerForDeviceData(const char* pDeviceName, RaftDeviceDataChangeCB dataChangeCB, 
+        uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
+{
+    // Add to requests for device data changes
+    _deviceDataChangeCBList.push_back(DeviceDataChangeRec(pDeviceName, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "registerForDeviceData %s minTime %dms", pDeviceName, minTimeBetweenReportsMs);
 }

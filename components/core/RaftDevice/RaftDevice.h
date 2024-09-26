@@ -12,6 +12,7 @@
 #include "RaftJson.h"
 #include "RaftRetCode.h"
 #include "RaftDeviceJSONLevel.h"
+#include "RaftDeviceConsts.h"
 
 class RestAPIEndpointManager;
 class CommsCoreIF;
@@ -27,11 +28,19 @@ public:
     // @brief Destroy the Raft Device object
     virtual ~RaftDevice();
 
+    // @brief Check if ID matches that passed in
+    // @param pDeviceId Device ID to check
+    // @return true if the device ID matches
+    virtual bool idMatches(const char* pDeviceId) const
+    {
+        return deviceName.equals(pDeviceId);
+    }
+
     // @brief Get the name of the device instance
     // @return Device name as a string
     virtual String getDeviceName() const
     {
-        return deviceConfig.getString("name", "UNKNOWN");
+        return deviceName;
     }
 
     // @brief Get the class name of the device
@@ -118,15 +127,38 @@ public:
     /// @return true if the device has the capability
     virtual bool hasCapability(const char* pCapabilityStr) const;
 
+    /// @brief Handle device status change
+    /// @param isChangeToOnline true if the device has changed to online
+    /// @param isChangeToOffline true if the device has changed to offline
+    /// @param isNewlyIdentified true if the device is newly identified
+    /// @param deviceTypeIndex index of the device type
+    virtual void handleStatusChange(bool isChangeToOnline, bool isChangeToOffline, bool isNewlyIdentified, uint32_t deviceTypeIndex)
+    {
+    }
+
+    /// @brief Register for device data notifications
+    /// @param dataChangeCB Callback for data change
+    /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+    /// @param pCallbackInfo Callback info (passed to the callback)
+    virtual void registerForDeviceData(RaftDeviceDataChangeCB dataChangeCB, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
+    {
+    }
+
 protected:
     // Device configuration
     RaftJson deviceConfig;
+
+    // Device name
+    String deviceName;
 
     // Device class
     String deviceClassName;
 
     // Publish device type
     String publishDeviceType;
+
+    // Device type record index
+    uint32_t deviceTypeIndex = 0;
 
     // Debug
     static constexpr const char *MODULE_PREFIX = "RaftDevice";

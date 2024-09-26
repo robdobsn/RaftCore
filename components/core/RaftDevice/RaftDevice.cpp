@@ -16,6 +16,9 @@
 RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson) :
         deviceConfig(pDevConfigJson), deviceClassName(pClassName)
 {
+    // Device name
+    deviceName = deviceConfig.getString("name", "UNKNOWN");
+
     // Init publish device type (default to class name)
     publishDeviceType = deviceConfig.getString("type", pClassName);
     

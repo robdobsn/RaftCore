@@ -651,3 +651,19 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 #endif
     return !recFound;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get device poll decode function
+/// @param deviceTypeIdx device type index
+/// @return poll decode function
+DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(uint16_t deviceTypeIdx) const
+{
+
+    // TODO - see if copying can be avoided
+
+    // Get device type record
+    DeviceTypeRecord devTypeRec;
+    if (!getDeviceInfo(deviceTypeIdx, devTypeRec))
+        return nullptr;
+    return devTypeRec.pollResultDecodeFn;
+}

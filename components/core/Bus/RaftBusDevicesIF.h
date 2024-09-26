@@ -10,7 +10,9 @@
 
 #include <stdint.h>
 #include <vector>
+#include "RaftBusConsts.h"
 #include "RaftArduino.h"
+#include "RaftDeviceConsts.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Device decode state
@@ -33,14 +35,14 @@ public:
     /// @brief Get list of device addresses attached to the bus
     /// @param pAddrList pointer to array to receive addresses
     /// @param onlyAddressesWithIdentPollResponses true to only return addresses with ident poll responses
-    virtual void getDeviceAddresses(std::vector<uint32_t>& addresses, bool onlyAddressesWithIdentPollResponses) const = 0;
+    virtual void getDeviceAddresses(std::vector<BusElemAddrType>& addresses, bool onlyAddressesWithIdentPollResponses) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type information by address
     /// @param address address of device to get information for
     /// @param includePlugAndPlayInfo true to include plug and play information
     /// @return JSON string
-    virtual String getDevTypeInfoJsonByAddr(uint32_t address, bool includePlugAndPlayInfo) const = 0;
+    virtual String getDevTypeInfoJsonByAddr(BusElemAddrType address, bool includePlugAndPlayInfo) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type information by device type name
@@ -64,9 +66,20 @@ public:
     /// @return number of records decoded
     /// @note the pStructOut should generally point to structures of the correct type for the device data and the
     ///       decodeState should be maintained between calls for the same device
-    virtual uint32_t getDecodedPollResponses(uint32_t address, 
+    virtual uint32_t getDecodedPollResponses(BusElemAddrType address, 
                     void* pStructOut, uint32_t structOutSize, 
                     uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) const = 0;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Register for device data notifications
+    /// @param addrAndSlot address and slot
+    /// @param dataChangeCB Callback for data change
+    /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+    /// @param pCallbackInfo Callback info (passed to the callback)
+    virtual void registerForDeviceData(BusElemAddrType address, RaftDeviceDataChangeCB dataChangeCB, 
+                uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
+    {
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get debug JSON

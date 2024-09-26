@@ -111,6 +111,12 @@ public:
     /// @return true if added
     bool addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec);
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get device poll decode function
+    /// @param deviceTypeIdx device type index
+    /// @return poll decode function
+    DeviceTypeRecordDecodeFn getPollDecodeFn(uint16_t deviceTypeIdx) const;
+
 private:
     // Mutex for access to extended device type records
     SemaphoreHandle_t _extDeviceTypeRecordsMutex;

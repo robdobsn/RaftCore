@@ -153,7 +153,7 @@ public:
     /// @param address - address of element to check
     /// @param pIsValid - (out) set to true if address is valid
     /// @return true if element is responding
-    virtual bool isElemResponding(uint32_t address, bool* pIsValid = nullptr) const
+    virtual bool isElemResponding(BusElemAddrType address, bool* pIsValid = nullptr) const
     {
         if (pIsValid)
             *pIsValid = false;
@@ -210,16 +210,25 @@ public:
     /// @brief Convert bus address to string
     /// @param addr - address
     /// @return address as a string
-    virtual String addrToString(uint32_t addr) const
+    virtual String addrToString(BusElemAddrType addr) const
     {
         return "0x" + String(addr, 16);
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Create unique id for a bus element
+    /// @param addr - address
+    /// @return unique id
+    virtual String formUniqueId(BusElemAddrType addr) const
+    {
+        return getBusName() + "_" + addrToString(addr);
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Convert string to bus address
     /// @param addrStr - address as a string
     /// @return address
-    virtual uint32_t stringToAddr(const String& addrStr) const
+    virtual BusElemAddrType stringToAddr(const String& addrStr) const
     {
         return strtol(addrStr.c_str(), NULL, 0);
     }
@@ -229,7 +238,7 @@ public:
     /// @param addresses - vector to store the addresses of devices
     /// @param onlyAddressesWithIdentPollResponses - true to only return addresses with ident poll responses
     /// @return true if there are any ident poll responses available
-    virtual bool getBusElemAddresses(std::vector<uint32_t>& addresses, bool onlyAddressesWithIdentPollResponses) const
+    virtual bool getBusElemAddresses(std::vector<BusElemAddrType>& addresses, bool onlyAddressesWithIdentPollResponses) const
     {
         return false;
     }
@@ -243,7 +252,7 @@ public:
     /// @param responseSize - (out) size of the response data
     /// @param maxResponsesToReturn - maximum number of responses to return (0 for no limit)
     /// @return number of responses returned
-    virtual uint32_t getBusElemPollResponses(uint32_t address, bool& isOnline, uint16_t& deviceTypeIndex, 
+    virtual uint32_t getBusElemPollResponses(BusElemAddrType address, bool& isOnline, uint16_t& deviceTypeIndex, 
                 std::vector<uint8_t>& devicePollResponseData, 
                 uint32_t& responseSize, uint32_t maxResponsesToReturn)
     {

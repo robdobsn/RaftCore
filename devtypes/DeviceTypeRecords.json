@@ -529,6 +529,37 @@
                 ]
             }
         },
+        "AS5600": {
+            "addresses": "0x36",
+            "deviceType": "AS5600",
+            "detectionValues": "0x00=0b000000xx",
+            "initValues": "",
+            "pollInfo": {
+                "c": "0x0e=r2",
+                "i": 100,
+                "s": 10
+            },
+            "devInfoJson": {
+                "name": "AS5600",
+                "desc": "Magnetic Encoder",
+                "manu": "AMS",
+                "type": "AS5600",
+                "resp": {
+                    "b": 2,
+                    "a": [
+                        {
+                            "n": "angle",
+                            "t": ">H",
+                            "u": "degrees",
+                            "r": [0, 360],
+                            "f": "3.1f",
+                            "o": "float",
+                            "d": 11.377777777777778
+                        }
+                    ]
+                }
+            }
+        },
         "M5Encoder": {
             "addresses": "0x40",
             "deviceType": "M5Encoder",
