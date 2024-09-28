@@ -92,6 +92,10 @@ public:
     // @return JSON string
     virtual String getStatusJSON() const;
 
+    // @brief Get device debug info JSON
+    // @return JSON string
+    virtual String getDebugJSON(bool includeBraces) const;
+
     /// @brief Send a binary command to the device
     /// @param formatCode Format code for the command
     /// @param pData Pointer to the data

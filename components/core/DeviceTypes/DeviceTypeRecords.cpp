@@ -137,10 +137,11 @@ bool DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& 
 /// @param deviceTypeName device type name
 /// @param devTypeRec (out) device type record
 /// @return true if device type found
-bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec) const
+bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, uint32_t& deviceTypeIdx) const
 {
     // Iterate the extended device types first - so that device type names can be overridden
     bool isValid = false;
+    uint32_t typeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
     if (_extendedRecordsAdded && (xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY) == pdTRUE))
     {
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
@@ -148,8 +149,10 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRe
             if (extDevTypeRec.deviceTypeName_ == deviceTypeName)
             {
                 isValid = extDevTypeRec.getDeviceTypeRecord(devTypeRec);
+                deviceTypeIdx = typeIdx;
                 break;
             }
+            typeIdx++;
         }
         xSemaphoreGive(_extDeviceTypeRecordsMutex);
     }
@@ -162,14 +165,16 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRe
             if (deviceTypeName == baseDevTypeRecords[i].deviceType)
             {
                 devTypeRec = baseDevTypeRecords[i];
+                deviceTypeIdx = i;
                 isValid = true;
                 break;
             }
         }
     }
 #ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_NAME
-    LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s devTypeInfo %s", deviceTypeName.c_str(), 
+    LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s idx %d devTypeInfo %s", deviceTypeName.c_str(), 
                 isValid ? "OK" : "NOT FOUND", 
+                deviceTypeIdx,
                 isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
 #endif
     return isValid;
@@ -561,7 +566,8 @@ String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeN
 {
     // Get the device type info
     DeviceTypeRecord devTypeRec;
-    if (getDeviceInfo(deviceTypeName, devTypeRec))
+    uint32_t deviceTypeIdx = 0;
+    if (getDeviceInfo(deviceTypeName, devTypeRec, deviceTypeIdx))
         return devTypeRec.getJson(includePlugAndPlayInfo);
     return "{}";
 }

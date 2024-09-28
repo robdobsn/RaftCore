@@ -828,22 +828,21 @@
             },
             "devInfoJson": {
                 "name": "HX711",
-                "desc": "Weight Sensor",
+                "desc": "Force Sensor",
                 "manu": "Avia",
                 "type": "HX711",
                 "resp": {
                     "b": 5,
                     "a": [
                         {
-                            "n": "weight",
+                            "n": "force",
                             "t": ">I",
-                            "u": "g",
-                            "r": [-1000,1000],
+                            "u": "N",
+                            "r": [-10000,10000],
                             "m": "0x00ffffff",
-                            "d": 440,
-                            "a": 280,
+                            "d": 44000,
                             "sb": 23,
-                            "f": "3.1f",
+                            "f": ".3f",
                             "o": "float"
                         },
                         {

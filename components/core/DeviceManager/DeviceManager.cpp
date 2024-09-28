@@ -22,6 +22,8 @@
 // #define DEBUG_JSON_DEVICE_HASH
 // #define DEBUG_DEVMAN_API
 // #define DEBUG_DEVICE_SETUP
+#define DEBUG_BUS_ELEMENT_STATUS
+// #define DEBUG_GET_DEVICE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -198,11 +200,13 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
         }
 
         // Debug
+#ifdef DEBUG_BUS_ELEMENT_STATUS
         LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s %s %s %s", 
                         deviceId.c_str(), 
                         el.isChangeToOnline ? "Online" : ("Offline" + String(el.isChangeToOffline ? " (was online)" : "")).c_str(),
                         el.isNewlyIdentified ? ("DevTypeIdx " + String(el.deviceTypeIndex)).c_str() : "",
                         newlyCreated ? "NewlyCreated Y" : "");
+#endif
     }
 }
 
@@ -400,6 +404,9 @@ RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
 {
     for (auto* pDevice : _deviceList)
     {
+#ifdef DEBUG_GET_DEVICE
+        LOG_I(MODULE_PREFIX, "getDevice %s checking %s", pDeviceName, pDevice ? pDevice->getDeviceName() : "UNKNOWN");
+#endif
         if (pDevice && pDevice->getDeviceName() == pDeviceName)
             return pDevice;
     }
@@ -437,7 +444,7 @@ String DeviceManager::getDebugJSON() const
     {
         if (!pDevice)
             continue;
-        String jsonRespStr = pDevice->getStatusJSON();
+        String jsonRespStr = pDevice->getDebugJSON(true);
 
         // Check for empty string or empty JSON object
         if (jsonRespStr.length() > 2)

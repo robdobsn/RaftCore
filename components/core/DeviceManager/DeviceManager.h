@@ -54,6 +54,9 @@ public:
     // Default minimum time between reports
     static constexpr uint32_t DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS = 1000;
 
+    // Get JSON debug string
+    virtual String getDebugJSON() const override final;
+
 protected:
 
     // Setup
@@ -64,9 +67,6 @@ protected:
 
     // Loop (called frequently)
     virtual void loop() override final;
-
-    // Get JSON debug string
-    virtual String getDebugJSON() const override final;
 
     // Add endpoints
     virtual void addRestAPIEndpoints(RestAPIEndpointManager& pEndpoints) override final;

@@ -76,6 +76,13 @@ String RaftDevice::getStatusJSON() const
     return "{}";
 }
 
+// @brief Get device debug info JSON
+// @return JSON string
+String RaftDevice::getDebugJSON(bool includeBraces) const
+{
+    return includeBraces ? "{}" : "";
+}
+
 /// @brief Send a binary command to the device
 /// @param formatCode Format code for the command
 /// @param pData Pointer to the data

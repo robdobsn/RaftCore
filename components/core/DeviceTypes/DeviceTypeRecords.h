@@ -43,8 +43,9 @@ public:
     /// @brief Get device type record for a device type name
     /// @param deviceType device type name
     /// @param devTypeRec (out) device type record
+    /// @param deviceTypeIdx (out) device type index
     /// @return true if device type found
-    bool getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec) const;
+    bool getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, uint32_t& deviceTypeIdx) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device polling info
