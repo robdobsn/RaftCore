@@ -11,14 +11,18 @@
 #include <stdint.h>
 #include "RaftArduino.h"
 
-class LEDPixels;
+class LEDPixelIF;
 class NamedValueProvider;
+class LEDPatternBase;
+
+// Create function for LED pattern factory
+typedef LEDPatternBase* (*LEDPatternCreateFn)(NamedValueProvider* pNamedValueProvider, LEDPixelIF& pixels);
 
 // Base class for LED patterns
 class LEDPatternBase
 {
 public:
-    LEDPatternBase(NamedValueProvider* pNamedValueProvider, LEDPixels& pixels) :
+    LEDPatternBase(NamedValueProvider* pNamedValueProvider, LEDPixelIF& pixels) :
         _pNamedValueProvider(pNamedValueProvider), _pixels(pixels)
     {
     }
@@ -32,6 +36,13 @@ public:
     // Service
     virtual void loop() = 0;
 
+    // LED pattern list item
+    struct LEDPatternListItem
+    {
+        String name;
+        LEDPatternCreateFn createFn;
+    };
+
 protected:
 
     // Refresh rate
@@ -40,6 +51,6 @@ protected:
     // Hardware state provider
     NamedValueProvider* _pNamedValueProvider = nullptr;
 
-    // Pixels
-    LEDPixels& _pixels;
+    // Pixel interface
+    LEDPixelIF& _pixels;
 };

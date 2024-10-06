@@ -27,7 +27,7 @@ public:
     virtual ~ESP32RMTLedStrip();
 
     // Setup
-    bool setup(uint32_t ledStripIdx, const LEDStripConfig& ledStripConfig);
+    bool setup(const LEDStripConfig& ledStripConfig, uint32_t pixelIndexStartOffset);
 
     // Loop
     void loop();
@@ -40,6 +40,12 @@ public:
 
 private:
 
+    // LED strip config
+    LEDStripConfig _ledStripConfig;
+
+    // LED strip pixel indexing start offset into the overall pixel buffer
+    uint32_t _pixelIdxStartOffset = 0;
+
     // RMT channel config
     rmt_tx_channel_config_t _rmtChannelConfig;
 
@@ -49,29 +55,21 @@ private:
     // RMT channel
     rmt_channel_handle_t _rmtChannelHandle = nullptr;
 
-    // Setup & init flags
+    // Setup/init/power flags
     bool _isSetup = false;
     bool _isInit = false;
+    bool _isPowerOn = false;
+    bool _powerOffAfterTxAsAllBlank = false;
 
     // Tx in progress
     volatile bool _txInProgress = false;
 
-    // LED strip pixel indexing start offset
-    uint32_t _pixelIdxStartOffset = 0;
-
-    // Stop after transmit
-    bool _stopAfterTx = false;
-    
     // LED strip encoder
     rmt_encoder_handle_t _ledStripEncoderHandle = nullptr;
 
     // Last pixel transmit activity time
     static const uint32_t STOP_AFTER_TX_TIME_MS = 2;
     uint32_t _lastTxTimeMs = 0;
-
-    // Num pixels in strip - this is recorded here rather than using _pixelBuffer.size()
-    // because the buffer is lazily allocated and is multiplied by size of one pixel
-    uint32_t _numPixels = 0;
 
     // Pixel working buffer
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _pixelBuffer;
@@ -85,6 +83,7 @@ private:
     void deinitRMTPeripheral();
     static bool rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
     bool rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);
+    void powerControl(bool enablePower);
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RMTLedSt";

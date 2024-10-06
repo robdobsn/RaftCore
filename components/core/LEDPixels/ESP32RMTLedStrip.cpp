@@ -10,11 +10,15 @@
 #include "ESP32RMTLedStrip.h"
 #include "RaftUtils.h"
 #include "esp_idf_version.h"
+#include "driver/gpio.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 
 #define DEBUG_ESP32RMTLEDSTRIP_SETUP
-// #define DEBUG_ESP32RMTLEDSTRIP_DETAIL
+// #define DEBUG_ESP32RMTLEDSTRIP_SEND
+// #define DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
+// #define DEBUG_ESP32RMTLEDSTRIP_INIT_RMT
+// #define DEBUG_ESP32RMTLEDSTRIP_POWER_CTRL
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor and destructor
@@ -27,21 +31,22 @@ ESP32RMTLedStrip::ESP32RMTLedStrip()
 ESP32RMTLedStrip::~ESP32RMTLedStrip()
 {
     deinitRMTPeripheral();
+
+    // Clear power pin if used
+    if (_ledStripConfig.powerPin >= 0)
+    {
+        if (_ledStripConfig.powerPinGpioHold)
+            gpio_hold_dis((gpio_num_t)_ledStripConfig.powerPin);
+        pinMode(_ledStripConfig.powerPin, INPUT);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStripConfig)
+bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexStartOffset)
 {
-    // Check index valid
-    if (ledStripIdx >= ledStripConfig.hwConfigs.size())
-    {
-        LOG_E(MODULE_PREFIX, "setup FAILED ledStripIdx %d invalid numHWConfigs %d", ledStripIdx, ledStripConfig.hwConfigs.size());
-        return false;
-    }
-
     // If already setup then release resources first
     if (_isSetup)
     {
@@ -49,21 +54,24 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
         _isSetup = false;
     }
 
-    // Hardware config
-    const LEDStripHwConfig& hwConfig = ledStripConfig.hwConfigs[ledStripIdx];
-    _numPixels = hwConfig.numPixels;
+    // Store the config
+    _ledStripConfig = config;
+    _pixelIdxStartOffset = pixelIndexStartOffset;
 
-    // Get the offset to the first pixel
-    _pixelIdxStartOffset = ledStripConfig.getPixelStartOffset(ledStripIdx);
-
-    // Get stop after transmit flag
-    _stopAfterTx = ledStripConfig.stopAfterTx;
+    // Setup power control
+    if (_ledStripConfig.powerPin >= 0)
+    {
+        if (_ledStripConfig.powerPinGpioHold)
+            gpio_hold_dis((gpio_num_t)_ledStripConfig.powerPin);
+        pinMode(_ledStripConfig.powerPin, OUTPUT);
+        powerControl(false);
+    }
 
     // Setup the RMT channel
     _rmtChannelConfig = {
-        .gpio_num = (gpio_num_t)hwConfig.ledDataPin,              // LED strip data pin
+        .gpio_num = (gpio_num_t)config.ledDataPin,          // LED strip data pin
         .clk_src = RMT_CLK_SRC_DEFAULT,                     // Default clock
-        .resolution_hz = hwConfig.rmtResolutionHz,
+        .resolution_hz = config.rmtResolutionHz,
         .mem_block_symbols = 64,                            // Increase to reduce flickering
         .trans_queue_depth = 4,                             // Number of transactions that can be pending in the background
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
@@ -86,13 +94,13 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
     };
 
     _ledStripEncoderConfig = {
-        .resolution = hwConfig.rmtResolutionHz,
-        .bit0Duration0Us = hwConfig.bit0Duration0Us,
-        .bit0Duration1Us = hwConfig.bit0Duration1Us,
-        .bit1Duration0Us = hwConfig.bit1Duration0Us,
-        .bit1Duration1Us = hwConfig.bit1Duration1Us,
-        .resetDurationUs = hwConfig.resetDurationUs,
-        .msbFirst = hwConfig.msbFirst,
+        .resolution = config.rmtResolutionHz,
+        .bit0_0_ticks = config.bit0_0_ticks,
+        .bit0_1_ticks = config.bit0_1_ticks,
+        .bit1_0_ticks = config.bit1_0_ticks,
+        .bit1_1_ticks = config.bit1_1_ticks,
+        .reset_ticks = config.reset_ticks, 
+        .msbFirst = config.msbFirst,
     };
 
     // Now setup
@@ -100,8 +108,7 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
 
 #ifdef DEBUG_ESP32RMTLEDSTRIP_SETUP
     // Debug
-    LOG_I(MODULE_PREFIX, "setup ok numPixels %d hw %s", 
-                _numPixels, hwConfig.debugStr().c_str());
+    LOG_I(MODULE_PREFIX, "setup ok %s", config.debugStr().c_str());
 #endif
 
     return true;
@@ -111,10 +118,33 @@ bool ESP32RMTLedStrip::setup(uint32_t ledStripIdx, const LEDStripConfig& ledStri
 /// @brief Loop
 void ESP32RMTLedStrip::loop()
 {
-    if (_isSetup && _isInit && _stopAfterTx && !_txInProgress && Raft::isTimeout(millis(), _lastTxTimeMs, STOP_AFTER_TX_TIME_MS))
+    // Check for de-init
+    if (_isSetup && _isInit && _ledStripConfig.stopAfterTx && !_txInProgress && Raft::isTimeout(millis(), _lastTxTimeMs, STOP_AFTER_TX_TIME_MS))
     {
-        // LOG_I(MODULE_PREFIX, "loop deinitRMTPeripheral");
+#ifdef DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
+        LOG_I(MODULE_PREFIX, "loop deinitRMTPeripheral");
+#endif
         deinitRMTPeripheral();
+    }
+
+    // Check for power down conditions
+    if (_isSetup && _isPowerOn)
+    {
+        if (_powerOffAfterTxAsAllBlank)
+        {
+            _powerOffAfterTxAsAllBlank = false;
+#ifdef DEBUG_ESP32RMTLEDSTRIP_POWER_CTRL
+        LOG_I(MODULE_PREFIX, "loop power off as all blank");
+#endif
+            powerControl(false);
+        }
+        else if ((_ledStripConfig.powerOffAfterMs > 0) && Raft::isTimeout(millis(), _lastTxTimeMs, _ledStripConfig.powerOffAfterMs))
+        {
+#ifdef DEBUG_ESP32RMTLEDSTRIP_POWER_CTRL
+            LOG_I(MODULE_PREFIX, "loop power off after %dms", _ledStripConfig.powerOffAfterMs);
+#endif
+            powerControl(false);
+        }
     }
 }
 
@@ -165,6 +195,11 @@ bool ESP32RMTLedStrip::initRMTPeripheral()
         return false;
     }
 
+    // Debug
+#ifdef DEBUG_ESP32RMTLEDSTRIP_INIT_RMT
+    LOG_I(MODULE_PREFIX, "initRMTPeripheral OK");
+#endif
+
     // Init ok
     _isInit = true;
     return true;
@@ -199,23 +234,43 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     // Can't show pixels if not setup
     if (!_isSetup)
         return;
-
-    // Init if not already done
-    if (!_isInit)
-        initRMTPeripheral();
-
-    // Get numnber of pixels to copy
+    
+    // Get number of pixels to copy
     if (pixels.size() < _pixelIdxStartOffset)
         return;
-    uint32_t numPixelsToCopy = pixels.size() - _pixelIdxStartOffset;
-    if (numPixelsToCopy > _numPixels)
-        numPixelsToCopy = _numPixels;
+    uint32_t numPixelsToCopy = _ledStripConfig.numPixels;
+    if (numPixelsToCopy > pixels.size() - _pixelIdxStartOffset)
+        numPixelsToCopy = pixels.size() - _pixelIdxStartOffset;
 
     // Copy the buffer
     uint32_t numBytesToCopy = numPixelsToCopy * sizeof(LEDPixel);
     if (_pixelBuffer.size() != numBytesToCopy)
         _pixelBuffer.resize(numBytesToCopy);
     memcpy(_pixelBuffer.data(), pixels.data() + (_pixelIdxStartOffset*sizeof(LEDPixel)), numBytesToCopy);
+
+    // Check for power off if all blank and is all blank
+    if (_ledStripConfig.powerOffIfBlank && (_pixelBuffer.size() > 0))
+    {
+        _powerOffAfterTxAsAllBlank = true;
+        for (uint32_t i = 0; i < _pixelBuffer.size(); i++)
+        {
+            if (_pixelBuffer[i] != 0)
+            {
+                _powerOffAfterTxAsAllBlank = false;
+                break;
+            }
+        }
+    }
+
+    // Init if not already done
+    if (!_isInit)
+        initRMTPeripheral();
+
+    // Power on the strip if required
+    if (_ledStripConfig.powerPin >= 0 && !_isPowerOn)
+    {
+        powerControl(true);
+    }
 
     // Transmit the data
     static const rmt_transmit_config_t tx_config = {
@@ -237,6 +292,23 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
         _txInProgress = false;
         deinitRMTPeripheral();
     }
+
+#ifdef DEBUG_ESP32RMTLEDSTRIP_SEND
+    bool allZeroes = true;
+    for (uint32_t i = 0; i < _pixelBuffer.size(); i++)
+    {
+        if (_pixelBuffer[i] != 0)
+        {
+            allZeroes = false;
+            break;
+        }
+    }
+    LOG_I(MODULE_PREFIX, "showPixels numPix %d numBytes %d rslt %s allBlank %s", 
+            numPixelsToCopy,
+            numBytesToCopy,
+            err == ESP_OK ? "OK" : "FAILED", 
+            allZeroes ? "YES" : "NO");
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -291,6 +363,48 @@ bool ESP32RMTLedStrip::rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_t
 
     // False indicates a higher-priority task hasn't been woken up
     return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// @brief Power control
+// @param enable Enable / disable
+void ESP32RMTLedStrip::powerControl(bool enable)
+{
+    // Check if power control is enabled
+    if (_ledStripConfig.powerPin < 0)
+        return;
+
+    // Update power on flag
+    _isPowerOn = enable;
+
+    // Check for gpio hold on power pin
+    if (_ledStripConfig.powerPinGpioHold)
+    {
+        // Disable hold
+        gpio_hold_dis( (gpio_num_t)_ledStripConfig.powerPin);
+    }
+
+    // Set the power level
+    bool powerLevel = enable ? _ledStripConfig.powerOnLevel : !_ledStripConfig.powerOnLevel;
+    digitalWrite(_ledStripConfig.powerPin, powerLevel);
+
+    // Check for gpio hold on power pin and either always hold or power enabled
+    bool applyHold = _ledStripConfig.powerPinGpioHold && (_ledStripConfig.powerHoldIfInactive || enable);
+    if (applyHold)
+    {
+        // Enable hold if power enabled (this is so that the power pin is held high when going into light sleep)
+        gpio_hold_en( (gpio_num_t)_ledStripConfig.powerPin);
+    }
+
+#ifdef DEBUG_ESP32RMTLEDSTRIP_POWER_CTRL
+    LOG_I(MODULE_PREFIX, "powerControl %s pin %d gpioHold req %s ifInactive %s applied %s levelWritten %d", 
+                enable ? "ON" : "OFF", 
+                _ledStripConfig.powerPin, 
+                _ledStripConfig.powerPinGpioHold ? "Y" : "N",
+                _ledStripConfig.powerHoldIfInactive ? "Y" : "N",
+                applyHold ? "Y" : "N",
+                powerLevel);
+#endif
 }
 
 #endif // ESP_IDF_VERSION

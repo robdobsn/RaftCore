@@ -21,37 +21,37 @@ class DeviceTypeRecordDynamic;
 class RaftDevice
 {
 public:
-    // @brief Construct a new Raft Device object
-    // @param pDevConfigJson JSON configuration for the device
+    /// @brief Construct a new Raft Device object
+    /// @param pDevConfigJson JSON configuration for the device
     RaftDevice(const char* pClassName, const char* pDevConfigJson);
     
-    // @brief Destroy the Raft Device object
+    /// @brief Destroy the Raft Device object
     virtual ~RaftDevice();
 
-    // @brief Check if ID matches that passed in
-    // @param pDeviceId Device ID to check
-    // @return true if the device ID matches
+    /// @brief Check if ID matches that passed in
+    /// @param pDeviceId Device ID to check
+    /// @return true if the device ID matches
     virtual bool idMatches(const char* pDeviceId) const
     {
         return deviceName.equals(pDeviceId);
     }
 
-    // @brief Get the name of the device instance
-    // @return Device name as a string
+    /// @brief Get the name of the device instance
+    /// @return Device name as a string
     virtual String getDeviceName() const
     {
         return deviceName;
     }
 
-    // @brief Get the class name of the device
-    // @return Device class name as a string
+    /// @brief Get the class name of the device
+    /// @return Device class name as a string
     virtual String getDeviceClassName() const
     {
         return deviceClassName;
     }
 
-    // @brief Get the publish device type
-    // @return Publish device type as a string
+    /// @brief Get the publish device type
+    /// @return Publish device type as a string
     virtual String getPublishDeviceType() const
     {
         return publishDeviceType;
@@ -65,35 +65,35 @@ public:
         return false;
     }
 
-    // @brief Setup the device
+    /// @brief Setup the device
     virtual void setup();
 
-    // @brief Main loop for the device (called frequently)
+    /// @brief Main loop for the device (called frequently)
     virtual void loop();
 
-    // @brief Add REST API endpoints
-    // @param endpointManager Manager for REST API endpoints
+    /// @brief Add REST API endpoints
+    /// @param endpointManager Manager for REST API endpoints
     virtual void addRestAPIEndpoints(RestAPIEndpointManager& endpointManager);
 
-    // @brief Add communication channels
-    // @param commsCore Core interface for communications
+    /// @brief Add communication channels
+    /// @param commsCore Core interface for communications
     virtual void addCommsChannels(CommsCoreIF& commsCore);
 
-    // @brief Post-setup - called after setup of all devices is complete
+    /// @brief Post-setup - called after setup of all devices is complete
     virtual void postSetup();
 
-    // @brief Get time of last device status update
-    // @param includeElemOnlineStatusChanges Include element online status changes in the status update time
-    // @param includePollDataUpdates Include poll data updates in the status update time
-    // @return Time of last device status update in milliseconds
+    /// @brief Get time of last device status update
+    /// @param includeElemOnlineStatusChanges Include element online status changes in the status update time
+    /// @param includePollDataUpdates Include poll data updates in the status update time
+    /// @return Time of last device status update in milliseconds
     virtual uint32_t getLastStatusUpdateMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const;
 
-    // @brief Get the device status as JSON
-    // @return JSON string
+    /// @brief Get the device status as JSON
+    /// @return JSON string
     virtual String getStatusJSON() const;
 
-    // @brief Get device debug info JSON
-    // @return JSON string
+    /// @brief Get device debug info JSON
+    /// @return JSON string
     virtual String getDebugJSON(bool includeBraces) const;
 
     /// @brief Send a binary command to the device

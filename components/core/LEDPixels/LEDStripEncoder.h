@@ -20,12 +20,12 @@ extern "C" {
  * @brief Type of led strip encoder configuration
  */
 typedef struct {
-    uint32_t resolution; /*!< Encoder resolution, in Hz */
-    float bit0Duration0Us;
-    float bit0Duration1Us;
-    float bit1Duration0Us;
-    float bit1Duration1Us;
-    float resetDurationUs;
+    uint32_t resolution; // Encoder resolution in Hz
+    uint16_t bit0_0_ticks; // Duration of 0 bit in 0 state, in RMT clock ticks
+    uint16_t bit0_1_ticks; // Duration of 0 bit in 1 state, in RMT clock ticks
+    uint16_t bit1_0_ticks; // Duration of 1 bit in 0 state, in RMT clock ticks
+    uint16_t bit1_1_ticks; // Duration of 1 bit in 1 state, in RMT clock ticks
+    uint16_t reset_ticks; // Duration of reset code, in RMT clock ticks
     bool msbFirst;
 } led_strip_encoder_config_t;
 

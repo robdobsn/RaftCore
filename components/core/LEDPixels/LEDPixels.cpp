@@ -14,13 +14,13 @@
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 
 // #define DEBUG_LED_PIXEL_VALUES
+// #define DEBUG_LED_PIXELS_LOOP_SHOW
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor and destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-LEDPixels::LEDPixels(NamedValueProvider* pNamedValueProvider)
-    : _pNamedValueProvider(pNamedValueProvider)
+LEDPixels::LEDPixels()
 {
 }
 
@@ -34,56 +34,61 @@ LEDPixels::~LEDPixels()
 
 bool LEDPixels::setup(const RaftJsonIF& config)
 {
-    // LED strip config
-    LEDStripConfig ledStripConfig;
-    if (!ledStripConfig.setup(config))
+    // LED pixels config
+    LEDPixelConfig ledPixelConfig;
+    if (!ledPixelConfig.setup(config))
     {
-        LOG_E(MODULE_PREFIX, "setup failed to get LED strip config");
+        LOG_E(MODULE_PREFIX, "setup failed to get LED pixel config");
         return false;
     }
 
     // Setup
-    return setup(ledStripConfig);
+    return setup(ledPixelConfig);
 }
 
-bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
+bool LEDPixels::setup(LEDPixelConfig& config)
 {
-    // Copy config
-    _ledStripConfig = ledStripConfig;
-
     // Setup pixels
-    _pixels.resize(_ledStripConfig.totalPixels);
+    _pixels.resize(config.totalPixels);
 
-    // Turn power on if required
-    if (_ledStripConfig.powerPin >= 0)
-    {
-        pinMode(_ledStripConfig.powerPin, OUTPUT);
-        digitalWrite(_ledStripConfig.powerPin, _ledStripConfig.powerOnLevel);
-    }
-
-    // Setup hardware
-    _ledStrips.resize(_ledStripConfig.hwConfigs.size());
+    // Setup hardware drivers
+    _ledStripDrivers.resize(config.stripConfigs.size());
     bool rslt = false;
-    for (uint32_t ledStripIdx = 0; ledStripIdx < _ledStripConfig.hwConfigs.size(); ledStripIdx++)
+    uint32_t pixelCount = 0;
+    for (uint32_t ledStripIdx = 0; ledStripIdx < _ledStripDrivers.size(); ledStripIdx++)
     {
-        rslt = _ledStrips[ledStripIdx].setup(ledStripIdx, _ledStripConfig);
+        rslt = _ledStripDrivers[ledStripIdx].setup(config.stripConfigs[ledStripIdx], pixelCount);
         if (!rslt)
             break;
+        pixelCount += config.stripConfigs[ledStripIdx].numPixels;
     }
 
-    // Set pattern
-    if (_ledStripConfig.initialPattern.length() > 0)
+    // Check if any segments are specified, if not create a single segment from the entire pixel array
+    if (config.segmentConfigs.size() == 0)
     {
-        setPattern(_ledStripConfig.initialPattern, ("{\"forMs\":" + String(_ledStripConfig.initialPatternMs) + "}").c_str());
+        LEDSegmentConfig segCfg;
+        segCfg.startOffset = 0;
+        segCfg.numPixels = config.totalPixels;
+        segCfg.name = "All";
+        _segments.resize(1);
+        _segments[0].setup(segCfg, &_pixels, &_ledPatterns);
     }
     else
     {
-        clear(true);
+        // Setup segments
+        _segments.resize(config.segmentConfigs.size());
+        for (uint32_t segIdx = 0; segIdx < _segments.size(); segIdx++)
+        {
+            _segments[segIdx].setup(config.segmentConfigs[segIdx], &_pixels, &_ledPatterns);
+        }
     }
 
     // Log
-    LOG_I(MODULE_PREFIX, "setup %s numStrips %d totalPixels %d", 
-                rslt ? "OK" : "FAILED", (int)_ledStripConfig.hwConfigs.size(), (int)_ledStripConfig.totalPixels);
+    LOG_I(MODULE_PREFIX, "setup %s numStrips %d numSegments %d totalPixels %d", 
+                rslt ? "OK" : "FAILED",
+                (int)_ledStripDrivers.size(), 
+                (int)_segments.size(),
+                config.totalPixels);
     return rslt;
 }
 
@@ -94,22 +99,29 @@ bool LEDPixels::setup(LEDStripConfig& ledStripConfig)
 void LEDPixels::loop()
 {
     // Loop over LED strips
-    for (auto& ledStrip : _ledStrips)
+    for (auto& ledStrip : _ledStripDrivers)
     {
         ledStrip.loop();
     }
-    
-    // Check if pattern active
-    if (_pCurrentPattern)
-    {
-        if ((_patternDurationMs > 0) && Raft::isTimeout(millis(), _patternStartMs, _patternDurationMs))
-        {
-            setPattern("");
-            return;
-        }
 
-        // Service pattern
-        _pCurrentPattern->loop();
+    // Loop over segments
+    for (auto& segment : _segments)
+    {
+        if (segment.loop())
+        {
+            show();
+#ifdef DEBUG_LED_PIXELS_LOOP_SHOW
+            LOG_I(MODULE_PREFIX, "loop segment %s show", segment.getName().c_str());
+#endif
+        }
+        if (segment.isStopRequested())
+        {
+#ifdef DEBUG_LED_PIXELS_LOOP_SHOW
+            LOG_I(MODULE_PREFIX, "loop segment %s stop requested", segment.getName().c_str());
+#endif
+            segment.stopPattern(true);
+            show();
+        }
     }
 }
 
@@ -130,77 +142,14 @@ void LEDPixels::addPattern(const String& patternName, LEDPatternCreateFn createF
     }
 
     // Add pattern
-    _ledPatterns.push_back(LEDPatternListItem(patternName, createFn));
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set a pattern
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void LEDPixels::setPattern(const String& patternName, const char* pParamsJson)
-{
-    // Stop existing pattern 
-    stopPattern(true);
-
-    // Find pattern
-    for (auto& pattern : _ledPatterns)
-    {
-        if (pattern.name.equalsIgnoreCase(patternName))
-        {
-            // Create pattern
-            LEDPatternBase* pPattern = pattern.createFn(_pNamedValueProvider, *this);
-            if (pPattern)
-            {
-                // Set pattern
-                _pCurrentPattern = pPattern;
-                _currentPatternName = patternName;
-
-                // Setup
-                _pCurrentPattern->setup(pParamsJson);
-
-                // Check if pattern duration is specified
-                if (pParamsJson)
-                {
-                    RaftJson paramsJson(pParamsJson);
-                    _patternDurationMs = paramsJson.getInt("forMs", 0);
-                }
-                _patternStartMs = millis();
-
-                // Debug
-                LOG_I(MODULE_PREFIX, "setPattern %s OK paramsJson %s durationMs %d", 
-                        patternName.c_str(), pParamsJson ? pParamsJson : "NONE", _patternDurationMs);
-            }
-            return;
-        }
-    }
-
-    // Debug
-    LOG_I(MODULE_PREFIX, "setPattern %s", patternName.length() > 0 ? "PATTERN NOT FOUND" : "pattern cleared");
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Stop the current pattern
-/// @param clearPixels - clear the pixels
-void LEDPixels::stopPattern(bool clearPixels)
-{
-    // Clear pattern
-    if (_pCurrentPattern)
-    {
-        delete _pCurrentPattern;
-        _pCurrentPattern = nullptr;
-        _currentPatternName = "";
-    }
-
-    // Clear pixels
-    if (clearPixels)
-        clear(true);
+    _ledPatterns.push_back(LEDPatternBase::LEDPatternListItem(patternName, createFn));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get pattern names
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void LEDPixels::getPatternNames(std::vector<String>& patternNames)
+void LEDPixels::getPatternNames(std::vector<String>& patternNames) const
 {
     for (auto& pattern : _ledPatterns)
     {
@@ -209,52 +158,17 @@ void LEDPixels::getPatternNames(std::vector<String>& patternNames)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Write to an individual LED
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void LEDPixels::setRGB(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, bool applyBrightness)
+// @brief Get segment index from name
+// @param segmentName Name of segment
+// @return Index of segment or -1 if not found
+int32_t LEDPixels::getSegmentIdx(const String& segmentName) const
 {
-    // Check for mapping function & valid index
-    if (_pixelMappingFn)
-        ledIdx = _pixelMappingFn(ledIdx);
-    if (ledIdx >= _pixels.size())
-        return;
-
-    // Set pixel
-    _pixels[ledIdx].fromRGB(r, g, b, _ledStripConfig.colourOrder, applyBrightness ? _ledStripConfig.pixelBrightnessFactor : 1.0f);
-#ifdef DEBUG_LED_PIXEL_VALUES
-    LOG_I(MODULE_PREFIX, "setPixelColor %d r %d g %d b %d order %d val %08x", ledIdx, r, g, b, _ledStripConfig.colourOrder, _pixels[ledIdx].getRaw());
-#endif
-}
-
-void LEDPixels::setRGB(uint32_t ledIdx, uint32_t c, bool applyBrightness)
-{
-    // Check for mapping function & valid index
-    if (_pixelMappingFn)
-        ledIdx = _pixelMappingFn(ledIdx);
-    if (ledIdx >= _pixels.size())
-        return;
-    _pixels[ledIdx].fromRGB(c, _ledStripConfig.colourOrder, applyBrightness ? _ledStripConfig.pixelBrightnessFactor : 1.0f);
-}
-
-void LEDPixels::setRGB(uint32_t ledIdx, const LEDPixel& pixel)
-{
-    // Check for mapping function & valid index
-    if (_pixelMappingFn)
-        ledIdx = _pixelMappingFn(ledIdx);
-    if (ledIdx >= _pixels.size())
-        return;
-    _pixels[ledIdx] = pixel;
-}
-
-void LEDPixels::setHSV(uint32_t ledIdx, uint32_t h, uint32_t s, uint32_t v)
-{
-    // Check for mapping function & valid index
-    if (_pixelMappingFn)
-        ledIdx = _pixelMappingFn(ledIdx);
-    if (ledIdx >= _pixels.size())
-        return;
-    setRGB(ledIdx, LEDPixHSV::toRGB(h, s, v));
+    for (uint32_t segIdx = 0; segIdx < _segments.size(); segIdx++)
+    {
+        if (_segments[segIdx].getName().equalsIgnoreCase(segmentName))
+            return segIdx;
+    }
+    return -1;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +178,7 @@ void LEDPixels::setHSV(uint32_t ledIdx, uint32_t h, uint32_t s, uint32_t v)
 bool LEDPixels::show()
 {
     // Show
-    for (auto& ledStrip : _ledStrips)
+    for (auto& ledStrip : _ledStripDrivers)
     {
         ledStrip.showPixels(_pixels);
     }
@@ -287,7 +201,7 @@ bool LEDPixels::show()
 
 void LEDPixels::waitUntilShowComplete()
 {
-    for (auto& ledStrip : _ledStrips)
+    for (auto& ledStrip : _ledStripDrivers)
     {
         ledStrip.waitUntilShowComplete();
     }

@@ -15,7 +15,7 @@
 class RaftBusDevice : public RaftDevice
 {
 public:
-    // @brief Constructor
+   /// @brief Constructor
     RaftBusDevice(const char* pBusName, BusElemAddrType address, const char* pClassName, const char* pDevConfigJson) :
         RaftDevice(pClassName, pDevConfigJson),
         _busName(pBusName),
@@ -23,14 +23,14 @@ public:
     {
     }
     
-    // @brief Destructor
+   /// @brief Destructor
     virtual ~RaftBusDevice()
     {
     }
 
-    // @brief Check if ID matches that passed in
-    // @param pDeviceId Device ID to check
-    // @return true if the device ID matches
+   /// @brief Check if ID matches that passed in
+    /// @param pDeviceId Device ID to check
+    /// @return true if the device ID matches
     virtual bool idMatches(const char* pDeviceId) const override final
     {
         // Split name on _ and check for first part matching bus name and second matching address in hex

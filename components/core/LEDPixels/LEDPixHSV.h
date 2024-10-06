@@ -21,8 +21,11 @@ public:
 
     union {
 		struct {
+            // Hue (0-360)
             uint16_t h;
+            // Saturation (0-100)
             uint8_t s;
+            // Value (0-100)
             uint8_t v;
 		};
 		uint8_t raw[3];
