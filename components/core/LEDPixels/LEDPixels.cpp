@@ -11,8 +11,6 @@
 #include "RaftJsonIF.h"
 #include "esp_idf_version.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-
 // #define DEBUG_LED_PIXEL_VALUES
 // #define DEBUG_LED_PIXELS_LOOP_SHOW
 
@@ -234,5 +232,3 @@ void LEDPixels::clear(bool showAfterClear)
     if (showAfterClear)
         show();
 }
-
-#endif // ESP_IDF_VERSION

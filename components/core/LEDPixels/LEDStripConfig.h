@@ -49,14 +49,20 @@ public:
         // Stop RMT peripheral after transmit
         stopAfterTx = config.getBool("stopAfterTx", false);
 
+        // Blocking show
+        blockingShow = config.getBool("blockingShow", false);
+
         // Power control
         powerPin = config.getLong("pwrPin", -1);
         powerOnLevel = config.getLong("pwrOnLvl", 1);
         powerPinGpioHold = config.getBool("pwrPinGpioHold", false);
         powerHoldIfInactive = config.getBool("pwrHoldIfInactive", false);
-        powerOffIfBlank = config.getLong("offIfBlank", -1);
+        powerOffIfPowerControlledAllBlank = config.getLong("offIfBlank", -1);
         powerOffBlankExcludeFirstN = config.getLong("offBlankExcl1stN", 0);
         powerOffAfterMs = config.getLong("offAfterMs", 0);
+
+        // Delay before deinit
+        delayBeforeDeinitMs = config.getLong("beforeDeinitMs", 0);
 
         return true;
     }
@@ -67,9 +73,11 @@ public:
                     " pwrPin:" + String(powerPin) + " pwrOnLvl:" + String(powerOnLevel) +
                     " pwrGpioHold:" + String(powerPinGpioHold) +
                     " stopAftTx:" + String(stopAfterTx) +
-                    " offIfBlnk:" + String(powerOffIfBlank) +
+                    " blkShow:" + String(blockingShow) +
+                    " offIfBlnk:" + String(powerOffIfPowerControlledAllBlank) +
                     " offExc1stN:" + String(powerOffBlankExcludeFirstN) +
                     " offAftMs:" + String(powerOffAfterMs) +
+                    " befDeinitMs:" + String(delayBeforeDeinitMs) +
                     " rmtHz:" + String(rmtResolutionHz) +
                     " b0_0_tks:" + String(bit0_0_ticks) + " b0_1_tks:" + String(bit0_1_ticks) +
                     " b1_0_tks:" + String(bit1_0_ticks) + " b1_1_tks:" + String(bit1_1_ticks) +
@@ -83,24 +91,34 @@ public:
     // Parameters
     int16_t ledDataPin = -1;
 
-    // Power enablement
+    // Power pin
     int16_t powerPin = -1;
+
+    // Flags
     bool powerOnLevel:1 = true;
-    bool powerOffIfBlank:1 = false;
+    bool powerOffIfPowerControlledAllBlank:1 = false;
     bool powerPinGpioHold:1 = false;
     bool powerHoldIfInactive:1 = false;
+
+    // Stop after Tx - deinit RMT peripheral after transmit
+    bool stopAfterTx:1 = false;
+    
+    // Send MSB first
+    bool msbFirst:1 = true;
+
+    // Block until show complete
+    bool blockingShow:1 = false;
 
     // Off blank exclude indices before this value - these pixels are always powered
     uint16_t powerOffBlankExcludeFirstN = 0;
 
-    // Stop after Tx - deinit RMT peripheral after transmit
-    bool stopAfterTx:1 = false;
-
     // Power off after ms
     uint32_t powerOffAfterMs = 0;
 
+    // Delay before deinit
+    uint16_t delayBeforeDeinitMs = 0;
+
     // Pixel comms
-    bool msbFirst:1 = true;
     uint32_t rmtResolutionHz = 10000000;
     static constexpr const double PIX_BIT_0_0_US_DEFAULT = 0.3;
     static constexpr const double PIX_BIT_0_1_US_DEFAULT = 0.9;

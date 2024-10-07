@@ -12,8 +12,6 @@
 #include "esp_idf_version.h"
 #include "driver/gpio.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-
 #define DEBUG_ESP32RMTLEDSTRIP_SETUP
 // #define DEBUG_ESP32RMTLEDSTRIP_SEND
 // #define DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
@@ -431,5 +429,3 @@ void ESP32RMTLedStrip::powerControl(bool enable)
                 powerLevel);
 #endif
 }
-
-#endif // ESP_IDF_VERSION

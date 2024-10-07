@@ -18,9 +18,7 @@
 #include "esp_idf_version.h"
 
 // #define DEBUG_LED_SEGMENT_PATTERN_DURATION
-#define DEBUG_LED_SEGMENT_PATTERN_START
-
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+// #define DEBUG_LED_SEGMENT_PATTERN_START_STOP
 
 class RaftJsonIF;
 class BusRequestResult;
@@ -136,6 +134,9 @@ public:
     /// @param pParamsJson Parameters for pattern
     void setPattern(const String& patternName, const char* pParamsJson=nullptr)
     {
+        // Save current pattern name
+        String curPatternName = _currentPatternName;
+
         // Stop existing pattern 
         stopPattern(true);
 
@@ -166,7 +167,7 @@ public:
                         _patternStartMs = millis();
 
                         // Debug
-#ifdef DEBUG_LED_SEGMENT_PATTERN_START
+#ifdef DEBUG_LED_SEGMENT_PATTERN_START_STOP
                         LOG_I(MODULE_PREFIX, "setPattern %s OK paramsJson %s duration %s", 
                                 patternName.c_str(), pParamsJson ? pParamsJson : "NONE", 
                                 _patternDurationMs == 0 ? "FOREVER" : (String(_patternDurationMs) + "ms").c_str());
@@ -178,7 +179,9 @@ public:
         }
 
         // Debug
-        LOG_I(MODULE_PREFIX, "setPattern %s", patternName.length() > 0 ? "PATTERN NOT FOUND" : "pattern cleared");
+#ifdef DEBUG_LED_SEGMENT_PATTERN_START_STOP
+        LOG_I(MODULE_PREFIX, "setPattern %s", patternName.length() > 0 ? "PATTERN NOT FOUND" : ("cleared " + curPatternName).c_str());
+#endif
     }
 
     /// @brief Stop pattern
@@ -281,6 +284,7 @@ public:
         {
             setRGB(ledIdx, 0, 0, 0, false);
         }
+        _showRequired = true;
     }
 
     /// @brief Get number of pixels in the segment
@@ -347,5 +351,3 @@ private:
     // Debug
     static constexpr const char* MODULE_PREFIX = "LEDSegment";
 };
-
-#endif

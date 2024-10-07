@@ -16,8 +16,6 @@
 #include "LEDStripEncoder.h"
 #include "esp_idf_version.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-
 #include "driver/rmt_tx.h"
 
 class ESP32RMTLedStrip
@@ -88,5 +86,3 @@ private:
     // Debug
     static constexpr const char* MODULE_PREFIX = "RMTLedSt";
 };
-
-#endif // ESP_IDF_VERSION
