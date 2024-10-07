@@ -214,7 +214,7 @@ String Raft::unescapeString(const String& inStr)
 /// @param inStr Input string
 /// @param mustStartWithQuestionMark true if the input string must start with a question mark
 /// @return JSON string (only contains name/value pairs and not {})
-String Raft::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark)
+String Raft::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark, bool includeBraces)
 {
     String outStr;
     static const uint32_t MAX_HTTP_QUERY_LEN = 4096;
@@ -284,7 +284,7 @@ String Raft::getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuesti
             outStr += ",";
         outStr += "\"" + curName + "\":" + "\"" + curVal + "\"";
     }
-    return outStr;
+    return includeBraces ? "{" + outStr + "}" : outStr;
 }
 
 /// @brief Get Nth field from delimited string

@@ -248,11 +248,11 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
         _pixelBuffer.resize(numBytesToCopy);
     memcpy(_pixelBuffer.data(), pixels.data() + (_pixelIdxStartOffset*sizeof(LEDPixel)), numBytesToCopy);
 
-    // Check for power off if all blank and is all blank
-    if (_ledStripConfig.powerOffIfBlank && (_pixelBuffer.size() > 0))
+    // Check for power off if all power controlled pixels are blank
+    if (_ledStripConfig.powerOffIfPowerControlledAllBlank && (_pixelBuffer.size() > 0))
     {
         _powerOffAfterTxAsAllBlank = true;
-        for (uint32_t i = 0; i < _pixelBuffer.size(); i++)
+        for (uint32_t i = _ledStripConfig.powerOffBlankExcludeFirstN; i < _pixelBuffer.size(); i++)
         {
             if (_pixelBuffer[i] != 0)
             {
@@ -293,6 +293,35 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
         deinitRMTPeripheral();
     }
 
+    // if tx ok ... Check for blocking show
+    else if (_ledStripConfig.blockingShow)
+    {
+        // Block until complete
+        waitUntilShowComplete();
+
+        // Not sure why a delay here is necessary but it seems to be
+        delay(_ledStripConfig.delayBeforeDeinitMs);
+
+        // Check for power off if all power controlled pixels are blank
+        if (_powerOffAfterTxAsAllBlank)
+        {
+            _powerOffAfterTxAsAllBlank = false;
+#ifdef DEBUG_ESP32RMTLEDSTRIP_POWER_CTRL
+        LOG_I(MODULE_PREFIX, "loop power off as all blank");
+#endif
+            powerControl(false);
+        }
+
+        // Check if peripheral should be deinitialized
+        if (_ledStripConfig.stopAfterTx)
+        {
+#ifdef DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
+            LOG_I(MODULE_PREFIX, "showPixels deinitRMTPeripheral");
+#endif
+            deinitRMTPeripheral();
+        }
+    }
+
 #ifdef DEBUG_ESP32RMTLEDSTRIP_SEND
     bool allZeroes = true;
     for (uint32_t i = 0; i < _pixelBuffer.size(); i++)
@@ -319,10 +348,6 @@ void ESP32RMTLedStrip::waitUntilShowComplete()
 {
     // Can't wait if not setup
     if (!_isSetup || !_isInit)
-        return;
-
-    // Check if already complete
-    if (!_txInProgress)
         return;
 
     // We're not going to use rmt_tx_wait_all_done as it errors on timeout

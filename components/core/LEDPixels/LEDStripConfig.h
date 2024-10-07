@@ -55,6 +55,7 @@ public:
         powerPinGpioHold = config.getBool("pwrPinGpioHold", false);
         powerHoldIfInactive = config.getBool("pwrHoldIfInactive", false);
         powerOffIfBlank = config.getLong("offIfBlank", -1);
+        powerOffBlankExcludeFirstN = config.getLong("offBlankExcl1stN", 0);
         powerOffAfterMs = config.getLong("offAfterMs", 0);
 
         return true;
@@ -66,7 +67,9 @@ public:
                     " pwrPin:" + String(powerPin) + " pwrOnLvl:" + String(powerOnLevel) +
                     " pwrGpioHold:" + String(powerPinGpioHold) +
                     " stopAftTx:" + String(stopAfterTx) +
-                    " offIfBlnk:" + String(powerOffIfBlank) + " offAftMs:" + String(powerOffAfterMs) +
+                    " offIfBlnk:" + String(powerOffIfBlank) +
+                    " offExc1stN:" + String(powerOffBlankExcludeFirstN) +
+                    " offAftMs:" + String(powerOffAfterMs) +
                     " rmtHz:" + String(rmtResolutionHz) +
                     " b0_0_tks:" + String(bit0_0_ticks) + " b0_1_tks:" + String(bit0_1_ticks) +
                     " b1_0_tks:" + String(bit1_0_ticks) + " b1_1_tks:" + String(bit1_1_ticks) +
@@ -86,6 +89,9 @@ public:
     bool powerOffIfBlank:1 = false;
     bool powerPinGpioHold:1 = false;
     bool powerHoldIfInactive:1 = false;
+
+    // Off blank exclude indices before this value - these pixels are always powered
+    uint16_t powerOffBlankExcludeFirstN = 0;
 
     // Stop after Tx - deinit RMT peripheral after transmit
     bool stopAfterTx:1 = false;

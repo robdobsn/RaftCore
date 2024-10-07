@@ -36,6 +36,8 @@ public:
         // Get initial pattern
         initialPattern = config.getString("pattern", "");
         initialPatternMs = config.getLong("patternMs", 0);
+        String patternParamsQueryStr = config.getString("patternParams", "");
+        initialPatternParamsJson = Raft::getJSONFromHTTPQueryStr(patternParamsQueryStr.c_str(), false, true);
 
         // Brightness percent
         pixelBrightnessFactor = config.getDouble("brightnessPC", pixelBrightnessFactor*100.0) / 100.0;
@@ -66,6 +68,7 @@ public:
     // Initial pattern
     String initialPattern;
     uint32_t initialPatternMs = 0;
+    String initialPatternParamsJson = "{}";
 
     // Startup first pixel colour
     Raft::RGBValue startupFirstPixelColour;

@@ -18,6 +18,7 @@
 #include "esp_idf_version.h"
 
 // #define DEBUG_LED_SEGMENT_PATTERN_DURATION
+#define DEBUG_LED_SEGMENT_PATTERN_START
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 
@@ -70,7 +71,7 @@ public:
         // Set pattern
         if (config.initialPattern.length() > 0)
         {
-            setPattern(config.initialPattern, ("{\"forMs\":" + String(config.initialPatternMs) + "}").c_str());
+            setPattern(config.initialPattern, config.initialPatternParamsJson.c_str());
         }
         else
         {
@@ -165,8 +166,11 @@ public:
                         _patternStartMs = millis();
 
                         // Debug
-                        LOG_I(MODULE_PREFIX, "setPattern %s OK paramsJson %s durationMs %d", 
-                                patternName.c_str(), pParamsJson ? pParamsJson : "NONE", _patternDurationMs);
+#ifdef DEBUG_LED_SEGMENT_PATTERN_START
+                        LOG_I(MODULE_PREFIX, "setPattern %s OK paramsJson %s duration %s", 
+                                patternName.c_str(), pParamsJson ? pParamsJson : "NONE", 
+                                _patternDurationMs == 0 ? "FOREVER" : (String(_patternDurationMs) + "ms").c_str());
+#endif
                     }
                     return;
                 }
@@ -247,6 +251,15 @@ public:
         // Set pixel
         if (_pLedPixels && (pixelIdx < _pLedPixels->size()))
             (*_pLedPixels)[pixelIdx] = pixRGB;
+    }
+
+    /// @brief Set HSV value for a pixel
+    /// @param ledIdx in the segment
+    /// @param hsv HSV value
+    virtual void setHSV(uint32_t ledIdx, LEDPixHSV& hsv) override final
+    {
+        // Set pixel
+        setRGB(ledIdx, hsv.toRGB());
     }
 
     /// @brief Set HSV value for a pixel

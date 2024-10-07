@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 #include <math.h>
+#include "RaftArduino.h"
+#include <algorithm>
 
 #define ALWAYS_INLINE __attribute__((always_inline))
 
@@ -203,5 +205,65 @@ public:
         }
         return (r << 16) | (g << 8) | b;
 #endif
+    }
+
+    // From RGB
+    static LEDPixHSV fromRGB(uint32_t rgb)
+    {
+        // Extract the RGB components
+        uint8_t r = (rgb >> 16) & 0xFF;
+        uint8_t g = (rgb >> 8) & 0xFF;
+        uint8_t b = rgb & 0xFF;
+
+        // Calculate the min and max values among R, G, B
+        uint8_t rgb_min = std::min({r, g, b});
+        uint8_t rgb_max = std::max({r, g, b});
+
+        // Calculate value (v)
+        uint32_t v = rgb_max * 100 / 255;
+
+        // Calculate saturation (s)
+        uint32_t s = (rgb_max == 0) ? 0 : (rgb_max - rgb_min) * 100 / rgb_max;
+
+        // Calculate hue (h)
+        uint32_t h = 0;
+        if (rgb_max == rgb_min) {
+            h = 0;  // Undefined hue (grayscale)
+        } else {
+            if (rgb_max == r) {
+                h = 60 * ((g - b) * 1.0f / (rgb_max - rgb_min)) + 360;
+                h = fmod(h, 360);  // Ensure h is in the range [0, 360]
+            } else if (rgb_max == g) {
+                h = 60 * ((b - r) * 1.0f / (rgb_max - rgb_min)) + 120;
+            } else {
+                h = 60 * ((r - g) * 1.0f / (rgb_max - rgb_min)) + 240;
+            }
+        }
+
+        return LEDPixHSV(h, s, v);
+    }
+
+    // To string
+    String toString() const
+    {
+        return String(h) + "," + String(s) + "," + String(v);
+    }
+
+    /// @brief Get interpolated value between two HSV values based on a factor
+    /// @param hsv1 First HSV value
+    /// @param hsv2 Second HSV value
+    /// @param factor Factor (0.0 to 1.0)
+    static LEDPixHSV interpolate(const LEDPixHSV& hsv1, const LEDPixHSV& hsv2, float factor)
+    {
+        // Check factor
+        if (factor <= 0.0f)
+            return hsv1;
+        if (factor >= 1.0f)
+            return hsv2;
+        // Interpolate
+        uint16_t h = (int)hsv1.h + (((int)hsv2.h - (int)hsv1.h) * factor);
+        uint8_t s = (int)hsv1.s + (((int)hsv2.s - (int)hsv1.s) * factor);
+        uint8_t v = (int)hsv1.v + (((int)hsv2.v - (int)hsv1.v) * factor);
+        return LEDPixHSV(h, s, v);
     }
 };

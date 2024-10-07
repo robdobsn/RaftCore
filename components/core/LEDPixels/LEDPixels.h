@@ -24,6 +24,8 @@ class RaftJsonIF;
 class BusRequestResult;
 class NamedValueProvider;
 
+typedef std::function<void(uint32_t segmentIdx, bool postShow)> LEDPixelsShowCB;
+
 class LEDPixels
 {
 public:
@@ -199,6 +201,13 @@ public:
     /// @brief Wait until show complete
     void waitUntilShowComplete();
 
+    /// @brief Set show callback
+    /// @param showCB Show callback
+    void setShowCB(LEDPixelsShowCB showCB)
+    {
+        _showCB = showCB;
+    }
+
 private:
 
     // Pixels
@@ -213,6 +222,9 @@ private:
     // LED patterns
     std::vector<LEDPatternBase::LEDPatternListItem> _ledPatterns;
 
+    // Show callback
+    LEDPixelsShowCB _showCB = nullptr;
+    
     // Debug
     static constexpr const char* MODULE_PREFIX = "LEDPix";
 };

@@ -178,9 +178,22 @@ int32_t LEDPixels::getSegmentIdx(const String& segmentName) const
 bool LEDPixels::show()
 {
     // Show
+    uint32_t ledStripIdx = 0;
     for (auto& ledStrip : _ledStripDrivers)
     {
+        // Pre-show callback if specified
+        if (_showCB)
+            _showCB(ledStripIdx, false);
+
+        // Show
         ledStrip.showPixels(_pixels);
+
+        // Post-show callback if specified
+        if (_showCB)
+            _showCB(ledStripIdx, true);
+
+        // Next LED strip
+        ledStripIdx++;
     }
 
 #ifdef DEBUG_LED_PIXEL_VALUES

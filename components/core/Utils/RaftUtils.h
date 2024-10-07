@@ -75,8 +75,9 @@ namespace Raft
     /// @brief Convert HTTP query format to JSON
     /// @param inStr Input string
     /// @param mustStartWithQuestionMark true if the input string must start with a question mark
-    /// @return JSON string (only contains name/value pairs and not {})
-    String getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark = true);
+    /// @param includeBraces true if the output JSON should be enclosed in braces
+    /// @return JSON string
+    String getJSONFromHTTPQueryStr(const char* inStr, bool mustStartWithQuestionMark = true, bool includeBraces = false);
 
     /// @brief Get Nth field from delimited string
     /// @param inStr Input string
@@ -352,6 +353,10 @@ namespace Raft
         String toStr() const
         {
             return String(r) + "," + String(g) + "," + String(b);
+        }
+        uint32_t toUint() const
+        {
+            return (r << 16) | (g << 8) | b;
         }
         uint8_t r;
         uint8_t g;

@@ -41,6 +41,11 @@ public:
 
     /// @brief Set HSV value for a pixel
     /// @param ledIdx in the segment
+    /// @param hsv HSV value
+    virtual void setHSV(uint32_t ledIdx, LEDPixHSV& hsv) = 0;
+
+    /// @brief Set HSV value for a pixel
+    /// @param ledIdx in the segment
     /// @param h hue
     /// @param s saturation
     /// @param v value
