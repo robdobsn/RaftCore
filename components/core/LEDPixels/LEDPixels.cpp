@@ -69,6 +69,7 @@ bool LEDPixels::setup(LEDPixelConfig& config)
         segCfg.numPixels = config.totalPixels;
         segCfg.name = "All";
         _segments.resize(1);
+        _segments[0].setNamedValueProvider(_pDefaultNamedValueProvider, true);
         _segments[0].setup(segCfg, &_pixels, &_ledPatterns);
     }
     else
@@ -77,6 +78,7 @@ bool LEDPixels::setup(LEDPixelConfig& config)
         _segments.resize(config.segmentConfigs.size());
         for (uint32_t segIdx = 0; segIdx < _segments.size(); segIdx++)
         {
+            _segments[segIdx].setNamedValueProvider(_pDefaultNamedValueProvider, true);
             _segments[segIdx].setup(config.segmentConfigs[segIdx], &_pixels, &_ledPatterns);
         }
     }

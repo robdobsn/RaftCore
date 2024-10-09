@@ -18,8 +18,6 @@
 #include "LEDPatternBase.h"
 #include "esp_idf_version.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-
 class RaftJsonIF;
 class BusRequestResult;
 class NamedValueProvider;
@@ -58,7 +56,7 @@ public:
     {
         return _segments.size();
     }
-    
+
     /// @brief Get segment index from name
     /// @param segmentName Name of segment
     /// @return Index of segment or -1 if not found
@@ -74,6 +72,18 @@ public:
         _segments[segmentIdx].setPixelMappingFn(pixelMappingFn);
     }
 
+    /// @brief Set a default named-value provider for pattern parameterisation that will be
+    //        used if no named-value provider is set for a segment
+    /// @param pNamedValueProvider Pointer to the named value provider
+    void setDefaultNamedValueProvider(NamedValueProvider* pNamedValueProvider)
+    {
+        _pDefaultNamedValueProvider = pNamedValueProvider;
+        for (uint32_t segmentIdx = 0; segmentIdx < _segments.size(); segmentIdx++)
+        {
+            _segments[segmentIdx].setNamedValueProvider(pNamedValueProvider, true);
+        }
+    }
+
     /// @brief Set a named-value provider for pattern parameterisation
     /// @param segmentIdx Index of segment
     /// @param pNamedValueProvider Pointer to the named value provider
@@ -81,7 +91,7 @@ public:
     {
         if (segmentIdx >= _segments.size())
             return;
-        _segments[segmentIdx].setNamedValueProvider(pNamedValueProvider);
+        _segments[segmentIdx].setNamedValueProvider(pNamedValueProvider, false);
     }
 
     /// @brief Set pattern in a segment
@@ -231,9 +241,10 @@ private:
 
     // Show callback
     LEDPixelsShowCB _showCB = nullptr;
+
+    // Default named value provider
+    NamedValueProvider* _pDefaultNamedValueProvider = nullptr;
     
     // Debug
     static constexpr const char* MODULE_PREFIX = "LEDPix";
 };
-
-#endif

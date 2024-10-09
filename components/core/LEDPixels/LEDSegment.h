@@ -118,9 +118,11 @@ public:
 
     /// @brief Set a named-value provider for pattern parameterisation
     /// @param pNamedValueProvider Pointer to the named value provider
-    void setNamedValueProvider( NamedValueProvider* pNamedValueProvider)
+    /// @param onlyIfNotAlreadySet Only set if not already set
+    void setNamedValueProvider( NamedValueProvider* pNamedValueProvider, bool onlyIfNotAlreadySet)
     {
-        _pNamedValueProvider = pNamedValueProvider;
+        if (!onlyIfNotAlreadySet || !_pNamedValueProvider)
+            _pNamedValueProvider = pNamedValueProvider;
     }
 
     // Set a mapping function to map from a pixel index to a physical LED index
