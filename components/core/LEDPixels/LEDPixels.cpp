@@ -181,14 +181,14 @@ bool LEDPixels::show()
     {
         // Pre-show callback if specified
         if (_showCB)
-            _showCB(ledStripIdx, false);
+            _showCB(ledStripIdx, false, _pixels);
 
         // Show
         ledStrip.showPixels(_pixels);
 
         // Post-show callback if specified
         if (_showCB)
-            _showCB(ledStripIdx, true);
+            _showCB(ledStripIdx, true, _pixels);
 
         // Next LED strip
         ledStripIdx++;

@@ -641,5 +641,15 @@ void DeviceManager::registerForDeviceData(const char* pDeviceName, RaftDeviceDat
     _deviceDataChangeCBList.push_back(DeviceDataChangeRec(pDeviceName, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
 
     // Debug
-    LOG_I(MODULE_PREFIX, "registerForDeviceData %s minTime %dms", pDeviceName, minTimeBetweenReportsMs);
+    bool found = false;
+    for (auto& rec : _deviceDataChangeCBList)
+    {
+        if (rec.deviceName == pDeviceName)
+        {
+            found = true;
+            break;
+        }
+    }
+    LOG_I(MODULE_PREFIX, "registerForDeviceData %s %s minTime %dms", 
+        pDeviceName, found ? "OK" : "DEVICE_NOT_PRESENT", minTimeBetweenReportsMs);
 }

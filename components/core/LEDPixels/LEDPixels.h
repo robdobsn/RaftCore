@@ -24,7 +24,7 @@ class RaftJsonIF;
 class BusRequestResult;
 class NamedValueProvider;
 
-typedef std::function<void(uint32_t segmentIdx, bool postShow)> LEDPixelsShowCB;
+typedef std::function<void(uint32_t segmentIdx, bool postShow, std::vector<LEDPixel>& ledPixels)> LEDPixelsShowCB;
 
 class LEDPixels
 {
@@ -52,6 +52,13 @@ public:
     /// @param patternNames Vector of pattern names
     void getPatternNames(std::vector<String>& patternNames) const;
 
+    /// @brief Get number of seggments
+    /// @return Number of segments
+    uint32_t getNumSegments() const
+    {
+        return _segments.size();
+    }
+    
     /// @brief Get segment index from name
     /// @param segmentName Name of segment
     /// @return Index of segment or -1 if not found
