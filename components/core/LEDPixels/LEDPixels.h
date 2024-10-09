@@ -102,7 +102,7 @@ public:
     {
         if (segmentIdx >= _segments.size())
             return;
-        _segments[segmentIdx].setPattern(patternName, pParamsJson);
+        _segments[segmentIdx].setPattern(patternName, _patternRunTimeDefaultMs, pParamsJson);
     }
 
     /// @brief Stop all patterns
@@ -121,6 +121,13 @@ public:
         if (segmentIdx >= _segments.size())
             return;
         _segments[segmentIdx].stopPattern(clearPixels);
+    }
+
+    /// @brief Set default pattern runtime in ms
+    /// @param patternRunTimeDefaultMs Default pattern runtime in ms
+    void setPatternRunTimeDefaultMs(uint32_t patternRunTimeDefaultMs)
+    {
+        _patternRunTimeDefaultMs = patternRunTimeDefaultMs;
     }
 
     /// @brief Set RGB value for a pixel
@@ -171,12 +178,12 @@ public:
 
     /// @brief Clear all pixels
     /// @param showAfterClear Show after clear
-    void clear(bool showAfterClear=false);
+    void clear(bool showAfterClear);
 
     /// @brief Clear all pixels in a segment
     /// @param segmentIdx Index of segment
     /// @param showAfterClear Show after clear
-    void clear(uint32_t segmentIdx, bool showAfterClear=false)
+    void clear(uint32_t segmentIdx, bool showAfterClear)
     {
         if (segmentIdx >= _segments.size())
             return;
@@ -244,6 +251,9 @@ private:
 
     // Default named value provider
     NamedValueProvider* _pDefaultNamedValueProvider = nullptr;
+
+    // Default pattern runtime in ms
+    uint32_t _patternRunTimeDefaultMs = 0;
     
     // Debug
     static constexpr const char* MODULE_PREFIX = "LEDPix";

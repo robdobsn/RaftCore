@@ -69,7 +69,7 @@ public:
         // Set pattern
         if (config.initialPattern.length() > 0)
         {
-            setPattern(config.initialPattern, config.initialPatternParamsJson.c_str());
+            setPattern(config.initialPattern, 0, config.initialPatternParamsJson.c_str());
         }
         else
         {
@@ -134,7 +134,7 @@ public:
     /// @brief Set pattern
     /// @param patternName Name of pattern
     /// @param pParamsJson Parameters for pattern
-    void setPattern(const String& patternName, const char* pParamsJson=nullptr)
+    void setPattern(const String& patternName, uint32_t patternRunTimeDefaultMs = 0, const char* pParamsJson=nullptr)
     {
         // Save current pattern name
         String curPatternName = _currentPatternName;
@@ -161,10 +161,11 @@ public:
                         _pCurrentPattern->setup(pParamsJson);
 
                         // Check if pattern duration is specified
+                        _patternDurationMs = patternRunTimeDefaultMs;
                         if (pParamsJson)
                         {
                             RaftJson paramsJson(pParamsJson);
-                            _patternDurationMs = paramsJson.getInt("forMs", 0);
+                            _patternDurationMs = paramsJson.getInt("forMs", patternRunTimeDefaultMs);
                         }
                         _patternStartMs = millis();
 
