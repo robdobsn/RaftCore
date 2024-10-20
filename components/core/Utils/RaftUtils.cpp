@@ -1437,3 +1437,20 @@ String Raft::formatString(uint32_t maxLen, const char* fmt, ...)
     va_end(args);
     return String(buf);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Generate the next pseudo-random number using the Park-Miller algorithm
+/// This function implements the Park-Miller minimal standard random number generator algorithm
+/// It generates a new pseudo-random number based on the given seed value
+/// @param seed current seed value used to generate the next random number
+/// @return next pseudo-random number in the sequence
+uint32_t Raft::parkMillerNext(uint32_t seed)
+{
+    uint32_t hi = 16807 * (seed & 0xffff);
+    uint32_t lo = 16807 * (seed >> 16);
+    lo += (hi & 0x7fff) << 16;
+    lo += hi >> 15;
+    if (lo > 0x7fffffff)
+        lo -= 0x7fffffff;
+    return lo;
+}

@@ -490,6 +490,14 @@ namespace Raft
     /// @param ... Variable arguments
     /// @return Formatted string
     String formatString(uint32_t maxLen, const char* fmt, ...);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Generate the next pseudo-random number using the Park-Miller algorithm
+    /// This function implements the Park-Miller minimal standard random number generator algorithm
+    /// It generates a new pseudo-random number based on the given seed value
+    /// @param seed current seed value used to generate the next random number
+    /// @return next pseudo-random number in the sequence
+    uint32_t parkMillerNext(uint32_t seed);
 };
 
 /// @brief Name value pair double
