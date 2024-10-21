@@ -9,11 +9,14 @@
 #pragma once
 
 #include <vector>
+#include <functional>
+#include "RaftRetCode.h"
 #include "RaftArduino.h"
 #include "HWElemReq.h"
 #include "RaftBusConsts.h"
 
 class BusRequestResult;
+class BusRequestInfo;
 typedef void (*BusRequestCallbackType) (void*, BusRequestResult&);
 
 enum BusReqType
@@ -25,6 +28,12 @@ enum BusReqType
     BUS_REQ_TYPE_FAST_SCAN,
     BUS_REQ_TYPE_SEND_IF_PAUSED    
 };
+
+// Callback to send i2c message (async)
+typedef std::function<RaftRetCode(const BusRequestInfo* pReqRec, uint32_t pollListIdx)> BusReqAsyncFn;
+
+// Callback to send i2c message (sync)
+typedef std::function<RaftRetCode(const BusRequestInfo* pReqRec, std::vector<uint8_t>* pReadData)> BusReqSyncFn;
 
 // Bus request info
 class BusRequestInfo

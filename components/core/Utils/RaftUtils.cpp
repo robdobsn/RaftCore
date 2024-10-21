@@ -1281,16 +1281,17 @@ unsigned long Raft::convIPStrToAddr(String &inStr)
 /// @param pMacAddr Pointer to the MAC address bytes
 /// @param separator Separator between MAC address bytes
 /// @return Formatted MAC address
-String Raft::formatMACAddr(const uint8_t* pMacAddr, const char* separator)
+String Raft::formatMACAddr(const uint8_t* pMacAddr, const char* separator, bool isReversed)
 {
     String outStr;
-    outStr.reserve(18);
-    for (uint8_t i = 0; i < 6; i++)
+    const uint32_t MAC_ADDR_LEN = 6;
+    outStr.reserve(MAC_ADDR_LEN * 2 + MAC_ADDR_LEN);
+    for (uint32_t i = 0; i < MAC_ADDR_LEN; i++)
     {
         char tmpStr[10];
-        snprintf(tmpStr, sizeof(tmpStr), "%02x", pMacAddr[i]);
+        snprintf(tmpStr, sizeof(tmpStr), "%02x", pMacAddr[isReversed ? MAC_ADDR_LEN-1-i : i]);
         outStr += tmpStr;
-        if (i != 5)
+        if (i != MAC_ADDR_LEN-1)
             outStr += separator;
     }
     return outStr;
@@ -1363,6 +1364,18 @@ const char* Raft::getRetCodeStr(RaftRetCode retc)
         case RAFT_INSUFFICIENT_RESOURCE: return "INSUFFICIENT_RESOURCE";
         case RAFT_OTHER_FAILURE: return "OTHER_FAILURE";
         case RAFT_NOT_IMPLEMENTED: return "NOT_IMPLEMENTED";
+        case RAFT_BUS_PENDING: return "BUS_PENDING";
+        case RAFT_BUS_HW_TIME_OUT: return "BUS_HW_TIME_OUT";
+        case RAFT_BUS_ACK_ERROR: return "BUS_ACK_ERROR";
+        case RAFT_BUS_ARB_LOST: return "BUS_ARB_LOST";
+        case RAFT_BUS_SW_TIME_OUT: return "BUS_SW_TIME_OUT";
+        case RAFT_BUS_INVALID: return "BUS_INVALID";
+        case RAFT_BUS_NOT_READY: return "BUS_NOT_READY";
+        case RAFT_BUS_INCOMPLETE: return "BUS_INCOMPLETE";
+        case RAFT_BUS_BARRED: return "BUS_BARRED";
+        case RAFT_BUS_NOT_INIT: return "BUS_NOT_INIT";
+        case RAFT_BUS_STUCK: return "BUS_STUCK";
+        case RAFT_BUS_SLOT_POWER_UNSTABLE: return "BUS_SLOT_POWER_UNSTABLE";
         default: return "UNKNOWN";
     }
 };

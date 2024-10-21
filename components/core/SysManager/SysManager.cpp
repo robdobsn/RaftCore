@@ -39,6 +39,7 @@
 // #define DEBUG_REGISTER_MSG_GEN_CB
 // #define DEBUG_API_ENDPOINTS
 // #define DEBUG_SYSMOD_FACTORY
+// #define DEBUG_FRIENDLY_NAME_SET
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -1019,6 +1020,9 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
     _mutableConfigCache.friendlyName.trim();
     _mutableConfigCache.friendlyName = _mutableConfigCache.friendlyName.substring(0, MAX_FRIENDLY_NAME_LENGTH);
     _mutableConfigCache.friendlyNameIsSet = !friendlyName.isEmpty();
+
+    // Debug
+#ifdef DEBUG_FRIENDLY_NAME_SET
     if (_mutableConfigCache.friendlyNameIsSet)
     {
         LOG_I(MODULE_PREFIX, "setFriendlyName %s", _mutableConfigCache.friendlyName.c_str());
@@ -1027,6 +1031,7 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
     {
         LOG_I(MODULE_PREFIX, "setFriendlyName blank");
     }
+#endif
 
     // Setup network system hostname
     if (_mutableConfigCache.friendlyNameIsSet && setHostname)

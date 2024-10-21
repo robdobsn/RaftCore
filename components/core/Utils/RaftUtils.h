@@ -451,7 +451,7 @@ namespace Raft
     /// @param pMacAddr Pointer to the MAC address bytes
     /// @param separator Separator between MAC address bytes
     /// @return Formatted MAC address
-    String formatMACAddr(const uint8_t* pMacAddr, const char* separator);
+    String formatMACAddr(const uint8_t* pMacAddr, const char* separator, bool isReversed = false);
 
     /// @brief Find match in buffer (like strstr for unterminated strings)
     /// @param pBuf Pointer to the buffer
