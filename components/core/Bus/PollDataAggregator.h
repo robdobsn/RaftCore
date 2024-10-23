@@ -224,4 +224,7 @@ private:
 
     // Access mutex
     SemaphoreHandle_t _accessMutex = nullptr;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "PollDataAgg";
 };

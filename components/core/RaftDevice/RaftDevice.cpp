@@ -11,8 +11,8 @@
 
 // #define DEBUG_RAFT_DEVICE_CONSTRUCTOR
 
-// @brief Construct a new Raft Device object
-// @param pDevConfigJson JSON configuration for the device
+/// @brief Construct a new Raft Device object
+/// @param pDevConfigJson JSON configuration for the device
 RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson) :
         deviceConfig(pDevConfigJson), deviceClassName(pClassName)
 {
@@ -28,56 +28,56 @@ RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson) :
 #endif
 }
 
-// @brief Destroy the Raft Device object
+/// @brief Destroy the Raft Device object
 RaftDevice::~RaftDevice()
 {
 }
 
-// @brief Setup the device
+/// @brief Setup the device
 void RaftDevice::setup()
 {
 }
 
-// @brief Main loop for the device
+/// @brief Main loop for the device
 void RaftDevice::loop()
 {
 }
 
-// @brief Add REST API endpoints
-// @param endpointManager Manager for REST API endpoints
+/// @brief Add REST API endpoints
+/// @param endpointManager Manager for REST API endpoints
 void RaftDevice::addRestAPIEndpoints(RestAPIEndpointManager& endpointManager)
 {
 }
 
-// @brief Add communication channels
-// @param commsCore Core interface for communications
+/// @brief Add communication channels
+/// @param commsCore Core interface for communications
 void RaftDevice::addCommsChannels(CommsCoreIF& commsCore)
 {
 }
 
-// @brief Post-setup - called after setup of all devices is complete
+/// @brief Post-setup - called after setup of all devices is complete
 void RaftDevice::postSetup()
 {
 }
 
-// @brief Get time of last device status update
-// @param includeElemOnlineStatusChanges Include element online status changes in the status update time
-// @param includePollDataUpdates Include poll data updates in the status update time
-// @return Time of last device status update in milliseconds
-uint32_t RaftDevice::getLastStatusUpdateMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const
+/// @brief Get time of last device status update
+/// @param includeElemOnlineStatusChanges Include element online status changes in the status update time
+/// @param includePollDataUpdates Include poll data updates in the status update time
+/// @return Time of last device status update in milliseconds
+uint32_t RaftDevice::getDeviceInfoTimestampMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const
 {
     return 0;
 }
 
-// @brief Get the device status as JSON
-// @return JSON string
+/// @brief Get the device status as JSON
+/// @return JSON string
 String RaftDevice::getStatusJSON() const
 {
     return "{}";
 }
 
-// @brief Get device debug info JSON
-// @return JSON string
+/// @brief Get device debug info JSON
+/// @return JSON string
 String RaftDevice::getDebugJSON(bool includeBraces) const
 {
     return includeBraces ? "{}" : "";

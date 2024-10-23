@@ -86,7 +86,7 @@ public:
     /// @param includeElemOnlineStatusChanges Include element online status changes in the status update time
     /// @param includePollDataUpdates Include poll data updates in the status update time
     /// @return Time of last device status update in milliseconds
-    virtual uint32_t getLastStatusUpdateMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const;
+    virtual uint32_t getDeviceInfoTimestampMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const;
 
     /// @brief Get the device status as JSON
     /// @return JSON string

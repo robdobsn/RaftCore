@@ -513,7 +513,7 @@ int64_t Raft::getLEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint64_t value
-uint64_t Raft::getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint64_t Raft::getBEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t  varSize = sizeof(uint64_t);
     if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
@@ -583,7 +583,7 @@ double Raft::getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @return double64 value
 double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    uint64_t temp = getBEUInt64AndInc(pBuf, pEndStop);
+    uint64_t temp = getBEUint64AndInc(pBuf, pEndStop);
     double val;
     memcpy(&val, &temp, sizeof(val));
     return val;

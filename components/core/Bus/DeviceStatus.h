@@ -37,8 +37,12 @@ public:
     // Get pending ident poll info
     bool getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo& pollInfo);
 
-    // Store poll results
-    bool pollResultStore(uint64_t timeNowUs, const DevicePollingInfo& pollInfo, const std::vector<uint8_t>& pollResult)
+    /// @brief Store poll results
+    /// @param timeNowUs time in us (passed in to aid testing)
+    /// @param pollResult poll result data
+    /// @param pPollInfo pointer to device polling info (maybe nullptr)
+    /// @return true if result stored
+    bool storePollResults(uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, const DevicePollingInfo* pPollInfo)
     {
         return dataAggregator.put(timeNowUs, pollResult);
     }
