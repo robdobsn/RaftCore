@@ -149,7 +149,9 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                 break;
             }
         }
+#ifdef DEBUG_BUS_ELEMENT_STATUS
         bool newlyCreated = false;
+#endif
         if (!pFoundDevice)
         {
             // Check if device newly created
@@ -160,7 +162,10 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
 
                 // Create the device
                 pFoundDevice = new RaftBusDevice(bus.getBusName().c_str(), el.address, "RaftBusDevice", devConfig.c_str());
+
+#ifdef DEBUG_BUS_ELEMENT_STATUS
                 newlyCreated = true;
+#endif
 
                 // Add to the list of instantiated devices
                 _deviceList.push_back(pFoundDevice);
