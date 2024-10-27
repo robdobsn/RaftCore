@@ -121,7 +121,7 @@ public:
     RaftRetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
 
     // Register data source (message generator functions)
-    bool registerDataSource(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
+    bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
 
     // Get named value 
     double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const;

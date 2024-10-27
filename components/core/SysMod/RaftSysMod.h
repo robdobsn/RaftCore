@@ -125,7 +125,7 @@ public:
 
     // Register data source (msg generator callback functions)
     // This is generally only implemented by a SysMod that handles message publishing 
-    virtual bool registerDataSource(const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+    virtual bool registerDataSource(const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
     {
         return false;
     }
