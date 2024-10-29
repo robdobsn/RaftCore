@@ -958,7 +958,7 @@ void SysManager::statsShow()
                 friendlyNameStr.c_str(),
                 _systemName.c_str(),
                 _systemVersion.c_str(),
-                _hardwareRevision.c_str(),
+                getBaseSysTypeVersion().c_str(),
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_free_size(MALLOC_CAP_8BIT));
@@ -1057,12 +1057,12 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get hardware revision JSON
+// Get base system version JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 String SysManager::getBaseSysVersJson()
 {
-    // Get hardware revision string (if all digits then set in JSON as a number for backward compatibility)
+    // Get base SysType version string (if all digits then set in JSON as a number for backward compatibility)
     String baseSysTypeVersStr = _sysTypeManager.getBaseSysTypeVersion();
     String hWRevStr = _sysTypeManager.getBaseSysTypeVersion();
     bool allDigits = true;

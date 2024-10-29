@@ -12,7 +12,7 @@ class NamedValueProvider
 {
 public:
     // Get hardware state
-    virtual double getNamedValue(const char* pModule, const char* param, bool& isValid)
+    virtual double getNamedValue(const char* pModule, const char* param, bool& isValid) const
     {
         isValid = false;
         return 0;

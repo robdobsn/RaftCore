@@ -91,12 +91,12 @@ RaftCoreApp::RaftCoreApp() :
     _sysManager.setDeviceManager(&_deviceManager);
     _sysManager.preSetup();
 
-    // Get the app version (maybe overridden by SysType)
-    String appVersion = _systemConfig.getString("SystemVersion", SYSTEM_VERSION);
+    // Get the system version (maybe overridden by SysType)
+    String systemVersion = _systemConfig.getString("SystemVersion", SYSTEM_VERSION);
 
     // Log out system info
     ESP_LOGI(MODULE_PREFIX, PROJECT_BASENAME " %s (built " __DATE__ " " __TIME__ ") Heap (int) %d (all) %d", 
-                        appVersion.c_str(),
+                        systemVersion.c_str(),
                         heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                         heap_caps_get_free_size(MALLOC_CAP_8BIT));
 }
