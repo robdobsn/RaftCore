@@ -22,7 +22,7 @@ public:
     LEDSegmentConfig()
     {
     }
-    bool setup(const RaftJsonIF& config)
+    bool setup(const RaftJsonIF& config, float defaultBrightnessFactor)
     {
         // Segment name
         name = config.getString("name", "");
@@ -40,7 +40,7 @@ public:
         initialPatternParamsJson = Raft::getJSONFromHTTPQueryStr(patternParamsQueryStr.c_str(), false, true);
 
         // Brightness percent
-        pixelBrightnessFactor = config.getDouble("brightnessPC", pixelBrightnessFactor*100.0) / 100.0;
+        pixelBrightnessFactor = config.getDouble("brightnessPC", defaultBrightnessFactor*100.0) / 100.0;
 
         // Startup first pixel colour
         String startupFirstPixelStr = config.getString("startupFirstPixel", "000000");

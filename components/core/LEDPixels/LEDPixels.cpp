@@ -68,6 +68,7 @@ bool LEDPixels::setup(LEDPixelConfig& config)
         segCfg.startOffset = 0;
         segCfg.numPixels = config.totalPixels;
         segCfg.name = "All";
+        segCfg.pixelBrightnessFactor = config.globalBrightnessFactor;
         _segments.resize(1);
         _segments[0].setNamedValueProvider(_pDefaultNamedValueProvider, true);
         _segments[0].setup(segCfg, &_pixels, &_ledPatterns);

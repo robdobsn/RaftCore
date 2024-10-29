@@ -40,11 +40,12 @@ public:
     /// @brief Setup from JSON
     /// @param config Configuration JSON
     /// @return true if successful
-    bool setup(const RaftJsonIF& config, std::vector<LEDPixel>* pLedPixels, const std::vector<LEDPatternBase::LEDPatternListItem>* pLedPatterns)
+    bool setup(const RaftJsonIF& config, float defaultBrightnessFactor, 
+                std::vector<LEDPixel>* pLedPixels, const std::vector<LEDPatternBase::LEDPatternListItem>* pLedPatterns)
     {
         // LED segment config
         LEDSegmentConfig ledSegmentConfig;
-        if (!ledSegmentConfig.setup(config))
+        if (!ledSegmentConfig.setup(config, defaultBrightnessFactor))
         {
             LOG_E(MODULE_PREFIX, "setup failed to get LED segment config");
             return false;
