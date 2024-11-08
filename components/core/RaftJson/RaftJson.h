@@ -20,7 +20,7 @@
 // Accommodate usage standalone (outside RaftCore)
 #if __has_include("RaftArduino.h")
 #include "Logger.h"
-// #define DEBUG_JSON_BY_SPECIFIC_PATH ""
+// #define DEBUG_JSON_BY_SPECIFIC_PATH "SystemName"
 // #define DEBUG_JSON_BY_SPECIFIC_PATH_PART ""
 // #define DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
 // #define DEBUG_EXTRACT_NAME_VALUES
@@ -246,13 +246,15 @@ public:
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
+        bool foundInChainedDoc = false;
+        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
         const char* pElemStart = nullptr;
         const char* pElemEnd = nullptr;
-        if (!RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd))
+        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
+        if (!RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd))
             return defaultValue;
         // Get string without quotes
         return getStringWithoutQuotes(pElemStart, pElemEnd, true);
@@ -272,7 +274,8 @@ public:
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
+        bool foundInChainedDoc = false;
+        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
@@ -303,7 +306,8 @@ public:
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
+        bool foundInChainedDoc = false;        
+        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
@@ -350,7 +354,8 @@ public:
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
+        bool foundInChainedDoc = false;
+        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -360,10 +365,11 @@ public:
         // Skip over array start
         pJsonDocPos++;
         // Iterate over array elements
-        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
+        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
+        while (*pJsonDocPos && (pJsonDocPos < pDocEnd))
         {
             // Skip whitespace
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
+            while (*pJsonDocPos && (pJsonDocPos < pDocEnd) && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
             // Check for end of array
             if (*pJsonDocPos == ']')
@@ -371,7 +377,7 @@ public:
             // Locate element
             const char* pElemStart = nullptr;
             const char* pElemEnd = nullptr;
-            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
+            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd);
             if (!pJsonDocPos)
                 return false;
             // Add to list
@@ -394,7 +400,8 @@ public:
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
+        bool foundInChainedDoc = false;
+        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -404,10 +411,11 @@ public:
         // Skip over object start
         pJsonDocPos++;
         // Iterate over object elements
-        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
+        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
+        while (*pJsonDocPos && (pJsonDocPos < pDocEnd))
         {
             // Skip whitespace
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
+            while (*pJsonDocPos && (pJsonDocPos < pDocEnd) && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
             // Check for end of object
             if (*pJsonDocPos == '}')
@@ -415,7 +423,7 @@ public:
             // Locate key
             const char* pKeyStart = nullptr;
             const char* pKeyEnd = nullptr;
-            pJsonDocPos = locateStringElement(pJsonDocPos, pJsonEnd, pKeyStart, pKeyEnd, false);
+            pJsonDocPos = locateStringElement(pJsonDocPos, pDocEnd, pKeyStart, pKeyEnd, false);
             if (!pJsonDocPos)
                 return false;
             // Add to list
@@ -423,7 +431,7 @@ public:
             // Skip to end of element
             const char* pElemEnd = nullptr;
             const char* pElemStart = nullptr;
-            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
+            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd);
             if (!pJsonDocPos)
                 return false;
         }
@@ -481,7 +489,8 @@ public:
     {
         // Locate the element
         const char* pJsonDocPos = pJsonDoc;
-        pJsonDocPos = RaftJson::locateElementByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson);
+        bool foundInChainedDoc = false;
+        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
         // Check if we found the element
         if (!pJsonDocPos)
             return RAFT_JSON_UNDEFINED;
@@ -489,16 +498,17 @@ public:
         if (*pJsonDocPos == '{')
             return RAFT_JSON_OBJECT;
         // Check if it's an array
+        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
         if (*pJsonDocPos == '[')
         {
             // Skip over array start
             pJsonDocPos++;
             // Iterate over array elements
             arrayLen = 0;
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
+            while (*pJsonDocPos && (pJsonDocPos < pDocEnd))
             {
                 // Skip whitespace
-                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
+                while (*pJsonDocPos && (pJsonDocPos < pDocEnd) && (*pJsonDocPos <= ' '))
                     pJsonDocPos++;
                 // Check for end of array
                 if (*pJsonDocPos == ']')
@@ -506,7 +516,7 @@ public:
                 // Locate element
                 const char* pElemStart = nullptr;
                 const char* pElemEnd = nullptr;
-                pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
+                pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd);
                 if (!pJsonDocPos)
                     return RAFT_JSON_UNDEFINED;
                 // Count elements
@@ -699,7 +709,8 @@ public:
     /// @return const char* : Start of element
     const char* getElemStart(const char* pDataPath)
     {
-        return locateElementByPath(_pSourceStr, _pSourceEnd, pDataPath, _pChainedRaftJson);
+        bool foundInChainedDoc = false;
+        return locateElemByPath(_pSourceStr, _pSourceEnd, pDataPath, _pChainedRaftJson, foundInChainedDoc);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1091,7 +1102,8 @@ protected:
     /// @return the position of the element or nullptr if not found
     virtual const char* locateElementByPath(const char* pPath) const override
     {
-        return locateElementByPath(_pSourceStr, _pSourceEnd, pPath, _pChainedRaftJson);
+        bool foundInChainedDoc = false;
+        return locateElemByPath(_pSourceStr, _pSourceEnd, pPath, _pChainedRaftJson, foundInChainedDoc);
     }
 
 private:
@@ -1402,12 +1414,15 @@ private:
     /// @param pJsonEnd the end of the JSON document
     /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+    /// @param foundInChainedDoc [out] set to true if the element was found in the chained document
     /// @return the position of the element or nullptr if not found
-    static const char* locateElementByPath(const char* pJsonDocPos, const char* pJsonEnd, 
+    static const char* locateElemByPath(const char* pJsonDocPos, const char* pJsonEnd, 
                 const char* pPath,
-                const RaftJsonIF* pChainedRaftJson)
+                const RaftJsonIF* pChainedRaftJson,
+                bool& foundInChainedDoc)
     {
         // Check valid
+        foundInChainedDoc = false;
         if (!pPath || !pJsonDocPos || !pJsonEnd)
             return nullptr;
 
@@ -1416,7 +1431,16 @@ private:
 #ifdef DEBUG_JSON_BY_SPECIFIC_PATH
         if (strcmp(pPath, DEBUG_JSON_BY_SPECIFIC_PATH) == 0)
         {
-            LOG_I(RAFT_JSON_PREFIX, "locateElementByPath path <<<%s>>> jsonDoc %s chainedPtr %p", pPath, pJsonDocPos, pChainedRaftJson);
+            if (!strstr(DEBUG_JSON_BY_SPECIFIC_PATH, "/"))
+            {
+                const char* pTestStr = DEBUG_JSON_BY_SPECIFIC_PATH;
+                const char* pMatch = strstr(pJsonDocPos, pTestStr);
+                LOG_I(RAFT_JSON_PREFIX, "locateElemByPath path <<<%s>>> jsonDoc %p chainedPtr %p pMatch %p", pPath, pJsonDocPos, pChainedRaftJson, pMatch);
+            }
+            else
+            {
+                LOG_I(RAFT_JSON_PREFIX, "locateElemByPath path <<<%s>>> trying jsonDoc %p chainedPtr %p", pPath, pJsonDocPos, pChainedRaftJson);
+            }
         }
 #endif
 
@@ -1430,11 +1454,17 @@ private:
             if (!pJsonDocPos)
             {
 #ifdef DEBUG_CHAINED_RAFT_JSON
-                LOG_I(RAFT_JSON_PREFIX, "locateElementByPath path %s not found, chainedPtr %p originalDoc %s", 
-                            pOriginalPath, pChainedRaftJson, pOriginalDoc ? pOriginalDoc : "null");
+                LOG_I(RAFT_JSON_PREFIX, "locateElemByPath path %s not found, chainedPtr %p originalDoc %s", 
+                            pPath, pChainedRaftJson, pOriginalDoc ? pOriginalDoc : "null");
 #endif
                 // Handle chained documents searching with the original path
-                return pChainedRaftJson ? pChainedRaftJson->locateElementByPath(pPath) : nullptr;
+                const char* pFoundLocation = pChainedRaftJson ? pChainedRaftJson->locateElementByPath(pPath) : nullptr;
+                if (pFoundLocation)
+                {
+                    foundInChainedDoc = true;
+                    return pFoundLocation;
+                }
+                return nullptr;
             }
 
             // Check if we're at the end of the path
@@ -1443,7 +1473,9 @@ private:
 #ifdef DEBUG_JSON_BY_SPECIFIC_PATH
                 if (strcmp(pPath, DEBUG_JSON_BY_SPECIFIC_PATH) == 0)
                 {
-                    LOG_I(RAFT_JSON_PREFIX, "locateElementByPath path <<<%s>>> returning jsonDoc %s", pPath, pJsonDocPos);
+                    char elemText[32];
+                    strlcpy(elemText, pJsonDocPos, 31);
+                    LOG_I(RAFT_JSON_PREFIX, "locateElemByPath path <<<%s>>> returning jsonDoc %p str %s", pPath, pJsonDocPos, elemText);
                 }
 #endif
                 return pJsonDocPos;

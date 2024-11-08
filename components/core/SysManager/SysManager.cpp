@@ -135,19 +135,22 @@ void SysManager::preSetup()
     _altHardwareRevisionPrefix = sysManConfig.getString("altHwPrefix", _altHardwareRevisionPrefix.c_str());
 
     // Debug
-    LOG_I(MODULE_PREFIX, "systemName %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
+    LOG_I(MODULE_PREFIX, "systemName %s systemVersion %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
                 _systemName.c_str(),
+                _systemVersion.c_str(),
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
                 _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
                 _mutableConfig.getNVSNamespace().c_str());
-    LOG_I(MODULE_PREFIX, "loopSleepMs %d slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d supervisorEnable %s",
+    LOG_I(MODULE_PREFIX, "loopSleepMs %d slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d supervisorEnable %s systemUniqueString %s altHwPrefix %s",
                 _loopSleepMs,
                 _slowSysModThresholdUs,
                 _monitorPeriodMs,
                 _rebootAfterNHours, 
                 _rebootIfDiscMins,
-                _supervisorEnable ? "Y" : "N");
+                _supervisorEnable ? "Y" : "N",
+                _systemUniqueString.c_str(),
+                _altHardwareRevisionPrefix.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -211,7 +214,7 @@ void SysManager::postSetup()
                 if (pSysMod && pSysMod->modNameStr().equals(sysModClassDef.name))
                 {
 #ifdef DEBUG_SYSMOD_FACTORY
-                    LOG_I(MODULE_PREFIX, "postSetup %s alreadyCreated");
+                    LOG_I(MODULE_PREFIX, "postSetup %s alreadyCreated", sysModClassDef.name.c_str());
 #endif
                     alreadyCreated = true;
                     break;
