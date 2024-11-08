@@ -162,7 +162,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint64_t value
-    uint64_t getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
+    uint64_t getBEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
 
     /// @brief Get a int64_t big endian value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer

@@ -26,6 +26,9 @@ public:
     }
     bool setup(const RaftJsonIF& config)
     {
+        // Global brightness percent
+        globalBrightnessFactor = config.getDouble("brightnessPC", 100.0) / 100.0;
+
         // LED Strip configs
         std::vector<String> stripConfigStrs;
         config.getArrayElems("strips", stripConfigStrs);
@@ -59,7 +62,7 @@ public:
         segmentConfigs.resize(segmentConfigStrs.size());
         for (int segIdx = 0; segIdx < segmentConfigStrs.size(); segIdx++)
         {
-            if (!segmentConfigs[segIdx].setup(RaftJson(segmentConfigStrs[segIdx])))
+            if (!segmentConfigs[segIdx].setup(RaftJson(segmentConfigStrs[segIdx]), globalBrightnessFactor))
             {
                 LOG_W(MODULE_PREFIX, "setup segment config %d invalid", segIdx);
                 return false;
@@ -75,6 +78,9 @@ public:
 
     // LED segments
     std::vector<LEDSegmentConfig> segmentConfigs;
+
+    // Global brightness factor (only used if no segment brightness factor specified)
+    float globalBrightnessFactor = 1.0;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "LEDPixCfg";

@@ -13,6 +13,7 @@
 #include "RaftBusConsts.h"
 #include "RaftArduino.h"
 #include "RaftDeviceConsts.h"
+#include "DevicePollingInfo.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Device decode state
@@ -52,9 +53,9 @@ public:
     virtual String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo) const = 0;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get poll responses json
+    /// @brief Get queued device data in JSON format
     /// @return JSON string
-    virtual String getPollResponsesJson() const = 0;
+    virtual String getQueuedDeviceDataJson() const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get decoded poll responses
@@ -69,6 +70,19 @@ public:
     virtual uint32_t getDecodedPollResponses(BusElemAddrType address, 
                     void* pStructOut, uint32_t structOutSize, 
                     uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) const = 0;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Store poll results
+    /// @param timeNowUs time in us (passed in to aid testing)
+    /// @param address address
+    /// @param pollResultData poll result data
+    /// @param pPollInfo pointer to device polling info (maybe nullptr)
+    /// @return true if result stored
+    virtual bool handlePollResult(uint64_t timeNowUs, BusElemAddrType address, 
+                            const std::vector<uint8_t>& pollResultData, const DevicePollingInfo* pPollInfo)
+    {
+        return false;
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Register for device data notifications

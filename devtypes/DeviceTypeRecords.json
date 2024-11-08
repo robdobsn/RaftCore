@@ -854,6 +854,74 @@
                     ]
                 }
             }
+        },
+        "BLEBTHome": {
+            "deviceType": "BLEBTHome",
+            "detectionValues": "",
+            "initValues": "",
+            "pollInfo": {
+                "c": "=r17",
+                "i": 100,
+                "s": 10
+            },
+            "devInfoJson": {
+                "name": "BLEBTHome",
+                "desc": "BTHome",
+                "manu": "Allterco",
+                "type": "BLEBTHome",
+                "resp": {
+                    "b": 17,
+                    "a": [
+                        {
+                            "n": "ID",
+                            "t": "B",
+                            "u": "",
+                            "r": [0,255],
+                            "f": "d",
+                            "o": "uint8"
+                        },
+                        {
+                            "n": "MAC",
+                            "t": ">Q",
+                            "o": "uint64"
+                        },
+                        {
+                            "n": "motion",
+                            "t": "B",
+                            "u": "",
+                            "r": [0,1],
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "battery",
+                            "t": "B",
+                            "u": "%",
+                            "r": [0,100],
+                            "f": "d",
+                            "o": "uint8"
+                        },
+                        {
+                            "n": "temp",
+                            "t": ">h",
+                            "u": "C",
+                            "r": [-100,100],
+                            "d": 100,
+                            "f": ".1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "light",
+                            "t": ">I",
+                            "u": "Lux",
+                            "r": [0,100000],
+                            "d": 100,
+                            "f": ".1f",
+                            "o": "float"
+                        }
+                    ]
+                }
+            }
         }
     }
 }

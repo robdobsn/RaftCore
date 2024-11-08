@@ -666,22 +666,22 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 // Register data source (message generator) with SysMod
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool SysManager::registerDataSource(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+bool SysManager::registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
     // See if the sysmod is in the list
     for (RaftSysMod* pSysMod : _sysModuleList)
     {
         if (pSysMod->modNameStr().equals(sysModName))
         {
-            bool rslt = pSysMod->registerDataSource(msgGenID, msgGenCB, stateDetectCB);
+            bool rslt = pSysMod->registerDataSource(pubTopic, msgGenCB, stateDetectCB);
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
-            LOG_I(MODULE_PREFIX, "registerDataSource %s register %s with the %s sysmod", rslt ? "OK" : "FAILED", msgGenID, sysModName);
+            LOG_I(MODULE_PREFIX, "registerDataSource %s topic %s with the %s sysmod", rslt ? "OK" : "FAILED", pubTopic, sysModName);
 #endif
             return rslt;
         }
     }
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
-    LOG_W(MODULE_PREFIX, "registerDataSource NOT FOUND %s %s", sysModName, msgGenID);
+    LOG_W(MODULE_PREFIX, "registerDataSource NOT FOUND %s topic %s", sysModName, pubTopic);
 #endif
     return false;
 }
@@ -961,7 +961,7 @@ void SysManager::statsShow()
                 friendlyNameStr.c_str(),
                 _systemName.c_str(),
                 _systemVersion.c_str(),
-                _hardwareRevision.c_str(),
+                getBaseSysTypeVersion().c_str(),
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_free_size(MALLOC_CAP_8BIT));
@@ -1060,12 +1060,12 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get hardware revision JSON
+// Get base system version JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 String SysManager::getBaseSysVersJson()
 {
-    // Get hardware revision string (if all digits then set in JSON as a number for backward compatibility)
+    // Get base SysType version string (if all digits then set in JSON as a number for backward compatibility)
     String baseSysTypeVersStr = _sysTypeManager.getBaseSysTypeVersion();
     String hWRevStr = _sysTypeManager.getBaseSysTypeVersion();
     bool allDigits = true;

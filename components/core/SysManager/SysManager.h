@@ -25,12 +25,13 @@
 #include "ProtocolExchange.h"
 #include "DeviceManager.h"
 #include "SysTypeManager.h"
+#include "NamedValueProvider.h"
 
 typedef String (*SysManager_statsCB)();
 
 class RestAPIEndpointManager;
 
-class SysManager
+class SysManager : public NamedValueProvider
 {
 public:
     // Constructor
@@ -38,7 +39,7 @@ public:
             RaftJsonIF& systemConfig,
             const String sysManagerNVSNamespace,
             SysTypeManager& sysTypeManager,
-            const char* pSystemHWName = nullptr,
+            const char* pSystemName = nullptr,
             const char* pDefaultFriendlyName = nullptr,
             uint32_t serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES, 
             const char* pSerialMagicStr = nullptr);
@@ -71,6 +72,18 @@ public:
     String getSystemVersion() const
     {
         return _systemVersion;
+    }
+
+    // Get system serial number
+    String getSystemSerialNo() const
+    {
+        return _mutableConfig.getString("serialNo", "");
+    }
+
+    // Get system manufacturer
+    String getSystemManufacturer() const
+    {
+        return _systemConfig.getString("Manufacturer", "");
     }
 
     // Set base SysType version
@@ -121,10 +134,10 @@ public:
     RaftRetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
 
     // Register data source (message generator functions)
-    bool registerDataSource(const char* sysModName, const char* msgGenID, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
+    bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
 
     // Get named value 
-    double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const;
+    virtual double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const override;
 
     // Request system restart
     void systemRestart()
@@ -284,9 +297,6 @@ private:
     // System name and version
     String _systemName;
     String _systemVersion;
-
-    // Hardware revision
-    String _hardwareRevision;
 
     // Hardware revision reporting prefix
     String _altHardwareRevisionPrefix = "";

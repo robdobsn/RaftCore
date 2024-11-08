@@ -22,8 +22,9 @@
 // #define DEBUG_JSON_DEVICE_HASH
 // #define DEBUG_DEVMAN_API
 // #define DEBUG_DEVICE_SETUP
-#define DEBUG_BUS_ELEMENT_STATUS
+// #define DEBUG_BUS_ELEMENT_STATUS
 // #define DEBUG_GET_DEVICE
+// #define DEBUG_JSON_DEVICE_HASH_DETAIL
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -148,7 +149,9 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                 break;
             }
         }
+#ifdef DEBUG_BUS_ELEMENT_STATUS
         bool newlyCreated = false;
+#endif
         if (!pFoundDevice)
         {
             // Check if device newly created
@@ -159,7 +162,10 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
 
                 // Create the device
                 pFoundDevice = new RaftBusDevice(bus.getBusName().c_str(), el.address, "RaftBusDevice", devConfig.c_str());
+
+#ifdef DEBUG_BUS_ELEMENT_STATUS
                 newlyCreated = true;
+#endif
 
                 // Add to the list of instantiated devices
                 _deviceList.push_back(pFoundDevice);
@@ -324,7 +330,7 @@ String DeviceManager::getDevicesDataJSON() const
         RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
         if (!pDevicesIF)
             continue; 
-        String jsonRespStr = pDevicesIF->getPollResponsesJson();
+        String jsonRespStr = pDevicesIF->getQueuedDeviceDataJson();
 
         // Check for empty string or empty JSON object
         if (jsonRespStr.length() > 2)
@@ -371,9 +377,13 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
         if (pBus)
         {
             // Check bus status
-            uint32_t identPollLastMs = pBus->getLastStatusUpdateMs(true, true);
+            uint32_t identPollLastMs = pBus->getDeviceInfoTimestampMs(true, true);
             stateHash[0] ^= (identPollLastMs & 0xff);
             stateHash[1] ^= ((identPollLastMs >> 8) & 0xff);
+
+#ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
+            LOG_I(MODULE_PREFIX, "getDevicesHash %s %02x%02x", pBus->getBusName().c_str(), stateHash[0], stateHash[1]);
+#endif
         }
     }
 
@@ -384,15 +394,19 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
         if (pDevice)
         {
             // Check device status
-            uint32_t identPollLastMs = pDevice->getLastStatusUpdateMs(true, true);
+            uint32_t identPollLastMs = pDevice->getDeviceInfoTimestampMs(true, true);
             stateHash[0] ^= (identPollLastMs & 0xff);
             stateHash[1] ^= ((identPollLastMs >> 8) & 0xff);
+
+#ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
+            LOG_I(MODULE_PREFIX, "getDevicesHash %s %02x%02x", pDevice->getDeviceName().c_str(), stateHash[0], stateHash[1]);
+#endif
         }
     }
 
     // Debug
 #ifdef DEBUG_JSON_DEVICE_HASH
-    LOG_I(MODULE_PREFIX, "getDevicesHash %s", ("Hash " + String(stateHash[0],16) + String(stateHash[1],16)).c_str());
+    LOG_I(MODULE_PREFIX, "getDevicesHash => %02x%02x", stateHash[0], stateHash[1]);
 #endif
 }
 

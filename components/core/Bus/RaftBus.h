@@ -73,6 +73,7 @@ public:
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Clear
+    /// @param incPolling - true to clear polling data (if relevant to this bus type)
     virtual void clear(bool incPolling)
     {
     }
@@ -272,9 +273,11 @@ public:
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get time of last bus status update
-    /// @return time of last bus status update in ms
-    virtual uint32_t getLastStatusUpdateMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const
+    /// @brief Get latest timestamp of change to device info (online/offline, new data, etc)
+    /// @param includeElemOnlineStatusChanges include changes in online status of elements
+    /// @param includeDeviceDataUpdates include new data updates
+    /// @return timestamp of most recent device info in ms
+    virtual uint32_t getDeviceInfoTimestampMs(bool includeElemOnlineStatusChanges, bool includeDeviceDataUpdates) const
     {
         return 0;
     }
