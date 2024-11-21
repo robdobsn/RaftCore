@@ -191,6 +191,11 @@ private:
     esp_netif_t* _pWifiStaNetIf = nullptr;
     esp_netif_t* _pWifiApNetIf = nullptr;
 
+    // Time sync last time
+    bool _timeSyncInitialDone = false;
+    uint32_t _timeSyncLastMs = 0;
+    static const uint32_t TIME_SYNC_INTERVAL_MS = 10*60*60*1000;
+
     // Helpers
     bool startWifi();
     void stopWifi();

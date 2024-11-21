@@ -26,31 +26,13 @@
 #include "mdns.h"
 #include "esp_idf_version.h"
 
-// Check if Ethernet is enabled
+// Only for recent versions of ESP-IDF
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
-
 #ifdef ETHERNET_IS_ENABLED
 #include "esp_eth_netif_glue.h"
 #endif
-
-// TODO - This is a hacky fix - hopefully temporary - for ESP IDF 5.1.0 which throws a compile error
-#define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(servers_in_list, list_of_servers)   {   \
-            .smooth_sync = false,                   \
-            .server_from_dhcp = false,              \
-            .wait_for_sync = true,                  \
-            .start = true,                          \
-            .sync_cb = NULL,                        \
-            .renew_servers_after_new_IP = false,    \
-            .ip_event_to_renew = (ip_event_t)0,                 \
-            .index_of_first_server = 0,             \
-            .num_of_servers = (servers_in_list),    \
-            .servers = list_of_servers,             \
-}
-#define HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG(server) \
-            HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(1, {server})
-
 #endif
 
 // Global object
@@ -160,16 +142,6 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
     }
 #endif
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-    // SNTP server
-    if (!_networkSettings.ntpServer.isEmpty())
-    {
-        // Setup server
-        esp_sntp_config_t config = HACK_ESP_NETIF_SNTP_DEFAULT_CONFIG(_networkSettings.ntpServer.c_str());
-        esp_netif_sntp_init(&config);
-    }
-#endif
-
     // Timezone
     if (!_networkSettings.timezone.isEmpty())
     {
@@ -216,6 +188,38 @@ void NetworkSystem::loop()
             }
         }
     }
+
+    // Handle time sync
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+    if (isWifiStaConnectedWithIP())
+    {
+        // Check time of last time sync
+        if (!_timeSyncInitialDone || Raft::isTimeout(millis(), _timeSyncLastMs, TIME_SYNC_INTERVAL_MS))
+        {
+            _timeSyncLastMs = millis();
+            _timeSyncInitialDone = true;
+            if (!_networkSettings.ntpServer.isEmpty())
+            {
+                // Config
+                esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(_networkSettings.ntpServer.c_str());
+
+                // Sync callback
+                config.sync_cb = [](timeval *pTV) {
+                    // Debug
+                    time_t now = pTV->tv_sec;
+                    struct tm timeinfo;
+                    localtime_r(&now, &timeinfo);
+                    char strftime_buf[64];
+                    strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+                    LOG_I(MODULE_PREFIX, "time sync %s.%03d", strftime_buf, pTV->tv_usec / 1000);
+                };
+
+                // Sync time
+                esp_netif_sntp_init(&config);
+            }
+        }
+    }
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
