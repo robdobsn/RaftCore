@@ -8,7 +8,7 @@
             "pollInfo": {
                 "c": "0x08=r2&0x09=r2&0x0a=r2",
                 "i": 200,
-                "s": 10
+                "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -59,7 +59,7 @@
             "pollInfo": {
                 "c": "0x004f=r1&0x0062=r1&0x001507&0x001801",
                 "i": 200,
-                "s": 10
+                "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -147,7 +147,7 @@
             "pollInfo": {
                 "c": "0x32=r6",
                 "i": 100,
-                "s": 10
+                "s": 3
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -198,7 +198,7 @@
             "pollInfo": {
                 "c": "0x22=r12",
                 "i": 100,
-                "s": 10
+                "s": 3
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -275,7 +275,7 @@
             "pollInfo": {
                 "c": "=r6&0xac3300=",
                 "i": 5000,
-                "s": 2
+                "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -329,7 +329,7 @@
             "pollInfo": {
                 "c": "0x05=r2",
                 "i": 5000,
-                "s": 2
+                "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -364,7 +364,7 @@
             "pollInfo": {
                 "c": "0xA7=r6",
                 "i": 1000,
-                "s": 2
+                "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -418,7 +418,7 @@
             "pollInfo": {
                 "c": "0x02=r2&0x0000",
                 "i": 100,
-                "s": 10
+                "s": 5
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -478,7 +478,7 @@
             "pollInfo": {
                 "c": "0x03=r1",
                 "i": 100,
-                "s": 10
+                "s": 5
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -537,7 +537,7 @@
             "pollInfo": {
                 "c": "0x0e=r2",
                 "i": 100,
-                "s": 10
+                "s": 1
             },
             "devInfoJson": {
                 "name": "AS5600",
@@ -568,7 +568,7 @@
             "pollInfo": {
                 "c": "0x10=r2&0x20=r2",
                 "i": 100,
-                "s": 10
+                "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -622,7 +622,7 @@
             "pollInfo": {
                 "c": "0x0915=r2&0x0916=r2&0x0104=r4",
                 "i": 100,
-                "s": 10
+                "s": 5
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -764,7 +764,7 @@
             "pollInfo": {
                 "c": "=r6",
                 "i": 100,
-                "s": 10
+                "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
@@ -824,7 +824,7 @@
             "pollInfo": {
                 "c": "=r5",
                 "i": 100,
-                "s": 10
+                "s": 1
             },
             "devInfoJson": {
                 "name": "HX711",
@@ -862,7 +862,7 @@
             "pollInfo": {
                 "c": "=r17",
                 "i": 100,
-                "s": 10
+                "s": 1
             },
             "devInfoJson": {
                 "name": "BLEBTHome",
