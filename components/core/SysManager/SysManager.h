@@ -139,6 +139,15 @@ public:
     // Get named value 
     virtual double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const override;
 
+    // Set named value
+    virtual bool setNamedValue(const char* sysModName, const char* valueName, double value) override;
+
+    // Get named value string
+    virtual String getNamedString(const char* sysModName, const char* valueName, bool& isValid) const override;
+
+    // Set named value string
+    virtual bool setNamedString(const char* sysModName, const char* valueName, const char* value) override;
+
     // Request system restart
     void systemRestart()
     {

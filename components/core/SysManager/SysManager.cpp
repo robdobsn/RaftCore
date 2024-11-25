@@ -42,9 +42,15 @@
 // #define DEBUG_FRIENDLY_NAME_SET
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Constructor
+/// @param pModuleName - name of the module
+/// @param systemConfig - system configuration
+/// @param sysManagerNVSNamespace - namespace for the NVS storage for this module
+/// @param sysTypeManager - system type manager
+/// @param pSystemName - name of the system
+/// @param pDefaultFriendlyName - default friendly name
+/// @param serialLengthBytes - length of the serial number
+/// @param pSerialMagicStr - magic string for the serial number
 SysManager::SysManager(const char* pModuleName,
                 RaftJsonIF& systemConfig,
             const String sysManagerNVSNamespace,
@@ -79,9 +85,7 @@ SysManager::SysManager(const char* pModuleName,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Pre-Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Pre-setup - called before all other modules setup
 void SysManager::preSetup()
 {
     // Override system name if it is specified in the config
@@ -154,9 +158,7 @@ void SysManager::preSetup()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Post-setup - called after all modules have been created
 void SysManager::postSetup()
 {
     // Clear status change callbacks for sysmods (they are added again in postSetup)
@@ -320,9 +322,7 @@ void SysManager::postSetup()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Loop (called from main thread's endless loop)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Loop (called from main thread's endless loop)
 void SysManager::loop()
 {
     // Check if sysmod list is dirty
@@ -485,9 +485,8 @@ void SysManager::loop()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Manage SysMod List
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Add a managed SysMod
+/// @param pSysMod - pointer to the SysMod
 void SysManager::addManagedSysMod(RaftSysMod* pSysMod)
 {
     // Avoid adding null pointers
@@ -502,9 +501,7 @@ void SysManager::addManagedSysMod(RaftSysMod* pSysMod)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup SysMod list
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Setup SysMod list
 void SysManager::sysModListSetup()
 {
     // Reset iterator to start of list
@@ -529,9 +526,9 @@ void SysManager::sysModListSetup()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Add status change callback on a SysMod
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Add status change callback on a SysMod
+/// @param sysModName - name of the SysMod
+/// @param statusChangeCB - callback function
 void SysManager::setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB)
 {
     // See if the sysmod is in the list
@@ -547,9 +544,7 @@ void SysManager::setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Clear all status change callbacks on all sysmods
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Clear all status change callbacks on all sysmods
 void SysManager::clearAllStatusChangeCBs()
 {
     // Debug
@@ -562,8 +557,9 @@ void SysManager::clearAllStatusChangeCBs()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get status from SysMod
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get status from SysMod
+/// @param sysModName - name of the SysMod
+/// @return JSON string
 String SysManager::getStatusJSON(const char* sysModName) const
 {
     // See if the sysmod is in the list
@@ -578,8 +574,9 @@ String SysManager::getStatusJSON(const char* sysModName) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get debugStr from SysMod
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get debugStr from SysMod
+/// @param sysModName - name of the SysMod
+/// @return JSON string
 String SysManager::getDebugJSON(const char* sysModName) const
 {
     // Check if it is the SysManager's own stats that are wanted
@@ -612,9 +609,10 @@ String SysManager::getDebugJSON(const char* sysModName) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Send command to SysMod
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Send command to SysMod
+/// @param sysModName - name of the SysMod
+/// @param cmdJSON - JSON string
+/// @return response code
 RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 {
     // See if the sysmod is in the list
@@ -645,9 +643,11 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get named value from SysMod
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get named value from SysMod
+/// @param sysModName 
+/// @param valueName 
+/// @param isValid 
+/// @return 
 double SysManager::getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const
 {
     // See if the sysmod is in the list
@@ -663,9 +663,70 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Register data source (message generator) with SysMod
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set named value in SysMod
+/// @param sysModName
+/// @param valueName
+/// @param value
+/// @return true if set
+bool SysManager::setNamedValue(const char* sysModName, const char* valueName, double value)
+{
+    // See if the sysmod is in the list
+    for (RaftSysMod* pSysMod : _sysModuleList)
+    {
+        if (pSysMod->modNameStr().equals(sysModName))
+        {
+            return pSysMod->setNamedValue(valueName, value);
+        }
+    }
+    return false;
+}
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get named value string from SysMod
+/// @param sysModName
+/// @param valueName
+/// @param isValid
+/// @return string
+String SysManager::getNamedString(const char* sysModName, const char* valueName, bool& isValid) const
+{
+    // See if the sysmod is in the list
+    for (RaftSysMod* pSysMod : _sysModuleList)
+    {
+        if (pSysMod->modNameStr().equals(sysModName))
+        {
+            return pSysMod->getNamedString(valueName, isValid);
+        }
+    }
+    isValid = false;
+    return "";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set named value string in SysMod
+/// @param sysModName
+/// @param valueName
+/// @param value
+/// @return true if set
+bool SysManager::setNamedString(const char* sysModName, const char* valueName, const char* value)
+{
+    // See if the sysmod is in the list
+    for (RaftSysMod* pSysMod : _sysModuleList)
+    {
+        if (pSysMod->modNameStr().equals(sysModName))
+        {
+            return pSysMod->setNamedString(valueName, value);
+        }
+    }
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Register data source (message generator) with SysMod
+/// @param sysModName
+/// @param pubTopic
+/// @param msgGenCB
+/// @param stateDetectCB
+/// @return true if registered
 bool SysManager::registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
     // See if the sysmod is in the list
@@ -687,9 +748,11 @@ bool SysManager::registerDataSource(const char* sysModName, const char* pubTopic
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// API endpoints
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief API for resetting the system
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Register that a restart is required but don't restart immediately
@@ -700,6 +763,12 @@ RaftRetCode SysManager::apiReset(const String &reqStr, String& respStr, const AP
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief API for getting system version information
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get serial number
@@ -729,6 +798,12 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
     return RaftRetCode::RAFT_OK;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief API for getting system manager information
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiGetSysModInfo(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get name of SysMod
@@ -737,6 +812,12 @@ RaftRetCode SysManager::apiGetSysModInfo(const String &reqStr, String& respStr, 
     return RaftRetCode::RAFT_OK;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief API for getting system manager debug information
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiGetSysModDebug(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Get name of SysMod
@@ -746,9 +827,11 @@ RaftRetCode SysManager::apiGetSysModDebug(const String &reqStr, String& respStr,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Friendly name
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief API for getting friendly name
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Check if we're setting
@@ -779,9 +862,11 @@ RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Serial number
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief API for getting serial number
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Check if we're setting
@@ -825,9 +910,11 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// HW revision
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief API for getting base system type and version
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiBaseSysTypeVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Create response JSON
@@ -835,9 +922,11 @@ RaftRetCode SysManager::apiBaseSysTypeVersion(const String &reqStr, String& resp
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Test function to set loop delay
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief API test set loop delay
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiTestSetLoopDelay(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Extract params
@@ -859,9 +948,11 @@ RaftRetCode SysManager::apiTestSetLoopDelay(const String &reqStr, String& respSt
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup SysMan diagnostics
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief API for setting system manager settings
+/// @param reqStr
+/// @param respStr
+/// @param sourceInfo
+/// @return response code
 RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Extract params
@@ -928,9 +1019,8 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get mutable config JSON string
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief get mutable config JSON
+/// @return JSON string
 String SysManager::getMutableConfigJson()
 {
     char jsonConfig[MAX_FRIENDLY_NAME_LENGTH + _serialLengthBytes*2 + 70];
@@ -943,9 +1033,7 @@ String SysManager::getMutableConfigJson()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Stats show
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief show stats
 void SysManager::statsShow()
 {
     // Check enabled
@@ -985,9 +1073,9 @@ void SysManager::statsShow()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Friendly name helpers
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief get friendly name
+/// @param (out) isSet
+/// @return friendly name
 String SysManager::getFriendlyName(bool& isSet) const
 {
     // Check if set
@@ -1011,11 +1099,20 @@ String SysManager::getFriendlyName(bool& isSet) const
     return friendlyName;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief get friendly name is set
+/// @return true if set
 bool SysManager::getFriendlyNameIsSet() const
 {
     return _mutableConfig.getLong("nameSet", 0);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief set friendly name
+/// @param friendlyName
+/// @param setHostname
+/// @param (out) errorStr
+/// @return true if set
 bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, String& errorStr)
 {
     // Update cached name
@@ -1046,9 +1143,9 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Status change CB on BLE
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief status change BLE connection callback
+/// @param sysModName
+/// @param changeToOnline
 void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOnline)
 {
     // Check if WiFi should be paused
@@ -1060,9 +1157,8 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get base system version JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief get base system type and version JSON
+/// @return JSON string
 String SysManager::getBaseSysVersJson()
 {
     // Get base SysType version string (if all digits then set in JSON as a number for backward compatibility)
@@ -1091,9 +1187,9 @@ String SysManager::getBaseSysVersJson()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Check SysMod dependencies satisfied
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief check if system module dependencies are satisfied
+/// @param sysModClassDef
+/// @return true if all dependencies satisfied
 bool SysManager::checkSysModDependenciesSatisfied(const SysModFactory::SysModClassDef& sysModClassDef)
 {
     // Check if all dependencies are satisfied

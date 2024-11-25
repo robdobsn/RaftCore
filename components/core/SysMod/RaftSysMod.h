@@ -164,6 +164,25 @@ public:
         return 0;
     }
 
+    // Set named value
+    virtual bool setNamedValue(const char* valueName, double value)
+    {
+        return false;
+    }
+
+    // Get named string
+    virtual String getNamedString(const char* valueName, bool& isValid)
+    {
+        isValid = false;
+        return "";
+    }
+
+    // Set named string
+    virtual bool setNamedString(const char* valueName, const char* value)
+    {
+        return false;
+    }
+
     // File/Stream Start
     virtual bool fileStreamStart(const char* fileName, size_t fileLen)
     {
