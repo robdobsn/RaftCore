@@ -173,12 +173,6 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                 // Setup device
                 pFoundDevice->setup();
             }
-            else
-            {
-                // Debug
-                LOG_W(MODULE_PREFIX, "busElemStatusCB %s %s not found - shouldn't happen!", bus.getBusName().c_str(), 
-                    bus.addrToString(el.address).c_str());
-            }
         }
 
         // Handle status update
@@ -207,11 +201,12 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
 
         // Debug
 #ifdef DEBUG_BUS_ELEMENT_STATUS
-        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s %s %s %s", 
+        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s %s%s%s%s",
                         deviceId.c_str(), 
                         el.isChangeToOnline ? "Online" : ("Offline" + String(el.isChangeToOffline ? " (was online)" : "")).c_str(),
-                        el.isNewlyIdentified ? ("DevTypeIdx " + String(el.deviceTypeIndex)).c_str() : "",
-                        newlyCreated ? "NewlyCreated Y" : "");
+                        el.isNewlyIdentified ? (" DevTypeIdx " + String(el.deviceTypeIndex)).c_str() : "",
+                        newlyCreated ? " NewlyCreated" : "",
+                        pFoundDevice ? "" : " NOT IDENTIFIED YET");
 #endif
     }
 }
