@@ -13,6 +13,7 @@
 #include "RaftRetCode.h"
 #include "RaftDeviceJSONLevel.h"
 #include "RaftDeviceConsts.h"
+#include "RaftBusConsts.h"
 
 class RestAPIEndpointManager;
 class CommsCoreIF;
@@ -65,6 +66,20 @@ public:
         return false;
     }
 
+    /// @brief Get the device type index for this device
+    /// @return Device type index
+    virtual uint32_t getDeviceTypeIndex() const
+    {
+        return deviceTypeIndex;
+    }
+
+    /// @brief Set the device type index for this device
+    /// @param deviceTypeIndex Device type index
+    virtual void setDeviceTypeIndex(uint32_t deviceTypeIndex)
+    {
+        this->deviceTypeIndex = deviceTypeIndex;
+    }
+
     /// @brief Setup the device
     virtual void setup();
 
@@ -91,6 +106,25 @@ public:
     /// @brief Get the device status as JSON
     /// @return JSON string
     virtual String getStatusJSON() const;
+
+    /// @brief Get the device status as binary
+    /// @return Binary data
+    virtual std::vector<uint8_t> getStatusBinary() const;
+
+    /// @brief Generate a binary data message
+    /// @param binData (out) Binary data
+    /// @param connMode Connection mode (inc bus number / id)
+    /// @param address Address of the device
+    /// @param deviceTypeIndex Index of the device type
+    /// @param isOnline true if the device is online
+    /// @param deviceMsgData Device msg data
+    /// @return true if created ok
+    static bool genBinaryDataMsg(std::vector<uint8_t>& binData, 
+        uint8_t connMode, 
+        BusElemAddrType address, 
+        uint16_t deviceTypeIndex, 
+        bool isOnline, 
+        std::vector<uint8_t> deviceMsgData);
 
     /// @brief Get device debug info JSON
     /// @return JSON string
@@ -147,6 +181,8 @@ public:
     virtual void registerForDeviceData(RaftDeviceDataChangeCB dataChangeCB, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
     {
     }
+
+    
 
 protected:
     // Device configuration

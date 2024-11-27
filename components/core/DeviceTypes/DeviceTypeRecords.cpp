@@ -611,8 +611,9 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Add extended device type record
 /// @param devTypeRec device type record
+/// @param deviceTypeIndex (out) device type index
 /// @return true if added
-bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec)
+bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, uint16_t& deviceTypeIndex)
 {
     // Lock
     if (!xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY))
@@ -630,11 +631,12 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 
     // Check if already added
     bool recFound = false;
-    for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+    for (uint16_t i = 0; i < _extendedDevTypeRecords.size(); i++)
     {
-        if (extDevTypeRec.nameMatches(devTypeRec))
+        if (_extendedDevTypeRecords[i].nameMatches(devTypeRec))
         {
             recFound = true;
+            deviceTypeIndex = i + BASE_DEV_TYPE_ARRAY_SIZE;
             break;
         }
     }
@@ -644,15 +646,18 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
     {
         _extendedDevTypeRecords.push_back(devTypeRec);
         _extendedRecordsAdded = true;
+        deviceTypeIndex = _extendedDevTypeRecords.size() - 1 + BASE_DEV_TYPE_ARRAY_SIZE;
     }
 
     // Unlock
     xSemaphoreGive(_extDeviceTypeRecordsMutex);
 
 #ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
-    LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s addrs %s detVals %s initVals %s pollInfo %s",
+    LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
                 recFound ? "ALREADY PRESENT" : "ADDED OK",
-                devTypeRec.deviceTypeName_.c_str(), devTypeRec.addresses_.c_str(), devTypeRec.detectionValues_.c_str(),
+                devTypeRec.deviceTypeName_.c_str(), 
+                deviceTypeIndex,
+                devTypeRec.addresses_.c_str(), devTypeRec.detectionValues_.c_str(),
                 devTypeRec.initValues_.c_str(), devTypeRec.pollInfo_.c_str());
 #endif
     return !recFound;

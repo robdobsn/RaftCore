@@ -57,7 +57,7 @@ void DeviceManager::setup()
 /// @brief Post setup function
 void DeviceManager::postSetup()
 {
-    // Register data source (message generator and state detector functions)
+    // Register JSON data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
         [this](const char* messageName, CommsChannelMsg& msg) {
             String statusStr = getDevicesDataJSON();
@@ -68,6 +68,18 @@ void DeviceManager::postSetup()
             return getDevicesHash(stateHash);
         }
     );    
+
+    // Register binary data source (new)
+    getSysManager()->registerDataSource("Publish", "devbin", 
+        [this](const char* messageName, CommsChannelMsg& msg) {
+            std::vector<uint8_t> binaryData = getDevicesDataBinary();
+            msg.setFromBuffer(binaryData.data(), binaryData.size());
+            return true;
+        },
+        [this](const char* messageName, std::vector<uint8_t>& stateHash) {
+            return getDevicesHash(stateHash);
+        }
+    );
 
     // Post-setup - called after setup of all sysMods complete
     for (auto* pDevice : _deviceList)
@@ -162,6 +174,7 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
 
                 // Create the device
                 pFoundDevice = new RaftBusDevice(bus.getBusName().c_str(), el.address, "RaftBusDevice", devConfig.c_str());
+                pFoundDevice->setDeviceTypeIndex(el.deviceTypeIndex);
 
 #ifdef DEBUG_BUS_ELEMENT_STATUS
                 newlyCreated = true;
@@ -277,7 +290,9 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
             if (pDevice->getDeviceTypeRecord(devTypeRec))
             {
                 // Add the device type record to the device type records
-                deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec);
+                uint16_t deviceTypeIndex = 0;
+                deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec, deviceTypeIndex);
+                pDevice->setDeviceTypeIndex(deviceTypeIndex);
             }
         }
     }
@@ -353,6 +368,44 @@ String DeviceManager::getDevicesDataJSON() const
 #endif
 
     return "{" + (jsonStrBus.length() == 0 ? (jsonStrDev.length() == 0 ? "" : jsonStrDev) : (jsonStrDev.length() == 0 ? jsonStrBus : jsonStrBus + "," + jsonStrDev)) + "}";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get devices' data as binary
+/// @return Binary data vector
+std::vector<uint8_t> DeviceManager::getDevicesDataBinary() const
+{
+    std::vector<uint8_t> binaryData;
+    binaryData.reserve(500);
+
+    // Add bus data
+    uint16_t connModeBusNum = DEVICE_CONN_MODE_FIRST_BUS;
+    for (RaftBus* pBus : raftBusSystem.getBusList())
+    {
+        if (!pBus)
+            continue;
+        RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+        if (!pDevicesIF)
+            continue;
+
+        // Add the bus data
+        std::vector<uint8_t> busBinaryData = pDevicesIF->getQueuedDeviceDataBinary(connModeBusNum);
+        binaryData.insert(binaryData.end(), busBinaryData.begin(), busBinaryData.end());
+
+        // Next bus
+        connModeBusNum++;
+    }
+
+    // Add device data
+    for (RaftDevice* pDevice : _deviceList)
+    {
+        if (!pDevice)
+            continue;
+        std::vector<uint8_t> deviceBinaryData = pDevice->getStatusBinary();
+        binaryData.insert(binaryData.end(), deviceBinaryData.begin(), deviceBinaryData.end());
+    }
+
+    return binaryData;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -474,7 +527,8 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     // REST API endpoints
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            "devman/typeinfo?bus=<busName>&type=<typename> - Get device info for type, devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device");
+                            " devman/typeinfo?bus=<busName>&type=<typeName> - Get device info for type by name or number,"
+                            " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
 
@@ -511,6 +565,23 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         // Check if the bus name is valid and, if so, use the bus devices interface to get the device info
         String devInfo;
         RaftBus* pBus = raftBusSystem.getBusByName(busName);
+        if (!pBus)
+        {
+            // Try to get by bus number if the busName start with a number
+            if ((busName.length() > 0) && isdigit(busName[0]))
+            {
+                int busNum = busName.toInt();
+                int busIdx = 1;
+                for (auto& bus : raftBusSystem.getBusList())
+                {
+                    if (busIdx++ == busNum)
+                    {
+                        pBus = bus;
+                        break;
+                    }
+                }
+            }
+        }
         if (pBus)
         {
             // Get devices interface
@@ -518,13 +589,31 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
             if (!pDevicesIF)
                 return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
 
-            // Get device info
-            devInfo = pDevicesIF->getDevTypeInfoJsonByTypeName(devTypeName, false);
+            // Check if the first digit of the device type name is a number
+            if ((devTypeName.length() > 0) && isdigit(devTypeName[0]))
+            {
+                // Get device info by number
+                devInfo = pDevicesIF->getDevTypeInfoJsonByTypeIdx(devTypeName.toInt(), false);
+            }
+            if (devInfo.length() == 0)
+            {
+                // Get device info by name if possible
+                devInfo = pDevicesIF->getDevTypeInfoJsonByTypeName(devTypeName, false);
+            }
         }
         else
         {
             // Use the global device type info to get the device info
-            devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(devTypeName, false);
+            if ((devTypeName.length() > 0) && isdigit(devTypeName[0]))
+            {
+                // Get device info by number
+                devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(devTypeName.toInt(), false);
+            }
+            if (devInfo.length() == 0)
+            {
+                // Get device info by name if possible
+                devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(devTypeName, false);
+            }
         }
 
         // Check valid

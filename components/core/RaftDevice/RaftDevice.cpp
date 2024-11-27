@@ -76,6 +76,54 @@ String RaftDevice::getStatusJSON() const
     return "{}";
 }
 
+/// @brief Get the device status as binary
+/// @return Binary data
+std::vector<uint8_t> RaftDevice::getStatusBinary() const
+{
+    return std::vector<uint8_t>();
+}
+
+/// @brief Generate a binary data message
+/// @param binData (out) Binary data
+/// @param connMode Connection mode (inc bus number / id)
+/// @param address Address of the device
+/// @param deviceTypeIndex Index of the device type
+/// @param isOnline true if the device is online
+/// @param deviceMsgData Device msg data
+/// @return true if created ok
+bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData, 
+    uint8_t connMode, 
+    BusElemAddrType address, 
+    uint16_t deviceTypeIndex, 
+    bool isOnline, 
+    std::vector<uint8_t> deviceMsgData)
+    {
+        // Reserve space
+        uint32_t msgLen = deviceMsgData.size() + 7;
+        binData.reserve(binData.size() + 2 + msgLen);
+
+        // Overall length of message section
+        binData.push_back((msgLen >> 8) & 0xff);
+        binData.push_back(msgLen & 0xff);
+
+        // Start with connection mode byte (MSB indicates online/offline)
+        binData.push_back(connMode | (isOnline ? 0x80 : 0));
+
+        // The address (32 bits)
+        binData.push_back((address >> 24) & 0xff);
+        binData.push_back((address >> 16) & 0xff);
+        binData.push_back((address >> 8) & 0xff);
+        binData.push_back(address & 0xff);
+
+        // Add device type index
+        binData.push_back((deviceTypeIndex >> 8) & 0xff);
+        binData.push_back(deviceTypeIndex & 0xff);
+
+        // Add binary data
+        binData.insert(binData.end(), deviceMsgData.begin(), deviceMsgData.end());
+        return true;
+    }
+
 /// @brief Get device debug info JSON
 /// @return JSON string
 String RaftDevice::getDebugJSON(bool includeBraces) const

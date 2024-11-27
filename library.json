@@ -1,6 +1,6 @@
 {
     "name": "RaftCore",
-    "version": "1.15.5",
+    "version": "1.15.7",
     "description": "Core elements for the Raft ESP32 framework",
     "keywords": "esp32, esp32s3, framework",
     "category": "Communication",

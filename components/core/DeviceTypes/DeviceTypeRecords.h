@@ -109,8 +109,9 @@ public:
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Add extended device type records
     /// @param devTypeRec device type record
+    /// @param deviceTypeIndex (out) device type index
     /// @return true if added
-    bool addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec);
+    bool addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, uint16_t& deviceTypeIndex);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device poll decode function
@@ -127,8 +128,8 @@ private:
     // have been added
     bool _extendedRecordsAdded = false;
 
-    // Maximum number of added device type records (see note below about absolute pointers)
-    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 10;
+    // Maximum number of added device type records (see note below about absolute pointers since this space will be reserved)
+    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 20;
 
     // Extended device type records
     // This list MUST only ever be extended and the absolute pointers to 

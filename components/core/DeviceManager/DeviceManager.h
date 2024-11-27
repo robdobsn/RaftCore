@@ -57,6 +57,10 @@ public:
     // Get JSON debug string
     virtual String getDebugJSON() const override final;
 
+    // Get code for device connection mode
+    static const uint8_t DEVICE_CONN_MODE_DIRECT = 0;
+    static const uint8_t DEVICE_CONN_MODE_FIRST_BUS = 1;
+
 protected:
 
     // Setup
@@ -107,6 +111,7 @@ private:
 
     // Access to devices' data
     String getDevicesDataJSON() const;
+    std::vector<uint8_t> getDevicesDataBinary() const;
     void getDevicesHash(std::vector<uint8_t>& stateHash) const;
 
     // API callback
