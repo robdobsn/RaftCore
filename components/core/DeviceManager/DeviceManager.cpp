@@ -25,6 +25,8 @@
 // #define DEBUG_BUS_ELEMENT_STATUS
 // #define DEBUG_GET_DEVICE
 // #define DEBUG_JSON_DEVICE_HASH_DETAIL
+// #define DEBUG_MAKE_BUS_REQUEST_VERBOSE
+// #define DEBUG_API_CMDRAW
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -657,7 +659,7 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
 
         // Convert address
-        uint32_t addr = pBus->stringToAddr(addrStr);
+        BusElemAddrType addr = strtol(addrStr.c_str(), NULL, 16);
 
         // Get bytes to write
         uint32_t numBytesToWrite = hexWriteData.length() / 2;

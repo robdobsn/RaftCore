@@ -231,7 +231,7 @@ public:
     /// @return address
     virtual BusElemAddrType stringToAddr(const String& addrStr) const
     {
-        return strtol(addrStr.c_str(), NULL, 0);
+        return strtol(addrStr.c_str(), NULL, 16);
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
