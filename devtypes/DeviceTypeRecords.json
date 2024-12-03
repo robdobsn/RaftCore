@@ -759,8 +759,8 @@
         "RoboticalServo": {
             "addresses": "0x10-0x18",
             "deviceType": "RoboticalServo",
-            "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=r2",
-            "initValues": "",
+            "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c",
+            "initValues": "=p250&0x2001",
             "pollInfo": {
                 "c": "=r6",
                 "i": 100,
@@ -811,12 +811,21 @@
                     {
                         "n": "angle",
                         "t": ">h",
-                        "w": "01",
+                        "w": "0001",
                         "wz": "0064",
                         "f": ".1f",
                         "mul": 10,
                         "sub": 0,
-                        "r": [-180.0,180.0]
+                        "r": [-180.0,180.0],
+                        "d": 0
+                    },
+                    {
+                        "n": "enable",
+                        "t": "B",
+                        "w": "20",
+                        "f": "b",
+                        "r": [0,1],
+                        "d": 1
                     }
                 ]
             }
