@@ -350,7 +350,7 @@ void RaftMQTTClient::frameRxCB(const uint8_t *pBuf, unsigned bufLen)
 void RaftMQTTClient::socketConnect()
 {
 #ifdef DEBUG_MQTT_CONNECTION
-    ESP_LOGI(MODULE_PREFIX, "socketConnect attempting to connect to %s port %d", _dnsResolver.getHostname(), _brokerPort);
+    ESP_LOGI(MODULE_PREFIX, "sockConn attempting to connect to %s port %d", _dnsResolver.getHostname(), _brokerPort);
 #endif
 
     // Get IP address
@@ -364,7 +364,7 @@ void RaftMQTTClient::socketConnect()
 
     // Create socket
 #ifdef DEBUG_MQTT_SOCKET_CREATE
-    ESP_LOGI(MODULE_PREFIX, "socketConnect creating socket");
+    ESP_LOGI(MODULE_PREFIX, "sockConn creating socket");
 #endif
     _clientHandle = socket(AF_INET, SOCK_STREAM, 0);
     if (_clientHandle < 0)
@@ -372,7 +372,7 @@ void RaftMQTTClient::socketConnect()
         if (Raft::isTimeout(millis(), _internalSocketCreateErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalSocketCreateErrorLastTime = millis();
-            ESP_LOGW(MODULE_PREFIX, "socketConnect socket create error %d hostname %s addr %s port %d", 
+            ESP_LOGW(MODULE_PREFIX, "sockConn FAIL sock create errno %d hostname %s addr %s port %d", 
                         errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), (int)_brokerPort);
         }
         return;
@@ -385,7 +385,7 @@ void RaftMQTTClient::socketConnect()
         if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalSocketFcntlErrorLastTime = millis();
-            ESP_LOGW(MODULE_PREFIX, "socketConnect fcntl get error %d hostname %s addr %s port %d", 
+            ESP_LOGW(MODULE_PREFIX, "sockConn FAIL fcntl get errno %d hostname %s addr %s port %d", 
                             errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), (int)_brokerPort);
         }
         close(_clientHandle);
@@ -397,7 +397,7 @@ void RaftMQTTClient::socketConnect()
         if (Raft::isTimeout(millis(), _internalSocketFcntlErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
         {
             _internalSocketFcntlErrorLastTime = millis();
-            ESP_LOGW(MODULE_PREFIX, "socketConnect fcntl set error %d hostname %s addr %s port %d", 
+            ESP_LOGW(MODULE_PREFIX, "sockConn FAIL fcntl set errno %d hostname %s addr %s port %d", 
                             errno, _dnsResolver.getHostname(), ipaddr_ntoa(&ipAddr), (int)_brokerPort);
         }
         close(_clientHandle);
@@ -417,7 +417,7 @@ void RaftMQTTClient::socketConnect()
             if (Raft::isTimeout(millis(), _internalSocketConnErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
                 _internalSocketConnErrorLastTime = millis();
-                ESP_LOGW(MODULE_PREFIX, "socketConnect connect error %d", errno);
+                ESP_LOGW(MODULE_PREFIX, "sockConn connect error %d", errno);
             }
             close(_clientHandle);
             return;
@@ -428,13 +428,13 @@ void RaftMQTTClient::socketConnect()
     _connState = MQTT_STATE_SOCK_CONN_REQD;
     _lastConnStateChangeMs = millis();
 #ifdef DEBUG_MQTT_CONNECTION
-    ESP_LOGI(MODULE_PREFIX, "socketConnect connId %d result %s", 
+    ESP_LOGI(MODULE_PREFIX, "sockConn connId %d result %s", 
                 _clientHandle, connectErr < 0 ? "in progress" : "connected OK");
 #endif
 
     // Debug
     uint64_t microsEnd = micros();
-    ESP_LOGI(MODULE_PREFIX, "socketConnect took %d ms", int((microsEnd - microsStart) / 1000));
+    ESP_LOGI(MODULE_PREFIX, "sockConn took %d ms", int((microsEnd - microsStart) / 1000));
 
     // Done
     return;
