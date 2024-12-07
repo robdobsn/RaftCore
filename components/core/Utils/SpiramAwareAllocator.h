@@ -98,5 +98,5 @@ bool operator==(const SpiramAwareAllocator<U>&, const SpiramAwareAllocator<V>&) 
 template <class U, class V>
 bool operator!=(const SpiramAwareAllocator<U>&, const SpiramAwareAllocator<V>&) { return false; }
 
-// Create a type for SpiramAware vectors
+// Type for SpiramAware vectors
 using SpiramAwareUint8Vector = std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>;
