@@ -107,7 +107,7 @@ void ProtocolRICFrame::encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg
 // Encode (PSRAM buffer)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ProtocolRICFrame::encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg)
+void ProtocolRICFrame::encode(CommsChannelMsg& msg, SpiramAwareUint8Vector& outMsg)
 {
     // Create the message
     outMsg.reserve(msg.getBufLen()+2);
@@ -137,7 +137,7 @@ void ProtocolRICFrame::encodeTxMsgAndSend(CommsChannelMsg& msg)
 #ifdef IMPLEMENT_NO_PSRAM_FOR_RIC_FRAME_ENCODING
     std::vector<uint8_t> ricFrameMsg;
 #else
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricFrameMsg;
+    SpiramAwareUint8Vector ricFrameMsg;
 #endif
     encode(msg, ricFrameMsg);
     msg.setFromBuffer(ricFrameMsg.data(), ricFrameMsg.size());

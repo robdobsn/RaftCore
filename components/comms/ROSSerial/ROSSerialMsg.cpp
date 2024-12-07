@@ -66,7 +66,7 @@ void ROSSerialMsg::encode(uint16_t topicId, const uint8_t* pPayload, uint32_t pa
 // Generate message to a vector
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ROSSerialMsg::writeRawMsgToVector(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& rawMsg, bool append)
+void ROSSerialMsg::writeRawMsgToVector(SpiramAwareUint8Vector& rawMsg, bool append)
 {
     uint32_t bufPos = (append ? rawMsg.size() : 0);
     uint32_t rawMsgLen = bufPos + _payload.size() + 8;

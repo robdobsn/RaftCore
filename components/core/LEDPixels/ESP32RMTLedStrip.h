@@ -70,7 +70,7 @@ private:
     uint32_t _lastTxTimeMs = 0;
 
     // Pixel working buffer
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _pixelBuffer;
+    SpiramAwareUint8Vector _pixelBuffer;
 
     // Wait for RMT complete
     static const uint32_t WAIT_RMT_BASE_US = 100;

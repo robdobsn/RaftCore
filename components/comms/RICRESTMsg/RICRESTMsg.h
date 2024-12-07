@@ -132,7 +132,7 @@ private:
     uint32_t _bufferPos = 0;
     uint32_t _totalBytes = 0;
     uint32_t _streamID = 0;
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _binaryData;
+    SpiramAwareUint8Vector _binaryData;
 
     // Helpers
     static void computeMaxRestBodySize();

@@ -40,7 +40,7 @@ public:
 
     virtual void encodeTxMsgAndSend(CommsChannelMsg& msg) override final;
     static void encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg);
-    static void encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg);
+    static void encode(CommsChannelMsg& msg, SpiramAwareUint8Vector& outMsg);
 
     virtual const char* getProtocolName() override final
     {

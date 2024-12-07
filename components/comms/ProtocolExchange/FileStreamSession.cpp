@@ -298,7 +298,7 @@ RaftRetCode FileStreamSession::fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen
     _pFileChunker->restart();
 
     // Get chunks and calculate CRC
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> chunkBuf;
+    SpiramAwareUint8Vector chunkBuf;
     const uint32_t CRC_CHUNK_SIZE = SpiramAwareAllocator<uint8_t>::max_allocatable() > 500000 ? 2000 : 500;
     chunkBuf.resize(CRC_CHUNK_SIZE);
     bool finalBlockRead = false;
@@ -336,7 +336,7 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
         return RaftRetCode::RAFT_NOT_XFERING;
 
     // Allocate buffer
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> chunkBuf;
+    SpiramAwareUint8Vector chunkBuf;
     chunkBuf.resize(maxLen);
 
     // Check allocation

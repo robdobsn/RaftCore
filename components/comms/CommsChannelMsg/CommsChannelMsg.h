@@ -222,7 +222,7 @@ public:
 #ifdef IMPLEMENT_NO_PSRAM_FOR_COMMS_CHANNEL_MSG
     std::vector<uint8_t>& getCmdVector()
 #else
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& getCmdVector()
+    SpiramAwareUint8Vector& getCmdVector()
 #endif
     {
         return _cmdVector;
@@ -236,7 +236,7 @@ private:
 #ifdef IMPLEMENT_NO_PSRAM_FOR_COMMS_CHANNEL_MSG
     std::vector<uint8_t> _cmdVector;
 #else
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _cmdVector;
+    SpiramAwareUint8Vector _cmdVector;
 #endif
 #ifdef IMPLEMENT_COMMS_MSG_JSON
     String _cmdJSON;
