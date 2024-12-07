@@ -291,12 +291,12 @@ bool CommsChannelManager::inboundCanAccept(uint32_t channelID)
 // Handle channel message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
+void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const SpiramAwareUint8Vector& msg)
 {
     // Check the channel
     if (channelID >= _commsChannelVec.size())
     {
-        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is INVALID msglen %d", channelID, msgLen);
+        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is INVALID msglen %d", channelID, msg.size());
         return;
     }
 
@@ -304,7 +304,7 @@ void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const uint8_t* pM
     CommsChannel* pChannel = _commsChannelVec[channelID];
     if (!pChannel)
     {
-        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is NULL msglen %d", channelID, msgLen);
+        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is NULL msglen %d", channelID, msg.size());
         return;
     }
 
@@ -313,14 +313,14 @@ void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const uint8_t* pM
     LOG_I(MODULE_PREFIX, "inboundHandleMsg, channel Id %d channel name %s pcol %s, msglen %d", channelID, 
                 pChannel->getChannelName().c_str(), 
                 pChannel->getProtocolCodec() ? pChannel->getProtocolCodec()->getProtocolName() : "UNKNOWN", 
-                msgLen);
+                msg.size());
 #endif
 
     // Ensure we have a handler for this msg
     ensureProtocolCodecExists(channelID);
 
     // Handle the message
-    pChannel->handleRxData(pMsg, msgLen);
+    pChannel->handleRxData(msg);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

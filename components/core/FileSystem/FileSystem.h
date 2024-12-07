@@ -69,7 +69,7 @@ public:
     static String getFileExtension(const String& filename);
 
     // Read line from file
-    char* readLineFromFile(char* pBuf, int maxLen, FILE* pFile);
+    String readLineFromFile(FILE* pFile, int maxLen);
 
     // Exists - check if file exists
     bool exists(const char* path) const;
@@ -87,13 +87,26 @@ public:
     // Get a file path using default file system if necessary
     bool getFileFullPath(const String& filename, String& fileFullPath) const;
 
-    // Get a section of a file
-    bool getFileSection(const String& fileSystemStr, const String& filename, uint32_t sectionStart, uint8_t* pBuf, 
-            uint32_t sectionLen, uint32_t& readLen);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get a section of a file
+    /// @param fileSystemStr File system string
+    /// @param filename Filename
+    /// @param sectionStart Start position in file
+    /// @param sectionLen Length of section to read
+    /// @return true if successful
+    SpiramAwareUint8Vector getFileSection(const String& fileSystemStr, const String& filename, uint32_t sectionStart,
+                uint32_t sectionLen);
 
-    // Get a line from a text file
-    bool getFileLine(const String& fileSystemStr, const String& filename, uint32_t startFilePos, uint8_t* pBuf, 
-            uint32_t lineMaxLen, uint32_t& fileCurPos);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get a line from a text file
+    /// @param fileSystemStr File system string
+    /// @param filename Filename
+    /// @param startFilePos Start position in file
+    /// @param pBuf Buffer to read into
+    /// @param lineMaxLen Maximum length of line
+    /// @param fileCurPos Current position in file
+    /// @return true if successful
+    String getFileLine(const String& fileSystemStr, const String& filename, uint32_t startFilePos, uint32_t lineMaxLen, uint32_t& fileCurPos);
 
     // Open file
     FILE* fileOpen(const String& fileSystemStr, const String& filename, bool writeMode, uint32_t seekToPos, bool seekFromEnd = false);
@@ -103,6 +116,9 @@ public:
 
     // Read from file
     uint32_t fileRead(FILE* pFile, uint8_t* pBuf, uint32_t readLen);
+
+    // Read from file
+    SpiramAwareUint8Vector fileRead(FILE* pFile, uint32_t readLen);
 
     // Write to file
     uint32_t fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeLen);

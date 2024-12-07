@@ -133,7 +133,7 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 #ifdef IMPLEMENT_USE_SLOWER_HDLC_BYTEWISE_SEND
         CommsChannelMsg& encodedMsg = msg;
         // Create the message
-        std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricSerialMsg;
+        SpiramAwareUint8Vector ricSerialMsg;
         ricSerialMsg.reserve(msg.getBufLen()+2);
         ricSerialMsg.push_back(msg.getMsgNumber());
         uint8_t protocolDirnByte = ((msg.getMsgTypeCode() & 0x03) << 6) + (msg.getProtocol() & 0x3f);

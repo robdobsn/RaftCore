@@ -13,6 +13,7 @@
 #include "Logger.h"
 #include "RaftArduino.h"
 #include "RaftRetCode.h"
+#include "SpiramAwareAllocator.h"
 
 namespace Raft
 {
@@ -389,8 +390,27 @@ namespace Raft
     /// @brief Get a hex string from byte array
     /// @param pBuf Pointer to the byte array
     /// @param bufLen Length of the byte array
+    /// @param sep Separator between bytes
+    /// @param offset Offset into the buffer
+    /// @param maxBytes Maximum number of bytes to include (-1 for all)
     /// @return Hex string
-    String getHexStr(const uint8_t* pBuf, uint32_t bufLen);
+    String getHexStr(const uint8_t* pBuf, uint32_t bufLen, const char* pSep = "", uint32_t offset = 0, int maxBytes = -1);
+
+    /// @brief Get a hex string from a uint8_t vector
+    /// @param inVec Input vector
+    /// @param sep Separator between bytes
+    /// @param offset Offset into the vector
+    /// @param maxBytes Maximum number of bytes to include (-1 for all)
+    /// @return Hex string
+    String getHexStr(const std::vector<uint8_t>& inVec, const char* pSep = "", uint32_t offset = 0, int maxBytes = -1);
+
+    /// @brief Get a hex string from a SpiramAwareUint8Vector
+    /// @param inVec Input vector
+    /// @param sep Separator between bytes
+    /// @param offset Offset into the vector
+    /// @param maxBytes Maximum number of bytes to include (-1 for all)
+    /// @return Hex string
+    String getHexStr(const SpiramAwareUint8Vector& inVec, const char* pSep = "", uint32_t offset = 0, int maxBytes = -1);
 
     /// @brief Get a zero padded hex string from uint32_t value
     /// @param val Value to convert
@@ -415,7 +435,9 @@ namespace Raft
     /// @param bufLen Length of the byte array
     /// @param outStr String to receive the hex string
     /// @param separator Separator between bytes
-    void hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* separator = "");
+    /// @param offset Offset into the buffer
+    /// @param maxBytes Maximum number of bytes to include (-1 for all)
+    void hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* separator = "", uint32_t offset = 0, int maxBytes = -1);
 
     /// @brief Generate a hex string from uInt32 with no space between hex digits (e.g. 55aa55aa, etc)
     /// @param pBuf Pointer to the uint32_t array
@@ -460,6 +482,15 @@ namespace Raft
     /// @param toFindLen Length of the string to find
     /// @return Position in buffer of val or -1 if not found
     int findInBuf(const uint8_t* pBuf, uint32_t bufLen, 
+                const uint8_t* pToFind, uint32_t toFindLen);
+
+    /// @brief Find match in buffer (like strstr for unterminated strings)
+    /// @param buf buffer
+    /// @param offset Offset into the buffer
+    /// @param pToFind Pointer to the string to find
+    /// @param toFindLen Length of the string to find
+    /// @return Position in buffer of val or -1 if not found
+    int findInBuf(const SpiramAwareUint8Vector& buf, uint32_t offset,
                 const uint8_t* pToFind, uint32_t toFindLen);
 
     /// @brief Parse a string into a list of integers

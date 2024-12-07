@@ -83,7 +83,7 @@ bool ProtocolRICJSON::decodeParts(const uint8_t* pData, uint32_t dataLen, uint32
 #ifdef IMPLEMENT_NO_PSRAM_FOR_RIC_JSON
 void ProtocolRICJSON::encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg)
 #else
-void ProtocolRICJSON::encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg)
+void ProtocolRICJSON::encode(CommsChannelMsg& msg, SpiramAwareUint8Vector& outMsg)
 #endif
 {
     // Create the message
@@ -110,7 +110,7 @@ void ProtocolRICJSON::encodeTxMsgAndSend(CommsChannelMsg& msg)
 #ifdef IMPLEMENT_NO_PSRAM_FOR_RIC_JSON
     std::vector<uint8_t> ricJSONMsg;
 #else
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> ricJSONMsg;
+    SpiramAwareUint8Vector ricJSONMsg;
 #endif
     encode(msg, ricJSONMsg);
     msg.setFromBuffer(ricJSONMsg.data(), ricJSONMsg.size());

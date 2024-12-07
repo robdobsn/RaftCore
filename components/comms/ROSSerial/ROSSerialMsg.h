@@ -53,7 +53,7 @@ public:
     bool decode(const uint8_t* pBuf, uint32_t len, uint32_t& actualMsgLen);
     void encode(uint16_t topicId, const uint8_t* pPayload, uint32_t payloadLen, bool append=false);
     void writeRawMsgToVector(std::vector<uint8_t>& rawMsg, bool append);
-    void writeRawMsgToVector(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& rawMsg, bool append);
+    void writeRawMsgToVector(SpiramAwareUint8Vector& rawMsg, bool append);
  
     uint32_t getTopicID()
     {
@@ -78,7 +78,7 @@ private:
     // Vars
     uint8_t _headerChecksum;
     uint16_t _topicID;
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _payload;
+    SpiramAwareUint8Vector _payload;
     uint8_t _payloadChecksum;
 
     // Helpers
