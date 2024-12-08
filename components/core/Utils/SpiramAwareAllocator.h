@@ -11,6 +11,8 @@
 #include "sdkconfig.h"
 #include "esp_heap_caps.h"
 #include "esp_idf_version.h"
+#include <vector>
+#include <string>
 
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
