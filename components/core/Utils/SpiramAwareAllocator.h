@@ -100,3 +100,6 @@ bool operator!=(const SpiramAwareAllocator<U>&, const SpiramAwareAllocator<V>&) 
 
 // Type for SpiramAware vectors
 using SpiramAwareUint8Vector = std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>;
+
+// Type for SpiramAware strings
+using SpiramAwareString = std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>>;

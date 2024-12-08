@@ -1414,6 +1414,16 @@ const char* Raft::getRetCodeStr(RaftRetCode retc)
         case RAFT_BUS_NOT_INIT: return "BUS_NOT_INIT";
         case RAFT_BUS_STUCK: return "BUS_STUCK";
         case RAFT_BUS_SLOT_POWER_UNSTABLE: return "BUS_SLOT_POWER_UNSTABLE";
+        case RAFT_FS_BUSY: return "FS_BUSY";
+        case RAFT_FS_NOT_SETUP: return "FS_NOT_SETUP";
+        case RAFT_FS_FOLDER_NOT_FOUND: return "FS_FOLDER_NOT_FOUND";
+        case RAFT_FS_FILE_NOT_FOUND: return "FS_FILE_NOT_FOUND";
+        case RAFT_FS_FILE_EXISTS: return "FS_FILE_EXISTS";
+        case RAFT_FS_FILE_TOO_BIG: return "FS_FILE_TOO_BIG";
+        case RAFT_FS_FILE_WRITE_ERROR: return "FS_FILE_WRITE_ERROR";
+        case RAFT_FS_FILE_READ_ERROR: return "FS_FILE_READ_ERROR";
+        case RAFT_FS_FILE_OPEN_ERROR: return "FS_FILE_OPEN_ERROR";
+        case RAFT_FS_OTHER_ERROR: return "FS_OTHER_ERROR";
         default: return "UNKNOWN";
     }
 };
