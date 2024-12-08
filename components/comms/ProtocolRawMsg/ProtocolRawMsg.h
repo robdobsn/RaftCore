@@ -25,6 +25,11 @@ public:
         _cmdVector.assign(pBuf, pBuf+bufLen);
     }
 
+    ProtocolRawMsg(const SpiramAwareUint8Vector& msg)
+    {
+        _cmdVector = msg;
+    }
+
     void clear()
     {
         _cmdVector.resize(0);

@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "SimpleBuffer.h"
+#include "SpiramAwareAllocator.h"
 
 // Compilation controls
 #define HDLC_USE_STD_FUNCTION_AND_BIND
@@ -150,6 +151,7 @@ public:
     }
     static uint16_t crcUpdateCCITT(unsigned short fcs, unsigned char value);
     static uint16_t crcUpdateCCITT(unsigned short fcs, const unsigned char* pBuf, unsigned bufLen);
+    static uint16_t crcUpdateCCITT(unsigned short fcs, const SpiramAwareUint8Vector& buf);
 
     // Calculate encoded length for payload
     uint32_t calcEncodedPayloadLen(const uint8_t *pFrame, uint32_t frameLen);

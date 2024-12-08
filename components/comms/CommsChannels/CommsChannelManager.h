@@ -46,6 +46,7 @@ public:
     
     // Handle channel message
     virtual void inboundHandleMsg(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen) override final;
+    virtual void inboundHandleMsgVec(uint32_t channelID, const SpiramAwareUint8Vector& msg) override final;
 
     // Get max inbound message size
     virtual uint32_t inboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize) override final;
