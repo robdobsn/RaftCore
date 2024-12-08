@@ -928,6 +928,39 @@ uint32_t FileSystem::fileRead(FILE* pFile, uint8_t* pBuf, uint32_t readLen)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Read from file
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
+{
+    // Ensure valid
+    if (!pFile)
+    {
+        LOG_W(MODULE_PREFIX, "fileRead filePtr null");
+        return SpiramAwareUint8Vector();
+    }
+
+    // Take mutex
+    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+        return SpiramAwareUint8Vector();
+
+    // Read
+    SpiramAwareUint8Vector fileData;
+    fileData.resize(readLen);
+    uint32_t lenRead = fread((char*)fileData.data(), 1, fileData.size(), pFile);
+
+    // Release mutex
+    xSemaphoreGive(_fileSysMutex);
+
+    // Check for error
+    if (lenRead == 0)
+        return SpiramAwareUint8Vector();
+    else if (lenRead < readLen)
+        fileData.resize(lenRead);
+    return fileData;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Write to file
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
