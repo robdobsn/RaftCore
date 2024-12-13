@@ -16,12 +16,12 @@
 #include "RaftJsonPrefixed.h"
 
 // Forward declarations
-class SysManager;
 class RestAPIEndpointManager;
 class CommsCoreIF;
 class CommsChannelMsg;
 class SupervisorStats;
 class FileStreamBlock;
+class SysManager;
 
 // Status change callback function type
 typedef std::function<void(const String& sourceName, bool changeToOnline)> SysMod_statusChangeCB;
@@ -242,6 +242,7 @@ public:
     // Set log level of module
     static void setModuleLogLevel(const char* pModuleName, const String& logLevel)
     {
+#ifdef ESP_PLATFORM
         if (logLevel.startsWith("N"))
             esp_log_level_set(pModuleName, ESP_LOG_NONE);
         else if (logLevel.startsWith("E"))
@@ -254,6 +255,7 @@ public:
             esp_log_level_set(pModuleName, ESP_LOG_DEBUG);
         else if (logLevel.startsWith("V"))
             esp_log_level_set(pModuleName, ESP_LOG_VERBOSE);
+#endif
     }
 
 protected:

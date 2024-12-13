@@ -11,11 +11,8 @@
 
 #include <list>
 #include <string>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "RaftArduino.h"
 #include "RaftUtils.h"
+#include "RaftThreading.h"
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
 
@@ -155,7 +152,7 @@ private:
     CachedFileSystem _localFsCache;
 
     // Mutex controlling access to file system
-    SemaphoreHandle_t _fileSysMutex = nullptr;
+    RaftMutex _fileSysMutex;
 
     // File system partition name
     String _fsPartitionName;

@@ -8,11 +8,14 @@
 
 #pragma once
 
+#include <cstddef>
+
+#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+
 #include "sdkconfig.h"
 #include "esp_heap_caps.h"
 #include "esp_idf_version.h"
 
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -88,7 +91,11 @@ public:
             return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 #endif
 #endif
+#ifdef ESP_PLATFORM
         return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+#else
+        return UINT32_MAX;
+#endif
     }
 };
 

@@ -11,6 +11,8 @@
 #include <list>
 #include "Logger.h"
 #include "RaftJsonNVS.h"
+
+#ifdef ESP_PLATFORM
 #include "nvs_flash.h"
 #include "esp_idf_version.h"
 
@@ -389,3 +391,5 @@ bool RaftJsonNVS::initNVS(bool eraseIfCorrupt)
     }
     return nvsInitResult == ESP_OK;
 }
+
+#endif // ESP_PLATFORM

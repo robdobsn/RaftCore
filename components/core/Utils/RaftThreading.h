@@ -1,8 +1,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// RaftUtils
+// RaftThreading
 //
-// Rob Dobson 2012-2023
+// Rob Dobson 2012-2024
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +18,7 @@ extern "C" {
     #define RAFT_THREAD_CPP_INIT
 #endif
 
+#include <stdint.h>
 #include <stdbool.h>
 
 // Platform-independent thread handle and mutex definitions
@@ -26,55 +27,52 @@ extern "C" {
     // MicroPython platform
     #include "py/mpthread.h"
 
+    // Mutex functions
+    // MicroPython platform
+    #include "py/mpthread.h"
+
     typedef struct {
         mp_thread_mutex_t mutex RAFT_THREAD_CPP_INIT;
     } RaftMutex;
 
-    typedef struct {
-        TaskHandle_t task_handle RAFT_THREAD_CPP_INIT;
-        const char* pTaskName RAFT_THREAD_CPP_INIT;
-        size_t stackSize RAFT_THREAD_CPP_INIT;
-        int taskPriority RAFT_THREAD_CPP_INIT;
-        int taskCore RAFT_THREAD_CPP_INIT;
-        bool pinToCore RAFT_THREAD_CPP_INIT;
-        void *pArg RAFT_THREAD_CPP_INIT;    // Argument to pass to the thread
-    } RaftThreadConfig;
-
-    typedef struct {
-        void *stack RAFT_THREAD_CPP_INIT; // stack size
-        size_t stack_size RAFT_THREAD_CPP_INIT;
-        void *arg RAFT_THREAD_CPP_INIT;  // Argument to pass to the thread
-    } RaftThreadConfig;
-
     // Mutex functions
-    void RaftMutex_init(RaftMutex *mutex)
+    void RaftMutex_init(RaftMutex &mutex)
     {
-        if (mutex)
-            mp_thread_mutex_init(&mutex->mutex);
+        mp_thread_mutex_init(&mutex.mutex);
     }
-    bool RaftMutex_lock(RaftMutex *mutex, uint16_t timeout_ms)
+    bool RaftMutex_lock(RaftMutex &mutex, uint32_t timeout_ms)
     {
-        if (mutex)
-            return mp_thread_mutex_lock(&mutex->mutex, timeout_ms != 0) != 0;
-        return false;
+        return mp_thread_mutex_lock(&mutex.mutex, timeout_ms != 0) != 0;
     }
-    void RaftMutex_unlock(RaftMutex *mutex)
+    void RaftMutex_unlock(RaftMutex &mutex)
     {
-        if (mutex)
-            mp_thread_mutex_unlock(&mutex->mutex);
+        mp_thread_mutex_unlock(&mutex.mutex);
     }
-    void RaftMutex_destroy(RaftMutex *mutex)
+    void RaftMutex_destroy(RaftMutex &mutex)
     {
+        // No specific destroy action required in MicroPython
     }
+
+    typedef mp_uint_t RaftThreadHandle;
 
     // Thread functions
-    bool RaftThread_start(void (*thread_func)(void *), RaftThreadConfig *config)
+    bool RaftThread_start(
+        RaftThreadHandle& taskHandle,
+        void (*pThreadFn)(void *), 
+        void* pArg,
+        size_t stackSize = 0, 
+        const char* pTaskName = nullptr, 
+        int taskPriority = 0, 
+        int taskCore = 0, 
+        bool pinToCore = false)
     {
-        return mp_thread_create(thread_func, config->arg, config->stack_size, config->stack);
-    }
+        size_t stackSizeVar = stackSize;
+        taskHandle = mp_thread_create(pThreadFn, pArg, &stackSizeVar);
+        return true;
+    }   
     void RaftThread_sleep(uint32_t ms)
     {
-        mp_thread_sleep(ms);
+        mp_hal_delay_ms(ms);
     }
 
 #elif defined(FREERTOS_CONFIG_H) || defined(FREERTOS_H) || defined(ESP_PLATFORM)
@@ -83,75 +81,136 @@ extern "C" {
     #include "freertos/FreeRTOS.h"
     #include "freertos/task.h"
     #include "freertos/semphr.h"
-
     typedef struct {
         SemaphoreHandle_t mutex RAFT_THREAD_CPP_INIT;
     } RaftMutex;
 
-    typedef struct {
-        TaskHandle_t task_handle RAFT_THREAD_CPP_INIT;
-        const char* pTaskName RAFT_THREAD_CPP_INIT;
-        size_t stackSize RAFT_THREAD_CPP_INIT;
-        int taskPriority RAFT_THREAD_CPP_INIT;
-        int taskCore RAFT_THREAD_CPP_INIT;
-        bool pinToCore RAFT_THREAD_CPP_INIT;
-        void *pArg RAFT_THREAD_CPP_INIT;    // Argument to pass to the thread
-    } RaftThreadConfig;
-
     // Mutex functions
-    void RaftMutex_init(RaftMutex *mutex)
+    void RaftMutex_init(RaftMutex &mutex)
     {
-        if (mutex)
-            mutex->mutex = xSemaphoreCreateMutex();
+        mutex.mutex = xSemaphoreCreateMutex();
     }
-    bool RaftMutex_lock(RaftMutex *mutex, uint16_t timeout_ms)
+    bool RaftMutex_lock(RaftMutex &mutex, uint32_t timeout_ms)
     {
-        if (mutex && mutex->mutex)
-            return xSemaphoreTake(mutex->mutex, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
-        return false;
+        return xSemaphoreTake(mutex.mutex, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
     }
-    void RaftMutex_unlock(RaftMutex *mutex)
+    void RaftMutex_unlock(RaftMutex &mutex)
     {
-        if (mutex && mutex->mutex)
-            xSemaphoreGive(mutex->mutex);
+        xSemaphoreGive(mutex.mutex);
     }
-    void RaftMutex_destroy(RaftMutex *mutex)
+    void RaftMutex_destroy(RaftMutex &mutex)
     {
-        if (mutex && mutex->mutex)
-            vSemaphoreDelete(mutex->mutex);
+        if (mutex.mutex)
+            vSemaphoreDelete(mutex.mutex);
     }
 
+    typedef TaskHandle_t RaftThreadHandle;
+    
     // Thread functions
-    bool RaftThread_start(void (*pThreadFunc)(void *), RaftThreadConfig *pConfig)
+    bool RaftThread_start(
+        RaftThreadHandle& taskHandle,
+        void (*pThreadFn)(void *), 
+        void* pArg,
+        size_t stackSize = 0, 
+        const char* pTaskName = nullptr, 
+        int taskPriority = 0, 
+        int taskCore = 0, 
+        bool pinToCore = false
     {
-        // TODO - shouldn't store the handle in the config
-        //       should return it from the create function probably
-        //       or store it in a separate struct
-        if (!pConfig)
-            return false;
-        if (pConfig->pinToCore)
-            return xTaskCreatePinnedToCore(pThreadFunc, 
-                pConfig->pTaskName, 
-                pConfig->stackSize, 
-                pConfig->pArg, 
-                pConfig->pTaskPriority, 
-                &pConfig->task_handle,
-                pConfig->taskCore) == pdPASS;
-        else
-            return xTaskCreate(pThreadFunc, 
-                pConfig->pTaskName, 
-                pConfig->stackSize, 
-                pConfig->pArg, 
-                pConfig->pTaskPriority, 
-                &pConfig->task_handle) == pdPASS;
-
+        if (pinToCore)
+        {
+            return (xTaskCreatePinnedToCore(pThreadFn, 
+                pTaskName, 
+                stackSize, 
+                pArg, 
+                taskPriority, 
+                &taskHandle,
+                taskCore) == pdPASS;
+        }
+        return (xTaskCreate(pThreadFn, 
+            pTaskName, 
+            stackSize, 
+            pArg, 
+            taskPriority, 
+            &taskHandle) == pdPASS;
     }
     void RaftThread_sleep(uint32_t ms)
     {
         vTaskDelay(pdMS_TO_TICKS(ms));
     }
 
+#elif defined(__linux__)
+
+    // Linux platform using pthread
+    #include <pthread.h>
+    #include <semaphore.h>
+    #include <time.h>
+    #include <unistd.h>
+
+
+    typedef struct {
+        pthread_mutex_t mutex RAFT_THREAD_CPP_INIT;
+    } RaftMutex;
+
+    // Mutex functions
+    void RaftMutex_init(RaftMutex &mutex)
+    {
+        pthread_mutex_init(&mutex.mutex, NULL);
+    }
+    bool RaftMutex_lock(RaftMutex &mutex, uint32_t timeout_ms)
+    {
+        if (timeout_ms == 0) {
+            return pthread_mutex_trylock(&mutex.mutex) == 0;
+        } else if (timeout_ms == UINT16_MAX) {
+            return pthread_mutex_lock(&mutex.mutex) == 0;
+        } else {
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += timeout_ms / 1000;
+            ts.tv_nsec += (timeout_ms % 1000) * 1000000;
+            if (ts.tv_nsec >= 1000000000) {
+                ts.tv_sec++;
+                ts.tv_nsec -= 1000000000;
+            }
+            return pthread_mutex_timedlock(&mutex.mutex, &ts) == 0;
+        }
+    }
+    void RaftMutex_unlock(RaftMutex &mutex)
+    {
+        pthread_mutex_unlock(&mutex.mutex);
+    }
+    void RaftMutex_destroy(RaftMutex &mutex)
+    {
+        pthread_mutex_destroy(&mutex.mutex);
+    }
+
+    typedef pthread_t RaftThreadHandle;
+
+    // Thread functions
+    bool RaftThread_start(
+        RaftThreadHandle& taskHandle,
+        void (*pThreadFn)(void *), 
+        void* pArg,
+        size_t stackSize = 0, 
+        const char* pTaskName = nullptr, 
+        int taskPriority = 0, 
+        int taskCore = 0, 
+        bool pinToCore = false
+    )
+    {
+        return pthread_create(&taskHandle, NULL, (void *(*)(void *))pThreadFn, pArg) == 0;
+    }
+    void RaftThread_sleep(uint32_t ms)
+    {
+        usleep(ms * 1000); // Convert milliseconds to microseconds
+    }
+
+#else
+
+    #error "Unsupported platform for RaftThreading"
+
 #endif
+
 
 #ifdef __cplusplus
 }

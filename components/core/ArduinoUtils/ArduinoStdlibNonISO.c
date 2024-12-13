@@ -28,7 +28,10 @@
 #include <stdint.h>
 #include <math.h>
 #include "ArduinoStdlibNonISO.h"
+
+#ifdef ESP_PLAFORM
 #include "esp_system.h"
+#endif // ESP_PLATFORM
 
 static void reverse(char* begin, char* end) {
     char *is = begin;

@@ -8,15 +8,10 @@
 
 #pragma once
 
-#include "RaftUtils.h"
-#include "RaftJson.h"
-#include "RaftBusConsts.h"
+#include "RaftCore.h"
 #include "DeviceTypeRecord.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DevicePollingInfo.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecords
@@ -25,6 +20,7 @@ class DeviceTypeRecords
 {
 public:
     DeviceTypeRecords();
+    ~DeviceTypeRecords();
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type for address
@@ -121,7 +117,7 @@ public:
 
 private:
     // Mutex for access to extended device type records
-    SemaphoreHandle_t _extDeviceTypeRecordsMutex;
+    mutable RaftMutex _extDeviceTypeRecordsMutex;
 
     // Flag indicating if any extended records have been added - since this is set only once and
     // never cleared it is used to avoid taking the mutex in the common case where no extended records

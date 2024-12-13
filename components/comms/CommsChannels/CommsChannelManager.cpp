@@ -548,7 +548,7 @@ void CommsChannelManager::ensureProtocolCodecExists(uint32_t channelID)
     }
 
     // Debug
-    LOG_W(MODULE_PREFIX, "No suitable codec found for protocol %s map entries %d", channelProtocol.c_str(), _protocolCodecFactoryList.size());
+    LOG_W(MODULE_PREFIX, "No suitable codec found for protocol %s map entries %d", channelProtocol.c_str(), (int)_protocolCodecFactoryList.size());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

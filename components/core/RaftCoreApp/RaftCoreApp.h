@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// RaftApp - standardised app using Raft
+// RaftCoreApp - standardised app using Raft
 //
 // Rob Dobson 2024
 //
@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include "SysManager.h"
 #include "SysTypeManager.h"
 #include "CommsChannelManager.h"
 #include "ProtocolExchange.h"
 #include "DeviceManager.h"
+#include "SysManager.h"
 
 class RaftCoreApp
 {

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <ArduinoWString.h>
 class NamedValueProvider
 {
 public:

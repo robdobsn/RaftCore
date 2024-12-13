@@ -10,9 +10,8 @@
 
 #include <stdint.h>
 #include <vector>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
+#include <RaftThreading.h>
+#include <cstring>
 
 class PollDataAggregator
 {
@@ -20,7 +19,12 @@ public:
     PollDataAggregator()
     {
         // Access semaphore
-        _accessMutex = xSemaphoreCreateMutex();
+        RaftMutex_init(_accessMutex);
+    }
+
+    ~PollDataAggregator()
+    {
+        RaftMutex_destroy(_accessMutex);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -41,11 +45,11 @@ public:
     void clear()
     {
         // Obtain access
-        if (xSemaphoreTake(_accessMutex, portMAX_DELAY) != pdTRUE)
+        if (!RaftMutex_lock(_accessMutex, UINT32_MAX))
             return;
         _ringBufHeadOffset = 0;
         _ringBufCount = 0;
-        xSemaphoreGive(_accessMutex);
+        RaftMutex_unlock(_accessMutex);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -58,7 +62,7 @@ public:
             return false;
 
         // Obtain access
-        if (xSemaphoreTake(_accessMutex, portMAX_DELAY) != pdTRUE)
+        if (!RaftMutex_lock(_accessMutex, UINT32_MAX))
             return false;
 
         // Add data
@@ -77,7 +81,7 @@ public:
         _latestValueIsNew = true;
 
         // Release access
-        xSemaphoreGive(_accessMutex);
+        RaftMutex_unlock(_accessMutex);
         return true;
     }
 
@@ -91,7 +95,7 @@ public:
         data.clear();
 
         // Obtain access
-        if (xSemaphoreTake(_accessMutex, portMAX_DELAY) != pdTRUE)
+        if (!RaftMutex_lock(_accessMutex, UINT32_MAX))
             return false;
 
         // Check if buffer empty
@@ -110,7 +114,7 @@ public:
         }
 
         // Release access
-        xSemaphoreGive(_accessMutex);
+        RaftMutex_unlock(_accessMutex);
         return dataAvailble;
     }
 
@@ -126,7 +130,7 @@ public:
         data.clear();
 
         // Obtain access
-        if (xSemaphoreTake(_accessMutex, portMAX_DELAY) != pdTRUE)
+        if (!RaftMutex_lock(_accessMutex, UINT32_MAX))
             return 0;
 
         // Num responses to return
@@ -137,7 +141,7 @@ public:
         if (numResponsesToReturn == 0)
         {
             // Release access
-            xSemaphoreGive(_accessMutex);
+            RaftMutex_unlock(_accessMutex);
             return 0;
         }
 
@@ -165,7 +169,7 @@ public:
         _ringBufCount -= numResponsesToReturn;
 
         // Release access
-        xSemaphoreGive(_accessMutex);
+        RaftMutex_unlock(_accessMutex);
         return numResponsesToReturn;
     }
 
@@ -174,15 +178,13 @@ public:
     uint32_t count() const
     {
         // Obtain access
-        if (!_accessMutex)
-            return 0;
-        if (xSemaphoreTake(_accessMutex, portMAX_DELAY) != pdTRUE)
+        if (!RaftMutex_lock(_accessMutex, UINT32_MAX))
             return 0;
 
         uint32_t resultCount = _ringBufCount;
 
         // Release access
-        xSemaphoreGive(_accessMutex);
+        RaftMutex_unlock(_accessMutex);
         return resultCount;
     }
 
@@ -193,7 +195,7 @@ public:
     bool getLatestValue(uint64_t& dataTimeUs, std::vector<uint8_t>& data)
     {
         // Obtain access
-        if (!_accessMutex || (xSemaphoreTake(_accessMutex, portMAX_DELAY) != pdTRUE))
+        if (!RaftMutex_lock(_accessMutex, UINT32_MAX))
             return false;
 
         // Check if data is new
@@ -203,7 +205,7 @@ public:
         _latestValueIsNew = false;
 
         // Release access
-        xSemaphoreGive(_accessMutex);
+        RaftMutex_unlock(_accessMutex);
 
         // Return data
         return dataNew;
@@ -223,7 +225,7 @@ private:
     bool _latestValueIsNew = false;
 
     // Access mutex
-    SemaphoreHandle_t _accessMutex = nullptr;
+    mutable RaftMutex _accessMutex;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "PollDataAgg";
