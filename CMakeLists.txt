@@ -48,62 +48,74 @@ set(RAFT_CORE_SOURCE_FILES
     components/core/SysMod/RaftSysMod.cpp
     components/core/SysTypes/SysTypeManager.cpp
     components/core/Utils/PlatformUtils.cpp
+    components/core/Utils/RaftThreading.cpp
     components/core/Utils/RaftUtils.cpp
 )
 
 # Set include directories
 set(RAFT_CORE_INCLUDE_DIRS
-    components
-    components/comms/CommsBridgeMsg
-    components/comms/CommsChannels
-    components/comms/CommsChannelMsg
-    components/comms/CommsCoreIF
-    components/comms/FileStreamProtocols
-    components/comms/ProtocolBase
-    components/comms/ProtocolExchange
-    components/comms/ProtocolOverAscii
-    components/comms/ProtocolRawMsg
-    components/comms/ProtocolRICFrame
-    components/comms/ProtocolRICJSON
-    components/comms/ProtocolRICSerial
-    components/comms/RICRESTMsg
-    components/comms/ROSSerial
-    components/core/APICommon
-    components/core/ArduinoUtils
-    components/core/Bus
-    components/core/ConfigPinMap
-    components/core/DebounceButton
-    components/core/DebugGlobals
-    components/core/DeviceManager
-    components/core/DeviceTypes
-    components/core/ExpressionEval
-    components/core/FileSystem
-    components/core/libb64
-    components/core/Logger
-    components/core/MiniHDLC
-    components/core/MQTT
-    components/core/NamedValueProvider
-    components/core/NetworkSystem
-    components/core/NumericalFilters
-    components/core/RaftDevice
-    components/core/RaftJson
-    components/core/RestAPIEndpoints
-    components/core/RingBuffer
-    components/core/StatusIndicator
-    components/core/SupervisorStats
-    components/core/SysManager
-    components/core/SysMod
-    components/core/SysTypes
-    components/core/ThreadSafeQueue
-    components/core/Utils
+    ./
+    comms/CommsBridgeMsg
+    comms/CommsChannels
+    comms/CommsChannelMsg
+    comms/CommsCoreIF
+    comms/FileStreamProtocols
+    comms/ProtocolBase
+    comms/ProtocolExchange
+    comms/ProtocolOverAscii
+    comms/ProtocolRawMsg
+    comms/ProtocolRICFrame
+    comms/ProtocolRICJSON
+    comms/ProtocolRICSerial
+    comms/RICRESTMsg
+    comms/ROSSerial
+    core/APICommon
+    core/ArduinoUtils
+    core/Bus
+    core/ConfigPinMap
+    core/DebounceButton
+    core/DebugGlobals
+    core/DeviceManager
+    core/DeviceTypes
+    core/ExpressionEval
+    core/FileSystem
+    core/libb64
+    core/Logger
+    core/MiniHDLC
+    core/MQTT
+    core/NamedValueProvider
+    core/NetworkSystem
+    core/NumericalFilters
+    core/RaftDevice
+    core/RaftJson
+    core/RestAPIEndpoints
+    core/RingBuffer
+    core/StatusIndicator
+    core/SupervisorStats
+    core/SysManager
+    core/SysMod
+    core/SysTypes
+    core/ThreadSafeQueue
+    core/Utils
 )
+
+# Function to process include directories for INSTALL_INTERFACE
+function(append_install_interface_prefix src_dirs dest_var prefix)
+    set(transformed_dirs "")
+    foreach(dir IN LISTS ${src_dirs})
+        string(REPLACE "./" "" dir "${dir}") # Remove leading "./"
+        list(APPEND transformed_dirs "${prefix}/${dir}")
+    endforeach()
+    set(${dest_var} "${transformed_dirs}" PARENT_SCOPE)
+endfunction()
+
 
 # Set the build artifacts directory
 set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
 file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
 # Define the project
-project(RaftCore LANGUAGES C CXX)
+project(RaftCore VERSION 1.0.0 LANGUAGES C CXX)
 
 # Find Python
 find_package(Python3 REQUIRED)
@@ -131,14 +143,82 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   set(CMAKE_CXX_STANDARD 20)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-  # Linux-specific configurations
+  # Process include directories for BUILD_INTERFACE
+  append_install_interface_prefix(
+    "RAFT_CORE_INCLUDE_DIRS"   # Source list
+    "RAFT_CORE_BUILD_INCLUDE_DIRS"   # Output variable
+    "components"
+  )
+
+  # Define the interface target for include paths
+  add_library(RaftCoreIncludes INTERFACE)
+  target_include_directories(RaftCoreIncludes INTERFACE
+    $<BUILD_INTERFACE:${RAFT_CORE_BUILD_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${RAFT_BUILD_ARTIFACTS_FOLDER}>
+  )
+
+  foreach(dir IN LISTS RAFT_CORE_INCLUDE_DIRS)
+    target_include_directories(RaftCoreIncludes INTERFACE
+        $<INSTALL_INTERFACE:include/RaftCore/${dir}>
+    )
+  endforeach()
+
+  # Add -fPIC for static library compilation
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+  # Define the main RaftCore library
   add_library(RaftCore STATIC ${RAFT_CORE_SOURCE_FILES})
-  target_include_directories(RaftCore PRIVATE ${RAFT_CORE_INCLUDE_DIRS} ${RAFT_BUILD_ARTIFACTS_FOLDER})
-  target_link_libraries(RaftCore PRIVATE pthread)
+  target_link_libraries(RaftCore PUBLIC RaftCoreIncludes)
+
+  # Set up installation paths
+  install(TARGETS RaftCore RaftCoreIncludes
+      EXPORT RaftCoreTargets
+      ARCHIVE DESTINATION lib
+      LIBRARY DESTINATION lib
+      RUNTIME DESTINATION bin
+      INCLUDES DESTINATION include/RaftCore
+  )
+
+  # Install include files
+  install(DIRECTORY components/
+      DESTINATION include/RaftCore
+      FILES_MATCHING PATTERN "*.h"
+  )
+
+  # Install generated headers
+  install(DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}/
+    DESTINATION include/RaftCore
+  )
+
+  # Export the project configuration for find_package()
+  install(EXPORT RaftCoreTargets
+      FILE RaftCoreConfig.cmake
+      NAMESPACE RaftCore::
+      DESTINATION lib/cmake/RaftCore
+  )
+
+  # Create a ConfigVersion file for compatibility
+  include(CMakePackageConfigHelpers)
+  write_basic_package_version_file(
+      "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
+      VERSION ${PROJECT_VERSION}
+      COMPATIBILITY SameMajorVersion
+  )
+
+  install(FILES
+      "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
+      DESTINATION lib/cmake/RaftCore
+  )
+
+  # Add the target to the build system
+  export(TARGETS RaftCore RaftCoreIncludes
+      NAMESPACE RaftCore::
+      FILE "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreTargets.cmake"
+  )
 
   # Add dependencies
   add_dependencies(RaftCore generate_dev_ident_header)
-  
+
 else()
   # ESP-IDF-specific configurations
   idf_component_register(

@@ -29,4 +29,7 @@
 #include "LEDPixels.h"
 #include "RaftMQTTClient.h"
 #include "RaftCoreApp.h"
+#define FUNCTION_DECORATOR_IRAM_ATTR IRAM_ATTR
+#else
+#define FUNCTION_DECORATOR_IRAM_ATTR
 #endif

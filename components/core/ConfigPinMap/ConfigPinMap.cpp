@@ -131,7 +131,8 @@ void ConfigPinMap::configMultiple(RaftJsonIF& config, PinDef* pPinDefs, int numP
                         pPinDefs[defIdx]._pinMode, deinit);
 #endif
 
-        // Check for deinit
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+        // Check option
         if (deinit)
         {
             pinMode(pinNumber, INPUT);
@@ -144,6 +145,8 @@ void ConfigPinMap::configMultiple(RaftJsonIF& config, PinDef* pPinDefs, int numP
             if (pPinDefs[defIdx]._pinMode == GPIO_OUTPUT)
                 digitalWrite(pinNumber, pPinDefs[defIdx]._initialLevel);
         }
+#endif
+
         // Store accordingly
         pPinDefs[defIdx]._pinNumber = pinNumber;
         if (pPinDefs[defIdx]._pPinNumber != NULL)
