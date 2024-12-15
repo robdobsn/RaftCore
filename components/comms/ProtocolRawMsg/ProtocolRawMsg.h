@@ -25,6 +25,11 @@ public:
         _cmdVector.assign(pBuf, pBuf+bufLen);
     }
 
+    ProtocolRawMsg(const SpiramAwareUint8Vector& msg)
+    {
+        _cmdVector = msg;
+    }
+
     void clear()
     {
         _cmdVector.resize(0);
@@ -61,7 +66,7 @@ public:
 #ifdef IMPLEMENT_NO_PSRAM_FOR_PROTOCOL_RAW_MSG
     std::vector<uint8_t>& getCmdVector()
 #else
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& getCmdVector()
+    SpiramAwareUint8Vector& getCmdVector()
 #endif
     {
         return _cmdVector;
@@ -71,6 +76,6 @@ private:
 #ifdef IMPLEMENT_NO_PSRAM_FOR_PROTOCOL_RAW_MSG
     std::vector<uint8_t> _cmdVector;
 #else
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _cmdVector;
+    SpiramAwareUint8Vector _cmdVector;
 #endif
 };

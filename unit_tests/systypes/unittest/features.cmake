@@ -7,3 +7,7 @@ add_compile_definitions(SYSTEM_VERSION="1.0.0")
 # Raft components
 set(RAFT_COMPONENTS
 )
+
+# File system
+set(FS_TYPE "littlefs")
+set(FS_IMAGE_PATH "../unittest/FSImage")

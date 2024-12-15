@@ -200,10 +200,10 @@ void SysManager::postSetup()
                 "HW revision");
         _pRestAPIEndpointManager->addEndpoint("testsetloopdelay", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiTestSetLoopDelay, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                "Set a loop delay to test resilience, e.g. ?delayMs=10&skipCount=1, applies 10ms delay to alternate loops");
+                "Set loop delay, e.g. ?delayMs=10&skipCount=1, 10ms delay alternately");
         _pRestAPIEndpointManager->addEndpoint("sysman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiSysManSettings, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                "Set SysMan settings, e.g. sysman?interval=2&rxBuf=10240");
+                "Set SysMan, e.g. sysman?interval=2&rxBuf=10240");
     }
 
     // Short delay here to allow logging output to complete as some hardware configurations

@@ -442,6 +442,32 @@ char* FileSystem::readLineFromFile(char* pBuf, int maxLen, FILE* pFile)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Read line from file
+/// @param pFile File pointer
+/// @param maxLen Maximum length of line
+/// @return String containing line
+String FileSystem::readLineFromFile(FILE* pFile, int maxLen)
+{
+    // Build the string
+    String lineStr;
+    int curLen = 0;
+    while (true)
+    {
+        if (curLen >= maxLen-1)
+            return lineStr;
+        int ch = fgetc(pFile);
+        if (ch == EOF)
+            return lineStr;
+        if (ch == '\n')
+            return lineStr;
+        if (ch == '\r')
+            continue;
+        lineStr += (char)ch;
+        curLen++;
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get file name extension
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -621,6 +647,56 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a section of a file
+/// @param fileSystemStr File system string
+/// @param filename Filename
+/// @param sectionStart Start position in file
+/// @param sectionLen Length of section to read
+/// @param readLen Length actually read
+/// @return true if successful
+SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, const String& filename, uint32_t sectionStart, uint32_t sectionLen)
+{
+    // Check file system supported
+    String nameOfFS;
+    if (!checkFileSystem(fileSystemStr, nameOfFS))
+    {
+        LOG_W(MODULE_PREFIX, "getFileSection %s invalid file system %s", filename.c_str(), fileSystemStr.c_str());
+        return SpiramAwareUint8Vector();
+    }
+
+    // Take mutex
+    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+        return SpiramAwareUint8Vector();
+
+    // Open file
+    String rootFilename = getFilePath(nameOfFS, filename);
+    FILE* pFile = fopen(rootFilename.c_str(), "rb");
+    if (!pFile)
+    {
+        xSemaphoreGive(_fileSysMutex);
+        LOG_W(MODULE_PREFIX, "getFileSection failed to open file to read %s", rootFilename.c_str());
+        return SpiramAwareUint8Vector();
+    }
+
+    // Move to appropriate place in file
+    fseek(pFile, sectionStart, SEEK_SET);
+
+    // Read
+    SpiramAwareUint8Vector fileData;
+    fileData.resize(sectionLen);
+    int readLen = fread((char*)fileData.data(), 1, fileData.size(), pFile);
+    fclose(pFile);
+    xSemaphoreGive(_fileSysMutex);
+
+    // Return data
+    if (readLen <= 0)
+        return SpiramAwareUint8Vector();
+    else if (readLen < fileData.size())
+        fileData.resize(readLen);
+    return fileData;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get a line from a text file
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -664,6 +740,56 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
 
     // Ok if we got something
     return pReadLine != NULL;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a line from a text file
+/// @param fileSystemStr File system string
+/// @param filename Filename
+/// @param startFilePos Start position in file
+/// @param pBuf Buffer to read into
+/// @param lineMaxLen Maximum length of line
+/// @param fileCurPos Current position in file
+/// @return true if successful
+String FileSystem::getFileLine(const String& fileSystemStr, const String& filename, uint32_t startFilePos, uint32_t lineMaxLen, uint32_t& fileCurPos)
+{
+    // Check file system supported
+    String nameOfFS;
+    if (!checkFileSystem(fileSystemStr, nameOfFS))
+    {
+        LOG_W(MODULE_PREFIX, "getFileLine %s invalid file system %s", filename.c_str(), fileSystemStr.c_str());
+        return "";
+    }
+
+    // Take mutex
+    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+        return "";
+
+    // Open file for text reading
+    String rootFilename = getFilePath(nameOfFS, filename);
+    FILE* pFile = fopen(rootFilename.c_str(), "r");
+    if (!pFile)
+    {
+        xSemaphoreGive(_fileSysMutex);
+        LOG_W(MODULE_PREFIX, "getFileLine failed to open file to read %s", rootFilename.c_str());
+        return "";
+    }
+
+    // Move to appropriate place in file
+    fseek(pFile, startFilePos, SEEK_SET);
+
+    // Read line
+    String line = readLineFromFile(pFile, lineMaxLen);
+
+    // Record final
+    fileCurPos = ftell(pFile);
+
+    // Close
+    fclose(pFile);
+    xSemaphoreGive(_fileSysMutex);
+
+    // Return line
+    return line;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -799,6 +925,39 @@ uint32_t FileSystem::fileRead(FILE* pFile, uint8_t* pBuf, uint32_t readLen)
     // Release mutex
     xSemaphoreGive(_fileSysMutex);
     return lenRead;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Read from file
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
+{
+    // Ensure valid
+    if (!pFile)
+    {
+        LOG_W(MODULE_PREFIX, "fileRead filePtr null");
+        return SpiramAwareUint8Vector();
+    }
+
+    // Take mutex
+    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+        return SpiramAwareUint8Vector();
+
+    // Read
+    SpiramAwareUint8Vector fileData;
+    fileData.resize(readLen);
+    uint32_t lenRead = fread((char*)fileData.data(), 1, fileData.size(), pFile);
+
+    // Release mutex
+    xSemaphoreGive(_fileSysMutex);
+
+    // Check for error
+    if (lenRead == 0)
+        return SpiramAwareUint8Vector();
+    else if (lenRead < readLen)
+        fileData.resize(lenRead);
+    return fileData;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

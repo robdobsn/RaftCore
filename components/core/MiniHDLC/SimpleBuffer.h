@@ -79,7 +79,7 @@ private:
 #ifdef IMPLEMENT_NO_PSRAM_FOR_HDLC_BUFFERS
     std::vector<uint8_t> _buffer;
 #else
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _buffer;
+    SpiramAwareUint8Vector _buffer;
 #endif
     unsigned _bufMaxLen;
 };

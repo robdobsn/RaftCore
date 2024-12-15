@@ -153,7 +153,7 @@ bool ESP32RMTLedStrip::initRMTPeripheral()
     // Check if busy
     if (_isInit || _txInProgress)
     {
-        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED already init or busy");
+        LOG_E(MODULE_PREFIX, "initRMT FAIL reinit|busy");
         return false;
     }
 
@@ -161,14 +161,14 @@ bool ESP32RMTLedStrip::initRMTPeripheral()
     esp_err_t err = rmt_new_tx_channel(&_rmtChannelConfig, &_rmtChannelHandle);
     if (err != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_new_tx_channel error %d", err);
+        LOG_E(MODULE_PREFIX, "initRMT FAIL newCh %d", err);
         return false;
     }
 
     err = rmt_new_led_strip_encoder(&_ledStripEncoderConfig, &_ledStripEncoderHandle);
     if (err != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_new_led_strip_encoder error %d", err);
+        LOG_E(MODULE_PREFIX, "initRMT FAIL newEncod %d", err);
         return false;
     }
 
@@ -181,7 +181,7 @@ bool ESP32RMTLedStrip::initRMTPeripheral()
     err = rmt_tx_register_event_callbacks(_rmtChannelHandle, &cbs, this);
     if (err != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_tx_register_event_callbacks error %d", err);
+        LOG_E(MODULE_PREFIX, "initRMT FAIL regCB %d", err);
         return false;
     }
 
@@ -189,7 +189,7 @@ bool ESP32RMTLedStrip::initRMTPeripheral()
     err = rmt_enable(_rmtChannelHandle);
     if (err != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "initRMTPeripheral FAILED rmt_enable error %d", err);
+        LOG_E(MODULE_PREFIX, "initRMT FAIL rmtEn %d", err);
         return false;
     }
 

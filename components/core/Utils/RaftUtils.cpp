@@ -941,26 +941,6 @@ uint32_t Raft::getHexFromChar(int ch)
     return 0;
 }
 
-/// @brief Extract bytes from hex encoded string
-/// @param inStr Hex encoded string
-/// @param outBuf Buffer to receive the bytes
-/// @param maxOutBufLen Maximum length of the output buffer
-/// @return Number of bytes extracted
-uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
-
-/// @brief Generate a hex string from bytes
-/// @param pBuf Pointer to the byte array
-/// @param bufLen Length of the byte array
-/// @param outStr String to receive the hex string
-void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outStr);
-
-/// @brief Generate a hex string from uint32_t array
-/// @param pBuf Pointer to the uint32_t array
-/// @param bufLen Length of the uint32_t array
-/// @param outStr String to receive the hex string
-void Raft::getHexStrFromUint32(const uint32_t* pBuf, uint32_t bufLen, String& outStr, 
-            const char* separator);
-
 /// @brief Get bytes from hex-encoded string
 /// @param inStr Input string
 /// @param outBuf Buffer to receive the bytes
@@ -1004,11 +984,43 @@ void Raft::getHexStrFromBytes(const uint8_t* pBuf, uint32_t bufLen, String& outS
 /// @brief Get a hex string from byte array
 /// @param pBuf Pointer to the byte array
 /// @param bufLen Length of the byte array
+/// @param offset Offset into the buffer
+/// @param sep Separator between bytes
+/// @param offset Offset into the buffer
+/// @param maxBytes Maximum number of bytes to include (-1 for all)
 /// @return Hex string
-String Raft::getHexStr(const uint8_t* pBuf, uint32_t bufLen)
+String Raft::getHexStr(const uint8_t* pBuf, uint32_t bufLen, const char* pSep, uint32_t offset, int maxBytes)
 {
     String outStr;
-    getHexStrFromBytes(pBuf, bufLen, outStr);
+    hexDump(pBuf, bufLen, outStr, pSep, offset, maxBytes);
+    return outStr;
+}
+
+/// @brief Get a hex string from a uint8_t vector
+/// @param inVec Input vector
+/// @param offset Offset into the vector
+/// @param sep Separator between bytes
+/// @param offset Offset into the vector
+/// @param maxBytes Maximum number of bytes to include (-1 for all)
+/// @return Hex string
+String Raft::getHexStr(const std::vector<uint8_t>& inVec, const char* pSep, uint32_t offset, int maxBytes)
+{
+    String outStr;
+    hexDump(inVec.data(), inVec.size(), outStr, pSep, offset, maxBytes);
+    return outStr;
+}
+
+/// @brief Get a hex string from a SpiramAwareUint8Vector
+/// @param inVec Input vector
+/// @param offset Offset into the vector
+/// @param sep Separator between bytes
+/// @param offset Offset into the vector
+/// @param maxBytes Maximum number of bytes to include (-1 for all)
+/// @return Hex string
+String Raft::getHexStr(const SpiramAwareUint8Vector& inVec, const char* pSep, uint32_t offset, int maxBytes)
+{
+    String outStr;
+    hexDump(inVec.data(), inVec.size(), outStr, pSep, offset,maxBytes);
     return outStr;
 }
 
@@ -1054,21 +1066,30 @@ String Raft::getHexStr(uint8_t val, bool prefixOx)
 /// @param bufLen Length of the byte array
 /// @param outStr String to receive the hex string
 /// @param separator Separator between bytes
-void Raft::hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* pSeparator)
+/// @param offset Offset into the buffer
+/// @param maxBytes Maximum number of bytes to include (-1 for all)
+void Raft::hexDump(const uint8_t* pBuf, uint32_t bufLen, String& outStr, const char* pSeparator, uint32_t offset, int maxBytes)
 {
     // Setup outStr
     outStr = "";
 
     // Check valid
-    if (!pBuf || (bufLen == 0) || !pSeparator)
+    if (!pBuf || (bufLen == 0) || !pSeparator || (offset >= bufLen))
         return;
+
+    // Adjust buffer pointer and length
+    pBuf += offset;
+    bufLen -= offset;
+
+    // Get number of bytes to include
+    uint32_t numBytes = maxBytes >= 0 ? maxBytes : bufLen;
 
     // Size outStr
     int itemLen = 2 + strnlen(pSeparator, 10);
-    outStr.reserve(bufLen * itemLen);
+    outStr.reserve(numBytes * itemLen);
 
     // Generate hex
-    for (uint32_t i = 0; i < bufLen; i++)
+    for (uint32_t i = 0; i < numBytes; i++)
     {
         char tmpStr[10];
         snprintf(tmpStr, sizeof(tmpStr), "%02x%s", pBuf[i], pSeparator);
@@ -1325,6 +1346,23 @@ int Raft::findInBuf(const uint8_t* pBuf, uint32_t bufLen,
     return -1;
 }
 
+/// @brief Find match in buffer (like strstr for unterminated strings)
+/// @param buf buffer
+/// @param offset offset into buffer
+/// @param pToFind Pointer to the string to find
+/// @param toFindLen Length of the string to find
+/// @return Position in buffer of val or -1 if not found
+int Raft::findInBuf(const SpiramAwareUint8Vector& buf, uint32_t offset,
+            const uint8_t* pToFind, uint32_t toFindLen)
+{
+    if (offset >= buf.size())
+        return -1;
+    int rslt = findInBuf(buf.data() + offset, buf.size() - offset, pToFind, toFindLen);
+    if (rslt >= 0)
+        rslt += offset;
+    return rslt;
+}
+
 /// @brief Parse a string into a list of integers
 /// @param pInStr Pointer to the input string
 /// @param outList List to receive the integers
@@ -1376,6 +1414,16 @@ const char* Raft::getRetCodeStr(RaftRetCode retc)
         case RAFT_BUS_NOT_INIT: return "BUS_NOT_INIT";
         case RAFT_BUS_STUCK: return "BUS_STUCK";
         case RAFT_BUS_SLOT_POWER_UNSTABLE: return "BUS_SLOT_POWER_UNSTABLE";
+        case RAFT_FS_BUSY: return "FS_BUSY";
+        case RAFT_FS_NOT_SETUP: return "FS_NOT_SETUP";
+        case RAFT_FS_FOLDER_NOT_FOUND: return "FS_FOLDER_NOT_FOUND";
+        case RAFT_FS_FILE_NOT_FOUND: return "FS_FILE_NOT_FOUND";
+        case RAFT_FS_FILE_EXISTS: return "FS_FILE_EXISTS";
+        case RAFT_FS_FILE_TOO_BIG: return "FS_FILE_TOO_BIG";
+        case RAFT_FS_FILE_WRITE_ERROR: return "FS_FILE_WRITE_ERROR";
+        case RAFT_FS_FILE_READ_ERROR: return "FS_FILE_READ_ERROR";
+        case RAFT_FS_FILE_OPEN_ERROR: return "FS_FILE_OPEN_ERROR";
+        case RAFT_FS_OTHER_ERROR: return "FS_OTHER_ERROR";
         default: return "UNKNOWN";
     }
 };

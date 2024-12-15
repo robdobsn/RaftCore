@@ -15,6 +15,8 @@
 #include "sdkconfig.h"
 #include "esp_heap_caps.h"
 #include "esp_idf_version.h"
+#include <vector>
+#include <string>
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,3 +106,9 @@ bool operator==(const SpiramAwareAllocator<U>&, const SpiramAwareAllocator<V>&) 
 
 template <class U, class V>
 bool operator!=(const SpiramAwareAllocator<U>&, const SpiramAwareAllocator<V>&) { return false; }
+
+// Type for SpiramAware vectors
+using SpiramAwareUint8Vector = std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>;
+
+// Type for SpiramAware strings
+using SpiramAwareString = std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>>;

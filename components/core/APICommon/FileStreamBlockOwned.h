@@ -78,7 +78,7 @@ public:
         return filePos;
     }
     String filename;
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> block;
+    SpiramAwareUint8Vector block;
     uint32_t contentLen = 0;
     uint32_t filePos = 0;
     uint32_t crc16 = 0;

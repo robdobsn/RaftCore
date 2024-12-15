@@ -91,10 +91,51 @@ if (_pProtocolCodec)
 #endif
 }
 
+void CommsChannel::handleRxData(const SpiramAwareUint8Vector& msg)
+{
+    // Debug
+#ifdef DEBUG_COMMS_CHANNEL
+    LOG_I(MODULE_PREFIX, "handleRxData protocolName %s interfaceName %s channelName %s len %d handlerPtrOk %s", 
+        _channelProtocolName.c_str(), 
+        _interfaceName.c_str(), 
+        _channelName.c_str(),
+        msg.size(), 
+        (_pProtocolCodec ? "YES" : "NO"));
+#endif
+#ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
+    inboundQueueAdd(msg);
+#else
+if (_pProtocolCodec)
+    _pProtocolCodec->addRxData(msg);
+#endif
+}
+
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
 void CommsChannel::inboundQueueAdd(const uint8_t* pMsg, uint32_t msgLen)
 {
     ProtocolRawMsg msg(pMsg, msgLen);
+#if defined(DEBUG_COMMS_CHANNEL) || defined(WARN_ON_INBOUND_QUEUE_FULL)
+    bool addedOk = 
+#endif
+    _inboundQueue.put(msg, 10);
+    if (_inboundQPeak < _inboundQueue.count())
+        _inboundQPeak = _inboundQueue.count();
+#ifdef DEBUG_COMMS_CHANNEL
+    LOG_I(MODULE_PREFIX, "inboundQueueAdd %slen %d peak %d", addedOk ? "" : "FAILED QUEUE IS FULL ", msgLen, _inboundQPeak);
+#endif
+#ifdef WARN_ON_INBOUND_QUEUE_FULL
+    if (!addedOk)
+    {
+        LOG_W(MODULE_PREFIX, "inboundQueueAdd QUEUE IS FULL peak %d", _inboundQPeak);
+    }
+#endif
+}
+#endif
+
+#ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
+void CommsChannel::inboundQueueAdd(const SpiramAwareUint8Vector& inMsg)
+{
+    ProtocolRawMsg msg(inMsg);
 #if defined(DEBUG_COMMS_CHANNEL) || defined(WARN_ON_INBOUND_QUEUE_FULL)
     bool addedOk = 
 #endif

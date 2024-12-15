@@ -42,7 +42,7 @@ public:
 #ifdef IMPLEMENT_NO_PSRAM_FOR_RIC_JSON
     static void encode(CommsChannelMsg& msg, std::vector<uint8_t>& outMsg);
 #else
-    static void encode(CommsChannelMsg& msg, std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& outMsg);
+    static void encode(CommsChannelMsg& msg, SpiramAwareUint8Vector& outMsg);
 #endif
 
     virtual const char* getProtocolName() override final

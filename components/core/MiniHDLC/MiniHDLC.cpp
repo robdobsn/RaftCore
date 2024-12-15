@@ -452,6 +452,13 @@ uint16_t MiniHDLC::crcUpdateCCITT(unsigned short fcs, const unsigned char* pBuf,
     return fcs;
 }
 
+uint16_t MiniHDLC::crcUpdateCCITT(unsigned short fcs, const SpiramAwareUint8Vector& buf)
+{
+    for (auto& val : buf)
+        fcs = crcUpdateCCITT(fcs, val);
+    return fcs;
+}
+
 void MiniHDLC::sendChar(uint8_t ch)
 {
 	if (_bitwiseHDLC)
