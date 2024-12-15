@@ -97,8 +97,8 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             // Extract params
             const uint8_t* pData = pBuf + RICREST_BODY_BUFFER_POS;
             const uint8_t* pEndStop = pBuf + len;
-            _bufferPos = Raft::getBEUint32AndInc(pData, pEndStop);
-            _totalBytes = Raft::getBEUint32AndInc(pData, pEndStop);
+            _bufferPos = Raft::getBEUInt32AndInc(pData, pEndStop);
+            _totalBytes = Raft::getBEUInt32AndInc(pData, pEndStop);
             if (_totalBytes > _maxRestBodySize)
                 _totalBytes = _maxRestBodySize;
             if (_bufferPos > _totalBytes)
@@ -146,7 +146,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             // Extract params
             const uint8_t* pData = pBuf + RICREST_FILEBLOCK_FILEPOS_POS;
             const uint8_t* pEndStop = pBuf + len;
-            uint32_t streamIDAndBufferPos = Raft::getBEUint32AndInc(pData, pEndStop);
+            uint32_t streamIDAndBufferPos = Raft::getBEUInt32AndInc(pData, pEndStop);
             _bufferPos = streamIDAndBufferPos & 0xffffff;
             _streamID = streamIDAndBufferPos >> 24;
             if (pData <= pEndStop)
@@ -197,7 +197,7 @@ void RICRESTMsg::encodeFileBlock(uint32_t filePos, const uint8_t* pBuf, uint32_t
     // Setup buffer for the RESTElementCode
     uint8_t msgPrefixBuf[RICREST_HEADER_PAYLOAD_POS + RICREST_FILEBLOCK_FILEPOS_POS_BYTES];
     msgPrefixBuf[RICREST_ELEM_CODE_POS] = RICREST_ELEM_CODE_FILEBLOCK;
-    Raft::setBEUint32(msgPrefixBuf, RICREST_FILEBLOCK_FILEPOS_POS, filePos);
+    Raft::setBEUInt32(msgPrefixBuf, RICREST_FILEBLOCK_FILEPOS_POS, filePos);
 
     // Set the response
     endpointMsg.setBufferSize(sizeof(msgPrefixBuf) + len);

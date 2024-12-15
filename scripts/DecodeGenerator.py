@@ -30,20 +30,20 @@ class DecodeGenerator:
             'B': ['uint8_t', 'getInt8AndInc'],          # Unsigned byte
             '>h': ['int16_t', 'getBEInt16AndInc'],      # Big-endian signed short
             '<h': ['int16_t', 'getLEInt16AndInc'],      # Little-endian signed short
-            '>H': ['uint16_t', 'getBEUint16AndInc'],    # Big-endian unsigned short
-            '<H': ['uint16_t', 'getLEUint16AndInc'],    # Little-endian unsigned short
+            '>H': ['uint16_t', 'getBEUInt16AndInc'],    # Big-endian unsigned short
+            '<H': ['uint16_t', 'getLEUInt16AndInc'],    # Little-endian unsigned short
             '>i': ['int32_t', 'getBEInt32AndInc'],  
             '<i': ['int32_t', 'getLEInt32AndInc'],  
-            '>I': ['uint32_t', 'getBEUint32AndInc'],
-            '<I': ['uint32_t', 'getLEUint32AndInc'],
+            '>I': ['uint32_t', 'getBEUInt32AndInc'],
+            '<I': ['uint32_t', 'getLEUInt32AndInc'],
             '>l': ['int32_t', 'getBEInt32AndInc'],  
             '<l': ['int32_t', 'getLEInt32AndInc'],  
-            '>L': ['uint32_t', 'getBEUint32AndInc'],
-            '<L': ['uint32_t', 'getLEUint32AndInc'],
+            '>L': ['uint32_t', 'getBEUInt32AndInc'],
+            '<L': ['uint32_t', 'getLEUInt32AndInc'],
             '>q': ['int64_t', 'getBEInt64AndInc'],  
             '<q': ['int64_t', 'getLEInt64AndInc'],
-            '>Q': ['uint64_t', 'getBEUint64AndInc'],
-            '<Q': ['uint64_t', 'getLEUint64AndInc'],
+            '>Q': ['uint64_t', 'getBEUInt64AndInc'],
+            '<Q': ['uint64_t', 'getLEUInt64AndInc'],
             '>f': ['float', 'getBEfloat32AndInc'], 
             '<f': ['float', 'getLEfloat32AndInc'], 
             '>d': ['double', 'getBEdouble64AndInc'],
@@ -192,7 +192,7 @@ class DecodeGenerator:
         # Generate code to extract timestamp
         extract_code.append("\n" + line_prefix + "// Extract timestamp\n")
         if self.POLL_RESULT_TIMESTAMP_SIZE == 2:
-            extract_code.append(line_prefix + "uint64_t timestampUs = getBEUint16AndInc(pBuf, pBufEnd) * DevicePollingInfo::POLL_RESULT_RESOLUTION_US;\n")
+            extract_code.append(line_prefix + "uint64_t timestampUs = getBEUInt16AndInc(pBuf, pBufEnd) * DevicePollingInfo::POLL_RESULT_RESOLUTION_US;\n")
         else:
             extract_code.append(line_prefix + "uint64_t timestampUs = getBEUint32AndInc(pBuf, pBufEnd) * DevicePollingInfo::POLL_RESULT_RESOLUTION_US;\n")
         extract_code.append(line_prefix + "if (timestampUs < decodeState.lastReportTimestampUs) {\n")
