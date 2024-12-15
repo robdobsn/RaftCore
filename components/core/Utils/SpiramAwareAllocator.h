@@ -9,6 +9,8 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
+#include <vector>
 
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 

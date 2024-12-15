@@ -332,7 +332,7 @@ void CommsChannelManager::inboundHandleMsgVec(uint32_t channelID, const SpiramAw
     // Check the channel
     if (channelID >= _commsChannelVec.size())
     {
-        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is INVALID msglen %d", channelID, msg.size());
+        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is INVALID msglen %d", channelID, (int)msg.size());
         return;
     }
 
@@ -340,7 +340,7 @@ void CommsChannelManager::inboundHandleMsgVec(uint32_t channelID, const SpiramAw
     CommsChannel* pChannel = _commsChannelVec[channelID];
     if (!pChannel)
     {
-        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is NULL msglen %d", channelID, msg.size());
+        LOG_W(MODULE_PREFIX, "inboundHandleMsg, channelID channelId %d is NULL msglen %d", channelID, (int)msg.size());
         return;
     }
 
