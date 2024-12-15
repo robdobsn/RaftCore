@@ -26,7 +26,7 @@ class DecodeGenerator:
 
         # Decoding maps
         self.pystruct_map = {
-            'b': ['int8_t', 'getUint8AndInc'],          # Signed byte
+            'b': ['int8_t', 'getUInt8AndInc'],          # Signed byte
             'B': ['uint8_t', 'getInt8AndInc'],          # Unsigned byte
             '>h': ['int16_t', 'getBEInt16AndInc'],      # Big-endian signed short
             '<h': ['int16_t', 'getLEInt16AndInc'],      # Little-endian signed short
