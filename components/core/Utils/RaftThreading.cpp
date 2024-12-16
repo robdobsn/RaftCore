@@ -81,7 +81,7 @@
         const char* pTaskName, 
         int taskPriority, 
         int taskCore, 
-        bool pinToCore
+        bool pinToCore)
     {
         if (pinToCore)
         {
@@ -91,14 +91,14 @@
                 pArg, 
                 taskPriority, 
                 &taskHandle,
-                taskCore) == pdPASS;
+                taskCore)) == pdPASS;
         }
         return (xTaskCreate(pThreadFn, 
             pTaskName, 
             stackSize, 
             pArg, 
             taskPriority, 
-            &taskHandle) == pdPASS;
+            &taskHandle)) == pdPASS;
     }
     void RaftThread_sleep(uint32_t ms)
     {
