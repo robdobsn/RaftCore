@@ -13,7 +13,7 @@
 #include "MiniHDLC.h"
 #include "RaftUtils.h"
 #include "RaftArduino.h"
-#include "ESPUtils.h"
+#include "PlatformUtils.h"
 
 // Warn
 #define WARN_ON_NO_HDLC_HANDLER

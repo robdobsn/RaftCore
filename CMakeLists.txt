@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.16)
 set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
 file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
+# Set RAFT_CORE_REQUIRES based on IDF version
 set(RAFT_CORE_REQUIRES 
   nvs_flash
   driver
@@ -22,6 +23,7 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_adc)
 endif()
 
+# ESP-IDF-specific configurations
 idf_component_register(
   SRCS
     "components/comms/CommsChannels/CommsChannel.cpp"
@@ -85,7 +87,8 @@ idf_component_register(
     "components/core/SysManager/SysManager.cpp"
     "components/core/SysMod/RaftSysMod.cpp"
     "components/core/SysTypes/SysTypeManager.cpp"
-    "components/core/Utils/ESPUtils.cpp"
+    "components/core/Utils/PlatformUtils.cpp"
+    "components/core/Utils/RaftThreading.cpp"
     "components/core/Utils/RaftUtils.cpp"
   INCLUDE_DIRS
     "components"
@@ -134,9 +137,9 @@ idf_component_register(
     "components/core/SysManager"
     "components/core/SysMod"
     "components/core/SysTypes"
-    "${RAFT_BUILD_ARTIFACTS_FOLDER}"
     "components/core/ThreadSafeQueue"
     "components/core/Utils"
+    "${RAFT_BUILD_ARTIFACTS_FOLDER}"
   REQUIRES
     ${RAFT_CORE_REQUIRES}
 )
@@ -157,6 +160,7 @@ add_custom_command(
     COMMENT "---------------------- Generating Device Record headers from JSON ---------------------------"
 )
 
+# Add custom target for generating device records
 add_custom_target(generate_dev_ident_header DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
 
 add_dependencies(${COMPONENT_LIB} generate_dev_ident_header)

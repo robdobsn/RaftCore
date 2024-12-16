@@ -22,6 +22,7 @@ current_version.json
 ot[ac]_current_version.json
 updates/
 node_modules/
+build_linux/
 
 # Prerequisites
 *.d
