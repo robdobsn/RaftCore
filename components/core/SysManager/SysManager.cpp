@@ -17,6 +17,7 @@
 #include "RaftJsonNVS.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
+#include "PlatformUtils.h"
 #include "DebugGlobals.h"
 
 #ifdef ESP_PLATFORM

@@ -15,6 +15,8 @@
 
 #ifdef ESP_PLATFORM
 
+#include "nvs.h"
+
 class RaftJsonNVS : public RaftJson
 {
 public:

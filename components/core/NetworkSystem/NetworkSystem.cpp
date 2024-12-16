@@ -21,6 +21,7 @@
 #include "Logger.h"
 #include "NetworkSystem.h"
 #include "RaftUtils.h"
+#include "PlatformUtils.h"
 #include "RaftArduino.h"
 #include "mdns.h"
 #include "esp_idf_version.h"

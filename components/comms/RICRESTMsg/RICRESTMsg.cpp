@@ -10,6 +10,7 @@
 #include "RICRESTMsg.h"
 #include "CommsChannelMsg.h"
 #include "RaftUtils.h"
+#include "PlatformUtils.h"
 #include "RaftJson.h"
 
 // #define DEBUG_RICREST_MSG

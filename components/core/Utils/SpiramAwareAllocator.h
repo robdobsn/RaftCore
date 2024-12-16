@@ -11,6 +11,13 @@
 #include <cstddef>
 #include <string>
 #include <vector>
+#include <cstdint>
+
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#include "esp_heap_caps.h"
+#include "esp_idf_version.h"
+#endif
 
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 

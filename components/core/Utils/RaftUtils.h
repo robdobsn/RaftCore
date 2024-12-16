@@ -13,7 +13,6 @@
 #include "Logger.h"
 #include "RaftArduino.h"
 #include "RaftRetCode.h"
-#include "PlatformUtils.h"
 #include "SpiramAwareAllocator.h"
 
 namespace Raft

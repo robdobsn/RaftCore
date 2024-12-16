@@ -11,6 +11,7 @@
 #include "CommsChannelMsg.h"
 #include "RaftJsonPrefixed.h"
 #include "MiniHDLC.h"
+#include "PlatformUtils.h"
 #include "RaftUtils.h"
 #include "RaftArduino.h"
 
