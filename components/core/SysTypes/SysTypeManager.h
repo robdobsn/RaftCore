@@ -21,7 +21,6 @@
 
 class RestAPIEndpointManager;
 class APISourceInfo;
-class SysManager;
 
 class SysTypeManager
 {

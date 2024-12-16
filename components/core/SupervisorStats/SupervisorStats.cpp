@@ -8,6 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <string.h>
+#include <inttypes.h>
 #include "SupervisorStats.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -145,7 +146,7 @@ String SupervisorStats::getSummaryString() const
         if (sizeof(slowestStr) <= strPos + 1)
             break;
         snprintf(slowestStr + strPos, sizeof(slowestStr) - strPos,
-                 isFirst ? R"("slowUs":{"%s":%lld)" : R"(,"%s":%lld)",
+                 isFirst ? R"("slowUs":{"%s":%)" PRIu64 : R"(,"%s":%)" PRIu64,
                  _moduleList[modIdx]._modName.c_str(),
                  _moduleList[modIdx].execTimer.getMaxUs());
         isFirst = false;

@@ -25,6 +25,8 @@ endif()
 
 # ESP-IDF-specific configurations
 idf_component_register(
+  NAME
+    RaftCore
   SRCS
     "components/comms/CommsChannels/CommsChannel.cpp"
     "components/comms/CommsChannels/CommsChannelManager.cpp"

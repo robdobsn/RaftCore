@@ -10,9 +10,8 @@
 
 #include <stdint.h>
 #include <vector>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
+#include <RaftThreading.h>
+#include <cstring>
 
 class PollDataAggregator
 {

@@ -11,9 +11,9 @@
 #include "CommsChannelMsg.h"
 #include "RaftJsonPrefixed.h"
 #include "MiniHDLC.h"
+#include "PlatformUtils.h"
 #include "RaftUtils.h"
 #include "RaftArduino.h"
-#include "PlatformUtils.h"
 
 // Warn
 #define WARN_ON_NO_HDLC_HANDLER

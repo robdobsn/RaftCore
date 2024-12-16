@@ -8,15 +8,10 @@
 
 #pragma once
 
-#include "RaftUtils.h"
-#include "RaftJson.h"
-#include "RaftBusConsts.h"
+#include "RaftCore.h"
 #include "DeviceTypeRecord.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DevicePollingInfo.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecords
@@ -25,6 +20,7 @@ class DeviceTypeRecords
 {
 public:
     DeviceTypeRecords();
+    ~DeviceTypeRecords();
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type for address

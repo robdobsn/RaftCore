@@ -1,6 +1,8 @@
 // ArduinoGPIO
 // Rob Dobson 2012-2021
 
+#ifdef ESP_PLATFORM
+
 #ifndef ARDUINO
 
 #include <stdint.h>
@@ -227,3 +229,5 @@ extern int digitalRead(uint8_t pin) __attribute__ ((weak, alias("__digitalRead")
 extern uint16_t analogRead(uint8_t pin) __attribute__ ((weak, alias("__analogRead")));
 
 #endif // ARDUINO
+
+#endif // ESP_PLATFORM

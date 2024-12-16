@@ -16,13 +16,13 @@ test/eepromPartitionTest/readbackdata.bin
 linux_unit_tests/linux_unit_tests
 build_raft_artifacts
 __pycache__
+build_linux/
 
 # Generated updater files
 current_version.json
 ot[ac]_current_version.json
 updates/
 node_modules/
-build_linux/
 
 # Prerequisites
 *.d

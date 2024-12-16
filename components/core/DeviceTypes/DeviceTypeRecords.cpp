@@ -36,6 +36,11 @@ DeviceTypeRecords::DeviceTypeRecords()
     _extendedDevTypeRecords.reserve(MAX_EXTENDED_DEV_TYPE_RECORDS);
 }
 
+DeviceTypeRecords::~DeviceTypeRecords()
+{
+    // TODO - delete mutex
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief get device types (strings) for an address
 /// @param addr address

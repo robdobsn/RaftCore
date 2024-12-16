@@ -10,9 +10,12 @@
 #pragma once
 
 #include <vector>
-#include "nvs.h"
 #include "Logger.h"
 #include "RaftJson.h"
+
+#ifdef ESP_PLATFORM
+
+#include "nvs.h"
 
 class RaftJsonNVS : public RaftJson
 {
@@ -124,3 +127,9 @@ private:
     // Debug
     static constexpr const char* MODULE_PREFIX = "RaftJsonNVS";
 };
+
+#else // ESP_PLATFORM
+
+typedef RaftJson RaftJsonNVS;
+
+#endif // ESP_PLATFORM

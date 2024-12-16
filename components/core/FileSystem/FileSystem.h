@@ -11,11 +11,8 @@
 
 #include <list>
 #include <string>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "RaftArduino.h"
 #include "RaftUtils.h"
+#include "RaftThreading.h"
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
 

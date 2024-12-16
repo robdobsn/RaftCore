@@ -4,12 +4,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include <functional>
 #include "DeviceManager.h"
+#include "DeviceTypeRecordDynamic.h"
+#include "DeviceTypeRecords.h"
 #include "RaftUtils.h"
 #include "RaftDevice.h"
 #include "RaftBusDevice.h"
 #include "SysManager.h"
-#include <functional>
 
 // Warnings
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND

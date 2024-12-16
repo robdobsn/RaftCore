@@ -16,7 +16,6 @@
 #include <vector>
 #include "ExecTimer.h"
 #include "SupervisorStats.h"
-#include "RaftSysMod.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftArduino.h"
 #include "CommsCoreIF.h"
@@ -28,6 +27,8 @@
 #include "NamedValueProvider.h"
 
 typedef String (*SysManager_statsCB)();
+
+class RaftSysMod;
 
 class RestAPIEndpointManager;
 
@@ -281,11 +282,11 @@ private:
     bool _reportSlowSysMod = true;
 
     // Monitor timer and period
-    unsigned long _monitorPeriodMs = 0;
-    unsigned long _monitorTimerMs = 0;
+    uint32_t _monitorPeriodMs = 0;
+    uint32_t _monitorTimerMs = 0;
     bool _monitorTimerStarted = false;
     bool _monitorShownFirstTime = false;
-    static const unsigned long MONITOR_PERIOD_FIRST_SHOW_MS = 5000;
+    static const uint32_t MONITOR_PERIOD_FIRST_SHOW_MS = 5000;
     bool _reportEnable = true;
     std::vector<String> _monitorReportList;
 
@@ -403,6 +404,9 @@ private:
 
     // Check SysMod dependency satisfied
     bool checkSysModDependenciesSatisfied(const SysModFactory::SysModClassDef& sysModClassDef);
+
+    // System restart
+    void systemRestartNow();
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "SysMan";

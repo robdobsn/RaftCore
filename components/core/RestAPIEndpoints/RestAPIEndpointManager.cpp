@@ -328,13 +328,13 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
 
     // Check for existence of value pairs
     nameValuePairs.clear();
-    char* pQMark = strstr(reqStr, "?");
+    const char* pQMark = strstr(reqStr, "?");
     if (!pQMark)
         return true;
 
     // Count the pairs
     uint32_t pairCount = 0;
-    char* pCurSep = pQMark;
+    const char* pCurSep = pQMark;
     while(pCurSep)
     {
         pCurSep = strstr(pCurSep+1, "=");
@@ -352,7 +352,7 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
     while(pCurSep)
     {
         // Each pair has the form "name=val;" (semicolon missing on last pair)
-        char* pElemStart = pCurSep+1;
+        const char* pElemStart = pCurSep+1;
         if (sepTypeIsEqualsSign)
         {
             // Check for missing =

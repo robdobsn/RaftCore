@@ -91,7 +91,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint8_t value
-    uint16_t getUint8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+    uint16_t getUInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     /// @brief Get a int8_t value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer
@@ -103,7 +103,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint16_t value
-    uint16_t getLEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+    uint16_t getLEUInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     /// @brief Get a int16_t little endian value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer
@@ -115,7 +115,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint16_t value
-    uint16_t getBEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+    uint16_t getBEUInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     /// @brief Get a int16_t big endian value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer
@@ -127,7 +127,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint32_t value
-    uint32_t getLEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+    uint32_t getLEUInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     /// @brief Get a int32_t little endian value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer
@@ -139,7 +139,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint32_t value
-    uint32_t getBEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
+    uint32_t getBEUInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop = nullptr);
 
     /// @brief Get a int32_t big endian value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer
@@ -151,7 +151,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint64_t value
-    uint64_t getLEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
+    uint64_t getLEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
 
     /// @brief Get a int64_t little endian value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer
@@ -163,7 +163,7 @@ namespace Raft
     /// @param pBuf Pointer to the buffer
     /// @param pEndStop Pointer to the end of the buffer
     /// @return uint64_t value
-    uint64_t getBEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
+    uint64_t getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop);
 
     /// @brief Get a int64_t big endian value from the uint8_t pointer passed in and increment the pointer
     /// @param pBuf Pointer to the buffer
@@ -217,8 +217,8 @@ namespace Raft
     /// @param offset Offset into the buffer
     /// @param val Value to set
     /// @return New offset
-    uint32_t setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
-    uint32_t setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val);
+    uint32_t setUInt8(uint8_t* pBuf, uint32_t offset, uint8_t val);
+    uint32_t setBEUInt8(uint8_t* pBuf, uint32_t offset, uint8_t val);
 
     /// @brief Set a int16_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
@@ -239,28 +239,28 @@ namespace Raft
     /// @param offset Offset into the buffer
     /// @param val Value to set
     /// @return New offset
-    uint32_t setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
+    uint32_t setBEUInt16(uint8_t* pBuf, uint32_t offset, uint16_t val);
 
     /// @brief Set a uint16_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
     /// @return New offset
-    uint32_t setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val);
+    uint32_t setLEUInt16(uint8_t* pBuf, uint32_t offset, uint16_t val);
 
     /// @brief Set a uint32_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
     /// @return New offset
-    uint32_t setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
+    uint32_t setBEUInt32(uint8_t* pBuf, uint32_t offset, uint32_t val);
 
     /// @brief Set a uint32_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
     /// @return New offset
-    uint32_t setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val);
+    uint32_t setLEUInt32(uint8_t* pBuf, uint32_t offset, uint32_t val);
 
     /// @brief Set a int32_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer
@@ -281,14 +281,14 @@ namespace Raft
     /// @param offset Offset into the buffer
     /// @param val Value to set
     /// @return New offset
-    uint32_t setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
+    uint32_t setBEUInt64(uint8_t* pBuf, uint32_t offset, uint64_t val);
 
     /// @brief Set a uint64_t value into a buffer in little endian format
     /// @param pBuf Pointer to the buffer
     /// @param offset Offset into the buffer
     /// @param val Value to set
     /// @return New offset
-    uint32_t setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val);
+    uint32_t setLEUInt64(uint8_t* pBuf, uint32_t offset, uint64_t val);
 
     /// @brief Set a int64_t value into a buffer in big-endian format
     /// @param pBuf Pointer to the buffer

@@ -339,7 +339,7 @@ String Raft::getNthField(const char* inStr, int N, char separator)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint8_t value
-uint16_t Raft::getUint8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint16_t Raft::getUInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t varSize = sizeof(uint8_t);
     if (!pBuf || (pEndStop && (pBuf >= pEndStop)))
@@ -367,7 +367,7 @@ int16_t Raft::getInt8AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint16_t value
-uint16_t Raft::getLEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint16_t Raft::getLEUInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t  varSize = sizeof(uint16_t);
     if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
@@ -395,7 +395,7 @@ int16_t Raft::getLEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint16_t value
-uint16_t Raft::getBEUint16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint16_t Raft::getBEUInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t  varSize = sizeof(uint16_t);
     if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
@@ -423,7 +423,7 @@ int16_t Raft::getBEInt16AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint32_t value
-uint32_t Raft::getLEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint32_t Raft::getLEUInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t  varSize = sizeof(uint32_t);
     if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
@@ -451,7 +451,7 @@ int32_t Raft::getLEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint32_t value
-uint32_t Raft::getBEUint32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint32_t Raft::getBEUInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t  varSize = sizeof(uint32_t);
     if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
@@ -479,7 +479,7 @@ int32_t Raft::getBEInt32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint64_t value
-uint64_t Raft::getLEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint64_t Raft::getLEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t  varSize = sizeof(uint64_t);
     if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
@@ -513,7 +513,7 @@ int64_t Raft::getLEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @param pBuf Pointer to the buffer
 /// @param pEndStop Pointer to the end of the buffer
 /// @return uint64_t value
-uint64_t Raft::getBEUint64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
+uint64_t Raft::getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
     const size_t  varSize = sizeof(uint64_t);
     if (!pBuf || (pEndStop && (pBuf + varSize > pEndStop)))
@@ -547,7 +547,7 @@ int64_t Raft::getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @return float32_t value
 float Raft::getLEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    uint32_t temp = getLEUint32AndInc(pBuf, pEndStop);
+    uint32_t temp = getLEUInt32AndInc(pBuf, pEndStop);
     float val;
     memcpy(&val, &temp, sizeof(val));
     return val;
@@ -559,7 +559,7 @@ float Raft::getLEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @return float32_t value
 float Raft::getBEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    uint32_t temp = getBEUint32AndInc(pBuf, pEndStop);
+    uint32_t temp = getBEUInt32AndInc(pBuf, pEndStop);
     float val;
     memcpy(&val, &temp, sizeof(val));
     return val;
@@ -571,7 +571,7 @@ float Raft::getBEfloat32AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @return double64 value
 double Raft::getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    uint64_t temp = getLEUint64AndInc(pBuf, pEndStop);
+    uint64_t temp = getLEUInt64AndInc(pBuf, pEndStop);
     double val;
     memcpy(&val, &temp, sizeof(val));
     return val;
@@ -583,7 +583,7 @@ double Raft::getLEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 /// @return double64 value
 double Raft::getBEdouble64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
 {
-    uint64_t temp = getBEUint64AndInc(pBuf, pEndStop);
+    uint64_t temp = getBEUInt64AndInc(pBuf, pEndStop);
     double val;
     memcpy(&val, &temp, sizeof(val));
     return val;
@@ -644,7 +644,7 @@ uint32_t Raft::setBEInt8(uint8_t* pBuf, uint32_t offset, int8_t val)
 /// @param offset Offset into the buffer
 /// @param val Value to set
 /// @return New offset
-uint32_t Raft::setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
+uint32_t Raft::setUInt8(uint8_t* pBuf, uint32_t offset, uint8_t val)
 {
     if (!pBuf)
         return offset;
@@ -653,7 +653,7 @@ uint32_t Raft::setUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
 }
 
 /// @return New offset
-uint32_t Raft::setBEUint8(uint8_t* pBuf, uint32_t offset, uint8_t val)
+uint32_t Raft::setBEUInt8(uint8_t* pBuf, uint32_t offset, uint8_t val)
 {
     if (!pBuf)
         return offset;
@@ -694,7 +694,7 @@ uint32_t Raft::setLEInt16(uint8_t* pBuf, uint32_t offset, int16_t val)
 /// @param offset Offset into the buffer
 /// @param val Value to set
 /// @return New offset
-uint32_t Raft::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
+uint32_t Raft::setBEUInt16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 {
     if (!pBuf)
         return offset;
@@ -708,7 +708,7 @@ uint32_t Raft::setBEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 /// @param offset Offset into the buffer
 /// @param val Value to set
 /// @return New offset
-uint32_t Raft::setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
+uint32_t Raft::setLEUInt16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 {
     if (!pBuf)
         return offset;
@@ -722,7 +722,7 @@ uint32_t Raft::setLEUint16(uint8_t* pBuf, uint32_t offset, uint16_t val)
 /// @param offset Offset into the buffer
 /// @param val Value to set
 /// @return New offset
-uint32_t Raft::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
+uint32_t Raft::setBEUInt32(uint8_t* pBuf, uint32_t offset, uint32_t val)
 {
     if (!pBuf)
         return offset;
@@ -738,7 +738,7 @@ uint32_t Raft::setBEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
 /// @param offset Offset into the buffer
 /// @param val Value to set
 /// @return New offset
-uint32_t Raft::setLEUint32(uint8_t* pBuf, uint32_t offset, uint32_t val)
+uint32_t Raft::setLEUInt32(uint8_t* pBuf, uint32_t offset, uint32_t val)
 {
     if (!pBuf)
         return offset;
@@ -786,7 +786,7 @@ uint32_t Raft::setLEInt32(uint8_t* pBuf, uint32_t offset, int32_t val)
 /// @param offset Offset into the buffer
 /// @param val Value to set
 /// @return New offset
-uint32_t Raft::setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
+uint32_t Raft::setBEUInt64(uint8_t* pBuf, uint32_t offset, uint64_t val)
 {
     if (!pBuf)
         return offset;
@@ -801,7 +801,7 @@ uint32_t Raft::setBEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
 /// @param offset Offset into the buffer
 /// @param val Value to set
 /// @return New offset
-uint32_t Raft::setLEUint64(uint8_t* pBuf, uint32_t offset, uint64_t val)
+uint32_t Raft::setLEUInt64(uint8_t* pBuf, uint32_t offset, uint64_t val)
 {
     if (!pBuf)
         return offset;

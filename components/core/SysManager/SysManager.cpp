@@ -10,10 +10,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "esp_system.h"
-#include "esp_heap_caps.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <inttypes.h>
 #include "Logger.h"
 #include "SysManager.h"
 #include "RaftSysMod.h"
@@ -21,8 +18,13 @@
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
-#include "NetworkSystem.h"
 #include "DebugGlobals.h"
+
+#ifdef ESP_PLATFORM
+#include "esp_system.h"
+#include "esp_heap_caps.h"
+#include "NetworkSystem.h"
+#endif // ESP_PLATFORM
 
 // #define ONLY_ONE_MODULE_PER_LOOP 1
 
@@ -52,14 +54,14 @@
 /// @param serialLengthBytes - length of the serial number
 /// @param pSerialMagicStr - magic string for the serial number
 SysManager::SysManager(const char* pModuleName,
-                RaftJsonIF& systemConfig,
+            RaftJsonIF& systemConfig,
             const String sysManagerNVSNamespace,
             SysTypeManager& sysTypeManager,
             const char* pSystemName,
-                const char* pDefaultFriendlyName,
-                uint32_t serialLengthBytes, 
+            const char* pDefaultFriendlyName,
+            uint32_t serialLengthBytes, 
             const char* pSerialMagicStr) :
-                            _systemConfig(systemConfig),
+                    _systemConfig(systemConfig),
                     _mutableConfig(sysManagerNVSNamespace.c_str()),
                     _sysTypeManager(sysTypeManager)
 {
@@ -120,7 +122,11 @@ void SysManager::preSetup()
     _systemRestartMs = millis();
 
     // System unique string - use BT MAC address
+#ifdef ESP_PLATFORM
     _systemUniqueString = getSystemMACAddressStr(ESP_MAC_BT, "");
+#else
+    _systemUniqueString = "TEST";
+#endif
 
     // Reboot after N hours
     _rebootAfterNHours = sysManConfig.getLong("rebootAfterNHours", 0);
@@ -145,7 +151,12 @@ void SysManager::preSetup()
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
                 _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
-                _mutableConfig.getNVSNamespace().c_str());
+#ifdef ESP_PLATFORM        
+                _mutableConfig.getNVSNamespace().c_str()
+#else
+                "N/A"
+#endif
+            );
     LOG_I(MODULE_PREFIX, "loopSleepMs %d slowSysModThresholdUs %d monitorPeriodMs %d rebootAfterNHours %d rebootIfDiscMins %d supervisorEnable %s systemUniqueString %s altHwPrefix %s",
                 _loopSleepMs,
                 _slowSysModThresholdUs,
@@ -400,7 +411,8 @@ void SysManager::loop()
                 uint64_t sysModLoopUs = micros() - sysModExecStartUs;
                 if (sysModLoopUs > _slowSysModThresholdUs)
                 {
-                    LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %lldms", _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
+                    LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %" PRIu64 "ms", 
+                                _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
                 }
             }
             else
@@ -431,7 +443,7 @@ void SysManager::loop()
         if (Raft::isTimeout(millis(), _systemRestartMs, SYSTEM_RESTART_DELAY_MS))
         {
             _systemRestartPending = false;
-            esp_restart();
+            systemRestartNow();
         }
     }
 
@@ -458,30 +470,32 @@ void SysManager::loop()
     {
         LOG_I(MODULE_PREFIX, "Rebooting after %d hours", _rebootAfterNHours);
         delay(500);
-        esp_restart();
+        systemRestartNow();
     }
 
     // Check for reboot after N mins if disconnected
     if (_rebootIfDiscMins != 0)
     {
+#ifdef ESP_PLATFORM
         if (networkSystem.isIPConnected())
         {
             _rebootLastNetConnMs = millis();
         }
         else
+#endif
         {
             if (Raft::isTimeout(millis(), _rebootLastNetConnMs, _rebootIfDiscMins * (uint64_t)60000))
             {
                 LOG_I(MODULE_PREFIX, "Rebooting after %d mins disconnected", _rebootIfDiscMins);
                 delay(500);
-                esp_restart();
+                systemRestartNow();
             }
         }
     }
 
     // Sleep the task
     if (_loopSleepMs > 0)
-        vTaskDelay(_loopSleepMs);
+        delay(_loopSleepMs);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1050,9 +1064,14 @@ void SysManager::statsShow()
                 _systemName.c_str(),
                 _systemVersion.c_str(),
                 getBaseSysTypeVersion().c_str(),
+#ifdef ESP_PLATFORM
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
-                heap_caps_get_free_size(MALLOC_CAP_8BIT));
+                heap_caps_get_free_size(MALLOC_CAP_8BIT)
+#else
+                0, 0, 0
+#endif
+            );
 
     // Stats string
     String statsOut = statsStr;
@@ -1134,8 +1153,10 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
 #endif
 
     // Setup network system hostname
+#ifdef ESP_PLATFORM
     if (_mutableConfigCache.friendlyNameIsSet && setHostname)
         networkSystem.setHostname(_mutableConfigCache.friendlyName.c_str());
+#endif
 
     // Store the new name (even if it is blank)
     _mutableConfig.setJsonDoc(getMutableConfigJson().c_str());
@@ -1152,7 +1173,9 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
     LOG_I(MODULE_PREFIX, "BLE connection change isConn %s", changeToOnline ? "YES" : "NO");
     if (_pauseWiFiForBLE)
     {
+#ifdef ESP_PLATFORM
         networkSystem.pauseWiFi(changeToOnline);
+#endif
     }
 }
 
@@ -1209,4 +1232,15 @@ bool SysManager::checkSysModDependenciesSatisfied(const SysModFactory::SysModCla
             return false;
     }
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief system restart
+void SysManager::systemRestartNow()
+{
+    #ifdef ESP_PLATFORM
+    esp_restart();
+#else
+    LOG_I(MODULE_PREFIX, "------------------------- System restart ------------------------------");
+#endif
 }
