@@ -1,8 +1,33 @@
 # Ensure CMake supports FetchContent
 cmake_minimum_required(VERSION 3.16)
 
-# Set source files
-set(RAFT_CORE_SOURCE_FILES
+# Set the build artifacts directory
+set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
+file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
+
+# Set RAFT_CORE_REQUIRES based on IDF version
+set(RAFT_CORE_REQUIRES 
+  nvs_flash
+  driver
+  vfs
+  spiffs
+  fatfs
+  sdmmc
+  esp_wifi
+  esp_eth
+  esp_timer
+)
+
+if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_adc)
+endif()
+
+# ESP-IDF-specific configurations
+idf_component_register(
+  NAME
+    RaftCore
+  SRCS
     components/comms/CommsChannels/CommsChannel.cpp
     components/comms/CommsChannels/CommsChannelManager.cpp
     components/comms/CommsChannelMsg/CommsChannelMsg.cpp
@@ -25,20 +50,37 @@ set(RAFT_CORE_SOURCE_FILES
     components/core/ArduinoUtils/ArduinoStdlibNonISO.c
     components/core/ArduinoUtils/ArduinoTime.cpp
     components/core/ArduinoUtils/ArduinoWString.cpp
+    components/core/ArPreferences/ArPreferences.cpp
     components/core/Bus/BusAddrStatus.cpp
+    components/core/Bus/BusSerial.cpp
     components/core/Bus/DeviceStatus.cpp
     components/core/Bus/RaftBusSystem.cpp
     components/core/ConfigPinMap/ConfigPinMap.cpp
+    components/core/DebounceButton/DebounceButton.cpp
     components/core/DebugGlobals/DebugGlobals.cpp
     components/core/DeviceManager/DeviceFactory.cpp
     components/core/DeviceManager/DeviceManager.cpp
     components/core/DeviceTypes/DeviceTypeRecords.cpp
+    components/core/DNSResolver/DNSResolver.cpp
+    components/core/ESPMDNS/mdns.c
+    # components/core/ESPMDNS/mdns_networking_lwip.c
+    components/core/ESPMDNS/mdns_networking_socket.c  
     components/core/ExpressionEval/ExpressionContext.cpp
     components/core/ExpressionEval/ExpressionEval.cpp
     components/core/ExpressionEval/tinyexpr.c
+    components/core/FileSystem/FileSystem.cpp
+    components/core/FileSystem/FileSystemChunker.cpp
+    components/core/LEDPixels/ESP32RMTLedStrip.cpp
+    components/core/LEDPixels/LEDPixels.cpp
+    components/core/LEDPixels/LEDStripEncoder.c 
     components/core/libb64/cencode.cpp
+    components/core/Logger/LoggerCore.cpp
     components/core/MiniHDLC/MiniHDLC.cpp
     components/core/MQTT/MQTTProtocol.cpp
+    components/core/MQTT/RaftMQTTClient.cpp
+    components/core/NetworkSystem/NetworkSystem.cpp
+    components/core/NetworkSystem/WiFiScanner.cpp  
+    components/core/RaftCoreApp/RaftCoreApp.cpp
     components/core/RaftDevice/RaftDevice.cpp
     components/core/RaftJson/RaftJsonNVS.cpp
     components/core/RestAPIEndpoints/RestAPIEndpointManager.cpp
@@ -49,73 +91,60 @@ set(RAFT_CORE_SOURCE_FILES
     components/core/SysTypes/SysTypeManager.cpp
     components/core/Utils/PlatformUtils.cpp
     components/core/Utils/RaftThreading.cpp
-    components/core/Utils/RaftUtils.cpp
+    components/core/Utils/RaftUtils.cpp 
+  INCLUDE_DIRS
+    components
+    components/comms/CommsBridgeMsg
+    components/comms/CommsChannels
+    components/comms/CommsChannelMsg
+    components/comms/CommsCoreIF
+    components/comms/FileStreamProtocols
+    components/comms/ProtocolBase
+    components/comms/ProtocolExchange
+    components/comms/ProtocolOverAscii
+    components/comms/ProtocolRawMsg
+    components/comms/ProtocolRICFrame
+    components/comms/ProtocolRICJSON
+    components/comms/ProtocolRICSerial
+    components/comms/RICRESTMsg
+    components/comms/ROSSerial
+    components/core/APICommon
+    components/core/ArduinoUtils
+    components/core/ArPreferences
+    components/core/Bus
+    components/core/ConfigPinMap
+    components/core/DebounceButton
+    components/core/DebugGlobals
+    components/core/DeviceManager
+    components/core/DeviceTypes
+    components/core/DNSResolver
+    components/core/ESPMDNS  
+    components/core/ExpressionEval
+    components/core/FileSystem
+    components/core/LEDPixels
+    components/core/libb64
+    components/core/Logger
+    components/core/MiniHDLC
+    components/core/MQTT
+    components/core/NamedValueProvider
+    components/core/NetworkSystem
+    components/core/NumericalFilters
+    components/core/RaftCoreApp
+    components/core/RaftDevice
+    components/core/RaftJson
+    components/core/RestAPIEndpoints
+    components/core/RingBuffer
+    components/core/StatusIndicator
+    components/core/SupervisorStats
+    components/core/SysManager
+    components/core/SysMod
+    components/core/SysTypes
+    components/core/ThreadSafeQueue
+    components/core/Utils
+    "${RAFT_BUILD_ARTIFACTS_FOLDER}"
+  REQUIRES
+    ${RAFT_CORE_REQUIRES}
 )
-
-# Set include directories
-set(RAFT_CORE_INCLUDE_DIRS
-    ./
-    comms/CommsBridgeMsg
-    comms/CommsChannels
-    comms/CommsChannelMsg
-    comms/CommsCoreIF
-    comms/FileStreamProtocols
-    comms/ProtocolBase
-    comms/ProtocolExchange
-    comms/ProtocolOverAscii
-    comms/ProtocolRawMsg
-    comms/ProtocolRICFrame
-    comms/ProtocolRICJSON
-    comms/ProtocolRICSerial
-    comms/RICRESTMsg
-    comms/ROSSerial
-    core/APICommon
-    core/ArduinoUtils
-    core/Bus
-    core/ConfigPinMap
-    core/DebounceButton
-    core/DebugGlobals
-    core/DeviceManager
-    core/DeviceTypes
-    core/ExpressionEval
-    core/FileSystem
-    core/libb64
-    core/Logger
-    core/MiniHDLC
-    core/MQTT
-    core/NamedValueProvider
-    core/NetworkSystem
-    core/NumericalFilters
-    core/RaftDevice
-    core/RaftJson
-    core/RestAPIEndpoints
-    core/RingBuffer
-    core/StatusIndicator
-    core/SupervisorStats
-    core/SysManager
-    core/SysMod
-    core/SysTypes
-    core/ThreadSafeQueue
-    core/Utils
-)
-
-# Function to process include directories for INSTALL_INTERFACE
-function(append_install_interface_prefix src_dirs dest_var prefix)
-    set(transformed_dirs "")
-    foreach(dir IN LISTS ${src_dirs})
-        string(REPLACE "./" "" dir "${dir}") # Remove leading "./"
-        list(APPEND transformed_dirs "${prefix}/${dir}")
-    endforeach()
-    set(${dest_var} "${transformed_dirs}" PARENT_SCOPE)
-endfunction()
-
-
-# Set the build artifacts directory
-set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
-file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
-
-# Define the project
-project(RaftCore VERSION 1.0.0 LANGUAGES C CXX)
 
 # Find Python
 find_package(Python3 REQUIRED)
@@ -136,142 +165,4 @@ add_custom_command(
 # Add custom target for generating device records
 add_custom_target(generate_dev_ident_header DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
 
-# Handle build configurations based on the system
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-
-  # Set C++ standard
-  set(CMAKE_CXX_STANDARD 20)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-  # Process include directories for BUILD_INTERFACE
-  append_install_interface_prefix(
-    "RAFT_CORE_INCLUDE_DIRS"   # Source list
-    "RAFT_CORE_BUILD_INCLUDE_DIRS"   # Output variable
-    "components"
-  )
-
-  # Define the interface target for include paths
-  add_library(RaftCoreIncludes INTERFACE)
-  target_include_directories(RaftCoreIncludes INTERFACE
-    $<BUILD_INTERFACE:${RAFT_CORE_BUILD_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${RAFT_BUILD_ARTIFACTS_FOLDER}>
-  )
-
-  foreach(dir IN LISTS RAFT_CORE_INCLUDE_DIRS)
-    target_include_directories(RaftCoreIncludes INTERFACE
-        $<INSTALL_INTERFACE:include/RaftCore/${dir}>
-    )
-  endforeach()
-
-  # Add -fPIC for static library compilation
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-  # Define the main RaftCore library
-  add_library(RaftCore STATIC ${RAFT_CORE_SOURCE_FILES})
-  target_link_libraries(RaftCore PUBLIC RaftCoreIncludes)
-
-  # Set up installation paths
-  install(TARGETS RaftCore RaftCoreIncludes
-      EXPORT RaftCoreTargets
-      ARCHIVE DESTINATION lib
-      LIBRARY DESTINATION lib
-      RUNTIME DESTINATION bin
-      INCLUDES DESTINATION include/RaftCore
-  )
-
-  # Install include files
-  install(DIRECTORY components/
-      DESTINATION include/RaftCore
-      FILES_MATCHING PATTERN "*.h"
-  )
-
-  # Install generated headers
-  install(DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}/
-    DESTINATION include/RaftCore
-  )
-
-  # Export the project configuration for find_package()
-  install(EXPORT RaftCoreTargets
-      FILE RaftCoreConfig.cmake
-      NAMESPACE RaftCore::
-      DESTINATION lib/cmake/RaftCore
-  )
-
-  # Create a ConfigVersion file for compatibility
-  include(CMakePackageConfigHelpers)
-  write_basic_package_version_file(
-      "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
-      VERSION ${PROJECT_VERSION}
-      COMPATIBILITY SameMajorVersion
-  )
-
-  install(FILES
-      "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
-      DESTINATION lib/cmake/RaftCore
-  )
-
-  # Add the target to the build system
-  export(TARGETS RaftCore RaftCoreIncludes
-      NAMESPACE RaftCore::
-      FILE "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreTargets.cmake"
-  )
-
-  # Add dependencies
-  add_dependencies(RaftCore generate_dev_ident_header)
-
-else()
-  # ESP-IDF-specific configurations
-  idf_component_register(
-    NAME
-      RaftCore
-    SRCS
-      ${RAFT_CORE_SOURCE_FILES}
-      components/core/ArPreferences/ArPreferences.cpp
-      components/core/Bus/BusSerial.cpp
-      components/core/DebounceButton/DebounceButton.cpp
-      components/core/DNSResolver/DNSResolver.cpp
-      components/core/ESPMDNS/mdns.c
-      # components/core/ESPMDNS/mdns_networking_lwip.c
-      components/core/ESPMDNS/mdns_networking_socket.c  
-      components/core/FileSystem/FileSystem.cpp
-      components/core/FileSystem/FileSystemChunker.cpp  
-      components/core/LEDPixels/ESP32RMTLedStrip.cpp
-      components/core/LEDPixels/LEDPixels.cpp
-      components/core/LEDPixels/LEDStripEncoder.c
-      components/core/Logger/LoggerCore.cpp
-      components/core/MQTT/RaftMQTTClient.cpp
-      components/core/NetworkSystem/NetworkSystem.cpp
-      components/core/NetworkSystem/WiFiScanner.cpp  
-      components/core/RaftCoreApp/RaftCoreApp.cpp
-    INCLUDE_DIRS
-      ${RAFT_CORE_INCLUDE_DIRS}
-      components/core/ArPreferences
-      components/core/LEDPixels
-      components/core/DNSResolver
-      components/core/ESPMDNS  
-      components/core/RaftCoreApp
-      "${RAFT_BUILD_ARTIFACTS_FOLDER}"
-    REQUIRES
-      ${RAFT_CORE_REQUIRES}
-  )
-
-  # Set RAFT_CORE_REQUIRES based on IDF version
-  set(RAFT_CORE_REQUIRES 
-    nvs_flash
-    driver
-    vfs
-    spiffs
-    fatfs
-    sdmmc
-    esp_wifi
-    esp_eth
-    esp_timer
-  )
-
-  if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
-    set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram esp_adc)
-  endif()
-
-  add_dependencies(${COMPONENT_LIB} generate_dev_ident_header)
-
-endif()
+add_dependencies(${COMPONENT_LIB} generate_dev_ident_header)
