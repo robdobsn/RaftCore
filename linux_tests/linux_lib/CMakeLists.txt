@@ -129,8 +129,8 @@ prepend_path_prefix(${BASE_DIR} RAFT_CORE_SOURCE_FILES PREFIXED_SOURCE_FILES)
 prepend_path_prefix(${BASE_DIR}/components RAFT_CORE_INCLUDE_DIRS PREFIXED_INCLUDE_DIRS)
 
 # Debugging: Print the processed paths
-message(STATUS "Source files after prefixing: ${PREFIXED_SOURCE_FILES}")
-message(STATUS "Include directories after prefixing: ${PREFIXED_INCLUDE_DIRS}")
+# message(STATUS "Source files after prefixing: ${PREFIXED_SOURCE_FILES}")
+# message(STATUS "Include directories after prefixing: ${PREFIXED_INCLUDE_DIRS}")
 
 # Set the build artifacts directory
 set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
@@ -175,11 +175,13 @@ endforeach()
 # Add -fPIC for static library compilation
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# message(STATUS "-================================ PREFIXED_INCLUDE_DIRS: ${PREFIXED_INCLUDE_DIRS}")
+
 # Define the main RaftCore library
 add_library(RaftCore STATIC ${PREFIXED_SOURCE_FILES})
 target_include_directories(RaftCore PUBLIC 
     ${PREFIXED_INCLUDE_DIRS}
-    ${RAFT_BUILD_ARTIFACTS_FOLDER}
+    # ${RAFT_BUILD_ARTIFACTS_FOLDER}
 )
 target_link_libraries(RaftCore PUBLIC RaftCoreIncludes)
 
