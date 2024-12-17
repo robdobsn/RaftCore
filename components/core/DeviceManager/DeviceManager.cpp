@@ -5,10 +5,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <functional>
+#include "RaftUtils.h"
 #include "DeviceManager.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeRecords.h"
-#include "RaftUtils.h"
 #include "RaftDevice.h"
 #include "RaftBusDevice.h"
 #include "SysManager.h"

@@ -1,6 +1,9 @@
 # Ensure CMake supports FetchContent
 cmake_minimum_required(VERSION 3.16)
 
+# Define the project
+project(RaftCore VERSION 1.0.0 LANGUAGES C CXX)
+
 # Set source files
 set(RAFT_CORE_SOURCE_FILES
     components/comms/CommsChannels/CommsChannel.cpp
@@ -99,36 +102,52 @@ set(RAFT_CORE_INCLUDE_DIRS
     core/Utils
 )
 
-# Function to process include directories for INSTALL_INTERFACE
-function(append_install_interface_prefix src_dirs dest_var prefix)
-    set(transformed_dirs "")
-    foreach(dir IN LISTS ${src_dirs})
-        string(REPLACE "./" "" dir "${dir}") # Remove leading "./"
-        list(APPEND transformed_dirs "${prefix}/${dir}")
+# Define the base directory relative to the current location
+file(REAL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../.." BASE_DIR)
+
+# message(STATUS "============================ Base directory: ${BASE_DIR}")
+
+# Function to prepend a path prefix to a list of files
+function(prepend_path_prefix prefix files dest_var)
+    set(processed_files "")
+    foreach(file IN LISTS ${files})
+        # Normalize the path by removing leading "./"
+        string(REPLACE "./" "" file "${file}")
+        string(REGEX REPLACE "/$" "" file "${file}")       # Remove trailing "/"
+        # Check if the file is already absolute or starts with '/'
+        if(NOT IS_ABSOLUTE "${file}" AND NOT file MATCHES "^/")
+            list(APPEND processed_files "${prefix}/${file}")
+        else()
+            list(APPEND processed_files "${file}") # Keep the existing path
+        endif()
     endforeach()
-    set(${dest_var} "${transformed_dirs}" PARENT_SCOPE)
+    set(${dest_var} "${processed_files}" PARENT_SCOPE)
 endfunction()
 
+# Prepend the base path to the source files and include directories
+prepend_path_prefix(${BASE_DIR} RAFT_CORE_SOURCE_FILES PREFIXED_SOURCE_FILES)
+prepend_path_prefix(${BASE_DIR}/components RAFT_CORE_INCLUDE_DIRS PREFIXED_INCLUDE_DIRS)
+
+# Debugging: Print the processed paths
+message(STATUS "Source files after prefixing: ${PREFIXED_SOURCE_FILES}")
+message(STATUS "Include directories after prefixing: ${PREFIXED_INCLUDE_DIRS}")
 
 # Set the build artifacts directory
 set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/build_raft_artifacts")
 file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
-# Define the project
-project(RaftCore VERSION 1.0.0 LANGUAGES C CXX)
-
 # Find Python
 find_package(Python3 REQUIRED)
 
 # Device type record paths
-set(JSON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/devtypes/DeviceTypeRecords.json")
+set(JSON_FILE "${BASE_DIR}/devtypes/DeviceTypeRecords.json")
 set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
 set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
 
 # Custom command to generate device type records header file from JSON
 add_custom_command(
     OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
-    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "${JSON_FILE}" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
+    COMMAND ${Python3_EXECUTABLE} "${BASE_DIR}/scripts/ProcessDevTypeJsonToC.py" "${JSON_FILE}" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
     DEPENDS ${JSON_FILE}
     COMMENT "---------------------- Generating Device Record headers from JSON ---------------------------"
 )
@@ -136,87 +155,79 @@ add_custom_command(
 # Add custom target for generating device records
 add_custom_target(generate_dev_ident_header DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
 
-# Handle build configurations based on the system
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-  # Set C++ standard
-  set(CMAKE_CXX_STANDARD 20)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-  # Process include directories for BUILD_INTERFACE
-  append_install_interface_prefix(
-    "RAFT_CORE_INCLUDE_DIRS"   # Source list
-    "RAFT_CORE_BUILD_INCLUDE_DIRS"   # Output variable
-    "components"
-  )
-
-  # Define the interface target for include paths
-  add_library(RaftCoreIncludes INTERFACE)
-  target_include_directories(RaftCoreIncludes INTERFACE
-    $<BUILD_INTERFACE:${RAFT_CORE_BUILD_INCLUDE_DIRS}>
+# Define the interface target for include paths
+add_library(RaftCoreIncludes INTERFACE)
+target_include_directories(RaftCoreIncludes INTERFACE
+    $<BUILD_INTERFACE:${PREFIXED_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${RAFT_BUILD_ARTIFACTS_FOLDER}>
-  )
+)
 
-  foreach(dir IN LISTS RAFT_CORE_INCLUDE_DIRS)
-    target_include_directories(RaftCoreIncludes INTERFACE
-        $<INSTALL_INTERFACE:include/RaftCore/${dir}>
-    )
-  endforeach()
+foreach(dir IN LISTS RAFT_CORE_INCLUDE_DIRS)
+target_include_directories(RaftCoreIncludes INTERFACE
+    $<INSTALL_INTERFACE:include/RaftCore/${dir}>
+)
+endforeach()
 
-  # Add -fPIC for static library compilation
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# Add -fPIC for static library compilation
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-  # Define the main RaftCore library
-  add_library(RaftCore STATIC ${RAFT_CORE_SOURCE_FILES})
-  target_link_libraries(RaftCore PUBLIC RaftCoreIncludes)
+# Define the main RaftCore library
+add_library(RaftCore STATIC ${PREFIXED_SOURCE_FILES})
+target_include_directories(RaftCore PUBLIC 
+    ${PREFIXED_INCLUDE_DIRS}
+    ${RAFT_BUILD_ARTIFACTS_FOLDER}
+)
+target_link_libraries(RaftCore PUBLIC RaftCoreIncludes)
 
-  # Set up installation paths
-  install(TARGETS RaftCore RaftCoreIncludes
-      EXPORT RaftCoreTargets
-      ARCHIVE DESTINATION lib
-      LIBRARY DESTINATION lib
-      RUNTIME DESTINATION bin
-      INCLUDES DESTINATION include/RaftCore
-  )
+# Set up installation paths
+install(TARGETS RaftCore RaftCoreIncludes
+    EXPORT RaftCoreTargets
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include/RaftCore
+)
 
-  # Install include files
-  install(DIRECTORY components/
-      DESTINATION include/RaftCore
-      FILES_MATCHING PATTERN "*.h"
-  )
-
-  # Install generated headers
-  install(DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}/
+# Install include files
+install(DIRECTORY ../../components/
     DESTINATION include/RaftCore
-  )
+    FILES_MATCHING PATTERN "*.h"
+)
 
-  # Export the project configuration for find_package()
-  install(EXPORT RaftCoreTargets
-      FILE RaftCoreConfig.cmake
-      NAMESPACE RaftCore::
-      DESTINATION lib/cmake/RaftCore
-  )
+# Install generated headers
+install(DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}/
+DESTINATION include/RaftCore
+)
 
-  # Create a ConfigVersion file for compatibility
-  include(CMakePackageConfigHelpers)
-  write_basic_package_version_file(
-      "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
-      VERSION ${PROJECT_VERSION}
-      COMPATIBILITY SameMajorVersion
-  )
+# Export the project configuration for find_package()
+install(EXPORT RaftCoreTargets
+    FILE RaftCoreConfig.cmake
+    NAMESPACE RaftCore::
+    DESTINATION lib/cmake/RaftCore
+)
 
-  install(FILES
-      "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
-      DESTINATION lib/cmake/RaftCore
-  )
+# Create a ConfigVersion file for compatibility
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
 
-  # Add the target to the build system
-  export(TARGETS RaftCore RaftCoreIncludes
-      NAMESPACE RaftCore::
-      FILE "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreTargets.cmake"
-  )
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreConfigVersion.cmake"
+    DESTINATION lib/cmake/RaftCore
+)
 
-  # Add dependencies
-  add_dependencies(RaftCore generate_dev_ident_header)
+# Add the target to the build system
+export(TARGETS RaftCore RaftCoreIncludes
+    NAMESPACE RaftCore::
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/RaftCoreTargets.cmake"
+)
 
-endif()
+# Add dependencies
+add_dependencies(RaftCore generate_dev_ident_header)
