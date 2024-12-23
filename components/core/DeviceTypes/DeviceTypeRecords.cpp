@@ -141,6 +141,7 @@ bool DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& 
 /// @brief Get device type for a device type name
 /// @param deviceTypeName device type name
 /// @param devTypeRec (out) device type record
+/// @param deviceTypeIdx (out) device type index
 /// @return true if device type found
 bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, uint32_t& deviceTypeIdx) const
 {

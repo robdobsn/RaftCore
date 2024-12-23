@@ -165,9 +165,7 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                 break;
             }
         }
-#ifdef DEBUG_BUS_ELEMENT_STATUS
         bool newlyCreated = false;
-#endif
         if (!pFoundDevice)
         {
             // Check if device newly created
@@ -179,10 +177,7 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                 // Create the device
                 pFoundDevice = new RaftBusDevice(bus.getBusName().c_str(), el.address, "RaftBusDevice", devConfig.c_str());
                 pFoundDevice->setDeviceTypeIndex(el.deviceTypeIndex);
-
-#ifdef DEBUG_BUS_ELEMENT_STATUS
                 newlyCreated = true;
-#endif
 
                 // Add to the list of instantiated devices
                 _deviceList.push_back(pFoundDevice);
@@ -214,8 +209,14 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                     LOG_I(MODULE_PREFIX, "busElemStatusCB registered deviceDataChangeCB for %s", rec.deviceName.c_str());
                 }
             }
-        }
 
+            // Handle device status change callbacks
+            for (auto& cb : _deviceStatusChangeCBList)
+            {
+                cb(*pFoundDevice, el.isChangeToOnline || newlyCreated, newlyCreated);
+            }
+        }
+        
         // Debug
 #ifdef DEBUG_BUS_ELEMENT_STATUS
         LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s %s%s%s%s",
@@ -754,4 +755,13 @@ void DeviceManager::registerForDeviceData(const char* pDeviceName, RaftDeviceDat
     }
     LOG_I(MODULE_PREFIX, "registerForDeviceData %s %s minTime %dms", 
         pDeviceName, found ? "OK" : "DEVICE_NOT_PRESENT", minTimeBetweenReportsMs);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Register for device status changes
+/// @param statusChangeCB Callback for status change
+void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB)
+{
+    // Add to requests for device status changes
+    _deviceStatusChangeCBList.push_back(statusChangeCB);
 }

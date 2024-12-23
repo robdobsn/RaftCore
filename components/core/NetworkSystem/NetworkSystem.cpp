@@ -338,6 +338,7 @@ void NetworkSystem::networkEventHandler(void *arg, esp_event_base_t event_base,
 {
 #ifdef DEBUG_NETWORK_EVENTS_DETAIL
     LOG_I(MODULE_PREFIX, "====== Network EVENT base %d id %d ======", (int)event_base, event_id);
+    delay(2);
 #endif
     if (event_base == WIFI_EVENT)
     {
@@ -352,6 +353,10 @@ void NetworkSystem::networkEventHandler(void *arg, esp_event_base_t event_base,
     {
         networkSystem.ethEventHandler(arg, event_id, pEventData);
     }
+#endif
+#ifdef DEBUG_NETWORK_EVENTS_DETAIL
+    LOG_I(MODULE_PREFIX, "====== Network EVENT DONE base %d id %d ======", (int)event_base, event_id);
+    delay(2);
 #endif
 }
 

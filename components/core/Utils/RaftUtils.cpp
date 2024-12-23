@@ -522,6 +522,7 @@ uint64_t Raft::getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
     for (size_t i = 0; i < sizeof(int64_t); ++i) {
         val = (val << 8) | pBuf[i];
     }
+    pBuf += varSize;
     return val;
 }
 
@@ -538,6 +539,7 @@ int64_t Raft::getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
     for (size_t i = 0; i < sizeof(int64_t); ++i) {
         val = (val << 8) | pBuf[i];
     }
+    pBuf += varSize;
     return val;
 }
 

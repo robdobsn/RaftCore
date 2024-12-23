@@ -182,8 +182,6 @@ public:
     {
     }
 
-    
-
 protected:
     // Device configuration
     RaftJson deviceConfig;

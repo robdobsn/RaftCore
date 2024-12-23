@@ -43,6 +43,10 @@ public:
             uint32_t minTimeBetweenReportsMs = DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS,
             const void* pCallbackInfo = nullptr);
 
+    /// @brief Register for device status changes
+    /// @param statusChangeCB Callback for status change
+    void registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB);
+
     // Default minimum time between reports
     static constexpr uint32_t DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS = 1000;
 
@@ -93,6 +97,9 @@ private:
 
     // Device data change callbacks
     std::list<DeviceDataChangeRec> _deviceDataChangeCBList;
+
+    // Device status change callbacks
+    std::list<RaftDeviceStatusChangeCB> _deviceStatusChangeCBList;
 
     // Setup device instances
     void setupDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
