@@ -134,6 +134,7 @@ def process_dev_types(json_path, dev_type_header_path, dev_poll_header_path, gen
         header_file.write('#pragma once\n')
         header_file.write('#include <stdint.h>\n')
         header_file.write('#include "DevicePollRecords_generated.h"\n')
+        header_file.write('#include "RaftUtils.h"\n')
         header_file.write('using namespace Raft;\n\n')
 
         # Generate the DeviceTypeRecord array
