@@ -101,13 +101,13 @@ void DeviceManager::postSetup()
 
     // Register for device data change callbacks
 #ifdef DEBUG_DEVICE_SETUP
-    uint32_t numDevsRegistered = 
+    uint32_t numDevCBsRegistered = 
 #endif
     registerForDeviceDataChangeCBs();
 
     // Debug
 #ifdef DEBUG_DEVICE_SETUP
-    LOG_I(MODULE_PREFIX, "postSetup %d devices registered %d CBs", numDevices, numDevsRegistered);
+    LOG_I(MODULE_PREFIX, "postSetup %d devices registered %d CBs", numDevices, numDevCBsRegistered);
 #endif
 }
 
@@ -845,17 +845,29 @@ void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusElem
 /// @return number of devices registered for data change callbacks
 uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
 {
-    // Create a vector of devices for the device data change callbacks
+    // Get semaphore
     if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
         return 0;
+
+    // Create a vector of devices for the device data change callbacks
     std::vector<DeviceDataChangeRecTmp> deviceListForDataChangeCB;
     for (auto& rec : _deviceDataChangeCBList)
     {
-        // Check if the device name matches
+        // Check if the device name matches (if specified)
         if (pDeviceName && (rec.deviceName != pDeviceName))
             continue;
-        // Get device
-        RaftDevice* pDevice = getDevice(rec.deviceName.c_str());
+        // Find device
+        RaftDevice* pDevice = nullptr;
+        for (auto* pTestDevice : _deviceList)
+        {
+            if (!pTestDevice)
+                continue;
+            if (rec.deviceName == pTestDevice->getDeviceName())
+            {
+                pDevice = pTestDevice;
+                break;
+            }
+        }
         if (!pDevice)
             continue;
         deviceListForDataChangeCB.push_back({pDevice, rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo});
