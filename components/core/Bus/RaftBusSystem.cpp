@@ -106,7 +106,7 @@ void RaftBusSystem::loop()
     {
         if (pBus)
         {
-            SUPERVISE_LOOP_CALL(_supervisorStats, _supervisorBusFirstIdx+busIdx, DEBUG_GLOB_HWDEVMAN, pBus->loop())
+            SUPERVISE_LOOP_CALL(_supervisorStats, _supervisorBusFirstIdx+busIdx, __loggerGlobalDebugValueBusSys, pBus->loop())
         }
         busIdx++;
     }

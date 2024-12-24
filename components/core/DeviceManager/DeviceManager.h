@@ -6,13 +6,14 @@
 
 #pragma once
 
-#include "RaftArduino.h"
 #include "RaftSysMod.h"
-#include "RaftBusSystem.h"
-#include "DeviceFactory.h"
 #include "BusRequestResult.h"
+#include "RaftDeviceConsts.h"
+#include "RaftThreading.h"
 
 class APISourceInfo;
+class RaftBus;
+class RaftDevice;
 
 class DeviceManager : public RaftSysMod
 {
@@ -59,22 +60,26 @@ public:
 
 protected:
 
-    // Setup
+    /// @brief Setup
     virtual void setup() override final;
     
-    // Post-setup - called after setup of all sysMods complete
+    /// @brief Post-setup - called after setup of all sysMods complete
     virtual void postSetup() override final;
 
-    // Loop (called frequently)
+    /// @brief Loop (called frequently)
     virtual void loop() override final;
 
-    // Add endpoints
+    /// @brief Add REST API endpoints
     virtual void addRestAPIEndpoints(RestAPIEndpointManager& pEndpoints) override final;
 
 private:
 
     // List of instantiated devices
     std::list<RaftDevice*> _deviceList;
+    static const uint32_t DEVICE_LIST_MAX_SIZE = 50;
+
+    // Access mutex
+    SemaphoreHandle_t _accessMutex = nullptr;    
 
     // Device data change record
     class DeviceDataChangeRec
@@ -101,23 +106,78 @@ private:
     // Device status change callbacks
     std::list<RaftDeviceStatusChangeCB> _deviceStatusChangeCBList;
 
-    // Setup device instances
+    /// @brief Setup device instances
+    /// @param pConfigPrefix Prefix for configuration
+    /// @param devManConfig Device manager configuration
     void setupDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
     
-    // Bus operation and status functions
+    /// @brief Bus element status callback
+    /// @param bus a reference to the bus which has elements with changed status
+    /// @param statusChanges - list of status changes
     void busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrAndStatus>& statusChanges);
+
+    /// @brief Bus operation status callback
+    /// @param bus a reference to the bus which has changed status
+    /// @param busOperationStatus - indicates bus ok/failing
     void busOperationStatusCB(RaftBus& bus, BusOperationStatus busOperationStatus);
 
-    // Access to devices' data
+    /// @brief Access to devices' data in JSON format
+    /// @return JSON string
     String getDevicesDataJSON() const;
+
+    /// @brief Access to devices' data in binary format
+    /// @return Binary data vector
     std::vector<uint8_t> getDevicesDataBinary() const;
+
+    /// @brief Get devices' status hash
+    /// @param stateHash hash of the currently available data
     void getDevicesHash(std::vector<uint8_t>& stateHash) const;
 
-    // API callback
+    /// @brief API callback
+    /// @param reqStr Request string
+    /// @param respStr Response string
+    /// @param sourceInfo Source of the API request
+    /// @return RaftRetCode Return code
     RaftRetCode apiDevMan(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
 
-    // Callback for command results
+    /// @brief Callback for command results
+    /// @param reqResult Result of the command
     void cmdResultReportCallback(BusRequestResult& reqResult);
+
+    /// @brief Get device list frozen
+    /// @param pDevices Pointer to array to receive devices
+    /// @param maxDevices Maximum number of devices to return
+    /// @return Number of devices
+    uint32_t getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices) const;
+
+    /// @brief Find device in device list by ID
+    /// @param pDeviceID ID of the device
+    /// @return pointer to device if found
+    RaftDevice* getDeviceByID(const char* pDeviceName) const;
+
+    /// @brief Call device status change callbacks
+    /// @param pDevice Pointer to the device
+    /// @param el Bus element address and status
+    /// @param newlyCreated True if the device was newly created
+    void callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusElemAddrAndStatus& el, bool newlyCreated);
+
+    // Device data change record temporary
+    struct DeviceDataChangeRecTmp
+    {
+        RaftDevice* pDevice = nullptr;
+        RaftDeviceDataChangeCB dataChangeCB = nullptr;
+        uint32_t minTimeBetweenReportsMs = 1000;
+        const void* pCallbackInfo = nullptr;
+    };
+
+    /// @brief Get device data change temporary records
+    /// @param recList List of temporary records
+    void getDeviceDataChangeRecTmp(std::list<DeviceDataChangeRecTmp>& recList);
+
+    /// @brief Register for device data change callbacks
+    /// @param pDeviceName Name of the device (nullptr for all devices)
+    /// @return number of devices registered
+    uint32_t registerForDeviceDataChangeCBs(const char* pDeviceName = nullptr);
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;

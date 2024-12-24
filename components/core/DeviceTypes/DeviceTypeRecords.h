@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include "RaftCore.h"
 #include "DeviceTypeRecord.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DevicePollingInfo.h"
+#include "RaftThreading.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecords

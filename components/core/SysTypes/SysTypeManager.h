@@ -9,15 +9,10 @@
 
 #pragma once
 
-#include <list>
-#include <functional>
-#include <vector>
-#include "RaftArduino.h"
-#include "Logger.h"
-#include "RaftJsonNVS.h"
+#include "SysTypeInfoRec.h"
+#include "RaftJson.h"
 #include "SpiramAwareAllocator.h"
 #include "RaftRetCode.h"
-#include "SysTypeInfoRec.h"
 
 class RestAPIEndpointManager;
 class APISourceInfo;

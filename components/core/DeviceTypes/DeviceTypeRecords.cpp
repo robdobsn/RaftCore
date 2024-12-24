@@ -8,6 +8,7 @@
 
 #include "DeviceTypeRecords.h"
 #include "BusRequestInfo.h"
+#include "RaftJson.h"
 
 // #define DEBUG_DEVICE_INFO_RECORDS
 // #define DEBUG_POLL_REQUEST_REQS

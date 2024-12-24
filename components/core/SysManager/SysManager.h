@@ -12,19 +12,13 @@
 
 #pragma once 
 
-#include <list>
-#include <vector>
-#include "ExecTimer.h"
-#include "SupervisorStats.h"
-#include "RestAPIEndpointManager.h"
-#include "RaftArduino.h"
-#include "CommsCoreIF.h"
-#include "RaftJsonNVS.h"
+#include "SysTypeManager.h"
 #include "SysModFactory.h"
+#include "NamedValueProvider.h"
+#include "SupervisorStats.h"
 #include "ProtocolExchange.h"
 #include "DeviceManager.h"
-#include "SysTypeManager.h"
-#include "NamedValueProvider.h"
+#include "RaftJsonNVS.h"
 
 typedef String (*SysManager_statsCB)();
 

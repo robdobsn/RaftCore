@@ -26,17 +26,13 @@
 #include "NetworkSystem.h"
 #endif // ESP_PLATFORM
 
+// Settings
 // #define ONLY_ONE_MODULE_PER_LOOP 1
-
-// Debug supervisor step (for hangup detection within a loop call)
-// Uses global logger variables - see logger.h
-#define DEBUG_GLOB_SYSMAN 0
 #define INCLUDE_PROTOCOL_FILE_UPLOAD_IN_STATS
 
 // Debug
 // #define DEBUG_SYSMOD_MEMORY_USAGE
 // #define DEBUG_LIST_SYSMODS
-// #define DEBUG_SYSMOD_WITH_GLOBAL_VALUE
 // #define DEBUG_SEND_CMD_JSON_PERF
 // #define DEBUG_REGISTER_MSG_GEN_CB
 // #define DEBUG_API_ENDPOINTS
@@ -393,10 +389,9 @@ void SysManager::loop()
     {
         if (_sysModLoopVector[_loopCurModIdx])
         {
-#ifdef DEBUG_SYSMOD_WITH_GLOBAL_VALUE
-            DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _loopCurModIdx;
+#ifdef DEBUG_USING_GLOBAL_VALUES
+            __loggerGlobalDebugValueSysMan = _loopCurModIdx;
 #endif
-
             // Check if the SysMod slow check is enabled
             if (_reportSlowSysMod)
             {
@@ -424,6 +419,9 @@ void SysManager::loop()
                 if (_supervisorEnable)
                     _supervisorStats.execEnded(_loopCurModIdx);
             }
+#ifdef DEBUG_USING_GLOBAL_VALUES
+            __loggerGlobalDebugValueSysMan = -2;
+#endif
         }
 
         // Next SysMod
@@ -597,11 +595,13 @@ String SysManager::getDebugJSON(const char* sysModName) const
     if (strcasecmp(sysModName, "SysMan") == 0)
         return _supervisorStats.getSummaryString();
 
+#ifdef DEBUG_USING_GLOBAL_VALUES
     // Check for global debug values
     if (strcasecmp(sysModName, "Globs") == 0)
     {
-        return DebugGlobals::getDebugJson(false);
+        return Raft::getDebugGlobalsJson(false);
     }
+#endif
 
     // Check for stats callback
     if (strcasecmp(sysModName, "StatsCB") == 0)

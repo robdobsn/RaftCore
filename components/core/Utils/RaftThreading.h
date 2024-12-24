@@ -41,6 +41,8 @@ extern "C" {
     void RaftMutex_unlock(RaftMutex &mutex);
     void RaftMutex_destroy(RaftMutex &mutex);
 
+    // Thread handle
+    static const mp_uint_t RAFT_THREAD_HANDLE_INVALID = 0;
     typedef mp_uint_t RaftThreadHandle;
 
     // Thread functions
@@ -48,7 +50,7 @@ extern "C" {
         RaftThreadHandle& taskHandle,
         void (*pThreadFn)(void *), 
         void* pArg,
-        size_t stackSize = 0, 
+        size_t stackSize = 4000, 
         const char* pTaskName = nullptr, 
         int taskPriority = 0, 
         int taskCore = 0, 
@@ -71,6 +73,8 @@ extern "C" {
     void RaftMutex_unlock(RaftMutex &mutex);
     void RaftMutex_destroy(RaftMutex &mutex);
 
+    // Thread handle
+    static const TaskHandle_t RAFT_THREAD_HANDLE_INVALID = nullptr;
     typedef TaskHandle_t RaftThreadHandle;
     
     // Thread functions
@@ -78,9 +82,9 @@ extern "C" {
         RaftThreadHandle& taskHandle,
         void (*pThreadFn)(void *), 
         void* pArg,
-        size_t stackSize = 0, 
+        size_t stackSize = 4000, 
         const char* pTaskName = nullptr, 
-        int taskPriority = 0, 
+        int taskPriority = configMAX_PRIORITIES - 1, 
         int taskCore = 0, 
         bool pinToCore = false);
     void RaftThread_sleep(uint32_t ms);
@@ -103,6 +107,8 @@ extern "C" {
     void RaftMutex_unlock(RaftMutex &mutex);
     void RaftMutex_destroy(RaftMutex &mutex);
 
+    // Thread handle
+    static const pthread_t RAFT_THREAD_HANDLE_INVALID = nullptr;
     typedef pthread_t RaftThreadHandle;
 
     // Thread functions
@@ -110,9 +116,9 @@ extern "C" {
         RaftThreadHandle& taskHandle,
         void (*pThreadFn)(void *), 
         void* pArg,
-        size_t stackSize = 0, 
+        size_t stackSize = 10000, 
         const char* pTaskName = nullptr, 
-        int taskPriority = 0, 
+        int taskPriority = SCHED_OTHER, 
         int taskCore = 0, 
         bool pinToCore = false);
     void RaftThread_sleep(uint32_t ms);

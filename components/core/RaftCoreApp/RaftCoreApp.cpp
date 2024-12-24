@@ -12,6 +12,7 @@
 #include "RaftCoreApp.h"
 #include "RaftJsonNVS.h"
 #include "SysTypeInfoRec.h"
+#include "RaftThreading.h"
 
 #if __has_include("SysTypeInfoRecs.h")
 #include "SysTypeInfoRecs.h"
@@ -94,6 +95,9 @@ RaftCoreApp::RaftCoreApp() :
     // Get the system version (maybe overridden by SysType)
     String systemVersion = _systemConfig.getString("SystemVersion", SYSTEM_VERSION);
 
+    // Start debugging thread if required
+    startDebuggingThread();
+
     // Log out system info
     ESP_LOGI(MODULE_PREFIX, PROJECT_BASENAME " %s (built " __DATE__ " " __TIME__ ") Heap (int) %d (all) %d", 
                         systemVersion.c_str(),
@@ -121,3 +125,28 @@ void RaftCoreApp::loop()
     // Loop over all the system modules
     _sysManager.loop();
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Start debugging thread
+void RaftCoreApp::startDebuggingThread()
+{
+#ifdef DEBUG_USING_GLOBAL_VALUES
+    // Start the debugging thread
+    LOG_I(MODULE_PREFIX, "Starting debugging thread");
+    if (!RaftThread_start(_debuggingThreadHandle,
+                [](void *pArg) {
+                    LOG_I(MODULE_PREFIX, "Inside debugging thread");
+                    while (true)
+                    {
+                        LOG_I(MODULE_PREFIX, "Debugging thread %s", Raft::getDebugGlobalsJson(false).c_str());
+                        // Sleep
+                        RaftThread_sleep(1000);
+                    }
+                },
+                nullptr))
+    {
+        LOG_E(MODULE_PREFIX, "Failed to start debugging thread");
+    }
+#endif
+}
+

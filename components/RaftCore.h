@@ -3,6 +3,11 @@
 
 #pragma once
 
+#include <stdint.h>
+#include <vector>
+#include <functional>
+#include <list>
+
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #include "sdkconfig.h"
@@ -10,20 +15,19 @@
 #include "esp_idf_version.h"
 #endif
 
-#include <stdint.h>
-#include <vector>
 #include "RaftUtils.h"
 #include "RaftArduino.h"
-#include "RaftDevice.h"
 #include "RaftJson.h"
 #include "RaftJsonPrefixed.h"
 #include "RaftJsonNVS.h"
 #include "ConfigPinMap.h"
 #include "DebounceButton.h"
-#include "DeviceManager.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftSysMod.h"
+#include "RaftThreading.h"
 #include "ThreadSafeQueue.h"
+#include "RaftDevice.h"
+#include "DeviceManager.h"
 
 #ifdef ESP_PLATFORM
 #include "LEDPixels.h"

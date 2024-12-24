@@ -45,11 +45,14 @@ int RestAPIEndpointManager::getNumEndpoints()
 // Get nth endpoint
 RestAPIEndpoint *RestAPIEndpointManager::getNthEndpoint(int n)
 {
-    if ((n >= 0) && (n < _endpointsList.size()))
-    {
-        return &_endpointsList[n];
-    }
-    return NULL;
+    // Check valid
+    if (n < 0 || n >= _endpointsList.size())
+        return nullptr;
+
+    // Get N'th endpoint
+    auto it = _endpointsList.begin();
+    std::advance(it, n);
+    return &(*it);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

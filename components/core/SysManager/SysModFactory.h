@@ -10,7 +10,6 @@
 
 #include <list>
 #include <vector>
-#include "RaftArduino.h"
 
 class RaftSysMod;
 
