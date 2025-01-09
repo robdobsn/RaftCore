@@ -79,6 +79,9 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
             .with_dma = false,                              // No DMA
             .io_loop_back = false,                          // No loop
             .io_od_mode = false,                            // Not open drain
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+            .allow_pd = 1,                                  // Allow power down (save context to RAM)
+#endif
         },
 #else
         .intr_priority = 0,                                  // Interrupt priority

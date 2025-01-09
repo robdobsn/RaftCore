@@ -6,8 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "esp_err.h"
-#include "driver/uart.h"
 #include "Logger.h"
 #include "BusSerial.h"
 #include "BusRequestInfo.h"
@@ -15,6 +13,9 @@
 #include "ConfigPinMap.h"
 #include "RaftUtils.h"
 #include "RaftArduino.h"
+#include "esp_err.h"
+#include "driver/uart.h"
+#include "esp_idf_version.h"
 
 // #define DEBUG_BUS_SERIAL
 
@@ -125,7 +126,12 @@ bool BusSerial::serialInit()
                 .source_clk = UART_SCLK_DEFAULT,
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 1)
-                .flags = 0,
+                .flags = {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+                .allow_pd = 1,
+                .backup_before_sleep = 1,
+#endif
+                },
 #endif
     };
     esp_err_t err = uart_param_config((uart_port_t)_uartNum, &uart_config);
