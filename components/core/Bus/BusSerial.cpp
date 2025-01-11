@@ -128,8 +128,8 @@ bool BusSerial::serialInit()
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 1)
                 .flags = {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-                .allow_pd = 1,
-                .backup_before_sleep = 1,
+                .allow_pd = 0,
+                .backup_before_sleep = 0,
 #endif
                 },
 #endif

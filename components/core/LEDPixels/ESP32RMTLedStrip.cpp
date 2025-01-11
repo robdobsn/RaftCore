@@ -80,7 +80,7 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
             .io_loop_back = false,                          // No loop
             .io_od_mode = false,                            // Not open drain
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-            .allow_pd = 1,                                  // Allow power down (save context to RAM)
+            .allow_pd = config.allowPowerDown,                                  // Allow power down (save context to RAM)
 #endif
         },
 #else

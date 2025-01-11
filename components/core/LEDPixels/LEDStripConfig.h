@@ -48,6 +48,7 @@ public:
 
         // Stop RMT peripheral after transmit
         stopAfterTx = config.getBool("stopAfterTx", false);
+        allowPowerDown = config.getBool("allowPowerDown", false);
 
         // Blocking show
         blockingShow = config.getBool("blockingShow", false);
@@ -102,7 +103,10 @@ public:
 
     // Stop after Tx - deinit RMT peripheral after transmit
     bool stopAfterTx:1 = false;
-    
+
+    // Allow power down flag in RMT peripheral
+    bool allowPowerDown:1 = false;
+
     // Send MSB first
     bool msbFirst:1 = true;
 
