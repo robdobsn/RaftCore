@@ -124,6 +124,10 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
 String platform_getAppVersion()
 {
     const esp_app_desc_t *pAppDesc = esp_app_get_description();
+    if (pAppDesc->version[0] == 0)
+        return "0.0.0";
+    else if (pAppDesc->version[0] == 'v')
+        return String(pAppDesc->version+1);
     return String(pAppDesc->version);
 }
 
@@ -486,7 +490,7 @@ strlcpy(char *dst, const char *src, size_t siz)
 // Get the app version string
 String platform_getAppVersion()
 {
-    return "TestVersion";
+    return "0.0.0";
 }
 
 // Get compile time and date
