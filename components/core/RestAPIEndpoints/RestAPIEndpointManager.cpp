@@ -212,10 +212,17 @@ const char* RestAPIEndpointManager::getArgPtrAndLen(const char *argStr, int argI
     int curArgIdx = 0;
     const char *pCh = argStr;
     const char *pArg = argStr;
+    bool insideInvCommas = false;
 
     while (true)
     {
-        if ((*pCh == '/') || (splitOnQuestionMark && (*pCh == '?')) || (*pCh == '\0'))
+        if (*pCh == '\"')
+        {
+            insideInvCommas = !insideInvCommas;
+        }
+        if (((*pCh == '/') && !insideInvCommas) || 
+            (splitOnQuestionMark && (*pCh == '?') && !insideInvCommas) || 
+            (*pCh == '\0'))
         {
             if (curArgIdx == argIdx)
             {
@@ -240,14 +247,23 @@ int RestAPIEndpointManager::getNumArgs(const char *argStr)
     int numArgs = 0;
     int numChSinceSep = 0;
     const char *pCh = argStr;
+    bool insideInvCommas = false;
 
     // Count args
     while (*pCh)
     {
-        if (*pCh == '/')
+        if ((*pCh == '/') && !insideInvCommas)
         {
             numArgs++;
             numChSinceSep = 0;
+        }
+        else if (*pCh == '?' && !insideInvCommas)
+        {
+            break;
+        }
+        else if (*pCh == '\"')
+        {
+            insideInvCommas = !insideInvCommas;
         }
         pCh++;
         numChSinceSep++;

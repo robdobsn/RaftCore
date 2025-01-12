@@ -63,7 +63,7 @@ std::vector<uint16_t> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrTyp
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
             std::vector<int> addressList;
-            Raft::parseIntList(extDevTypeRec.addresses_.c_str(), addressList, ",");
+            Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
             for (int devAddr : addressList)
             {
                 if (devAddr == addr)
@@ -153,7 +153,7 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRe
     {
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
-            if (extDevTypeRec.deviceTypeName_ == deviceTypeName)
+            if (extDevTypeRec.deviceTypeName == deviceTypeName)
             {
                 isValid = extDevTypeRec.getDeviceTypeRecord(devTypeRec);
                 deviceTypeIdx = typeIdx;
@@ -603,7 +603,7 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
             std::vector<int> addressList;
-            Raft::parseIntList(extDevTypeRec.addresses_.c_str(), addressList, ",");
+            Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
             for (int devAddr : addressList)
             {
                 if (priorityLists.size() == 0)

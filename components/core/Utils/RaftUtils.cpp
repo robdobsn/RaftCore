@@ -81,7 +81,8 @@ RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, c
     if ((otherJson) && (otherJson[0] != '\0'))
         additionalJson = otherJson + String(",");
     String retStr;
-    resp = "{\"req\":\"" + String(pReq) + "\"," + additionalJson + "\"rslt\":";
+    String reqStr = escapeString(pReq, true);
+    resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + "\"rslt\":";
     if (rslt)
         resp += "\"ok\"}";
     else
@@ -104,7 +105,8 @@ RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char*
     String errorMsgStr;
     if (errorMsg)
         errorMsgStr = errorMsg;
-    resp = "{\"req\":\"" + String(pReq) + "\"," + additionalJson + "\"rslt\":\"fail\",\"error\":\"" + errorMsgStr + "\"}";
+    String reqStr = escapeString(pReq, true);
+    resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + "\"rslt\":\"fail\",\"error\":\"" + errorMsgStr + "\"}";
     return RaftRetCode::RAFT_OTHER_FAILURE;
 }
 
@@ -125,87 +127,107 @@ RaftRetCode Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const
 }
 
 /// @brief Escape string using hex character encoding for control characters
-/// @param inStr Input string
+/// @param pStr Input string
+/// @param escapeQuotesToBackslashQuotes true if quotes should be escaped to backslash quotes (otherwise to hex)
 /// @return Escaped string
-String Raft::escapeString(const String& inStr)
+String Raft::escapeString(const char* pStr, bool escapeQuotesToBackslashQuotes)
 {
+    if (!pStr)
+        return "";
     String outStr;
     // Reserve a bit more than the inStr length
-    outStr.reserve((inStr.length() * 3) / 2);
+    outStr.reserve((strlen(pStr) * 3) / 2);
     // Replace chars with escapes as needed
-    for (unsigned int i = 0; i < inStr.length(); i++) 
+    while (*pStr != '\0')
     {
-        int c = inStr.charAt(i);
-        if (c == '"' || c == '\\' || ('\x00' <= c && c <= '\x1f')) 
+        int c = *pStr;
+        if (c == '"' || c == '\\' || ('\x00' <= c && c <= '\x1f'))
         {
-            outStr += "\\u";
-            String cx = String(c, 16);
-            for (unsigned int j = 0; j < 4-cx.length(); j++)
-                outStr += "0";
-            outStr += cx;
-        } 
+            if (escapeQuotesToBackslashQuotes && c == '"')
+            {
+                outStr += "\\\"";
+            }
+            else
+            {
+                outStr += "\\u";
+                String cx = String(c, 16);
+                for (unsigned int j = 0; j < 4-cx.length(); j++)
+                    outStr += "0";
+                outStr += cx;
+            }
+        }
         else
         {
             outStr += (char)c;
         }
+        pStr++;
     }
     return outStr;
 }
 
 /// @brief Unescape string handling hex character encoding for control characters
-/// @param inStr Input string
-/// @return Unescaped string
-String Raft::unescapeString(const String& inStr)
+/// @param pStr Input string
+/// @return Escaped string
+String Raft::unescapeString(const char* pStr)
 {
     String outStr;
     // Reserve inStr length
-    outStr.reserve(inStr.length());
+    uint32_t inStrLen = strlen(pStr);
+    outStr.reserve(inStrLen);
     // Replace escapes with chars
-    for (unsigned int i = 0; i < inStr.length(); i++) 
+    while (*pStr != '\0')
     {
-        int c = inStr.charAt(i);
-        if (c == '\\') 
+        int c = *pStr;
+        if (c == '\\')
         {
-            i++;
-            if (i >= inStr.length())
+            pStr++;
+            if (*pStr == 0)
                 break;
-            c = inStr.charAt(i);
-            if (c == 'u')
+            if (*pStr == 'u')
             {
-                i++;
-                if (i >= inStr.length())
-                    break;
-                String cx = inStr.substring(i, i+4);
+                pStr++;
+                String cx = "";
+                for (unsigned int j = 0; j < 4; j++)
+                {
+                    if (*pStr == 0)
+                        break;
+                    cx += *pStr;
+                    pStr++;
+                }
                 c = strtol(cx.c_str(), NULL, 16);
-                i += 3;
             }
-            else if (c == 'x')
+            else if (*pStr == 'x')
             {
-                i++;
-                if (i >= inStr.length())
-                    break;
-                String cx = inStr.substring(i, i+2);
+                pStr++;
+                String cx = "";
+                for (unsigned int j = 0; j < 2; j++)
+                {
+                    if (*pStr == 0)
+                        break;
+                    cx += *pStr;
+                    pStr++;
+                }
                 c = strtol(cx.c_str(), NULL, 16);
-                i += 1;
             }
-            else if (c == 'n')
+            else if (*pStr == 'n')
                 c = '\n';
-            else if (c == 'r')
+            else if (*pStr == 'r')
                 c = '\r';
-            else if (c == 't')
+            else if (*pStr == 't')
                 c = '\t';
-            else if (c == 'b')
+            else if (*pStr == 'b')
                 c = '\b';
-            else if (c == 'f')
+            else if (*pStr == 'f')
                 c = '\f';
-            else if (c == '"')
+            else if (*pStr == '"')
                 c = '"';
-            else if (c == '\\')
+            else if (*pStr == '\\')
                 c = '\\';
             else
                 c = 0;
         }
         outStr += (char)c;
+        pStr++;
     }
     return outStr;
 }

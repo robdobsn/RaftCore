@@ -65,14 +65,15 @@ namespace Raft
     RaftRetCode setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg = nullptr, const char* otherJson = nullptr);
 
     /// @brief Escape string using hex character encoding for control characters
-    /// @param inStr Input string
+    /// @param pStr Input string
+    /// @param escapeQuotesToBackslashQuotes true if quotes should be escaped to backslash quotes (otherwise to hex)
     /// @return Escaped string
-    String escapeString(const String& inStr);
+    String escapeString(const char* pStr, bool escapeQuotesToBackslashQuotes = false);
 
     /// @brief Unescape string handling hex character encoding for control characters
-    /// @param inStr Input string
+    /// @param pStr Input string
     /// @return Unescaped string
-    String unescapeString(const String& inStr);
+    String unescapeString(const char* pStr);
 
     /// @brief Convert HTTP query format to JSON
     /// @param inStr Input string
