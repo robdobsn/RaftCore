@@ -66,7 +66,7 @@ public:
     // Get system version
     String getSystemVersion() const
     {
-        return _systemVersion;
+        return platform_getAppVersion();
     }
 
     // Get system serial number
@@ -298,9 +298,8 @@ private:
     // Pause WiFi for BLE
     bool _pauseWiFiForBLE = false;
 
-    // System name and version
+    // System name
     String _systemName;
-    String _systemVersion;
 
     // Hardware revision reporting prefix
     String _altHardwareRevisionPrefix = "";

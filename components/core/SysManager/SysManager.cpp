@@ -88,7 +88,6 @@ void SysManager::preSetup()
 {
     // Override system name if it is specified in the config
     _systemName = _systemConfig.getString("SystemName", _systemName.c_str());
-    _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
 
     // System config for this module
     RaftJsonPrefixed sysManConfig(_systemConfig, _moduleName.c_str());
@@ -143,7 +142,7 @@ void SysManager::preSetup()
     // Debug
     LOG_I(MODULE_PREFIX, "systemName %s systemVersion %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
                 _systemName.c_str(),
-                _systemVersion.c_str(),
+                platform_getAppVersion().c_str(),
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
                 _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
@@ -798,7 +797,7 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
             R"("MAC":"%s",%s})",
              reqStr.c_str(), 
              _systemName.c_str(), 
-             _systemVersion.c_str(),
+             platform_getAppVersion().c_str(),
              friendlyNameIsSet ? friendlyName.c_str() : "",
              serialNo.c_str(),
              _systemUniqueString.c_str(),
@@ -1062,7 +1061,7 @@ void SysManager::statsShow()
     snprintf(statsStr, sizeof(statsStr), R"({%s"n":"%s","v":"%s","r":"%s","hpInt":%d,"hpMin":%d,"hpAll":%d)", 
                 friendlyNameStr.c_str(),
                 _systemName.c_str(),
-                _systemVersion.c_str(),
+                platform_getAppVersion().c_str(),
                 getBaseSysTypeVersion().c_str(),
 #ifdef ESP_PLATFORM
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),

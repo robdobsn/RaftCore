@@ -16,6 +16,7 @@ set(RAFT_CORE_REQUIRES
   esp_wifi
   esp_eth
   esp_timer
+  esp_app_format
 )
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")

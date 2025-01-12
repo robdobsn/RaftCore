@@ -31,9 +31,6 @@ static constexpr const SysTypeInfoRec sysTypeInfoRecs[] = {};
 #ifndef PROJECT_BASENAME
 #define PROJECT_BASENAME "Unknown"
 #endif
-#ifndef SYSTEM_VERSION
-#define SYSTEM_VERSION "Unknown"
-#endif
 
 // NOTE:
 // In VSCode C++ raw strings can be removed - to reveal JSON with regex search and replace:
@@ -46,8 +43,6 @@ static constexpr const SysTypeInfoRec sysTypeInfoRecs[] = {};
 static const char *defaultConfigJSON =
     R"({)"
         R"("SystemName":")" PROJECT_BASENAME R"(",)"
-        R"("SystemVersion":")" SYSTEM_VERSION R"(",)"
-        R"("IDFVersion":")" IDF_VER R"(",)"
         R"("DefaultName":")" PROJECT_BASENAME R"(",)"
         R"("SysManager":{)"
             R"("monitorPeriodMs":10000,)"
@@ -93,7 +88,7 @@ RaftCoreApp::RaftCoreApp() :
     _sysManager.preSetup();
 
     // Get the system version (maybe overridden by SysType)
-    String systemVersion = _systemConfig.getString("SystemVersion", SYSTEM_VERSION);
+    String systemVersion = _systemConfig.getString("SystemVersion", platform_getAppVersion().c_str());
 
     // Start debugging thread if required
     startDebuggingThread();

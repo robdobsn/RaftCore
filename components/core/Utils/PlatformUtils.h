@@ -67,3 +67,9 @@ extern "C" {
 
 // Get size of SPIRAM (returns 0 if not available) or UINT32_MAX if on a non-ESP platform
 uint32_t utilsGetSPIRAMSize();
+
+// Get the app version string
+String platform_getAppVersion();
+
+// Get compile time and date
+String platform_getCompileTime(bool includeDate);

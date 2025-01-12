@@ -18,6 +18,7 @@
 #include "esp_task_wdt.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
+#include "esp_app_desc.h"
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
 extern "C" {
@@ -117,6 +118,20 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
     if (pSeparator)
         __systemMACCachedSep = pSeparator;
     return macStr;
+}
+
+// Get the app version string
+String platform_getAppVersion()
+{
+    const esp_app_desc_t *pAppDesc = esp_app_get_description();
+    return String(pAppDesc->version);
+}
+
+// Get compile time and date
+String platform_getCompileTime(bool includeDate)
+{
+    const esp_app_desc_t *pAppDesc = esp_app_get_description();
+    return (includeDate ? " " + String(pAppDesc->date) : "") + String(pAppDesc->time);
 }
 
 #endif // ESP8266
@@ -466,6 +481,20 @@ strlcpy(char *dst, const char *src, size_t siz)
     }
 
     return(s - src - 1);    /* count does not include NUL */
+}
+
+// Get the app version string
+String platform_getAppVersion()
+{
+    return "TestVersion";
+}
+
+// Get compile time and date
+String platform_getCompileTime(bool includeDate)
+{
+    if (includeDate)
+        return __DATE__ " " __TIME__;
+    return __TIME__;
 }
 
 #endif // ESP_PLATFORM
