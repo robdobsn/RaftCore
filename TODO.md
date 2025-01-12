@@ -1,6 +1,8 @@
 # Todo
 
 [] remove version in cmake and use the one esp idf builds in (from git tag, etc)
+[] move device types json file out of this repo - or leave a basic one and have an override mechanism
+[] consider compressing device types json
 [] build system could maybe do more in python so it might be workable with Arduino, PlatformIO, etc
 [] build system could parse sdkconfig.defaults and change the path to partitions.csv file to the right one for the systype
 [] Sort out why ROS throughput is wrong
