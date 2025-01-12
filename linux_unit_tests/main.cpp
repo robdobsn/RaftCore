@@ -1,15 +1,92 @@
 #include <stdio.h>
-#include "utils.h"
 #include "ArduinoWString.h"
 #include "RaftJson.h"
+#include "RaftUtils.h"
+#include "PlatformUtils.h"
 
 #include "JSON_test_data_large.h"
 #include "JSON_test_data_small.h"
 
 #define TEST_ASSERT(cond, msg) if (!(cond)) { printf("TEST_ASSERT failed %s\n", msg); failCount++; }
 
+// Unit test for parseIntList function
+void testParseIntList()
+{
+    printf("Running testParseIntList...\n");
+
+    struct TestCase
+    {
+        const char* inputStr;
+        const char* listSep;
+        const char* rangeSep;
+        uint32_t maxNum;
+        std::vector<int> expectedOutput;
+        bool expectedResult;
+    };
+
+    std::vector<TestCase> testCases = {
+        // Basic tests
+        {"1,2,3,4", ",", "-", 10, {1, 2, 3, 4}, true},
+        {"1-3,5", ",", "-", 10, {1, 2, 3, 5}, true},
+
+        // Test with maxNum
+        {"1,2,3,4,5", ",", "-", 3, {1, 2, 3}, false},
+        {"1-5", ",", "-", 3, {1, 2, 3}, false},
+
+        // Custom separators
+        {"1;2;3-5;6", ";", "-", 10, {1, 2, 3, 4, 5, 6}, true},
+        {"1to3;4", ";", "to", 10, {1, 2, 3, 4}, true},
+
+        // Empty input
+        {"", ",", "-", 10, {}, true},
+
+        // Invalid inputs
+        // {"1-5-7,8", ",", "-", 10, {}, true}, // Malformed range
+        // {"abc,2-4", ",", "-", 10, {2, 3, 4}, true}, // Invalid token
+    };
+
+    int failCount = 0;
+
+    for (size_t i = 0; i < testCases.size(); ++i)
+    {
+        const TestCase& testCase = testCases[i];
+        std::vector<int> output;
+        bool result = Raft::parseIntList(testCase.inputStr, output, testCase.listSep, testCase.rangeSep, testCase.maxNum);
+
+        if (result != testCase.expectedResult)
+        {
+            printf("Test %zu failed: Expected result %d, got %d\n", i, testCase.expectedResult, result);
+            ++failCount;
+            continue;
+        }
+
+        if (output != testCase.expectedOutput)
+        {
+            printf("Test %zu failed: Expected output ", i);
+            for (int val : testCase.expectedOutput)
+                printf("%d ", val);
+            printf(", got ");
+            for (int val : output)
+                printf("%d ", val);
+            printf("\n");
+            ++failCount;
+        }
+    }
+
+    if (failCount == 0)
+    {
+        printf("testParseIntList all tests passed\n");
+    }
+    else
+    {
+        printf("testParseIntList FAILED %d tests\n", failCount);
+    }
+}
+
 int main()
 {
+    testParseIntList();
+
     int constsAxis = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/axis", 0);
     int minotaur = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/oxis/coo[3]/minotaur[2]", 0);
     int comarr = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/comarr[4]", 0);

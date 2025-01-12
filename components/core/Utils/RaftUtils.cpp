@@ -1365,24 +1365,85 @@ int Raft::findInBuf(const SpiramAwareUint8Vector& buf, uint32_t offset,
     return rslt;
 }
 
-/// @brief Parse a string into a list of integers
-/// @param pInStr Pointer to the input string
-/// @param outList List to receive the integers
-/// @param pSep Separator string
-void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep)
+/// @brief Parse a string into a list of integers, handling ranges.
+/// @param pInStr Pointer to the input string.
+/// @param outList List to receive the integers.
+/// @param pSep List separator (default: "," if nullptr).
+/// @param pListSep Range separator (default: "-" if nullptr).
+/// @param maxNum Maximum number of integers to parse.
+/// @return true if all integers were parsed (false if maxNum was reached).
+/// @note This handles ranges of integers in the form of "1-5,7,9-12".
+bool Raft::parseIntList(const char* pInStr, std::vector<int>& outList,
+                      const char* pSep, const char* pListSep, uint32_t maxNum) 
 {
+    // Clear the list and check inputs valid
     outList.clear();
-    if (!pInStr)
-        return;
-    static const uint32_t MAX_STR_LEN = 1000;
-    char* pStr = strndup(pInStr, MAX_STR_LEN);
-    char* pTok = strtok(pStr, pSep);
-    while (pTok)
+    if (!pInStr || maxNum == 0)
+        return false;
+
+    // Check for nullptrs
+    pSep = pSep ? pSep : ",";
+    pListSep = pListSep ? pListSep : "-";
+
+    // Parse the string
+    const char* ptr = pInStr;
+    while (*ptr != '\0')
     {
-        outList.push_back(strtol(pTok, nullptr, 0));
-        pTok = strtok(nullptr, pSep);
+        // Parse the start of a number or range
+        char* endPtr = nullptr;
+         // Parse the first number
+        int start = strtol(ptr, &endPtr, 0);
+        if (ptr == endPtr)
+            break;
+
+        // Move to end of number and skip spaces
+        ptr = endPtr;
+        while (*ptr == ' ')
+            ++ptr;
+
+        // Check if this is a range
+        if (strncmp(ptr, pListSep, strlen(pListSep)) == 0)
+        {
+            // Skip the range separator
+            ptr += strlen(pListSep);
+            // Parse the second number
+            int end = strtol(ptr, &endPtr, 0);
+            if (ptr != endPtr && start <= end)
+            {
+                // Add all numbers in the range
+                for (int i = start; i <= end; ++i)
+                {
+                    outList.push_back(i);
+                    // Stop parsing if maxNum is reached
+                    if (outList.size() >= maxNum)
+                        return false;
+                }
+            }
+            // Move past the range
+            ptr = endPtr;
+        }
+        else
+        {
+            // Single number
+            outList.push_back(start);
+            // Stop parsing if maxNum is reached
+            if (outList.size() >= maxNum)
+                return false; 
+        }
+
+        // Skip the separator, if present
+        if (strncmp(ptr, pSep, strlen(pSep)) == 0)
+    {
+            ptr += strlen(pSep);
     }
-    free(pStr);
+
+        // Skip spaces
+        while (*ptr == ' ')
+            ++ptr;
+
+    }
+
+    return true;
 }
 
 /// @brief Get string for RaftRetCode

@@ -544,7 +544,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     // REST API endpoints
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            " devman/typeinfo?bus=<busName>&type=<typeName> - Get device info for type by name or number,"
+                            " devman/typeinfo?bus=<busName>&type=<typeName> - Get type info,"
                             " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
