@@ -12,6 +12,9 @@
 #include "RestAPIEndpointManager.h"
 #include "CommsChannelManager.h"
 #include "ProtocolExchange.h"
+#include "RaftBusSystem.h"
+#include "DeviceManager.h"
+#include "RaftJsonNVS.h"
 
 class RaftCoreApp
 {
