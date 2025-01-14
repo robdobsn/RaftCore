@@ -95,37 +95,6 @@ add_custom_target(
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
 
 ################################################
-# DevTypes Generation
-################################################
-
-# Device type record paths
-set(DEV_TYPE_JSON_FILES "")
-set(POSSIBLE_FILES 
-    "${CMAKE_SOURCE_DIR}/systypes/Common/DevTypes.json"
-    "${BUILD_CONFIG_DIR}/DevTypes.json"
-)
-foreach(FILE_PATH ${POSSIBLE_FILES})
-    if(EXISTS ${FILE_PATH})
-        list(APPEND DEV_TYPE_JSON_FILES ${FILE_PATH})
-    endif()
-endforeach()
-set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
-set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
-
-# Custom command to generate device type records header file from JSON
-add_custom_command(
-    OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
-    COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "\"[${DEV_TYPE_JSON_FILES}]\"" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
-    DEPENDS ${DEV_TYPE_JSON_FILES}
-    COMMENT "\n------------------ Generating Device Record headers from JSON"
-)
-
-# Add custom target for generating device records
-add_custom_target(generate_dev_ident_header DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
-
-set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} generate_dev_ident_header)
-
-################################################
 # SysTypes Header
 ################################################
 
@@ -156,6 +125,38 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 
 # Configure build config specific features (options, flags, etc).
 include(${BUILD_CONFIG_DIR}/features.cmake)
+
+################################################
+# DevTypes Generation
+################################################
+
+# Device type record paths
+set(POSSIBLE_FILES 
+    "${CMAKE_SOURCE_DIR}/systypes/Common/DevTypes.json"
+    "${BUILD_CONFIG_DIR}/DevTypes.json"
+)
+foreach(FILE_PATH ${POSSIBLE_FILES})
+    if(EXISTS ${FILE_PATH})
+        list(APPEND DEV_TYPE_JSON_FILES ${FILE_PATH})
+    endif()
+endforeach()
+# Debugging output
+set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
+set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
+# Convert DEV_TYPE_JSON_FILES to a comma-separated string
+string(JOIN "," DEV_TYPE_JSON_ARG ${DEV_TYPE_JSON_FILES})
+# Custom command to generate device type records header file from JSON
+add_custom_command(
+    OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
+    COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "[${DEV_TYPE_JSON_ARG}]" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
+    DEPENDS ${DEV_TYPE_JSON_FILES}
+    COMMENT "\nGenerating Device Record headers from JSON"
+)
+
+# Add custom target for generating device records
+add_custom_target(generate_dev_ident_header ALL DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
+
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} generate_dev_ident_header)
 
 ################################################
 # ESP IDF
