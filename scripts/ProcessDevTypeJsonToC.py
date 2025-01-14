@@ -13,16 +13,35 @@ from DecodeGenerator import DecodeGenerator
 # - An array of device type counts for each address (0x00 to 0x7f) - this is the number of device types for each address
 # - An array of device type indexes for each address - each element is an array of indices into the DeviceTypeRecord array
 # - An array of scanning priorities for each address
-# The script takes two arguments:
-# - The path to the JSON file with the device types
-# - The path to the header file to generate
+# The script takes these arguments:
+# - A comma separated list of paths to JSON files containing device types which may include [ at the start and ] at the end of the path
+# - The path to the device type header file to generate
+# - The path to the poll-record header file to generate
+# The script also takes optional arguments:
+# --POLL_RESULT_TIMESTAMP_SIZE - the size of the timestamp in the poll result data
+# --POLL_RESULT_RESOLUTION_US - the resolution of the timestamp in the poll result data
+# --DECODE_STRUCT_TIMESTAMP_C_TYPE - the C data type for the timestamp in the decoded data struct
+# --DECODE_STRUCT_TIMESTAMP_RESOLUTION_US - the resolution of the timestamp in the decoded data struct
 
-def process_dev_types(json_path, dev_type_header_path, dev_poll_header_path, gen_options):
-
+def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, gen_options):
+    # Remove any leading or trailing square brackets
+    json_paths = json_paths.strip()
+    if json_paths[0] == '[':
+        json_paths = json_paths[1:]
+    if json_paths[-1] == ']':
+        json_paths = json_paths[:-1]
+    # Split the input string into a list of file paths
+    json_files = json_paths.split(',')
     decodeGenerator = DecodeGenerator(gen_options)
 
-    with open(json_path, 'r') as json_file:
-        dev_ident_json = json.load(json_file)
+    dev_ident_json = {'devTypes': {}}
+    for json_file_path in json_files:
+        if json_file_path.strip() == "":
+            continue
+        with open(json_file_path.strip(), 'r') as json_file:
+            file_json = json.load(json_file)
+            # Merge device types from multiple JSON files
+            dev_ident_json['devTypes'].update(file_json.get('devTypes', {}))
 
     # Address range
     min_addr_array_index = 0

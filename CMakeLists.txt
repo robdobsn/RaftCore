@@ -147,23 +147,3 @@ idf_component_register(
     ${RAFT_CORE_REQUIRES}
 )
 
-# Find Python
-find_package(Python3 REQUIRED)
-
-# Device type record paths
-set(JSON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/devtypes/DeviceTypeRecords.json")
-set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
-set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
-
-# Custom command to generate device type records header file from JSON
-add_custom_command(
-    OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
-    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "${JSON_FILE}" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
-    DEPENDS ${JSON_FILE}
-    COMMENT "---------------------- Generating Device Record headers from JSON ---------------------------"
-)
-
-# Add custom target for generating device records
-add_custom_target(generate_dev_ident_header DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
-
-add_dependencies(${COMPONENT_LIB} generate_dev_ident_header)

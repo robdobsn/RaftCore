@@ -5,6 +5,19 @@
 cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
+# Find Python
+find_package(Python3 REQUIRED)
+
+################################################
+# Show CMake phase
+################################################
+
+if (CMAKE_GENERATOR)
+    message(STATUS "\n------------------ CMAKE GENERATION PHASE")
+else()
+    message(STATUS "\n------------------ CMAKE CONFIGURATION PHASE")
+endif()
+
 ################################################
 # Build configuration handling
 ################################################
@@ -19,7 +32,7 @@ if(${_build_config_name} STREQUAL "build" AND NOT ${_test_build_base_folder} STR
     set(_build_config_name "")
     file(GLOB _all_systype_dirs RELATIVE ${CMAKE_SOURCE_DIR}/systypes ${CMAKE_SOURCE_DIR}/systypes/*)
 
-    # Iterate over all systype folders to skip the Common folder if it exists
+    # Iterate over all systype folders (skip the Common folder if it exists)
     foreach(_systype_dir IN LISTS _all_systype_dirs)
         if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/systypes/${_systype_dir} AND NOT _systype_dir STREQUAL "Common")
             set(_build_config_name ${_systype_dir})
@@ -39,8 +52,7 @@ else()
 endif()
 
 # Debug
-message (STATUS "\n------------------ RaftCore BuildConfig ${_build_config_name} ------------------")
-message (STATUS "\n------------------ RaftCore build folder ${CMAKE_BINARY_DIR} ------------------")
+message (STATUS "\n------------------ Building SysType ${_build_config_name} -> ${CMAKE_BINARY_DIR}\n")
 
 # Set the base project name
 set(PROJECT_BASENAME "${_build_config_name}")
@@ -83,6 +95,37 @@ add_custom_target(
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
 
 ################################################
+# DevTypes Generation
+################################################
+
+# Device type record paths
+set(DEV_TYPE_JSON_FILES "")
+set(POSSIBLE_FILES 
+    "${CMAKE_SOURCE_DIR}/systypes/Common/DevTypes.json"
+    "${BUILD_CONFIG_DIR}/DevTypes.json"
+)
+foreach(FILE_PATH ${POSSIBLE_FILES})
+    if(EXISTS ${FILE_PATH})
+        list(APPEND DEV_TYPE_JSON_FILES ${FILE_PATH})
+    endif()
+endforeach()
+set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
+set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
+
+# Custom command to generate device type records header file from JSON
+add_custom_command(
+    OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
+    COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "\"[${DEV_TYPE_JSON_FILES}]\"" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
+    DEPENDS ${DEV_TYPE_JSON_FILES}
+    COMMENT "\n------------------ Generating Device Record headers from JSON"
+)
+
+# Add custom target for generating device records
+add_custom_target(generate_dev_ident_header DEPENDS ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER})
+
+set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} generate_dev_ident_header)
+
+################################################
 # SysTypes Header
 ################################################
 
@@ -90,7 +133,7 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
 set(_systypes_out "${RAFT_BUILD_ARTIFACTS_FOLDER}/SysTypeInfoRecs.h")
 set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
 set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
-message(STATUS "------------------ Generating SysTypeInfoRecs.h ------------------")
+message(STATUS "\n------------------ Generating SysTypeInfoRecs.h")
 message(STATUS "Generating ${_systypes_out} from file ${_systypes_json}")
 add_custom_command(
     OUTPUT ${_systypes_out}
