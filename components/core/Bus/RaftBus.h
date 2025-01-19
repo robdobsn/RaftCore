@@ -14,6 +14,7 @@
 #include "RaftBusConsts.h"
 #include "RaftBusStats.h"
 #include "RaftBusDevicesIF.h"
+#include "VirtualPinResult.h"
 
 class BusRequestInfo;
 class RaftBus;
@@ -291,9 +292,43 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Call bus element status callback
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set virtual pin mode on IO expander
+    /// @param pinNum - pin number
+    /// @param mode - true for input, false for output
+    /// @param level - initial level (true for high, false for low)
+    virtual void virtualPinMode(int pinNum, bool level)
+    {
+    }
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set virtual pin level on IO expander
+    /// @param pinNum - pin number
+    /// @param level - true for on, false for off
+    virtual void virtualPinWrite(int pinNum, bool level)
+    {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get virtual pin level on IO expander
+    /// @param pinNum - pin number
+    /// @param vPinCallback - callback for virtual pin changes
+    /// @param pCallbackData - callback data
+    virtual void virtualPinRead(int pinNum, VirtualPinCallbackType vPinCallback, void* pCallbackData = nullptr)
+    {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Update IO expander
+    /// @param forceCommunication - true to force communication
+    /// @param vPinCallback - callback for virtual pin changes
+    /// @param pCallbackData - callback data    
+    virtual void virtualPinsUpdate(bool forceCommunication, VirtualPinCallbackType vPinCallback = nullptr, void* pCallbackData = nullptr)
+    {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus status as a stringCall bus element status callback
+    /// @param busElemStatusCB - callback for bus element status changes
     void callBusElemStatusCB(const std::vector<BusElemAddrAndStatus>& statusChanges)
     {
         if (_busElemStatusCB)
@@ -301,9 +336,8 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Call bus operation status callback
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+    /// @brief Call bus operation status callback
+    /// @param busOperationStatus - bus operation status
     void callBusOperationStatusCB(BusOperationStatus busOperationStatus)
     {
         if (_busOperationStatusCB)

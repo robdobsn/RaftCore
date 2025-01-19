@@ -27,7 +27,7 @@ public:
         uint32_t bytesToCopy = (len <= RESPONSE_BUFFER_MAX_BYTES) ? len : RESPONSE_BUFFER_MAX_BYTES;
         if (bytesToCopy > 0)
             _respBuf.assign(pBuf, pBuf+bytesToCopy);
-        _result = ok ? REQ_RESULT_OK : REQ_RESULT_FAIL;
+        _result = ok ? RAFT_OK : RAFT_BUS_PENDING;
         _callback = callback;
         _callbackParam = callbackParam;
         _cmdId = cmdId;
@@ -36,7 +36,7 @@ public:
     void clear()
     {
         _address = 0;
-        _result = REQ_RESULT_NONE;
+        _result = RAFT_BUS_PENDING;
         _callbackParam = nullptr;
         _callback = nullptr;
         _respBuf.clear();
@@ -53,14 +53,12 @@ public:
         return _respBuf.size();
     }
 
-    enum ReqResultType
+    std::vector<uint8_t>& getReadDataVec()
     {
-        REQ_RESULT_NONE,
-        REQ_RESULT_FAIL,
-        REQ_RESULT_OK
-    };
+        return _respBuf;
+    }
 
-    ReqResultType getResult()
+    RaftRetCode getResult()
     {
         return _result;
     }
@@ -72,7 +70,7 @@ public:
 
     bool isResultOk()
     {
-        return _result == REQ_RESULT_OK;
+        return _result == RAFT_OK;
     }
 
     BusRequestCallbackType getCallback()
@@ -96,7 +94,7 @@ private:
     std::vector<uint8_t> _respBuf;
 
     // Result
-    ReqResultType _result;
+    RaftRetCode _result;
 
     // Callback
     BusRequestCallbackType _callback;

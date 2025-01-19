@@ -676,6 +676,7 @@ public:
             } else {
                 name = pair;
             }
+            name.trim();
 
             // Add to the vector
             nameValuePairs.emplace_back(name, value);
