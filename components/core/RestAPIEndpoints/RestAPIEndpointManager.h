@@ -83,6 +83,7 @@ public:
     static const uint32_t CHANNEL_ID_SERIAL_CONSOLE = 20003;
     static const uint32_t CHANNEL_ID_COMMAND_SCHEDULER = 20004;
     static const uint32_t CHANNEL_ID_MQTT_COMMS = 20005;
+    static const uint32_t CHANNEL_ID_REMOTE_CONTROL = 20006;
 
 private:
     // List of endpoints
