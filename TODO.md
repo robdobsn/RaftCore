@@ -1,6 +1,8 @@
 # Todo
 
 [] consider compressing device types json
+[] add DeviceFactory.h to RaftCoreApp.h - consider name change to RaftDeviceFactory
+[] change poll_XXX to raft_XXX for raft device devode
 [] build system could maybe do more in python so it might be workable with Arduino, PlatformIO, etc
 [] build system could parse sdkconfig.defaults and change the path to partitions.csv file to the right one for the systype
 [] Sort out why ROS throughput is wrong
