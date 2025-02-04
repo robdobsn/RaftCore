@@ -852,14 +852,13 @@ RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, c
                 friendlyName.c_str(), friendlyNameIsSet ? "Y" : "N");
 
     // Create response JSON
-    char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 70];
-    snprintf(JsonOut, sizeof(JsonOut), R"("friendlyName":"%s","friendlyNameIsSet":%d)", 
-                friendlyName.c_str(), friendlyNameIsSet);
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
+    String rsltStr = Raft::formatString(100, R"("friendlyName":"%s","friendlyNameIsSet":%s)", 
+                friendlyName.c_str(), friendlyNameIsSet ? "true" : "false");
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, rsltStr.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief API for getting serial number
+/// @brief API for getting and setting serial number
 /// @param reqStr
 /// @param respStr
 /// @param sourceInfo
@@ -872,21 +871,27 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         // Get serial number to set
         String serialNoHexStr = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
         uint8_t serialNumBuf[_serialLengthBytes];
-        if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, _serialLengthBytes) != _serialLengthBytes)
+        uint32_t serialNoLen = Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, _serialLengthBytes);
+        if (serialNoLen != _serialLengthBytes)
         {
-            Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
-            return RaftRetCode::RAFT_INVALID_DATA;
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
         }
 
-        // Validate magic string
-        String magicString;
-        if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
+        // Validate magic string if required
+        if (_serialMagicStr.length() > 0)
         {
-            magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
-            if (!magicString.equals(_serialMagicStr) && !_serialMagicStr.isEmpty())
+            String magicString;
+            if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
             {
-                Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
-                return RaftRetCode::RAFT_INVALID_DATA;
+                magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
+                if (!magicString.equals(_serialMagicStr))
+                {
+                    return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNMagicInvalid");
+                }
+            }
+            else
+            {
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
             }
         }
 
@@ -901,9 +906,8 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
     String serialNo = _mutableConfig.getString("serialNo", "");
 
     // Create response JSON
-    char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 100];
-    snprintf(JsonOut, sizeof(JsonOut), R"("SerialNo":"%s")", serialNo.c_str());
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
+    String jsonResult = R"("SerialNo":")" + serialNo + "\"";
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, jsonResult.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1020,13 +1024,11 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
 /// @return JSON string
 String SysManager::getMutableConfigJson()
 {
-    char jsonConfig[MAX_FRIENDLY_NAME_LENGTH + _serialLengthBytes*2 + 70];
-    snprintf(jsonConfig, sizeof(jsonConfig), 
-            R"({"friendlyName":"%s","nameSet":%d,"serialNo":"%s"})", 
+    return Raft::formatString(100,
+                 R"({"friendlyName":"%s","nameSet":%d,"serialNo":"%s"})",
                 _mutableConfigCache.friendlyName.c_str(), 
                 _mutableConfigCache.friendlyNameIsSet, 
                 _mutableConfigCache.serialNo.c_str());
-    return jsonConfig;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

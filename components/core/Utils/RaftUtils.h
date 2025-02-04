@@ -52,8 +52,10 @@ namespace Raft
     /// @param resp Response string
     /// @param errorMsg Error message
     /// @param otherJson Additional JSON to add to the response
+    /// @param retCode Return code
     /// @return RaftRetCode
-    RaftRetCode setJsonErrorResult(const char* req, String& resp, const char* errorMsg, const char* otherJson = nullptr);
+    RaftRetCode setJsonErrorResult(const char* req, String& resp, const char* errorMsg, 
+                const char* otherJson = nullptr, RaftRetCode retCode = RaftRetCode::RAFT_OTHER_FAILURE);
 
     /// @brief Set results for JSON comms with result type, error message and additional JSON
     /// @param pReq Request string
@@ -376,12 +378,27 @@ namespace Raft
     /// @return Decimal value of the hex character
     uint32_t getHexFromChar(int ch);
 
+    /// @brief Lookup table for hex character to nybble
+    static constexpr const uint8_t __RAFT_CHAR_TO_NYBBLE[] =
+    {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, // 01234567
+        0x08, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 89:;<=>?
+        0x00, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x00, // @ABCDEFG
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // HIJKLMNO
+    };
+
     /// @brief Extract bytes from hex encoded string
     /// @param inStr Hex encoded string
     /// @param outBuf Buffer to receive the bytes
     /// @param maxOutBufLen Maximum length of the output buffer
     /// @return Number of bytes extracted
     uint32_t getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
+
+    /// @brief Get bytes from hex-encoded string
+    /// @param inStr Input string
+    /// @param maxOutBufLen Maximum number of bytes to return
+    /// @return Vector containing the decoded bytes (up to maxOutBufLen or all if maxOutBufLen is 0)
+    std::vector<uint8_t> getBytesFromHexStr(const char* inStr, size_t maxOutBufLen);
 
     /// @brief Convert a byte array to a hex string (no separator)
     /// @param pBuf Pointer to the byte array

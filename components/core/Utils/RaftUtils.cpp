@@ -77,16 +77,9 @@ uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
 /// @return RaftRetCode
 RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
 {
-    String additionalJson = "";
-    if ((otherJson) && (otherJson[0] != '\0'))
-        additionalJson = otherJson + String(",");
-    String retStr;
+    String additionalJson = ((otherJson) && (otherJson[0] != '\0')) ? otherJson : "";
     String reqStr = escapeString(pReq, true);
-    resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + "\"rslt\":";
-    if (rslt)
-        resp += "\"ok\"}";
-    else
-        resp += "\"fail\"}";
+    resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + String("\"rslt\":") + (rslt ? "\"ok\"}" : "\"fail\"}");
     return rslt ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_OTHER_FAILURE;
 }
 
@@ -96,18 +89,13 @@ RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, c
 /// @param errorMsg Error message
 /// @param otherJson Additional JSON to add to the response
 /// @return RaftRetCode
-RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson)
+RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson, RaftRetCode retCode)
 {
-    String additionalJson = "";
-    if ((otherJson) && (otherJson[0] != 0))
-        additionalJson = otherJson + String(",");
-    String retStr;
-    String errorMsgStr;
-    if (errorMsg)
-        errorMsgStr = errorMsg;
+    String additionalJson = ((otherJson) && (otherJson[0] != 0)) ? otherJson + String(",") : "";
+    String errorMsgStr = errorMsg ? errorMsg : "Unknown error";
     String reqStr = escapeString(pReq, true);
     resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + "\"rslt\":\"fail\",\"error\":\"" + errorMsgStr + "\"}";
-    return RaftRetCode::RAFT_OTHER_FAILURE;
+    return retCode;
 }
 
 /// @brief Set results for JSON comms with result type, error message and additional JSON
@@ -965,6 +953,7 @@ uint32_t Raft::getHexFromChar(int ch)
     return 0;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get bytes from hex-encoded string
 /// @param inStr Input string
 /// @param outBuf Buffer to receive the bytes
@@ -972,26 +961,50 @@ uint32_t Raft::getHexFromChar(int ch)
 /// @return Number of bytes copied
 uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen)
 {
-    // Mapping ASCII to hex
-    static const uint8_t chToNyb[] =
-    {
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, // 01234567
-        0x08, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 89:;<=>?
-        0x00, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x00, // @ABCDEFG
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // HIJKLMNO
-    };
+    // Check valid
+    if (!inStr)
+        return 0;
+
+    // Skip initial "0x" if present
+    if (inStr[0] == '0' && (inStr[1] == 'x' || inStr[1] == 'X'))
+        inStr += 2;
 
     // Clear initially
-    uint32_t inStrLen = strnlen(inStr, (maxOutBufLen*2)+1);
+    uint32_t inStrLen = strnlen(inStr, maxOutBufLen * 2);
     uint32_t numBytes = maxOutBufLen < inStrLen / 2 ? maxOutBufLen : inStrLen / 2;
     uint32_t posIdx = 0;
     for (uint32_t byteIdx = 0; byteIdx < numBytes; byteIdx++)
     {
         uint32_t nyb0Idx = (inStr[posIdx++] & 0x1F) ^ 0x10;
         uint32_t nyb1Idx = (inStr[posIdx++] & 0x1F) ^ 0x10;
-        outBuf[byteIdx] = (chToNyb[nyb0Idx] << 4) + chToNyb[nyb1Idx];
+        outBuf[byteIdx] = (__RAFT_CHAR_TO_NYBBLE[nyb0Idx] << 4) + __RAFT_CHAR_TO_NYBBLE[nyb1Idx];
     };
     return numBytes;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get bytes from hex-encoded string
+/// @param inStr Input string
+/// @param maxOutBufLen Maximum number of bytes to return
+/// @return Vector containing the decoded bytes (up to maxOutBufLen)
+std::vector<uint8_t> Raft::getBytesFromHexStr(const char* inStr, size_t maxOutBufLen)
+{
+    // Check valid
+    if (!inStr)
+        return std::vector<uint8_t>();
+
+    // Skip initial "0x" if present
+    if (inStr[0] == '0' && (inStr[1] == 'x' || inStr[1] == 'X'))
+        inStr += 2;
+
+    // Ensure input string has an even number of characters
+    size_t inStrLen = strnlen(inStr, maxOutBufLen * 2);
+
+    // Determine number of bytes to decode, limited by maxOutBufLen
+    size_t numBytes = std::min(inStrLen / 2, maxOutBufLen);
+    std::vector<uint8_t> outBuf(numBytes);
+    getBytesFromHexStr(inStr, outBuf.data(), numBytes);
+    return outBuf;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,7 @@
 # Todo
 
+[] move RaftCore version into the sysmod somehow - need to think how CMake works in this case
+[] move RaftCore into build_raft_artifacts or otherwise adjust -> raft_build
 [] consider compressing device types json
 [] add DeviceFactory.h to RaftCoreApp.h - consider name change to RaftDeviceFactory
 [] change poll_XXX to raft_XXX for raft device devode
