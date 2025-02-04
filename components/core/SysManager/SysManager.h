@@ -57,6 +57,11 @@ public:
     // Add a pre-constructed SysMod to the managed list
     void addManagedSysMod(RaftSysMod* pSysMod);
 
+    /// @brief Get SysMod instance by name
+    /// @param sysModName
+    /// @return Pointer to SysMod instance or nullptr if not found
+    RaftSysMod* getSysMod(const char* sysModName) const;
+
     // Get system name
     String getSystemName() const
     {
