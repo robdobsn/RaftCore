@@ -1573,6 +1573,31 @@ bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool rev
     return true;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Convert UUID128 uint8_t array to string
+/// @param pUUID128 Pointer to the UUID128 array
+/// @param reverseOrder Reverse the order of the UUID128 array
+/// @return UUID128 string
+String Raft::uuid128ToString(const uint8_t* pUUID128, bool reverseOrder)
+{
+    // Check valid
+    if (!pUUID128)
+        return "";
+
+    // Convert
+    String uuid128Str;
+    char tmpBuf[5];
+    for (uint32_t i = 0; i < 16; i++)
+    {
+        uint32_t idx = reverseOrder ? 16-1-i : i;
+        snprintf(tmpBuf, sizeof(tmpBuf), "%02x%s", pUUID128[idx], 
+                    (i == 3 || i == 5 || i == 7 || i == 9) ? "-" : "");
+        uuid128Str += tmpBuf;
+    }
+    return uuid128Str;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Trim a String including removing trailing null terminators
 /// @param str String to trim
 void Raft::trimString(String& str)

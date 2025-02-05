@@ -535,6 +535,12 @@ namespace Raft
     static const uint32_t UUID128_BYTE_COUNT = 16;
     bool uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool reverseOrder = true);
 
+    /// @brief Convert UUID128 uint8_t array to string
+    /// @param pUUID128 Pointer to the UUID128 array
+    /// @param reverseOrder Reverse the order of the UUID128 array
+    /// @return UUID128 string
+    String uuid128ToString(const uint8_t* pUUID128, bool reverseOrder = true);
+
     /// @brief Trim a String including removing trailing null terminators
     /// @param str String to trim
     void trimString(String& str);
