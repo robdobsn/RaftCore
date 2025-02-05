@@ -77,7 +77,7 @@ uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
 /// @return RaftRetCode
 RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
 {
-    String additionalJson = ((otherJson) && (otherJson[0] != '\0')) ? otherJson : "";
+    String additionalJson = ((otherJson) && (otherJson[0] != '\0')) ? otherJson + String(",") : "";
     String reqStr = escapeString(pReq, true);
     resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + String("\"rslt\":") + (rslt ? "\"ok\"}" : "\"fail\"}");
     return rslt ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_OTHER_FAILURE;
