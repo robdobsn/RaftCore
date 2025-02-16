@@ -1,5 +1,12 @@
 # Todo
 
+[] dockerfile and other build specific stuff - maybe allow different ESP IDF versions???
+[] move RaftCore version into the sysmod somehow - need to think how CMake works in this case
+[] move RaftCore into build_raft_artifacts or otherwise adjust -> raft_build
+[] consider compressing device types json
+[] add DeviceFactory.h to RaftCoreApp.h - consider name change to RaftDeviceFactory
+[] change poll_XXX to raft_XXX for raft device devode
+[] debug msg in sample collector long     LOG_I(MODULE_PREFIX, "setup sampleRateLimitHz %d maxTotalJSONStringSize %d sampleHeader %s sampleAPIName %s allocateAtStart %s dumpToConsole %d dumpToFileName %s maxFileSize %d",
 [] build system could maybe do more in python so it might be workable with Arduino, PlatformIO, etc
 [] build system could parse sdkconfig.defaults and change the path to partitions.csv file to the right one for the systype
 [] Sort out why ROS throughput is wrong
@@ -9,11 +16,6 @@
 [] raftcli program could handle monitoring over WiFi - maybe a stretch too far?
 [] when ethernet is enabled but there is no ethernet hardware there is a long delay (5s?) on boot
 [] wifi password less than 8 --- what does this mean?
-[] maybe implement DeviceSystem which has a device factory and basically does what HWElemManager does - perhaps change HWElemBase to RaftDevice? - basically make it so that devices can be registered from anywhere and dynamically appear from RaftI2C and will be handled by DeviceSystem so that at any time connected devices can be queried through a consistent interface - any API stuff will happen in a SysMod called DeviceManager maybe in RaftSysMods like the relationship between networkSystem and networkManager - perhaps deviceSystem is a singleton like networkSystem? - and devices can be configured from main config through DeviceManager
-[] when configuring the StatePublisher (Publish) SysMod is it necessary to match both the interface (if) and the protocol? It seems that if the "if" is defined then the protocol should be defined by the interface? Or can an interface have more than one protocol?
-
-[] build with web server fails sometimes due to output names changing - need a different way to determine destination output - maybe a dummy file?
-
 
 build script thoughts:
 - a python script to do the pre-build

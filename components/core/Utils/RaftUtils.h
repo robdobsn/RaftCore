@@ -15,6 +15,7 @@
 #include "RaftRetCode.h"
 #include "PlatformUtils.h"
 #include "SpiramAwareAllocator.h"
+#include "PlatformUtils.h"
 
 namespace Raft
 {
@@ -52,8 +53,10 @@ namespace Raft
     /// @param resp Response string
     /// @param errorMsg Error message
     /// @param otherJson Additional JSON to add to the response
+    /// @param retCode Return code
     /// @return RaftRetCode
-    RaftRetCode setJsonErrorResult(const char* req, String& resp, const char* errorMsg, const char* otherJson = nullptr);
+    RaftRetCode setJsonErrorResult(const char* req, String& resp, const char* errorMsg, 
+                const char* otherJson = nullptr, RaftRetCode retCode = RaftRetCode::RAFT_OTHER_FAILURE);
 
     /// @brief Set results for JSON comms with result type, error message and additional JSON
     /// @param pReq Request string
@@ -65,14 +68,15 @@ namespace Raft
     RaftRetCode setJsonResult(const char* pReq, String& resp, bool rslt, const char* errorMsg = nullptr, const char* otherJson = nullptr);
 
     /// @brief Escape string using hex character encoding for control characters
-    /// @param inStr Input string
+    /// @param pStr Input string
+    /// @param escapeQuotesToBackslashQuotes true if quotes should be escaped to backslash quotes (otherwise to hex)
     /// @return Escaped string
-    String escapeString(const String& inStr);
+    String escapeString(const char* pStr, bool escapeQuotesToBackslashQuotes = false);
 
     /// @brief Unescape string handling hex character encoding for control characters
-    /// @param inStr Input string
+    /// @param pStr Input string
     /// @return Unescaped string
-    String unescapeString(const String& inStr);
+    String unescapeString(const char* pStr);
 
     /// @brief Convert HTTP query format to JSON
     /// @param inStr Input string
@@ -375,12 +379,27 @@ namespace Raft
     /// @return Decimal value of the hex character
     uint32_t getHexFromChar(int ch);
 
+    /// @brief Lookup table for hex character to nybble
+    static constexpr const uint8_t __RAFT_CHAR_TO_NYBBLE[] =
+    {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, // 01234567
+        0x08, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 89:;<=>?
+        0x00, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x00, // @ABCDEFG
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // HIJKLMNO
+    };
+
     /// @brief Extract bytes from hex encoded string
     /// @param inStr Hex encoded string
     /// @param outBuf Buffer to receive the bytes
     /// @param maxOutBufLen Maximum length of the output buffer
     /// @return Number of bytes extracted
     uint32_t getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen);
+
+    /// @brief Get bytes from hex-encoded string
+    /// @param inStr Input string
+    /// @param maxOutBufLen Maximum number of bytes to return
+    /// @return Vector containing the decoded bytes (up to maxOutBufLen or all if maxOutBufLen is 0)
+    std::vector<uint8_t> getBytesFromHexStr(const char* inStr, size_t maxOutBufLen);
 
     /// @brief Convert a byte array to a hex string (no separator)
     /// @param pBuf Pointer to the byte array
@@ -494,11 +513,16 @@ namespace Raft
     int findInBuf(const SpiramAwareUint8Vector& buf, uint32_t offset,
                 const uint8_t* pToFind, uint32_t toFindLen);
 
-    /// @brief Parse a string into a list of integers
-    /// @param pInStr Pointer to the input string
-    /// @param outList List to receive the integers
-    /// @param pSep Separator string
-    void parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep = ",");
+    /// @brief Parse a string into a list of integers, handling ranges.
+    /// @param pInStr Pointer to the input string.
+    /// @param outList List to receive the integers.
+    /// @param pSep List separator (default: "," if nullptr).
+    /// @param pListSep Range separator (default: "-" if nullptr).
+    /// @param maxNum Maximum number of integers to parse.
+    /// @return true if all integers were parsed (false if maxNum was reached).
+    /// @note This handles ranges of integers in the form of "1-5,7,9-12".
+    bool parseIntList(const char* pInStr, std::vector<int>& outList,
+                        const char* pSep = nullptr, const char* pListSep = nullptr, uint32_t maxNum = 100); 
 
     /// @brief Get string for RaftRetCode
     /// @param retc RaftRetCode value
@@ -511,6 +535,12 @@ namespace Raft
     /// @return true if successful
     static const uint32_t UUID128_BYTE_COUNT = 16;
     bool uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool reverseOrder = true);
+
+    /// @brief Convert UUID128 uint8_t array to string
+    /// @param pUUID128 Pointer to the UUID128 array
+    /// @param reverseOrder Reverse the order of the UUID128 array
+    /// @return UUID128 string
+    String uuid128ToString(const uint8_t* pUUID128, bool reverseOrder = true);
 
     /// @brief Trim a String including removing trailing null terminators
     /// @param str String to trim

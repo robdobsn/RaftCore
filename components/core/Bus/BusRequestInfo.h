@@ -17,7 +17,7 @@
 
 class BusRequestResult;
 class BusRequestInfo;
-typedef void (*BusRequestCallbackType) (void*, BusRequestResult&);
+typedef std::function<void(void*, BusRequestResult&)> BusRequestCallbackType;
 
 enum BusReqType
 {

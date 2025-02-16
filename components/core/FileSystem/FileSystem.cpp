@@ -16,6 +16,7 @@
 #include "driver/sdmmc_host.h"
 #include "driver/sdmmc_defs.h"
 #include "driver/sdspi_host.h"
+#include "esp_idf_version.h"
 #include "FileSystem.h"
 #include "RaftUtils.h"
 #include "ConfigPinMap.h"
@@ -1302,6 +1303,9 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
         .data5_io_num = -1,
         .data6_io_num = -1,
         .data7_io_num = -1,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+        .data_io_default_level = 0,
+#endif
         .max_transfer_sz = 4000,
         .flags = 0,
 #endif

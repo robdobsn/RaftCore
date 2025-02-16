@@ -10,9 +10,7 @@
 
 #include <list>
 #include <stdint.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
+#include "RaftThreading.h"
 #include "RaftBus.h"
 #include "RaftArduino.h"
 #include "RaftJsonIF.h"

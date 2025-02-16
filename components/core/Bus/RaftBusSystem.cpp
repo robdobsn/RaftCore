@@ -14,7 +14,7 @@
 #define WARN_ON_NO_BUSES_DEFINED
 
 // Debug
-// #define DEBUG_BUSES_CONFIGURATION
+// #define DEBUG_RAFT_BUS_SYSTEM_SETUP
 // #define DEBUG_GET_BUS_BY_NAME
 // #define DEBUG_GET_BUS_BY_NAME_DETAIL
 // #define DEBUG_BUS_FACTORY_CREATE
@@ -69,7 +69,7 @@ void RaftBusSystem::setup(const char* busConfigName, const RaftJsonIF& config,
         // Get bus type
         String busType = busConfig.getString("type", "");
 
-#ifdef DEBUG_BUSES_CONFIGURATION
+#ifdef DEBUG_RAFT_BUS_SYSTEM_SETUP
         LOG_I(MODULE_PREFIX, "setting up bus type %s with %s (raftBusSystem %p)", busType.c_str(), busConfig.c_str(), this);
 #endif
 
@@ -93,6 +93,10 @@ void RaftBusSystem::setup(const char* busConfigName, const RaftJsonIF& config,
             LOG_E(MODULE_PREFIX, "Failed to create bus type %s (pBusSystem %p)", busType.c_str(), this);
         }
     }
+
+#ifdef DEBUG_RAFT_BUS_SYSTEM_SETUP
+    LOG_I(MODULE_PREFIX, "setup numBuses %d", _busList.size());
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +110,7 @@ void RaftBusSystem::loop()
     {
         if (pBus)
         {
-            SUPERVISE_LOOP_CALL(_supervisorStats, _supervisorBusFirstIdx+busIdx, DEBUG_GLOB_HWDEVMAN, pBus->loop())
+            SUPERVISE_LOOP_CALL(_supervisorStats, _supervisorBusFirstIdx+busIdx, __loggerGlobalDebugValueBusSys, pBus->loop())
         }
         busIdx++;
     }

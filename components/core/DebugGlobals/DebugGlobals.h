@@ -9,32 +9,17 @@
 #pragma once
 
 #include <stdint.h>
-#include "RaftArduino.h"
+#include <stdio.h>
+#include "ArduinoWString.h"
 
-#define DEBUG_GLOBAL_VALUE
-#ifdef DEBUG_GLOBAL_VALUE
-extern volatile int32_t __loggerGlobalDebugValue0;
-extern volatile int32_t __loggerGlobalDebugValue1;
-extern volatile int32_t __loggerGlobalDebugValue2;
-extern volatile int32_t __loggerGlobalDebugValue3;
-extern volatile int32_t __loggerGlobalDebugValue4;
-#define DEBUG_GLOB_VAR_NAME(x) __loggerGlobalDebugValue ## x
-#endif
+#ifdef DEBUG_USING_GLOBAL_VALUES
+extern volatile int32_t __loggerGlobalDebugValueSysMan;
+extern volatile int32_t __loggerGlobalDebugValueDevMan;
+extern volatile int32_t __loggerGlobalDebugValueBusSys;
 
-class DebugGlobals
+namespace Raft
 {
-public:
-    static String getDebugJson(bool includeOuterBrackets)
-    {
-        char outStr[100];
-        snprintf(outStr, sizeof(outStr), "[%ld,%ld,%ld,%ld,%ld]", 
-            (long)__loggerGlobalDebugValue0,
-            (long)__loggerGlobalDebugValue1,
-            (long)__loggerGlobalDebugValue2,
-            (long)__loggerGlobalDebugValue3,
-            (long)__loggerGlobalDebugValue4);
-        if (includeOuterBrackets)
-            return R"({"globs":)" + String(outStr) + "}";
-        return outStr;
-    }
+    String getDebugGlobalsJson(bool includeOuterBrackets);
 };
+
+#endif

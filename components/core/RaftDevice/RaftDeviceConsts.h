@@ -12,6 +12,12 @@
 #include <vector>
 #include <functional>
 
+class RaftDevice;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Callback type for device data change
 typedef std::function<void(uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo)> RaftDeviceDataChangeCB;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Callback type for device status change
+typedef std::function<void(RaftDevice& device, bool isOnline, bool isNew)> RaftDeviceStatusChangeCB;

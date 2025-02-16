@@ -41,25 +41,16 @@ public:
         if (!deviceTypeName)
             return;
         // Store values
-        deviceTypeName_ = deviceTypeName;
-        addresses_ = addresses ? addresses : "";
-        detectionValues_ = detectionValues ? detectionValues : "";
-        initValues_ = initValues ? initValues : "";
-        pollInfo_ = pollInfo ? pollInfo : "";
-        pollDataSizeBytes_ = pollDataSizeBytes;
-        if (devInfoJson)
-        {
-            devInfoJson_.resize(strlen(devInfoJson) + 1);
-            strlcpy(devInfoJson_.data(), devInfoJson, devInfoJson_.size());
-        }
-        else
-        {
-            devInfoJson_.resize(1);
-            devInfoJson_[0] = 0;
-        }
+        this->deviceTypeName = deviceTypeName;
+        this->addresses = addresses ? addresses : "";
+        this->detectionValues = detectionValues ? detectionValues : "";
+        this->initValues = initValues ? initValues : "";
+        this->pollInfo = pollInfo ? pollInfo : "";
+        this->pollDataSizeBytes = pollDataSizeBytes;
+        this->devInfoJson = devInfoJson ? devInfoJson : "";
 
-        // Store function
-        pollResultDecodeFn_ = pollResultDecodeFn;
+        // Store decode function
+        this->pollResultDecodeFn = pollResultDecodeFn;
     }
 
     /// @brief Get device type record
@@ -68,18 +59,18 @@ public:
     bool getDeviceTypeRecord(DeviceTypeRecord& devTypeRec) const
     {
         // Check if in range
-        if (deviceTypeName_.length() == 0)
+        if (deviceTypeName.length() == 0)
             return false;
 
         // Update device type record
-        devTypeRec.deviceType = deviceTypeName_.c_str();
-        devTypeRec.addresses = addresses_.c_str();
-        devTypeRec.detectionValues = detectionValues_.c_str();
-        devTypeRec.initValues = initValues_.c_str();
-        devTypeRec.pollInfo = pollInfo_.c_str();
-        devTypeRec.pollDataSizeBytes = pollDataSizeBytes_;
-        devTypeRec.devInfoJson = devInfoJson_.data();
-        devTypeRec.pollResultDecodeFn = pollResultDecodeFn_;
+        devTypeRec.deviceType = deviceTypeName.c_str();
+        devTypeRec.addresses = addresses.c_str();
+        devTypeRec.detectionValues = detectionValues.c_str();
+        devTypeRec.initValues = initValues.c_str();
+        devTypeRec.pollInfo = pollInfo.c_str();
+        devTypeRec.pollDataSizeBytes = pollDataSizeBytes;
+        devTypeRec.devInfoJson = devInfoJson.data();
+        devTypeRec.pollResultDecodeFn = pollResultDecodeFn;
 
         return true;
     }
@@ -87,16 +78,16 @@ public:
     /// @brief Get device type name matches
     bool nameMatches(const DeviceTypeRecordDynamic& other) const
     {
-        return deviceTypeName_ == other.deviceTypeName_;
+        return deviceTypeName == other.deviceTypeName;
     }
 
     // Device type storage
-    String deviceTypeName_;
-    String addresses_;
-    String detectionValues_;
-    String initValues_;
-    String pollInfo_;
-    uint16_t pollDataSizeBytes_ = 0;
-    std::vector<char, SpiramAwareAllocator<char>> devInfoJson_;
-    DeviceTypeRecordDecodeFn pollResultDecodeFn_ = nullptr;
+    String deviceTypeName;
+    String addresses;
+    String detectionValues;
+    String initValues;
+    String pollInfo;
+    uint16_t pollDataSizeBytes = 0;
+    SpiramAwareString devInfoJson;
+    DeviceTypeRecordDecodeFn pollResultDecodeFn = nullptr;
 };

@@ -14,11 +14,12 @@
 #include "RaftUtils.h"
 #include "RaftArduino.h"
 #include "ExecTimer.h"
+#include "DebugGlobals.h"
 
-#ifdef DEBUG_GLOBAL_VALUE
-#define SUPERVISE_LOOP_CALL(supervisor, idx, debugVal, func) { DEBUG_GLOB_VAR_NAME(debugVal) = idx; supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
+#ifdef DEBUG_USING_GLOBAL_VALUES
+#define SUPERVISE_LOOP_CALL(supervisor, idx, varname, func) { varname = idx; supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
 #else
-#define SUPERVISE_LOOP_CALL(supervisor, idx, debugVal, func) { supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
+#define SUPERVISE_LOOP_CALL(supervisor, idx, varname, func) { supervisor.execStarted(idx); func; supervisor.execEnded(idx); }
 #endif
 // Supervisor stats
 class SupervisorStats

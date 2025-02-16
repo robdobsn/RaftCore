@@ -8,11 +8,13 @@
 
 #pragma once
 
-#include "SysTypeManager.h"
+#include "SysManager.h"
+#include "RestAPIEndpointManager.h"
 #include "CommsChannelManager.h"
 #include "ProtocolExchange.h"
+#include "RaftBusSystem.h"
 #include "DeviceManager.h"
-#include "SysManager.h"
+#include "RaftJsonNVS.h"
 
 class RaftCoreApp
 {
@@ -93,6 +95,10 @@ private:
 
     // SysManager is setup
     bool _sysManagerSetupDone = false;
+
+    // Start debugging thread
+    void startDebuggingThread();
+    RaftThreadHandle _debuggingThreadHandle = RAFT_THREAD_HANDLE_INVALID;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RaftApp";

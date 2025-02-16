@@ -77,15 +77,9 @@ uint64_t Raft::timeElapsed(uint64_t curTime, uint64_t lastTime)
 /// @return RaftRetCode
 RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, const char* otherJson)
 {
-    String additionalJson = "";
-    if ((otherJson) && (otherJson[0] != '\0'))
-        additionalJson = otherJson + String(",");
-    String retStr;
-    resp = "{\"req\":\"" + String(pReq) + "\"," + additionalJson + "\"rslt\":";
-    if (rslt)
-        resp += "\"ok\"}";
-    else
-        resp += "\"fail\"}";
+    String additionalJson = ((otherJson) && (otherJson[0] != '\0')) ? otherJson + String(",") : "";
+    String reqStr = escapeString(pReq, true);
+    resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + String("\"rslt\":") + (rslt ? "\"ok\"}" : "\"fail\"}");
     return rslt ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_OTHER_FAILURE;
 }
 
@@ -95,17 +89,13 @@ RaftRetCode Raft::setJsonBoolResult(const char* pReq, String& resp, bool rslt, c
 /// @param errorMsg Error message
 /// @param otherJson Additional JSON to add to the response
 /// @return RaftRetCode
-RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson)
+RaftRetCode Raft::setJsonErrorResult(const char* pReq, String& resp, const char* errorMsg, const char* otherJson, RaftRetCode retCode)
 {
-    String additionalJson = "";
-    if ((otherJson) && (otherJson[0] != 0))
-        additionalJson = otherJson + String(",");
-    String retStr;
-    String errorMsgStr;
-    if (errorMsg)
-        errorMsgStr = errorMsg;
-    resp = "{\"req\":\"" + String(pReq) + "\"," + additionalJson + "\"rslt\":\"fail\",\"error\":\"" + errorMsgStr + "\"}";
-    return RaftRetCode::RAFT_OTHER_FAILURE;
+    String additionalJson = ((otherJson) && (otherJson[0] != 0)) ? otherJson + String(",") : "";
+    String errorMsgStr = errorMsg ? errorMsg : "Unknown error";
+    String reqStr = escapeString(pReq, true);
+    resp = "{\"req\":\"" + reqStr + "\"," + additionalJson + "\"rslt\":\"fail\",\"error\":\"" + errorMsgStr + "\"}";
+    return retCode;
 }
 
 /// @brief Set results for JSON comms with result type, error message and additional JSON
@@ -125,87 +115,107 @@ RaftRetCode Raft::setJsonResult(const char* pReq, String& resp, bool rslt, const
 }
 
 /// @brief Escape string using hex character encoding for control characters
-/// @param inStr Input string
+/// @param pStr Input string
+/// @param escapeQuotesToBackslashQuotes true if quotes should be escaped to backslash quotes (otherwise to hex)
 /// @return Escaped string
-String Raft::escapeString(const String& inStr)
+String Raft::escapeString(const char* pStr, bool escapeQuotesToBackslashQuotes)
 {
+    if (!pStr)
+        return "";
     String outStr;
     // Reserve a bit more than the inStr length
-    outStr.reserve((inStr.length() * 3) / 2);
+    outStr.reserve((strlen(pStr) * 3) / 2);
     // Replace chars with escapes as needed
-    for (unsigned int i = 0; i < inStr.length(); i++) 
+    while (*pStr != '\0')
     {
-        int c = inStr.charAt(i);
-        if (c == '"' || c == '\\' || ('\x00' <= c && c <= '\x1f')) 
+        int c = *pStr;
+        if (c == '"' || c == '\\' || ('\x00' <= c && c <= '\x1f'))
         {
-            outStr += "\\u";
-            String cx = String(c, 16);
-            for (unsigned int j = 0; j < 4-cx.length(); j++)
-                outStr += "0";
-            outStr += cx;
-        } 
+            if (escapeQuotesToBackslashQuotes && c == '"')
+            {
+                outStr += "\\\"";
+            }
+            else
+            {
+                outStr += "\\u";
+                String cx = String(c, 16);
+                for (unsigned int j = 0; j < 4-cx.length(); j++)
+                    outStr += "0";
+                outStr += cx;
+            }
+        }
         else
         {
             outStr += (char)c;
         }
+        pStr++;
     }
     return outStr;
 }
 
 /// @brief Unescape string handling hex character encoding for control characters
-/// @param inStr Input string
-/// @return Unescaped string
-String Raft::unescapeString(const String& inStr)
+/// @param pStr Input string
+/// @return Escaped string
+String Raft::unescapeString(const char* pStr)
 {
     String outStr;
     // Reserve inStr length
-    outStr.reserve(inStr.length());
+    uint32_t inStrLen = strlen(pStr);
+    outStr.reserve(inStrLen);
     // Replace escapes with chars
-    for (unsigned int i = 0; i < inStr.length(); i++) 
+    while (*pStr != '\0')
     {
-        int c = inStr.charAt(i);
-        if (c == '\\') 
+        int c = *pStr;
+        if (c == '\\')
         {
-            i++;
-            if (i >= inStr.length())
+            pStr++;
+            if (*pStr == 0)
                 break;
-            c = inStr.charAt(i);
-            if (c == 'u')
+            if (*pStr == 'u')
             {
-                i++;
-                if (i >= inStr.length())
-                    break;
-                String cx = inStr.substring(i, i+4);
+                pStr++;
+                String cx = "";
+                for (unsigned int j = 0; j < 4; j++)
+                {
+                    if (*pStr == 0)
+                        break;
+                    cx += *pStr;
+                    pStr++;
+                }
                 c = strtol(cx.c_str(), NULL, 16);
-                i += 3;
             }
-            else if (c == 'x')
+            else if (*pStr == 'x')
             {
-                i++;
-                if (i >= inStr.length())
-                    break;
-                String cx = inStr.substring(i, i+2);
+                pStr++;
+                String cx = "";
+                for (unsigned int j = 0; j < 2; j++)
+                {
+                    if (*pStr == 0)
+                        break;
+                    cx += *pStr;
+                    pStr++;
+                }
                 c = strtol(cx.c_str(), NULL, 16);
-                i += 1;
             }
-            else if (c == 'n')
+            else if (*pStr == 'n')
                 c = '\n';
-            else if (c == 'r')
+            else if (*pStr == 'r')
                 c = '\r';
-            else if (c == 't')
+            else if (*pStr == 't')
                 c = '\t';
-            else if (c == 'b')
+            else if (*pStr == 'b')
                 c = '\b';
-            else if (c == 'f')
+            else if (*pStr == 'f')
                 c = '\f';
-            else if (c == '"')
+            else if (*pStr == '"')
                 c = '"';
-            else if (c == '\\')
+            else if (*pStr == '\\')
                 c = '\\';
             else
                 c = 0;
         }
         outStr += (char)c;
+        pStr++;
     }
     return outStr;
 }
@@ -522,6 +532,7 @@ uint64_t Raft::getBEUInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
     for (size_t i = 0; i < sizeof(int64_t); ++i) {
         val = (val << 8) | pBuf[i];
     }
+    pBuf += varSize;
     return val;
 }
 
@@ -538,6 +549,7 @@ int64_t Raft::getBEInt64AndInc(const uint8_t*& pBuf, const uint8_t* pEndStop)
     for (size_t i = 0; i < sizeof(int64_t); ++i) {
         val = (val << 8) | pBuf[i];
     }
+    pBuf += varSize;
     return val;
 }
 
@@ -941,6 +953,7 @@ uint32_t Raft::getHexFromChar(int ch)
     return 0;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get bytes from hex-encoded string
 /// @param inStr Input string
 /// @param outBuf Buffer to receive the bytes
@@ -948,26 +961,50 @@ uint32_t Raft::getHexFromChar(int ch)
 /// @return Number of bytes copied
 uint32_t Raft::getBytesFromHexStr(const char* inStr, uint8_t* outBuf, size_t maxOutBufLen)
 {
-    // Mapping ASCII to hex
-    static const uint8_t chToNyb[] =
-    {
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, // 01234567
-        0x08, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 89:;<=>?
-        0x00, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x00, // @ABCDEFG
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // HIJKLMNO
-    };
+    // Check valid
+    if (!inStr)
+        return 0;
+
+    // Skip initial "0x" if present
+    if (inStr[0] == '0' && (inStr[1] == 'x' || inStr[1] == 'X'))
+        inStr += 2;
 
     // Clear initially
-    uint32_t inStrLen = strnlen(inStr, (maxOutBufLen*2)+1);
+    uint32_t inStrLen = strnlen(inStr, maxOutBufLen * 2);
     uint32_t numBytes = maxOutBufLen < inStrLen / 2 ? maxOutBufLen : inStrLen / 2;
     uint32_t posIdx = 0;
     for (uint32_t byteIdx = 0; byteIdx < numBytes; byteIdx++)
     {
         uint32_t nyb0Idx = (inStr[posIdx++] & 0x1F) ^ 0x10;
         uint32_t nyb1Idx = (inStr[posIdx++] & 0x1F) ^ 0x10;
-        outBuf[byteIdx] = (chToNyb[nyb0Idx] << 4) + chToNyb[nyb1Idx];
+        outBuf[byteIdx] = (__RAFT_CHAR_TO_NYBBLE[nyb0Idx] << 4) + __RAFT_CHAR_TO_NYBBLE[nyb1Idx];
     };
     return numBytes;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get bytes from hex-encoded string
+/// @param inStr Input string
+/// @param maxOutBufLen Maximum number of bytes to return
+/// @return Vector containing the decoded bytes (up to maxOutBufLen)
+std::vector<uint8_t> Raft::getBytesFromHexStr(const char* inStr, size_t maxOutBufLen)
+{
+    // Check valid
+    if (!inStr)
+        return std::vector<uint8_t>();
+
+    // Skip initial "0x" if present
+    if (inStr[0] == '0' && (inStr[1] == 'x' || inStr[1] == 'X'))
+        inStr += 2;
+
+    // Ensure input string has an even number of characters
+    size_t inStrLen = strnlen(inStr, maxOutBufLen * 2);
+
+    // Determine number of bytes to decode, limited by maxOutBufLen
+    size_t numBytes = std::min(inStrLen / 2, maxOutBufLen);
+    std::vector<uint8_t> outBuf(numBytes);
+    getBytesFromHexStr(inStr, outBuf.data(), numBytes);
+    return outBuf;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1363,24 +1400,85 @@ int Raft::findInBuf(const SpiramAwareUint8Vector& buf, uint32_t offset,
     return rslt;
 }
 
-/// @brief Parse a string into a list of integers
-/// @param pInStr Pointer to the input string
-/// @param outList List to receive the integers
-/// @param pSep Separator string
-void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep)
+/// @brief Parse a string into a list of integers, handling ranges.
+/// @param pInStr Pointer to the input string.
+/// @param outList List to receive the integers.
+/// @param pSep List separator (default: "," if nullptr).
+/// @param pListSep Range separator (default: "-" if nullptr).
+/// @param maxNum Maximum number of integers to parse.
+/// @return true if all integers were parsed (false if maxNum was reached).
+/// @note This handles ranges of integers in the form of "1-5,7,9-12".
+bool Raft::parseIntList(const char* pInStr, std::vector<int>& outList,
+                      const char* pSep, const char* pListSep, uint32_t maxNum) 
 {
+    // Clear the list and check inputs valid
     outList.clear();
-    if (!pInStr)
-        return;
-    static const uint32_t MAX_STR_LEN = 1000;
-    char* pStr = strndup(pInStr, MAX_STR_LEN);
-    char* pTok = strtok(pStr, pSep);
-    while (pTok)
+    if (!pInStr || maxNum == 0)
+        return false;
+
+    // Check for nullptrs
+    pSep = pSep ? pSep : ",";
+    pListSep = pListSep ? pListSep : "-";
+
+    // Parse the string
+    const char* ptr = pInStr;
+    while (*ptr != '\0')
     {
-        outList.push_back(strtol(pTok, nullptr, 0));
-        pTok = strtok(nullptr, pSep);
+        // Parse the start of a number or range
+        char* endPtr = nullptr;
+         // Parse the first number
+        int start = strtol(ptr, &endPtr, 0);
+        if (ptr == endPtr)
+            break;
+
+        // Move to end of number and skip spaces
+        ptr = endPtr;
+        while (*ptr == ' ')
+            ++ptr;
+
+        // Check if this is a range
+        if (strncmp(ptr, pListSep, strlen(pListSep)) == 0)
+        {
+            // Skip the range separator
+            ptr += strlen(pListSep);
+            // Parse the second number
+            int end = strtol(ptr, &endPtr, 0);
+            if (ptr != endPtr && start <= end)
+            {
+                // Add all numbers in the range
+                for (int i = start; i <= end; ++i)
+                {
+                    outList.push_back(i);
+                    // Stop parsing if maxNum is reached
+                    if (outList.size() >= maxNum)
+                        return false;
+                }
+            }
+            // Move past the range
+            ptr = endPtr;
+        }
+        else
+        {
+            // Single number
+            outList.push_back(start);
+            // Stop parsing if maxNum is reached
+            if (outList.size() >= maxNum)
+                return false; 
+        }
+
+        // Skip the separator, if present
+        if (strncmp(ptr, pSep, strlen(pSep)) == 0)
+    {
+            ptr += strlen(pSep);
     }
-    free(pStr);
+
+        // Skip spaces
+        while (*ptr == ' ')
+            ++ptr;
+
+    }
+
+    return true;
 }
 
 /// @brief Get string for RaftRetCode
@@ -1475,6 +1573,31 @@ bool Raft::uuid128FromString(const char* uuid128Str, uint8_t* pUUID128, bool rev
     return true;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Convert UUID128 uint8_t array to string
+/// @param pUUID128 Pointer to the UUID128 array
+/// @param reverseOrder Reverse the order of the UUID128 array
+/// @return UUID128 string
+String Raft::uuid128ToString(const uint8_t* pUUID128, bool reverseOrder)
+{
+    // Check valid
+    if (!pUUID128)
+        return "";
+
+    // Convert
+    String uuid128Str;
+    char tmpBuf[5];
+    for (uint32_t i = 0; i < 16; i++)
+    {
+        uint32_t idx = reverseOrder ? 16-1-i : i;
+        snprintf(tmpBuf, sizeof(tmpBuf), "%02x%s", pUUID128[idx], 
+                    (i == 3 || i == 5 || i == 7 || i == 9) ? "-" : "");
+        uuid128Str += tmpBuf;
+    }
+    return uuid128Str;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Trim a String including removing trailing null terminators
 /// @param str String to trim
 void Raft::trimString(String& str)

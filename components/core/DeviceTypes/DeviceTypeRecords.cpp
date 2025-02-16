@@ -8,6 +8,7 @@
 
 #include "DeviceTypeRecords.h"
 #include "BusRequestInfo.h"
+#include "RaftJson.h"
 
 // #define DEBUG_DEVICE_INFO_RECORDS
 // #define DEBUG_POLL_REQUEST_REQS
@@ -62,7 +63,7 @@ std::vector<uint16_t> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrTyp
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
             std::vector<int> addressList;
-            Raft::parseIntList(extDevTypeRec.addresses_.c_str(), addressList, ",");
+            Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
             for (int devAddr : addressList)
             {
                 if (devAddr == addr)
@@ -141,6 +142,7 @@ bool DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& 
 /// @brief Get device type for a device type name
 /// @param deviceTypeName device type name
 /// @param devTypeRec (out) device type record
+/// @param deviceTypeIdx (out) device type index
 /// @return true if device type found
 bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, uint32_t& deviceTypeIdx) const
 {
@@ -151,7 +153,7 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRe
     {
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
-            if (extDevTypeRec.deviceTypeName_ == deviceTypeName)
+            if (extDevTypeRec.deviceTypeName == deviceTypeName)
             {
                 isValid = extDevTypeRec.getDeviceTypeRecord(devTypeRec);
                 deviceTypeIdx = typeIdx;
@@ -601,7 +603,7 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
             std::vector<int> addressList;
-            Raft::parseIntList(extDevTypeRec.addresses_.c_str(), addressList, ",");
+            Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
             for (int devAddr : addressList)
             {
                 if (priorityLists.size() == 0)

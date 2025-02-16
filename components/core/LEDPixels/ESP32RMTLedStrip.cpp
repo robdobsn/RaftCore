@@ -79,6 +79,9 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
             .with_dma = false,                              // No DMA
             .io_loop_back = false,                          // No loop
             .io_od_mode = false,                            // Not open drain
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+            .allow_pd = config.allowPowerDown,                                  // Allow power down (save context to RAM)
+#endif
         },
 #else
         .intr_priority = 0,                                  // Interrupt priority
@@ -244,7 +247,7 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     uint32_t numBytesToCopy = numPixelsToCopy * sizeof(LEDPixel);
     if (_pixelBuffer.size() != numBytesToCopy)
         _pixelBuffer.resize(numBytesToCopy);
-    memcpy(_pixelBuffer.data(), pixels.data() + (_pixelIdxStartOffset*sizeof(LEDPixel)), numBytesToCopy);
+    memcpy(_pixelBuffer.data(), pixels.data() + _pixelIdxStartOffset, numBytesToCopy);
 
     // Check for power off if all power controlled pixels are blank
     if (_ledStripConfig.powerOffIfPowerControlledAllBlank && (_pixelBuffer.size() > 0))
@@ -330,11 +333,28 @@ void ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
             break;
         }
     }
-    LOG_I(MODULE_PREFIX, "showPixels numPix %d numBytes %d rslt %s allBlank %s", 
+    String outStr;
+    static const int MAX_PIXELS_TO_SHOW = 10;
+    for (uint32_t i = 0; i < _pixelBuffer.size(); i+=3)
+    {
+        outStr += String(_pixelBuffer[i]) + "," + String(_pixelBuffer[i+1]) + "," + String(_pixelBuffer[i+2]) + " | ";
+        if (i >= MAX_PIXELS_TO_SHOW * 3)
+        {
+            outStr += "...";
+            break;
+        }
+    }
+    LOG_I(MODULE_PREFIX, "showPixels offset %d numPix %d numBytes %d rslt %s allBlank %s RMTHdl %p blocking %s powerOffAllBlank %s stopAfterTx %s vals %s", 
+            _pixelIdxStartOffset,
             numPixelsToCopy,
             numBytesToCopy,
             err == ESP_OK ? "OK" : "FAILED", 
-            allZeroes ? "YES" : "NO");
+            allZeroes ? "YES" : "NO",
+            _rmtChannelHandle,
+            _ledStripConfig.blockingShow ? "Y" : "N",
+            _ledStripConfig.powerOffIfPowerControlledAllBlank ? "Y" : "N",
+            _ledStripConfig.stopAfterTx ? "Y" : "N",
+            outStr.c_str());
 #endif
 }
 

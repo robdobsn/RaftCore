@@ -350,7 +350,7 @@ void RaftMQTTClient::frameRxCB(const uint8_t *pBuf, unsigned bufLen)
 void RaftMQTTClient::socketConnect()
 {
 #ifdef DEBUG_MQTT_CONNECTION
-    ESP_LOGI(MODULE_PREFIX, "sockConn attempting to connect to %s port %d", _dnsResolver.getHostname(), _brokerPort);
+    ESP_LOGI(MODULE_PREFIX, "sockConn attempting to connect to %s port %d", _dnsResolver.getHostname(), (int)_brokerPort);
 #endif
 
     // Get IP address

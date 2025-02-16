@@ -26,22 +26,19 @@
 #include "NetworkSystem.h"
 #endif // ESP_PLATFORM
 
+// Settings
 // #define ONLY_ONE_MODULE_PER_LOOP 1
-
-// Debug supervisor step (for hangup detection within a loop call)
-// Uses global logger variables - see logger.h
-#define DEBUG_GLOB_SYSMAN 0
 #define INCLUDE_PROTOCOL_FILE_UPLOAD_IN_STATS
 
 // Debug
 // #define DEBUG_SYSMOD_MEMORY_USAGE
 // #define DEBUG_LIST_SYSMODS
-// #define DEBUG_SYSMOD_WITH_GLOBAL_VALUE
 // #define DEBUG_SEND_CMD_JSON_PERF
 // #define DEBUG_REGISTER_MSG_GEN_CB
 // #define DEBUG_API_ENDPOINTS
 // #define DEBUG_SYSMOD_FACTORY
 // #define DEBUG_FRIENDLY_NAME_SET
+// #define DEBUG_STATUS_CHANGE_CALLBACK
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -92,7 +89,6 @@ void SysManager::preSetup()
 {
     // Override system name if it is specified in the config
     _systemName = _systemConfig.getString("SystemName", _systemName.c_str());
-    _systemVersion = _systemConfig.getString("SystemVersion", "0.0.0");
 
     // System config for this module
     RaftJsonPrefixed sysManConfig(_systemConfig, _moduleName.c_str());
@@ -147,7 +143,7 @@ void SysManager::preSetup()
     // Debug
     LOG_I(MODULE_PREFIX, "systemName %s systemVersion %s friendlyName %s (default %s) serialNo %s nvsNamespace %s",
                 _systemName.c_str(),
-                _systemVersion.c_str(),
+                platform_getAppVersion().c_str(),
                 (friendlyName + (friendlyNameIsSet ? " (user-set)" : "")).c_str(),
                 _defaultFriendlyName.c_str(),
                 _mutableConfigCache.serialNo.isEmpty() ? "<<NONE>>" : _mutableConfigCache.serialNo.c_str(),
@@ -221,20 +217,14 @@ void SysManager::postSetup()
         for (SysModFactory::SysModClassDef& sysModClassDef : _sysModFactory.sysModClassDefs)
         {
             // Check if already created
-            bool alreadyCreated = false;
-            for (RaftSysMod* pSysMod : _sysModuleList)
+            RaftSysMod* pSysMod = getSysMod(sysModClassDef.name.c_str());
+            if (pSysMod)
             {
-                if (pSysMod && pSysMod->modNameStr().equals(sysModClassDef.name))
-                {
 #ifdef DEBUG_SYSMOD_FACTORY
-                    LOG_I(MODULE_PREFIX, "postSetup %s alreadyCreated", sysModClassDef.name.c_str());
+                LOG_I(MODULE_PREFIX, "postSetup %s alreadyCreated", sysModClassDef.name.c_str());
 #endif
-                    alreadyCreated = true;
-                    break;
-                }
-            }
-            if (alreadyCreated)
                 continue;
+            }
 
             // Get enabled flag from SysConfig
             bool isEnabled = _systemConfig.getBool((sysModClassDef.name + "/enable").c_str(), sysModClassDef.alwaysEnable);
@@ -393,10 +383,9 @@ void SysManager::loop()
     {
         if (_sysModLoopVector[_loopCurModIdx])
         {
-#ifdef DEBUG_SYSMOD_WITH_GLOBAL_VALUE
-            DEBUG_GLOB_VAR_NAME(DEBUG_GLOB_SYSMAN) = _loopCurModIdx;
+#ifdef DEBUG_USING_GLOBAL_VALUES
+            __loggerGlobalDebugValueSysMan = _loopCurModIdx;
 #endif
-
             // Check if the SysMod slow check is enabled
             if (_reportSlowSysMod)
             {
@@ -424,6 +413,9 @@ void SysManager::loop()
                 if (_supervisorEnable)
                     _supervisorStats.execEnded(_loopCurModIdx);
             }
+#ifdef DEBUG_USING_GLOBAL_VALUES
+            __loggerGlobalDebugValueSysMan = -2;
+#endif
         }
 
         // Next SysMod
@@ -515,6 +507,23 @@ void SysManager::addManagedSysMod(RaftSysMod* pSysMod)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get SysMod instance by name
+/// @param sysModName
+/// @return Pointer to SysMod instance or nullptr if not found
+RaftSysMod* SysManager::getSysMod(const char* sysModName) const
+{
+    // See if the sysmod is in the list
+    for (RaftSysMod* pSysMod : _sysModuleList)
+    {
+        if (pSysMod->modNameStr().equals(sysModName))
+        {
+            return pSysMod;
+        }
+    }
+    return nullptr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Setup SysMod list
 void SysManager::sysModListSetup()
 {
@@ -545,15 +554,15 @@ void SysManager::sysModListSetup()
 /// @param statusChangeCB - callback function
 void SysManager::setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB)
 {
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
     {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
-            // Debug
-            LOG_I(MODULE_PREFIX, "setStatusChangeCB sysMod %s cbValid %d sysModFound OK", sysModName, statusChangeCB != nullptr);
-            return pSysMod->setStatusChangeCB(statusChangeCB);
-        }
+        // Debug
+#ifdef DEBUG_STATUS_CHANGE_CALLBACK
+        LOG_I(MODULE_PREFIX, "setStatusChangeCB sysMod %s cbValid %d sysModFound OK", sysModName, statusChangeCB != nullptr);
+#endif
+        return pSysMod->setStatusChangeCB(statusChangeCB);
     }
 }
 
@@ -576,14 +585,10 @@ void SysManager::clearAllStatusChangeCBs()
 /// @return JSON string
 String SysManager::getStatusJSON(const char* sysModName) const
 {
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
-    {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
             return pSysMod->getStatusJSON();
-        }
-    }
     return "{}";
 }
 
@@ -597,11 +602,13 @@ String SysManager::getDebugJSON(const char* sysModName) const
     if (strcasecmp(sysModName, "SysMan") == 0)
         return _supervisorStats.getSummaryString();
 
+#ifdef DEBUG_USING_GLOBAL_VALUES
     // Check for global debug values
     if (strcasecmp(sysModName, "Globs") == 0)
     {
-        return DebugGlobals::getDebugJson(false);
+        return Raft::getDebugGlobalsJson(false);
     }
+#endif
 
     // Check for stats callback
     if (strcasecmp(sysModName, "StatsCB") == 0)
@@ -611,14 +618,10 @@ String SysManager::getDebugJSON(const char* sysModName) const
         return "";
     }
 
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
-    {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
-            return pSysMod->getDebugJSON();
-        }
-    }
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
+        return pSysMod->getDebugJSON();
     return "{}";
 }
 
@@ -633,22 +636,20 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     uint64_t startUs = micros();
 #endif
-    for (RaftSysMod* pSysMod : _sysModuleList)
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
     {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
 #ifdef DEBUG_SEND_CMD_JSON_PERF
-            uint64_t foundSysModUs = micros();
+        uint64_t foundSysModUs = micros();
 #endif
-
-            RaftRetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
+        RaftRetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
 
 #ifdef DEBUG_SEND_CMD_JSON_PERF
-            LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %dus exec time %dus", 
-                    sysModName, Raft::getRetCodeStr(rslt), int(foundSysModUs - startUs), int(micros() - foundSysModUs));
+        LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %dus exec time %dus", 
+                sysModName, Raft::getRetCodeStr(rslt), int(foundSysModUs - startUs), int(micros() - foundSysModUs));
 #endif
-            return rslt;
-        }
+        return rslt;
     }
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     LOG_I(MODULE_PREFIX, "getHWElemByName %s NOT found in %dus", sysModName, int(micros() - startUs));
@@ -664,14 +665,10 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 /// @return 
 double SysManager::getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const
 {
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
-    {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
             return pSysMod->getNamedValue(valueName, isValid);
-        }
-    }
     isValid = false;
     return 0;
 }
@@ -684,14 +681,10 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 /// @return true if set
 bool SysManager::setNamedValue(const char* sysModName, const char* valueName, double value)
 {
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
-    {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
-            return pSysMod->setNamedValue(valueName, value);
-        }
-    }
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
+        return pSysMod->setNamedValue(valueName, value);
     return false;
 }
 
@@ -703,14 +696,10 @@ bool SysManager::setNamedValue(const char* sysModName, const char* valueName, do
 /// @return string
 String SysManager::getNamedString(const char* sysModName, const char* valueName, bool& isValid) const
 {
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
-    {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
-            return pSysMod->getNamedString(valueName, isValid);
-        }
-    }
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
+        return pSysMod->getNamedString(valueName, isValid);
     isValid = false;
     return "";
 }
@@ -723,14 +712,10 @@ String SysManager::getNamedString(const char* sysModName, const char* valueName,
 /// @return true if set
 bool SysManager::setNamedString(const char* sysModName, const char* valueName, const char* value)
 {
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
-    {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
-            return pSysMod->setNamedString(valueName, value);
-        }
-    }
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
+        return pSysMod->setNamedString(valueName, value);
     return false;
 }
 
@@ -743,17 +728,15 @@ bool SysManager::setNamedString(const char* sysModName, const char* valueName, c
 /// @return true if registered
 bool SysManager::registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
-    // See if the sysmod is in the list
-    for (RaftSysMod* pSysMod : _sysModuleList)
+    // Get SysMod
+    RaftSysMod* pSysMod = getSysMod(sysModName);
+    if (pSysMod)
     {
-        if (pSysMod->modNameStr().equals(sysModName))
-        {
-            bool rslt = pSysMod->registerDataSource(pubTopic, msgGenCB, stateDetectCB);
+        bool rslt = pSysMod->registerDataSource(pubTopic, msgGenCB, stateDetectCB);
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
-            LOG_I(MODULE_PREFIX, "registerDataSource %s topic %s with the %s sysmod", rslt ? "OK" : "FAILED", pubTopic, sysModName);
+        LOG_I(MODULE_PREFIX, "registerDataSource %s topic %s with the %s sysmod", rslt ? "OK" : "FAILED", pubTopic, sysModName);
 #endif
-            return rslt;
-        }
+        return rslt;
     }
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
     LOG_W(MODULE_PREFIX, "registerDataSource NOT FOUND %s topic %s", sysModName, pubTopic);
@@ -798,7 +781,7 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
             R"("MAC":"%s",%s})",
              reqStr.c_str(), 
              _systemName.c_str(), 
-             _systemVersion.c_str(),
+             platform_getAppVersion().c_str(),
              friendlyNameIsSet ? friendlyName.c_str() : "",
              serialNo.c_str(),
              _systemUniqueString.c_str(),
@@ -869,14 +852,13 @@ RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, c
                 friendlyName.c_str(), friendlyNameIsSet ? "Y" : "N");
 
     // Create response JSON
-    char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 70];
-    snprintf(JsonOut, sizeof(JsonOut), R"("friendlyName":"%s","friendlyNameIsSet":%d)", 
-                friendlyName.c_str(), friendlyNameIsSet);
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
+    String rsltStr = Raft::formatString(100, R"("friendlyName":"%s","friendlyNameIsSet":%s)", 
+                friendlyName.c_str(), friendlyNameIsSet ? "true" : "false");
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, rsltStr.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief API for getting serial number
+/// @brief API for getting and setting serial number
 /// @param reqStr
 /// @param respStr
 /// @param sourceInfo
@@ -889,21 +871,27 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
         // Get serial number to set
         String serialNoHexStr = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
         uint8_t serialNumBuf[_serialLengthBytes];
-        if (Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, _serialLengthBytes) != _serialLengthBytes)
+        uint32_t serialNoLen = Raft::getBytesFromHexStr(serialNoHexStr.c_str(), serialNumBuf, _serialLengthBytes);
+        if (serialNoLen != _serialLengthBytes)
         {
-            Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
-            return RaftRetCode::RAFT_INVALID_DATA;
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNot16Byt");
         }
 
-        // Validate magic string
-        String magicString;
-        if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
+        // Validate magic string if required
+        if (_serialMagicStr.length() > 0)
         {
-            magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
-            if (!magicString.equals(_serialMagicStr) && !_serialMagicStr.isEmpty())
+            String magicString;
+            if (RestAPIEndpointManager::getNumArgs(reqStr.c_str()) > 2)
             {
-                Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
-                return RaftRetCode::RAFT_INVALID_DATA;
+                magicString = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
+                if (!magicString.equals(_serialMagicStr))
+                {
+                    return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNMagicInvalid");
+                }
+            }
+            else
+            {
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "SNNeedsMagic");
             }
         }
 
@@ -918,9 +906,8 @@ RaftRetCode SysManager::apiSerialNumber(const String &reqStr, String& respStr, c
     String serialNo = _mutableConfig.getString("serialNo", "");
 
     // Create response JSON
-    char JsonOut[MAX_FRIENDLY_NAME_LENGTH + 100];
-    snprintf(JsonOut, sizeof(JsonOut), R"("SerialNo":"%s")", serialNo.c_str());
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, JsonOut);
+    String jsonResult = R"("SerialNo":")" + serialNo + "\"";
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, jsonResult.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1037,13 +1024,11 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
 /// @return JSON string
 String SysManager::getMutableConfigJson()
 {
-    char jsonConfig[MAX_FRIENDLY_NAME_LENGTH + _serialLengthBytes*2 + 70];
-    snprintf(jsonConfig, sizeof(jsonConfig), 
-            R"({"friendlyName":"%s","nameSet":%d,"serialNo":"%s"})", 
+    return Raft::formatString(100,
+                 R"({"friendlyName":"%s","nameSet":%d,"serialNo":"%s"})",
                 _mutableConfigCache.friendlyName.c_str(), 
                 _mutableConfigCache.friendlyNameIsSet, 
                 _mutableConfigCache.serialNo.c_str());
-    return jsonConfig;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1062,7 +1047,7 @@ void SysManager::statsShow()
     snprintf(statsStr, sizeof(statsStr), R"({%s"n":"%s","v":"%s","r":"%s","hpInt":%d,"hpMin":%d,"hpAll":%d)", 
                 friendlyNameStr.c_str(),
                 _systemName.c_str(),
-                _systemVersion.c_str(),
+                platform_getAppVersion().c_str(),
                 getBaseSysTypeVersion().c_str(),
 #ifdef ESP_PLATFORM
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
@@ -1219,16 +1204,8 @@ bool SysManager::checkSysModDependenciesSatisfied(const SysModFactory::SysModCla
     for (auto& dependency : sysModClassDef.dependencyList)
     {
         // See if the sysmod is in the list of SysMods
-        bool found = false;
-        for (RaftSysMod* pSysMod : _sysModuleList)
-        {
-            if (pSysMod->modNameStr().equals(dependency))
-            {
-                found = true;
-                break;
-            }
-        }
-        if (!found)
+        RaftSysMod* pSysMod = getSysMod(dependency.c_str());
+        if (!pSysMod)
             return false;
     }
     return true;

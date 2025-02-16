@@ -9,10 +9,10 @@
 
 #pragma once
 #include <functional>
-#include "RaftArduino.h"
 #include "RaftRetCode.h"
 #include "FileStreamBlock.h"
 #include "APISourceInfo.h"
+#include "ArduinoWString.h"
 
 // Callback function for any endpoint
 typedef std::function<RaftRetCode(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RestAPIFunction;

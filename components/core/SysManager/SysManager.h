@@ -12,19 +12,13 @@
 
 #pragma once 
 
-#include <list>
-#include <vector>
-#include "ExecTimer.h"
-#include "SupervisorStats.h"
-#include "RestAPIEndpointManager.h"
-#include "RaftArduino.h"
-#include "CommsCoreIF.h"
-#include "RaftJsonNVS.h"
+#include "SysTypeManager.h"
 #include "SysModFactory.h"
+#include "NamedValueProvider.h"
+#include "SupervisorStats.h"
 #include "ProtocolExchange.h"
 #include "DeviceManager.h"
-#include "SysTypeManager.h"
-#include "NamedValueProvider.h"
+#include "RaftJsonNVS.h"
 
 typedef String (*SysManager_statsCB)();
 
@@ -63,6 +57,11 @@ public:
     // Add a pre-constructed SysMod to the managed list
     void addManagedSysMod(RaftSysMod* pSysMod);
 
+    /// @brief Get SysMod instance by name
+    /// @param sysModName
+    /// @return Pointer to SysMod instance or nullptr if not found
+    RaftSysMod* getSysMod(const char* sysModName) const;
+
     // Get system name
     String getSystemName() const
     {
@@ -72,7 +71,7 @@ public:
     // Get system version
     String getSystemVersion() const
     {
-        return _systemVersion;
+        return platform_getAppVersion();
     }
 
     // Get system serial number
@@ -304,9 +303,8 @@ private:
     // Pause WiFi for BLE
     bool _pauseWiFiForBLE = false;
 
-    // System name and version
+    // System name
     String _systemName;
-    String _systemVersion;
 
     // Hardware revision reporting prefix
     String _altHardwareRevisionPrefix = "";

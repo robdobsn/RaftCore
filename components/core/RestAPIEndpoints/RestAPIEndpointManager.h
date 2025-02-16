@@ -8,11 +8,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include <vector>
-#include <functional>
-#include "RaftArduino.h"
-#include "RaftJson.h"
+#include <list>
 #include "RestAPIEndpoint.h"
+#include "RaftJson.h"
 
 // Collection of endpoints
 class RestAPIEndpointManager
@@ -85,10 +83,11 @@ public:
     static const uint32_t CHANNEL_ID_SERIAL_CONSOLE = 20003;
     static const uint32_t CHANNEL_ID_COMMAND_SCHEDULER = 20004;
     static const uint32_t CHANNEL_ID_MQTT_COMMS = 20005;
+    static const uint32_t CHANNEL_ID_REMOTE_CONTROL = 20006;
 
 private:
-    // Vector of endpoints
-    std::vector<RestAPIEndpoint> _endpointsList;
+    // List of endpoints
+    std::list<RestAPIEndpoint> _endpointsList;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RestAPI";

@@ -1,5 +1,199 @@
 {
     "devTypes": {
+        "RoboticalLightSensor": {
+            "addresses": "0x28",
+            "deviceType": "RoboticalLightSensor",
+            "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x0084",
+            "initValues": "=p250&0x6004ff9c=p250",
+            "pollInfo": {
+                "c": "=r7",
+                "i": 100,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Robotical Light Sensor",
+                "desc": "Light Sensor",
+                "manu": "Robotical",
+                "type": "RoboticalLightSensor",
+                "resp": {
+                    "b": 7,
+                    "a": [
+                        {
+                            "n": "status",
+                            "t": "B",
+                            "r": [0, 255],
+                            "f": "x",
+                            "o": "uint8"
+                        },
+                        {
+                            "n": "right",
+                            "t": ">H",
+                            "r": [0, 1023],
+                            "f": "d",
+                            "o": "uint16"
+                        },
+                        {
+                            "n": "center",
+                            "t": ">H",
+                            "r": [0, 1023],
+                            "f": "d",
+                            "o": "uint16"
+                        },
+                        {
+                            "n": "left",
+                            "t": ">H",
+                            "r": [0, 1023],
+                            "f": "d",
+                            "o": "uint16"
+                        }
+                    ]
+                },
+                "actions": [
+                ]
+            }
+        },
+        "RoboticalServo": {
+            "addresses": "0x10-0x18",
+            "deviceType": "RoboticalServo",
+            "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x008F",
+            "initValues": "=p250&0x6004ff9c=p250&0x2001",
+            "pollInfo": {
+                "c": "=r6",
+                "i": 100,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Robotical Servo",
+                "desc": "Servo",
+                "manu": "Robotical",
+                "type": "RoboticalServo",
+                "resp": {
+                    "b": 6,
+                    "a": [
+                        {
+                            "n": "angle",
+                            "t": ">h",
+                            "r": [-180.0, 180.0],
+                            "f": ".1f",
+                            "d": 10,
+                            "o": "int16",
+                            "u": "degrees"
+                        },
+                        {
+                            "n": "current",
+                            "t": "b",
+                            "r": [-128, 127],
+                            "f": "d",
+                            "o": "int8"
+                        },
+                        {
+                            "n": "state",
+                            "t": "B",
+                            "r": [0, 255],
+                            "f": "02x",
+                            "o": "uint8"
+                        },
+                        {
+                            "n": "velocity",
+                            "t": ">h",
+                            "r": [-32768, 32767],
+                            "f": "d",
+                            "o": "int16"
+                        }
+                    ]
+                },
+                "actions": [
+                    {
+                        "n": "angle",
+                        "t": ">h",
+                        "w": "0001",
+                        "wz": "0064",
+                        "f": ".1f",
+                        "mul": 10,
+                        "sub": 0,
+                        "r": [-180.0,180.0],
+                        "d": 0
+                    },
+                    {
+                        "n": "enable",
+                        "t": "B",
+                        "w": "20",
+                        "f": "b",
+                        "r": [0,1],
+                        "d": 1
+                    }
+                ]
+            }
+        },
+        "RoboticalWaterPump": {
+            "addresses": "0x10-0x18",
+            "deviceType": "RoboticalWaterPump",
+            "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x0098",
+            "initValues": "=p250&0x6004ff9c=p250&0x2001",
+            "pollInfo": {
+                "c": "=r4",
+                "i": 500,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Robotical Water Pump",
+                "desc": "Pump",
+                "manu": "Robotical",
+                "type": "RoboticalWaterPump",
+                "resp": {
+                    "b": 4,
+                    "a": [
+                        {
+                            "n": "angle",
+                            "t": ">h",
+                            "r": [-180.0, 180.0],
+                            "f": ".1f",
+                            "d": 10,
+                            "o": "int16",
+                            "u": "degrees"
+                        },
+                        {
+                            "n": "current",
+                            "t": "b",
+                            "r": [-128, 127],
+                            "f": "d",
+                            "o": "int8"
+                        },
+                        {
+                            "n": "state",
+                            "t": "B",
+                            "r": [0, 255],
+                            "f": "02x",
+                            "o": "uint8"
+                        }
+                    ]
+                },
+                "actions": [
+                    {
+                        "n": "power",
+                        "t": ">h",
+                        "w": "0001",
+                        "wz": "0064",
+                        "f": ".1f",
+                        "mul": 10,
+                        "sub": 0,
+                        "r": [-180.0,180.0],
+                        "d": 0
+                    },
+                    {
+                        "n": "enable",
+                        "t": "B",
+                        "w": "20",
+                        "f": "b",
+                        "r": [0,1],
+                        "d": 1
+                    }
+                ]
+            }
+        },
         "VCNL4040": {
             "addresses": "0x60",
             "deviceType": "VCNL4040",
@@ -88,6 +282,51 @@
                             "r": [0,255],
                             "f": "3d",
                             "o": "float",
+                            "vft": "valid"
+                        }
+                    ]
+                }
+            }
+        },
+        "VL53L4CD": {
+            "_notes": "ToF distance sensor with range 0-1.3m",
+            "addresses": "0x29",
+            "deviceType": "VL53L4CD",
+            "detectionValues": "0x010F=0xEB&0x0110=0xAA",
+            "initValues": "0x0065A0&0x006E0F&0x006F89&0x007200&0x007300&0x007400&0x007500&0x008740",
+            "pollInfo": {
+                "c": "0x008601=&0x0089=r1&0x0096=r2",
+                "i": 200,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "VL53L4CD",
+                "desc": "ToF",
+                "manu": "ST",
+                "type": "VL53L4CD",
+                "resp": {
+                    "b": 3,
+                    "a": [
+                        {
+                            "n": "valid",
+                            "t": "B",
+                            "u": "",
+                            "r": [0,1],
+                            "m": "0x04",
+                            "x": "0x04",
+                            "s": 2,
+                            "f": "b",
+                            "o": "bool",
+                            "vs": false
+                        },
+                        {
+                            "n": "dist",
+                            "t": ">H",
+                            "u": "mm",
+                            "r": [0,65535],
+                            "f": "3d",
+                            "o": "uint16",
                             "vft": "valid"
                         }
                     ]
@@ -188,7 +427,68 @@
                     ]
                 }
             }
-        },        
+        },
+        "MXC400xXC": {
+            "_notes": "x in part code sets i2c address LSB from 0x10-0x17",
+            "addresses": "0x10-0x17",
+            "deviceType": "MXC400xXC",
+            "detectionValues": "0x0E=0x02",
+            "initValues": "0x01=0b00010000&=p250",
+            "pollInfo": {
+                "c": "0x03=r7",
+                "i": 100,
+                "s": 3
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "MXC400xXC",
+                "desc": "3-Axis Accel",
+                "manu": "Memsic",
+                "type": "MXC400xXC",
+                "resp": {
+                    "b": 7,
+                    "a": [
+                        {
+                            "n": "ax",
+                            "t": ">h",
+                            "u": "g",
+                            "r": [-2.0, 2.0],
+                            "d": 16384,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "ay",
+                            "t": ">h",
+                            "u": "g",
+                            "r": [-2.0,2.0],
+                            "d": 16384,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "az",
+                            "t": ">h",
+                            "u": "g",
+                            "r": [-2.0,2.0],
+                            "d": 16384,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "temp",
+                            "t": "b",
+                            "u": "deg",
+                            "r": [-10,40],
+                            "d": 0.586,
+                            "a": 25,
+                            "f": ".2f",
+                            "o": "float"
+                        }
+                    ]
+                }
+            }
+        },  
         "LSM6DS": {
             "_notes": "0x0a00 (FIFO disable), 0x1048 (Accel ODR 104Hz, FS 4g), 0x114c (Gyro ODR 104Hz, FS 2000dps), 0x22=r12 (read samples). Detection: 0x0f (WHOAMI) = 0x69 (LSM6DS3 & LSM6DS33), 0x6a (LSM6DSM) 0x6c (LSM6DSOX).",
             "addresses": "0x6a",
@@ -756,80 +1056,6 @@
                 ]
             }
         },
-        "RoboticalServo": {
-            "addresses": "0x10-0x18",
-            "deviceType": "RoboticalServo",
-            "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c",
-            "initValues": "=p250&0x2001",
-            "pollInfo": {
-                "c": "=r6",
-                "i": 100,
-                "s": 1
-            },
-            "scanPriority": "high",
-            "devInfoJson": {
-                "name": "Robotical Servo",
-                "desc": "Servo",
-                "manu": "Robotical",
-                "type": "RoboticalServo",
-                "resp": {
-                    "b": 6,
-                    "a": [
-                        {
-                            "n": "angle",
-                            "t": ">h",
-                            "r": [-180.0, 180.0],
-                            "f": ".1f",
-                            "d": 10,
-                            "o": "int16",
-                            "u": "degrees"
-                        },
-                        {
-                            "n": "current",
-                            "t": "b",
-                            "r": [-128, 127],
-                            "f": "d",
-                            "o": "int8"
-                        },
-                        {
-                            "n": "state",
-                            "t": "B",
-                            "r": [0, 255],
-                            "f": "02x",
-                            "o": "uint8"
-                        },
-                        {
-                            "n": "velocity",
-                            "t": ">h",
-                            "r": [-32768, 32767],
-                            "f": "d",
-                            "o": "int16"
-                        }
-                    ]
-                },
-                "actions": [
-                    {
-                        "n": "angle",
-                        "t": ">h",
-                        "w": "0001",
-                        "wz": "0064",
-                        "f": ".1f",
-                        "mul": 10,
-                        "sub": 0,
-                        "r": [-180.0,180.0],
-                        "d": 0
-                    },
-                    {
-                        "n": "enable",
-                        "t": "B",
-                        "w": "20",
-                        "f": "b",
-                        "r": [0,1],
-                        "d": 1
-                    }
-                ]
-            }
-        },
         "HX711": {
             "deviceType": "HX711",
             "detectionValues": "",
@@ -932,6 +1158,38 @@
                             "f": ".1f",
                             "o": "float"
                         }
+                    ]
+                }
+            }
+        },
+        "AdafruitSoilSensor": {
+            "addresses": "0x36",
+            "deviceType": "AdafruitSoilSensor",
+            "detectionValues": "0x0001=p25&=0x55",
+            "initValues": "",
+            "pollInfo": {
+                "c": "=r2&0x0F10=",
+                "i": 1000,
+                "s": 5
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "AdafruitSoilSensor",
+                "desc": "SoilSensor",
+                "manu": "Adafruit",
+                "type": "AdafruitSoilSensor",
+                "resp": {
+                    "b": 2,
+                    "a": [
+                        {
+                            "n": "moisture",
+                            "t": "<H",
+                            "u": "",
+                            "r": [0, 65535],
+                            "f": "d",
+                            "o": "uint16"
+                        }
+
                     ]
                 }
             }

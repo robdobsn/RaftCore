@@ -14,6 +14,7 @@
 #include "RaftBusConsts.h"
 #include "RaftBusStats.h"
 #include "RaftBusDevicesIF.h"
+#include "VirtualPinResult.h"
 
 class BusRequestInfo;
 class RaftBus;
@@ -291,9 +292,26 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Call bus element status callback
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set virtual pin mode (and level if output) on IO expander
+    /// @param pinNum - pin number
+    /// @param mode - mode (INPUT or OUTPUT)
+    /// @param level - level (only used for OUTPUT)
+    virtual void virtualPinSet(int pinNum, uint8_t mode, bool level)
+    {
+    }
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get virtual pin level on IO expander
+    /// @param pinNum - pin number
+    /// @param vPinCallback - callback for virtual pin changes
+    /// @param pCallbackData - callback data
+    virtual void virtualPinRead(int pinNum, VirtualPinCallbackType vPinCallback, void* pCallbackData = nullptr)
+    {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus status as a stringCall bus element status callback
+    /// @param busElemStatusCB - callback for bus element status changes
     void callBusElemStatusCB(const std::vector<BusElemAddrAndStatus>& statusChanges)
     {
         if (_busElemStatusCB)
@@ -301,9 +319,8 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Call bus operation status callback
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+    /// @brief Call bus operation status callback
+    /// @param busOperationStatus - bus operation status
     void callBusOperationStatusCB(BusOperationStatus busOperationStatus)
     {
         if (_busOperationStatusCB)
