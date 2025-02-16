@@ -27,9 +27,11 @@ public:
     bool start(const String& filePath, uint32_t chunkMaxLen, bool readByLine, 
                 bool writing, bool keepOpen, bool keepOpenEvenIfAtEnd);
 
-    // Read or write next chunk of file
-    // Returns false on failure
-    bool nextRead(uint8_t* pBuf, uint32_t bufLen, uint32_t& handledBytes, bool& finalChunk);
+    /// @brief Read next chunk of file
+    /// @param maxLen Maximum length to return
+    /// @param finalChunk Set to true if this is the final chunk
+    /// @return Response data
+    SpiramAwareUint8Vector nextRead(uint32_t maxLen, bool& finalChunk);
 
     /// @brief Read next chunk of file
     /// @param maxLen Maximum length to return
@@ -107,8 +109,6 @@ private:
     FILE* _pFile = nullptr;
 
     // Helpers
-    bool nextReadKeepOpen(uint8_t* pBuf, uint32_t bufLen, uint32_t& handledBytes, 
-                        bool& finalChunk, uint32_t numToRead);
     SpiramAwareUint8Vector nextReadKeepOpen(uint32_t maxLen, bool& finalChunk, uint32_t numToRead);
 
     // Debug

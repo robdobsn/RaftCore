@@ -13,9 +13,7 @@
 #include "Logger.h"
 #include "RaftArduino.h"
 #include "RaftRetCode.h"
-#include "PlatformUtils.h"
 #include "SpiramAwareAllocator.h"
-#include "PlatformUtils.h"
 
 namespace Raft
 {
@@ -513,16 +511,11 @@ namespace Raft
     int findInBuf(const SpiramAwareUint8Vector& buf, uint32_t offset,
                 const uint8_t* pToFind, uint32_t toFindLen);
 
-    /// @brief Parse a string into a list of integers, handling ranges.
-    /// @param pInStr Pointer to the input string.
-    /// @param outList List to receive the integers.
-    /// @param pSep List separator (default: "," if nullptr).
-    /// @param pListSep Range separator (default: "-" if nullptr).
-    /// @param maxNum Maximum number of integers to parse.
-    /// @return true if all integers were parsed (false if maxNum was reached).
-    /// @note This handles ranges of integers in the form of "1-5,7,9-12".
-    bool parseIntList(const char* pInStr, std::vector<int>& outList,
-                        const char* pSep = nullptr, const char* pListSep = nullptr, uint32_t maxNum = 100); 
+    /// @brief Parse a string into a list of integers
+    /// @param pInStr Pointer to the input string
+    /// @param outList List to receive the integers
+    /// @param pSep Separator string
+    void parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep = ",");
 
     /// @brief Get string for RaftRetCode
     /// @param retc RaftRetCode value

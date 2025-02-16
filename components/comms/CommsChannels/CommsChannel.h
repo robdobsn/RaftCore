@@ -57,7 +57,7 @@ private:
     void setProtocolCodec(ProtocolBase* pProtocolCodec);
 
     // Handle Rx data
-    void handleRxData(const uint8_t* pMsg, uint32_t msgLen);
+    void handleRxData(const SpiramAwareUint8Vector& msg);
 
     // Handle Rx data
     void handleRxData(const SpiramAwareUint8Vector& msg);
@@ -66,7 +66,6 @@ private:
     bool inboundCanAccept();
 
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-    void inboundQueueAdd(const uint8_t* pMsg, uint32_t msgLen);
     void inboundQueueAdd(const SpiramAwareUint8Vector& msg);
 #endif
 

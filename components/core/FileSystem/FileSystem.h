@@ -125,13 +125,8 @@ public:
     /// @return File extension
     static String getFileExtension(const String& filename);
 
-    /// @brief Read line from file
-    /// @param pBuf Buffer
-    /// @param maxLen Maximum length of line
-    /// @param pFile File pointer
-    /// @return Buffer containing line - must be freed by caller
-    [[deprecated("Use String readLineFromFile() instead")]]
-    char* readLineFromFile(char* pBuf, int maxLen, FILE* pFile);
+    // Read line from file
+    String readLineFromFile(FILE* pFile, int maxLen);
 
     /// @brief Read line from file
     /// @param pFile File pointer
@@ -162,28 +157,17 @@ public:
     /// @return true if successful
     bool getFileFullPath(const String& filename, String& fileFullPath) const;
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get a section of a file
     /// @param fileSystemStr File system string
     /// @param filename Filename
     /// @param sectionStart Start position in file
-    /// @param pBuf Buffer to read into
     /// @param sectionLen Length of section to read
-    /// @param readLen Length read
     /// @return true if successful
-    [[deprecated("Use SpiramAwareUint8Vector getFileSection() instead")]]
-    bool getFileSection(const String& fileSystemStr, const String& filename, uint32_t sectionStart, uint8_t* pBuf, 
-            uint32_t sectionLen, uint32_t& readLen);
+    SpiramAwareUint8Vector getFileSection(const String& fileSystemStr, const String& filename, uint32_t sectionStart,
+                uint32_t sectionLen);
 
-    /// @brief Get a section of a file
-    /// @param fileSystemStr File system string
-    /// @param filename Filename
-    /// @param sectionStart Start position in file
-    /// @param sectionLen Length of section to read
-    /// @param fileData Data read
-    /// @return Return code
-    RaftRetCode getFileSection(const String& fileSystemStr, const String& filename, uint32_t sectionStart,
-                uint32_t sectionLen, SpiramAwareUint8Vector& fileData);
-
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get a line from a text file
     /// @param fileSystemStr File system string
     /// @param filename Filename
@@ -192,9 +176,7 @@ public:
     /// @param lineMaxLen Maximum length of line
     /// @param fileCurPos Current position in file
     /// @return true if successful
-    [[deprecated("Use String getFileLine() instead")]]
-    bool getFileLine(const String& fileSystemStr, const String& filename, uint32_t startFilePos, uint8_t* pBuf, 
-            uint32_t lineMaxLen, uint32_t& fileCurPos);
+    String getFileLine(const String& fileSystemStr, const String& filename, uint32_t startFilePos, uint32_t lineMaxLen, uint32_t& fileCurPos);
 
     /// @brief Get a line from a text file
     /// @param fileSystemStr File system string
@@ -231,17 +213,10 @@ public:
     [[deprecated("Use SpiramAwareUint8Vector fileRead() instead")]]
     uint32_t fileRead(FILE* pFile, uint8_t* pBuf, uint32_t readLen);
 
-    /// @brief Read from file
-    /// @param pFile File pointer
-    /// @param readLen Length to read
-    /// @return Data read
+    // Read from file
     SpiramAwareUint8Vector fileRead(FILE* pFile, uint32_t readLen);
 
-    /// @brief Write to file
-    /// @param pFile File pointer
-    /// @param pBuf Buffer
-    /// @param writeLen Length to write
-    /// @return Number of bytes written
+    // Write to file
     uint32_t fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeLen);
 
     /// @brief Get file position

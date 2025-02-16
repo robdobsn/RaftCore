@@ -471,35 +471,29 @@ bool FileSystem::deleteFile(const String &fileSystemStr, const String &filename)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Read line
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-char *FileSystem::readLineFromFile(char *pBuf, int maxLen, FILE *pFile)
+/// @brief Read line from file
+/// @param pFile File pointer
+/// @param maxLen Maximum length of line
+/// @return String containing line
+String FileSystem::readLineFromFile(FILE* pFile, int maxLen)
 {
-    // Iterate over chars
-    pBuf[0] = 0;
-    char *pCurPtr = pBuf;
+    // Build the string
+    String lineStr;
     int curLen = 0;
     while (true)
     {
-        if (curLen >= maxLen - 1)
-            break;
+        if (curLen >= maxLen-1)
+            return lineStr;
         int ch = fgetc(pFile);
         if (ch == EOF)
-        {
-            if (curLen != 0)
-                break;
-            return NULL;
-        }
+            return lineStr;
         if (ch == '\n')
-            break;
+            return lineStr;
         if (ch == '\r')
             continue;
-        *pCurPtr++ = ch;
-        *pCurPtr = 0;
+        lineStr += (char)ch;
         curLen++;
     }
-    return pBuf;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -670,45 +664,6 @@ FileSystem::FileSystemStatType FileSystem::pathType(const char *filename)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get a section of a file
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool FileSystem::getFileSection(const String &fileSystemStr, const String &filename, uint32_t sectionStart, uint8_t *pBuf,
-                                uint32_t sectionLen, uint32_t &readLen)
-{
-    // Check file system supported
-    String nameOfFS;
-    if (!checkFileSystem(fileSystemStr, nameOfFS))
-    {
-        LOG_W(MODULE_PREFIX, "getFileSection %s invalid file system %s", filename.c_str(), fileSystemStr.c_str());
-        return false;
-    }
-
-    // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
-        return false;
-
-    // Open file
-    String rootFilename = getFilePath(nameOfFS, filename);
-    FILE *pFile = fopen(rootFilename.c_str(), "rb");
-    if (!pFile)
-    {
-        xSemaphoreGive(_fileSysMutex);
-        LOG_W(MODULE_PREFIX, "getFileSection failed to open file to read %s", rootFilename.c_str());
-        return false;
-    }
-
-    // Move to appropriate place in file
-    fseek(pFile, sectionStart, SEEK_SET);
-
-    // Read
-    readLen = fread((char *)pBuf, 1, sectionLen, pFile);
-    fclose(pFile);
-    xSemaphoreGive(_fileSysMutex);
-    return true;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get a section of a file
 /// @param fileSystemStr File system string
 /// @param filename Filename
@@ -716,7 +671,7 @@ bool FileSystem::getFileSection(const String &fileSystemStr, const String &filen
 /// @param sectionLen Length of section to read
 /// @param readLen Length actually read
 /// @return true if successful
-SpiramAwareUint8Vector FileSystem::getFileSection(const String &fileSystemStr, const String &filename, uint32_t sectionStart, uint32_t sectionLen)
+SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, const String& filename, uint32_t sectionStart, uint32_t sectionLen)
 {
     // Check file system supported
     String nameOfFS;
@@ -746,7 +701,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String &fileSystemStr, c
     // Read
     SpiramAwareUint8Vector fileData;
     fileData.resize(sectionLen);
-    int readLen = fread((char *)fileData.data(), 1, fileData.size(), pFile);
+    int readLen = fread((char*)fileData.data(), 1, fileData.size(), pFile);
     fclose(pFile);
     xSemaphoreGive(_fileSysMutex);
 
@@ -759,23 +714,27 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String &fileSystemStr, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get a line from a text file
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool FileSystem::getFileLine(const String &fileSystemStr, const String &filename, uint32_t startFilePos, uint8_t *pBuf,
-                             uint32_t lineMaxLen, uint32_t &fileCurPos)
+/// @brief Get a line from a text file
+/// @param fileSystemStr File system string
+/// @param filename Filename
+/// @param startFilePos Start position in file
+/// @param pBuf Buffer to read into
+/// @param lineMaxLen Maximum length of line
+/// @param fileCurPos Current position in file
+/// @return true if successful
+String FileSystem::getFileLine(const String& fileSystemStr, const String& filename, uint32_t startFilePos, uint32_t lineMaxLen, uint32_t& fileCurPos)
 {
     // Check file system supported
     String nameOfFS;
     if (!checkFileSystem(fileSystemStr, nameOfFS))
     {
         LOG_W(MODULE_PREFIX, "getFileLine %s invalid file system %s", filename.c_str(), fileSystemStr.c_str());
-        return false;
+        return "";
     }
 
     // Take mutex
     if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
-        return false;
+        return "";
 
     // Open file for text reading
     String rootFilename = getFilePath(nameOfFS, filename);
@@ -784,14 +743,14 @@ bool FileSystem::getFileLine(const String &fileSystemStr, const String &filename
     {
         xSemaphoreGive(_fileSysMutex);
         LOG_W(MODULE_PREFIX, "getFileLine failed to open file to read %s", rootFilename.c_str());
-        return false;
+        return "";
     }
 
     // Move to appropriate place in file
     fseek(pFile, startFilePos, SEEK_SET);
 
     // Read line
-    char *pReadLine = readLineFromFile((char *)pBuf, lineMaxLen - 1, pFile);
+    String line = readLineFromFile(pFile, lineMaxLen);
 
     // Record final
     fileCurPos = ftell(pFile);
@@ -800,8 +759,8 @@ bool FileSystem::getFileLine(const String &fileSystemStr, const String &filename
     fclose(pFile);
     xSemaphoreGive(_fileSysMutex);
 
-    // Ok if we got something
-    return pReadLine != NULL;
+    // Return line
+    return line;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -993,7 +952,7 @@ uint32_t FileSystem::fileRead(FILE *pFile, uint8_t *pBuf, uint32_t readLen)
 // Read from file
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SpiramAwareUint8Vector FileSystem::fileRead(FILE *pFile, uint32_t readLen)
+SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
 {
     // Ensure valid
     if (!pFile)
@@ -1009,7 +968,7 @@ SpiramAwareUint8Vector FileSystem::fileRead(FILE *pFile, uint32_t readLen)
     // Read
     SpiramAwareUint8Vector fileData;
     fileData.resize(readLen);
-    uint32_t lenRead = fread((char *)fileData.data(), 1, fileData.size(), pFile);
+    uint32_t lenRead = fread((char*)fileData.data(), 1, fileData.size(), pFile);
 
     // Release mutex
     xSemaphoreGive(_fileSysMutex);

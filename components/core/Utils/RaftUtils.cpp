@@ -953,7 +953,6 @@ uint32_t Raft::getHexFromChar(int ch)
     return 0;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get bytes from hex-encoded string
 /// @param inStr Input string
 /// @param outBuf Buffer to receive the bytes
@@ -1391,6 +1390,20 @@ int Raft::findInBuf(const uint8_t* pBuf, uint32_t bufLen,
 /// @return Position in buffer of val or -1 if not found
 int Raft::findInBuf(const SpiramAwareUint8Vector& buf, uint32_t offset,
             const uint8_t* pToFind, uint32_t toFindLen)
+{
+    if (offset >= buf.size())
+        return -1;
+    int rslt = findInBuf(buf.data() + offset, buf.size() - offset, pToFind, toFindLen);
+    if (rslt >= 0)
+        rslt += offset;
+    return rslt;
+}
+
+/// @brief Parse a string into a list of integers
+/// @param pInStr Pointer to the input string
+/// @param outList List to receive the integers
+/// @param pSep Separator string
+void Raft::parseIntList(const char* pInStr, std::vector<int>& outList, const char* pSep)
 {
     if (offset >= buf.size())
         return -1;

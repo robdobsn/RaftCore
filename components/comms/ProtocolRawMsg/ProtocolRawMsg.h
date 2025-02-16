@@ -20,9 +20,9 @@ public:
     {
     }
 
-    ProtocolRawMsg(const uint8_t* pBuf, uint32_t bufLen)
+    ProtocolRawMsg(const SpiramAwareUint8Vector& msg)
     {
-        _cmdVector.assign(pBuf, pBuf+bufLen);
+        _cmdVector = msg;
     }
 
     ProtocolRawMsg(const SpiramAwareUint8Vector& msg)

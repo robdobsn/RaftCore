@@ -72,7 +72,7 @@ bool CommsChannel::inboundCanAccept()
 #endif
 }
 
-void CommsChannel::handleRxData(const uint8_t* pMsg, uint32_t msgLen)
+void CommsChannel::handleRxData(const SpiramAwareUint8Vector& msg)
 {
     // Debug
 #ifdef DEBUG_COMMS_CHANNEL
@@ -80,14 +80,14 @@ void CommsChannel::handleRxData(const uint8_t* pMsg, uint32_t msgLen)
         _channelProtocolName.c_str(), 
         _interfaceName.c_str(), 
         _channelName.c_str(),
-        msgLen, 
+        msg.size(), 
         (_pProtocolCodec ? "YES" : "NO"));
 #endif
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-    inboundQueueAdd(pMsg, msgLen);
+    inboundQueueAdd(msg);
 #else
 if (_pProtocolCodec)
-    _pProtocolCodec->addRxData(pMsg, msgLen);
+    _pProtocolCodec->addRxData(msg);
 #endif
 }
 
@@ -111,9 +111,9 @@ if (_pProtocolCodec)
 }
 
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-void CommsChannel::inboundQueueAdd(const uint8_t* pMsg, uint32_t msgLen)
+void CommsChannel::inboundQueueAdd(const SpiramAwareUint8Vector& inMsg)
 {
-    ProtocolRawMsg msg(pMsg, msgLen);
+    ProtocolRawMsg msg(inMsg);
 #if defined(DEBUG_COMMS_CHANNEL) || defined(WARN_ON_INBOUND_QUEUE_FULL)
     bool addedOk = 
 #endif

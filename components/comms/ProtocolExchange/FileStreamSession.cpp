@@ -298,22 +298,19 @@ RaftRetCode FileStreamSession::fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen
     _pFileChunker->restart();
 
     // Get chunks and calculate CRC
-    SpiramAwareUint8Vector chunkBuf;
     const uint32_t CRC_CHUNK_SIZE = SpiramAwareAllocator<uint8_t>::max_allocatable() > 500000 ? 2000 : 500;
-    chunkBuf.resize(CRC_CHUNK_SIZE);
     bool finalBlockRead = false;
     while (!finalBlockRead)
     {
         // Get next chunk
-        uint32_t bytesRead = 0;
-        bool readOk = _pFileChunker->nextRead(chunkBuf.data(), chunkBuf.size(), bytesRead, finalBlockRead);
+        auto chunk = _pFileChunker->nextRead(CRC_CHUNK_SIZE, finalBlockRead);
 
         // Check for error
-        if (!readOk)
+        if (chunk.size() == 0)
             break;
 
         // Calculate CRC
-        crcValue = MiniHDLC::crcUpdateCCITT(crcValue, chunkBuf.data(), bytesRead);
+        crcValue = MiniHDLC::crcUpdateCCITT(crcValue, chunk);
     }
 
     // Reset chunker again
@@ -335,14 +332,6 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
     if (!_pFileChunker || !_pFileChunker->isActive())
         return RaftRetCode::RAFT_NOT_XFERING;
 
-    // Allocate buffer
-    SpiramAwareUint8Vector chunkBuf;
-    chunkBuf.resize(maxLen);
-
-    // Check allocation
-    if (chunkBuf.size() == 0)
-        return RaftRetCode::RAFT_INSUFFICIENT_RESOURCE;
-
     // Current file pos
     uint32_t curFilePos = _pFileChunker->getFilePos();
 
@@ -355,22 +344,21 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
     }
 
     // Get next chunk
-    uint32_t bytesRead = 0;
     bool finalBlockRead = false;
-    bool readOk = _pFileChunker->nextRead(chunkBuf.data(), chunkBuf.size(), bytesRead, finalBlockRead);
+    auto chunk = _pFileChunker->nextRead(maxLen, finalBlockRead);
 
     // Fill fileStreamBlock
     uint32_t fileLen = _pFileChunker->getFileLen();
     fileStreamBlock.set(_pFileChunker->getFileName().c_str(),
             fileLen,
             filePos,
-            chunkBuf.data(),
-            bytesRead,
+            chunk.data(),
+            chunk.size(),
             finalBlockRead,
             0, false,
             fileLen, true,
             filePos == 0);
-    return readOk ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_NOT_XFERING;
+    return chunk.size() != 0 ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_NOT_XFERING;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
