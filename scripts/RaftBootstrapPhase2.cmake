@@ -227,12 +227,6 @@ endif()
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} CopyFSAndWebUI WebUI)
 
 ################################################
-# Generate File System image
-################################################
-
-include(${raftcore_SOURCE_DIR}/scripts/RaftGenFSImage.cmake)
-
-################################################
 # compile_commands.json
 ################################################
 
