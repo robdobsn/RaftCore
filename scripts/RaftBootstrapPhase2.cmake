@@ -73,6 +73,11 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 # DevTypes Generation
 ################################################
 
+# Check if existing path is not a directory
+if (NOT IS_DIRECTORY "${DEV_TYPE_JSON_FILES}")
+    set(DEV_TYPE_JSON_FILES "${raftcore_SOURCE_DIR}/${DEV_TYPE_JSON_FILES}")
+endif()
+
 # Device type record paths
 set(POSSIBLE_FILES 
     "${CMAKE_SOURCE_DIR}/systypes/Common/DevTypes.json"
