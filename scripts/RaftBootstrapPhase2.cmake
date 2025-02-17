@@ -73,9 +73,12 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 # DevTypes Generation
 ################################################
 
-# Check if existing path is not a directory
-if (NOT IS_DIRECTORY "${DEV_TYPE_JSON_FILES}")
-    set(DEV_TYPE_JSON_FILES "${raftcore_SOURCE_DIR}/${DEV_TYPE_JSON_FILES}")
+# Check if DEV_TYPE_JSON_FILES is defined and not empty
+if (DEFINED DEV_TYPE_JSON_FILES AND NOT DEV_TYPE_JSON_FILES STREQUAL "")
+    # Check if DEV_TYPE_JSON_FILES is not a directory
+    if (NOT IS_DIRECTORY "${DEV_TYPE_JSON_FILES}")
+        set(DEV_TYPE_JSON_FILES "${raftcore_SOURCE_DIR}/${DEV_TYPE_JSON_FILES}")
+    endif()
 endif()
 
 # Device type record paths
