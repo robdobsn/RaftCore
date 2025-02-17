@@ -103,15 +103,3 @@ endforeach()
 
 # Include the RaftCore script
 include("${RAFT_BUILD_ARTIFACTS_FOLDER}/RaftCore/scripts/RaftBootstrapPhase2.cmake")
-
-################################################
-# Build the file system image
-################################################
-
-if (FS_TYPE STREQUAL "littlefs")
-    message(STATUS "Creating LittleFS file system image from ${_full_fs_dest_image_path}")
-    littlefs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT DEPENDS CopyFSAndWebUI)
-else()
-    message(STATUS "Creating SPIFFS file system image from ${_full_fs_dest_image_path}")
-    spiffs_create_partition_image(fs ${_full_fs_dest_image_path} FLASH_IN_PROJECT DEPENDS CopyFSAndWebUI)
-endif()
