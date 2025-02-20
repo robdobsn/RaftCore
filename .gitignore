@@ -14,6 +14,7 @@ scripts/config.ini
 test/eepromPartitionTest/prewritedata.bin
 test/eepromPartitionTest/readbackdata.bin
 linux_unit_tests/linux_unit_tests
+build/**/raft
 __pycache__
 build_linux/
 

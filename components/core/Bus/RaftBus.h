@@ -310,6 +310,15 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Enable bus slot
+    /// @param slotNum - slot number
+    /// @param enablePower - true to enable, false to disable
+    /// @param enableData - true to enable data, false to disable
+    virtual void enableSlot(uint32_t slotNum, bool enablePower, bool enableData)
+    {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get bus status as a stringCall bus element status callback
     /// @param busElemStatusCB - callback for bus element status changes
     void callBusElemStatusCB(const std::vector<BusElemAddrAndStatus>& statusChanges)
