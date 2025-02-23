@@ -445,8 +445,6 @@ bool NetworkSystem::startWifi()
         LOG_E(MODULE_PREFIX, "startWifi failed to start WiFi err %s (%d)", esp_err_to_name(err), err);
         return false;
     }
-
-    LOG_I(MODULE_PREFIX, "startWifi init complete");
     return true;
 }
 
@@ -575,7 +573,6 @@ bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
     }
 
     // Debug
-    LOG_I(MODULE_PREFIX, "configWifiAP OK SSID %s", apSSID);
     _wifiAPSSID = apSSID;
     return true;
 }

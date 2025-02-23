@@ -27,4 +27,5 @@ public:
     RaftRetCode retCode = RaftRetCode::RAFT_OTHER_FAILURE;
 };
 
-typedef void (*VirtualPinCallbackType) (void* pCallbackData, VirtualPinResult reqResult);
+typedef void (*VirtualPinSetCallbackType) (void* pCallbackData, RaftRetCode reqResult);
+typedef void (*VirtualPinReadCallbackType) (void* pCallbackData, VirtualPinResult reqResult);

@@ -19,6 +19,8 @@
 #define WARN_ON_DEVICE_INSTANTIATION_FAILED
 
 // Debug
+#define DEBUG_BUS_OPERATION_STATUS_OK_CB
+#define DEBUG_NEW_DEVICE_FOUND_CB
 // #define DEBUG_DEVICE_SETUP
 // #define DEBUG_DEVICE_FACTORY
 // #define DEBUG_LIST_DEVICES
@@ -137,8 +139,10 @@ void DeviceManager::loop()
 void DeviceManager::busOperationStatusCB(RaftBus& bus, BusOperationStatus busOperationStatus)
 {
     // Debug
+#ifdef DEBUG_BUS_OPERATION_STATUS_OK_CB
     LOG_I(MODULE_PREFIX, "busOperationStatusInfo %s %s", bus.getBusName().c_str(), 
         RaftBus::busOperationStatusToString(busOperationStatus));
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -177,6 +181,15 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                     // Setup device
                     pDevice->setup();
                     pDevice->postSetup();
+
+                    // Debug
+#ifdef DEBUG_NEW_DEVICE_FOUND_CB
+                    LOG_I(MODULE_PREFIX, "busElemStatusCB new device %s name %s class %s pubType %s", 
+                                    deviceId.c_str(), 
+                                    pDevice->getDeviceName().c_str(), 
+                                    pDevice->getDeviceClassName().c_str(),
+                                    pDevice->getPublishDeviceType().c_str());
+#endif
                 }
                 else
                 {

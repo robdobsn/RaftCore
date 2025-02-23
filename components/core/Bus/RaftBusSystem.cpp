@@ -9,6 +9,7 @@
 #include "RaftBusSystem.h"
 #include "RaftJsonPrefixed.h"
 #include "RaftJson.h"
+#include "VirtualPinResult.h"
 
 // Warn
 #define WARN_ON_NO_BUSES_DEFINED
@@ -204,4 +205,71 @@ RaftBus* RaftBusSystem::getBusByName(const String& busName)
     LOG_I(MODULE_PREFIX, "getBusByName %s not found", busName.c_str());
 #endif
     return nullptr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set virtual pin levels on IO expander (pins must be on the same expander or on GPIO)
+/// @param numPins - number of pins to set
+/// @param pPinNums - array of pin numbers
+/// @param pLevels - array of levels (0 for low)
+/// @param pResultCallback - callback for result when complete/failed
+/// @param pCallbackData - callback data
+/// @return RAFT_OK if successful
+RaftRetCode RaftBusSystem::virtualPinsSet(uint32_t numPins, const int* pPinNums, const uint8_t* pLevels, 
+            VirtualPinSetCallbackType pResultCallback, void* pCallbackData)
+{
+    // Check valid
+    if (!pPinNums || !pLevels)
+        return RAFT_INVALID_DATA;
+
+    // See if any bus handles this
+    for (RaftBus* pBus : _busList)
+    {
+        if (pBus)
+        {
+            RaftRetCode retc = pBus->virtualPinsSet(numPins, pPinNums, pLevels, pResultCallback, pCallbackData);
+            if (retc == RAFT_OK)
+                return retc;
+        }
+    }
+
+    // Not handled so use regular GPIO
+    for (uint32_t idx = 0; idx < numPins; idx++)
+    {
+        pinMode(pPinNums[idx], OUTPUT);
+        digitalWrite(pPinNums[idx], pLevels[idx] ? HIGH : LOW);
+    }
+
+    // Check for callback
+    if (pResultCallback)
+    {
+        pResultCallback(pCallbackData, RAFT_OK);
+    }
+    return RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get virtual pin level on IO expander
+/// @param pinNum - pin number
+/// @param vPinCallback - callback for virtual pin changes
+/// @param pCallbackData - callback data
+RaftRetCode RaftBusSystem::virtualPinRead(int pinNum, VirtualPinReadCallbackType vPinCallback, void* pCallbackData)
+{
+    // See if any bus handles this
+    for (RaftBus* pBus : _busList)
+    {
+        if (pBus)
+        {
+            RaftRetCode retc = pBus->virtualPinRead(pinNum, vPinCallback, pCallbackData);
+            if (retc == RAFT_OK)
+                return retc;
+        }
+    }
+
+    // Not handled so use regular GPIO
+    if (vPinCallback)
+        vPinCallback(pCallbackData, VirtualPinResult(pinNum, digitalRead(pinNum), RAFT_OK));
+
+    // Done
+    return RAFT_OK;
 }

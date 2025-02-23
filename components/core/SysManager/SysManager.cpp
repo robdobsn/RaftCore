@@ -39,6 +39,7 @@
 // #define DEBUG_SYSMOD_FACTORY
 // #define DEBUG_FRIENDLY_NAME_SET
 // #define DEBUG_STATUS_CHANGE_CALLBACK
+// #define DEBUG_GET_FRIENDLY_NAME
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -1094,12 +1095,14 @@ String SysManager::getFriendlyName(bool& isSet) const
         if (_systemUniqueString.length() >= 6)
             friendlyName += "_" + _systemUniqueString.substring(_systemUniqueString.length()-6);
     }
+#ifdef DEBUG_GET_FRIENDLY_NAME
     LOG_I(MODULE_PREFIX, "getFriendlyName %s (isSet %s nvsStr %s default %s uniqueStr %s)", 
                 friendlyName.c_str(), 
                 isSet ? "Y" : "N",
                 friendlyNameNVS.c_str(),
                 _defaultFriendlyName.c_str(), 
                 _systemUniqueString.c_str());
+#endif
     return friendlyName;
 }
 
