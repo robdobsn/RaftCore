@@ -273,3 +273,22 @@ RaftRetCode RaftBusSystem::virtualPinRead(int pinNum, VirtualPinReadCallbackType
     // Done
     return RAFT_OK;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Enable bus slot
+/// @param pBusName - bus name
+/// @param slotNum - slot number (slots are numbered from 1)
+/// @param enablePower - true to enable, false to disable
+/// @param enableData - true to enable data, false to disable
+/// @return RAFT_OK if successful
+RaftRetCode RaftBusSystem::enableSlot(const char* pBusName, uint32_t slotNum, bool enablePower, bool enableData)
+{
+    // Get the bus
+    RaftBus* pBus = getBusByName(pBusName);
+    if (!pBus)
+        return RAFT_BUS_INVALID;
+
+    // Enable slot
+    return pBus->enableSlot(slotNum, enablePower, enableData);
+}
+

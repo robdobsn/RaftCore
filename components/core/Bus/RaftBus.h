@@ -318,11 +318,13 @@ public:
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Enable bus slot
-    /// @param slotNum - slot number
+    /// @param slotNum - slot number (0 is the main bus)
     /// @param enablePower - true to enable, false to disable
     /// @param enableData - true to enable data, false to disable
-    virtual void enableSlot(uint32_t slotNum, bool enablePower, bool enableData)
+    /// @return RAFT_OK if successful
+    virtual RaftRetCode enableSlot(uint32_t slotNum, bool enablePower, bool enableData)
     {
+        return RAFT_NOT_IMPLEMENTED;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

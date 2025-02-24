@@ -92,6 +92,15 @@ public:
     /// @return RAFT_OK if successful
     RaftRetCode virtualPinRead(int pinNum, VirtualPinReadCallbackType vPinCallback, void* pCallbackData = nullptr);
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Enable bus slot
+    /// @param pBusName - bus name
+    /// @param slotNum - slot number (slots are numbered from 1)
+    /// @param enablePower - true to enable, false to disable
+    /// @param enableData - true to enable data, false to disable
+    /// @return RAFT_OK if successful
+    RaftRetCode enableSlot(const char* pBusName, uint32_t slotNum, bool enablePower, bool enableData);
+
 private:
     // Debug
     static constexpr const char *MODULE_PREFIX = "RaftBusSystem";
