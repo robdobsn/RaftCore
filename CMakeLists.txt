@@ -79,6 +79,7 @@ idf_component_register(
     "components/core/MiniHDLC/MiniHDLC.cpp"
     "components/core/MQTT/MQTTProtocol.cpp"
     "components/core/MQTT/RaftMQTTClient.cpp"
+    "components/core/NamedValueProvider/NamedValueProvider.cpp"
     "components/core/NetworkSystem/NetworkSystem.cpp"
     "components/core/NetworkSystem/WiFiScanner.cpp"
     "components/core/RaftCoreApp/RaftCoreApp.cpp"
