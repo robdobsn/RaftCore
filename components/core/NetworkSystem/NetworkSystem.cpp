@@ -257,12 +257,12 @@ bool NetworkSystem::isEthConnectedWithIP() const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get settings JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get JSON settings
+/// @param includeBraces true to include braces
+/// @return String JSON settings
 String NetworkSystem::getSettingsJSON(bool includeBraces) const
 {
-    // Get the status JSON
+    // Get the setting JSON
     String jsonStr = R"("wifiSTA":")" + String(_networkSettings.enableWifiSTAMode) + 
                         R"(","wifiAP":")" + String(_networkSettings.enableWifiAPMode) + 
                         R"(","eth":")" + String(_networkSettings.enableEthernet) +
@@ -276,9 +276,13 @@ String NetworkSystem::getSettingsJSON(bool includeBraces) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get conn state JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get conn state JSON
+/// @param includeBraces true to include braces
+/// @param staInfo true to include STA info
+/// @param apInfo true to include AP info
+/// @param ethInfo true to include Ethernet info
+/// @param useBeforePauseValue true to use the value before pause
+/// @return String JSON connection state
 String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue) const
 {
     // Get the status JSON
@@ -290,39 +294,40 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
         if (useBeforePauseValue)
             wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
-        jsonStr += R"("wifiSTA":{"en":)" + String(_networkSettings.enableWifiSTAMode);
-        if (_networkSettings.enableWifiSTAMode)
-            jsonStr += R"(,"conn":)" + String(wifiStaConnWithIP) + 
+        jsonStr += R"("wifiSTA":{"conn":)" + String(wifiStaConnWithIP) + 
                             R"(,"SSID":")" + (wifiStaConnWithIP ? _wifiStaSSID : _wifiStaSSIDConnectingTo) +
-                            R"(","RSSI":)" + String(_wifiRSSI) + 
-                            R"(,"IP":")" + _wifiIPV4Addr + 
-                            R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") +
-                            R"(","paused":)" + String(isPaused() ? 1 : 0);
+                        R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":");
+        if (wifiStaConnWithIP)
+        {
+            jsonStr += R"(","RSSI":)" + String(_wifiRSSI) + 
+            R"(,"IP":")" + _wifiIPV4Addr;
+        }
+        if (isPaused())
+        {
+            jsonStr += R"(","paused":1)";
+        }
         jsonStr += R"(})";
     }
     if (apInfo && _networkSettings.enableWifiAPMode)
     {
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
-        jsonStr += R"("wifiAP":{"en":)" + String(_networkSettings.enableWifiAPMode);
-        if (_networkSettings.enableWifiAPMode)
-            jsonStr += R"(,"SSID":")" + _wifiAPSSID +
-                        R"(","clients":)" + String(_wifiAPClientCount);
+        jsonStr += R"("wifiAP":{"SSID":")" + _wifiAPSSID;
+        if (_wifiAPClientCount > 0)
+            jsonStr += R"(","clients":)" + String(_wifiAPClientCount);
         jsonStr += R"(})";
     }
+#ifdef ETHERNET_IS_ENABLED
     if (ethInfo && _networkSettings.enableEthernet)
     {
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
-        jsonStr += R"("eth":{"en":)" + String(_networkSettings.enableEthernet);
-#ifdef ETHERNET_IS_ENABLED
-        if (_networkSettings.enableEthernet)
-            jsonStr += R"(,"conn":)" + String(isEthConnectedWithIP()) +
+        jsonStr += R"("eth":{"conn":)" + String(isEthConnectedWithIP()) +
                         R"(,"IP":")" + _ethIPV4Addr +
                         R"(","MAC":")" + _ethMACAddress + R"(")";
-#endif
         jsonStr += R"(})";
     }
+#endif
     // Add braces if required
     if (includeBraces)
         return "{" + jsonStr + "}";
