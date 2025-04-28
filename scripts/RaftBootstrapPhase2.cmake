@@ -75,10 +75,33 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 
 # Check if DEV_TYPE_JSON_FILES is defined and not empty
 if (DEFINED DEV_TYPE_JSON_FILES AND NOT DEV_TYPE_JSON_FILES STREQUAL "")
-    # Check if DEV_TYPE_JSON_FILES is not a directory
-    if (NOT IS_DIRECTORY "${DEV_TYPE_JSON_FILES}")
-        set(DEV_TYPE_JSON_FILES "${raftcore_SOURCE_DIR}/${DEV_TYPE_JSON_FILES}")
+    # Convert DEV_TYPE_JSON_FILES to a list if it's a single string
+    if (NOT DEV_TYPE_JSON_FILES MATCHES ";")
+        set(DEV_TYPE_JSON_FILES "${DEV_TYPE_JSON_FILES}")
     endif()
+
+    # Create a new list to store the updated file paths
+    set(UPDATED_DEV_TYPE_JSON_FILES "")
+
+    # Iterate over each file in the list
+    foreach(FILE_PATH ${DEV_TYPE_JSON_FILES})
+        # Check if the file exists
+        if (EXISTS "${FILE_PATH}")
+            list(APPEND UPDATED_DEV_TYPE_JSON_FILES "${FILE_PATH}")
+        else()
+            # Prepend ${raftcore_SOURCE_DIR} and check again
+            set(PREPENDED_PATH "${raftcore_SOURCE_DIR}/${FILE_PATH}")
+            if (EXISTS "${PREPENDED_PATH}")
+                list(APPEND UPDATED_DEV_TYPE_JSON_FILES "${PREPENDED_PATH}")
+            else()
+                message(WARNING "File not found: ${FILE_PATH} (even after prepending ${raftcore_SOURCE_DIR})")
+            endif()
+        endif()
+    endforeach()
+
+    # Update DEV_TYPE_JSON_FILES with the new list
+    set(DEV_TYPE_JSON_FILES "${UPDATED_DEV_TYPE_JSON_FILES}")
+    message(STATUS "DEV_TYPE_JSON_FILES: ${DEV_TYPE_JSON_FILES}")
 endif()
 
 # Device type record paths
