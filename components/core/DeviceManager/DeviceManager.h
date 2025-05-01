@@ -179,6 +179,12 @@ private:
     /// @return number of devices registered
     uint32_t registerForDeviceDataChangeCBs(const char* pDeviceName = nullptr);
 
+    /// @brief Device event callback
+    /// @param device Device
+    /// @param eventName Name of the event
+    /// @param eventData Data associated with the event
+    void deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData);
+
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;
 

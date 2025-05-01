@@ -107,6 +107,14 @@ void DeviceManager::postSetup()
 #endif
     registerForDeviceDataChangeCBs();
 
+    // Register for device events
+    for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
+    {
+        pDeviceListCopy[devIdx]->registerForDeviceStatusChange(
+            std::bind(&DeviceManager::deviceEventCB, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
+        );
+    }
+
     // Debug
 #ifdef DEBUG_DEVICE_SETUP
     LOG_I(MODULE_PREFIX, "postSetup %d devices registered %d CBs", numDevices, numDevCBsRegistered);
@@ -898,4 +906,25 @@ uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
         );
     }
     return deviceListForDataChangeCB.size();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Device event callback
+/// @param device Device
+/// @param eventName Name of the event
+/// @param eventData Data associated with the event
+void DeviceManager::deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData)
+{
+    // Get sys manager
+    SysManager* pSysMan = getSysManager();
+    if (!pSysMan)
+        return;
+    String cmdStr = "{\"msgType\":\"sysevent\",\"msgName\":\"" + String(eventName) + "\"";
+    if (eventData)
+        cmdStr += eventData;
+    cmdStr += "}";
+    pSysMan->sendCmdJSON(
+        "SysMan",
+        cmdStr.c_str()
+    );
 }

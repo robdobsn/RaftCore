@@ -182,6 +182,12 @@ public:
     {
     }
 
+    /// @brief Register for device events
+    /// @param eventCB Callback for device events
+    virtual void registerForDeviceStatusChange(RaftDeviceEventCB eventCB)
+    {
+    }
+
 protected:
     // Device configuration
     RaftJson deviceConfig;

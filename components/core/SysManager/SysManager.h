@@ -130,8 +130,22 @@ public:
     // Get debug from SysMod
     String getDebugJSON(const char* sysModName) const;
 
-    // Send command to SysMod
-    RaftRetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
+    /// @brief Notify of system shutdown
+    /// @param isRestart True if this is a restart (false if shutdown)
+    /// @param reasonOrNull Reason for shutdown (may be nullptr)
+    void notifyOfShutdown(bool isRestart = true, const char* reasonOrNull = nullptr);
+
+    /// @brief Send command to one or all SysMods
+    /// @param sysModName Name of SysMod to send command to or nullptr for all SysMods
+    /// @param cmdJSON Command JSON string
+    /// @return Result code
+    /// @note The command JSON string should be in the format:
+    ///       {"cmd":"<command>",...other args...}
+    ///       where <command> is the command to be sent and other args are any additional arguments
+    ///       to be passed to the command handler.
+    ///       The command will be sent to the SysMod's command handler.
+    ///       The SysMod should handle the command and return a result.
+    RaftRetCode sendCmdJSON(const char* sysModNameOrNullForAll, const char* cmdJSON);
 
     // Register data source (message generator functions)
     bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
@@ -151,6 +165,9 @@ public:
     // Request system restart
     void systemRestart()
     {
+        // Notify all SysMods of restart
+        notifyOfShutdown(true);
+
         // Actual restart occurs within loop routine after a short delay
         _systemRestartPending = true;
         _systemRestartMs = millis();
@@ -405,6 +422,10 @@ private:
 
     // System restart
     void systemRestartNow();
+
+    /// @brief Send report message
+    /// @param msg Message to send
+    void sendReportMessage(const char* msg);
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "SysMan";
