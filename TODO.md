@@ -1,5 +1,7 @@
 # Todo
 
+[] implement a mechanism that allows coord system transforms like rotation/inversion/etc - either as an expression or as a named transformation
+[] provide a way to set the sampling rate for devices - similar to actions - there may be a need to send an I2C command to device to change internal rate - and also to change the reporting rate / publish rate?
 [] dockerfile and other build specific stuff - maybe allow different ESP IDF versions???
 [] move RaftCore version into the sysmod somehow - need to think how CMake works in this case
 [] move RaftCore into build_raft_artifacts or otherwise adjust -> raft_build

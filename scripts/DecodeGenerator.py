@@ -91,15 +91,17 @@ class DecodeGenerator:
             pc_eq = pc.split("=")
             pc_read_def = pc_eq[1].strip() if len(pc_eq) > 1 else ""
             # Check if the value is a binary string
-            if pc_read_def.startswith("0b"):
-                pc_bit_len = len(pc_read_def) - 2
+            if pc_read_def.find("0b") >= 0:
+                pc_bit_len = len(pc_read_def) - pc_read_def.find("0b") - 2
                 if pc_bit_len % 8 != 0:
                     raise ValueError("Invalid polling config record value: " + pc_read_def)
                 pc_len += pc_bit_len // 8
+            elif pc_read_def.find("0x") >= 0:
+                pc_len += len(pc_read_def) // 2
             # Check if the value is a read byte count
-            elif pc_read_def.startswith("r"):
-                pc_len += int(pc_read_def[1:])
-            elif len(pc_read_def) == 0:
+            elif pc_read_def.find("r") >= 0:
+                pc_len += int(pc_read_def[pc_read_def.find("r") + 1:])
+            elif len(pc_read_def) == 0 or pc_read_def.find("p") >= 0:
                 pass
             else:
                 raise ValueError("Invalid polling config record value: " + pc_read_def)
@@ -304,9 +306,34 @@ class DecodeGenerator:
             attr_pos = el.get("at", "")
             var_pPos = "pBuf"
             if attr_pos != "":
-                # Create pAbsPos for the absolute position of the element
-                extract_code.append(f"{line_prefix}        const uint8_t* pAbsPos = pAttrStart + {attr_pos};\n")
-                var_pPos = "pAbsPos"
+                # Handle both single value and list of byte positions
+                if isinstance(attr_pos, list):
+                    # Create a separate buffer for this attribute's data
+                    extract_code.append(f"{line_prefix}        // Create a new buffer for the attribute's data with non-contiguous bytes\n")
+                    extract_code.append(f"{line_prefix}        uint8_t atPosBytes[sizeof({buf_elem_type})];\n")
+                    extract_code.append(f"{line_prefix}        memset(atPosBytes, 0, sizeof({buf_elem_type}));\n")
+                    
+                    # Create a C array with the byte positions
+                    extract_code.append(f"{line_prefix}        // Array of byte positions from the 'at' field\n")
+                    pos_array_str = ", ".join(str(pos) for pos in attr_pos)
+                    extract_code.append(f"{line_prefix}        const uint16_t atPositions[] = {{{pos_array_str}}};\n")
+                    extract_code.append(f"{line_prefix}        const size_t numPositions = sizeof(atPositions) / sizeof(atPositions[0]);\n")
+                    extract_code.append(f"{line_prefix}        const size_t elemSize = sizeof({buf_elem_type});\n")
+                    
+                    # Copy the bytes from the specified positions
+                    extract_code.append(f"{line_prefix}        // Copy specified bytes to the buffer\n")
+                    extract_code.append(f"{line_prefix}        for (size_t i = 0; i < numPositions && i < elemSize; i++) {{\n")
+                    extract_code.append(f"{line_prefix}            if (pAttrStart + atPositions[i] < pBufEnd) {{\n")
+                    extract_code.append(f"{line_prefix}                atPosBytes[i] = *(pAttrStart + atPositions[i]);\n")
+                    extract_code.append(f"{line_prefix}            }}\n")
+                    extract_code.append(f"{line_prefix}        }}\n")
+                    
+                    extract_code.append(f"{line_prefix}        const uint8_t* pAbsPos = atPosBytes;\n")
+                    var_pPos = "pAbsPos"
+                else:
+                    # Standard absolute position in the buffer
+                    extract_code.append(f"{line_prefix}        const uint8_t* pAbsPos = pAttrStart + {attr_pos};\n")
+                    var_pPos = "pAbsPos"
 
             # Generate code to check the buffer bounds
             extract_code.append(f"{line_prefix}        if ({var_pPos} + sizeof({buf_elem_type}) > pBufEnd) break;\n")

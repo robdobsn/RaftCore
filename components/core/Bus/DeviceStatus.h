@@ -34,23 +34,32 @@ public:
         return deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID;
     }
 
-    // Get pending ident poll info
+    /// @brief Get pending ident poll info
+    /// @param timeNowUs time in us (passed in to aid testing)
+    /// @param pollInfo (out) polling info
+    /// @return true if there is a pending request
     bool getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo& pollInfo);
 
     /// @brief Store poll results
+    /// @param nextReqIdx index of next request to store (0 = full poll, 1+ = partial poll)
     /// @param timeNowUs time in us (passed in to aid testing)
     /// @param pollResult poll result data
     /// @param pPollInfo pointer to device polling info (maybe nullptr)
+    /// @param pauseAfterSendMs pause after send in ms
     /// @return true if result stored
-    bool storePollResults(uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, const DevicePollingInfo* pPollInfo)
-    {
-        return dataAggregator.put(timeNowUs, pollResult);
-    }
+    bool storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, 
+        const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs);
 
     // Get device type index
     uint16_t getDeviceTypeIndex() const
     {
         return deviceTypeIndex;
+    }
+
+    // Get number of poll requests
+    uint32_t getNumPollRequests() const
+    {
+        return deviceIdentPolling.pollReqs.size();
     }
 
     // Device type index
