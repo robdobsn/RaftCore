@@ -68,10 +68,35 @@ public:
     class DeviceDetectionRec
     {
     public:
+        // CRC algorithm enum
+        enum class CRCAlgorithm {
+            NONE,
+            CRC_SENSIRION_8,
+            CRC_MAX30101_8
+        };
+
+        // CRC validation structure
+        struct CRCValidation {
+            CRCAlgorithm algorithm = CRCAlgorithm::NONE;
+            uint8_t size = 0;
+        };
+
+        // Field check structure
+        struct FieldCheck {
+            std::vector<uint8_t> dataToCheck;
+            std::vector<uint8_t> mask;
+            std::vector<uint8_t> expectedValue;
+            bool hasCRC = false;
+            CRCValidation crcValidation;
+        };
+
         std::vector<uint8_t> writeData;
         // First value is a mask and second value is the expected value to check against
         // Result is true if any of the pairs match the read values
         std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>> checkValues;
+        // Support for multi-field CRC validation
+        bool useMultiFieldCheck = false;
+        std::vector<FieldCheck> fieldChecks;
         uint16_t pauseAfterSendMs;
     };
 
@@ -139,6 +164,11 @@ private:
                 std::vector<uint8_t>& readDataCheck, bool maskToZeros, uint32_t& pauseAfterSendMs);
     static bool extractCheckInfoFromHexStr(const String& readStr, std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>& checkValues,
                 bool maskToZeros);
+    static bool extractFieldChecksFromStr(const String& readStr, std::vector<DeviceDetectionRec::FieldCheck>& fieldChecks, bool maskToZeros);
+    static bool extractCRCValidationFromStr(const String& crcStr, DeviceDetectionRec::CRCValidation& crcValidation);
+    static uint8_t calculateCRC(const uint8_t* data, size_t length, DeviceDetectionRec::CRCAlgorithm algorithm);
+    static uint8_t calculateSensirionCRC8(const uint8_t* data, size_t length);
+    static uint8_t calculateMAX30101CRC8(const uint8_t* data, size_t length);
     static uint32_t extractReadDataSize(const String& readStr);
     static uint32_t extractBarAccessMs(const String& readStr);
 

@@ -384,15 +384,76 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
     else if (readStrLC.indexOf("0x") >= 0)
     {
         int hexIdx = readStrLC.indexOf("0x");
-        // Compute length
-        uint32_t lenBytes = (readStrLC.length() - hexIdx - 2 + 1) / 2;
-        // Extract the read data
-        readDataMask.resize(lenBytes);
-        readDataCheck.resize(lenBytes);
-        Raft::getBytesFromHexStr(readStrLC.c_str() + hexIdx + 2, readDataCheck.data(), readDataCheck.size());
-        for (int i = 0; i < readDataMask.size(); i++)
-        {
-            readDataMask[i] = maskToZeros ? 0xff : 0;
+        
+        // Check for wildcards in hex string (X character)
+        bool hasWildcards = false;
+        for (int i = hexIdx + 2; i < readStrLC.length(); i++) {
+            if (readStrLC[i] == 'x') {
+                hasWildcards = true;
+                break;
+            }
+        }
+        
+        if (hasWildcards) {
+            // Handle hex string with wildcards
+            // Compute length
+            uint32_t lenNibbles = readStrLC.length() - hexIdx - 2;
+            uint32_t lenBytes = (lenNibbles + 1) / 2;
+            
+            // Extract the read data
+            readDataMask.resize(lenBytes);
+            readDataCheck.resize(lenBytes);
+            
+            // Initialize arrays
+            for (int i = 0; i < lenBytes; i++) {
+                readDataMask[i] = maskToZeros ? 0xff : 0;
+                readDataCheck[i] = 0;
+            }
+            
+            // Process each nibble
+            for (int i = 0; i < lenNibbles; i++) {
+                char c = readStrLC[hexIdx + 2 + i];
+                uint8_t nibbleVal = 0;
+                bool isWildcard = false;
+                
+                if (c == 'x') {
+                    isWildcard = true;
+                } else if (c >= '0' && c <= '9') {
+                    nibbleVal = c - '0';
+                } else if (c >= 'a' && c <= 'f') {
+                    nibbleVal = c - 'a' + 10;
+                } else {
+                    // Invalid character
+                    return false;
+                }
+                
+                // Calculate byte index and shift
+                int byteIdx = i / 2;
+                int shift = (i % 2 == 0) ? 4 : 0;  // High nibble or low nibble
+                
+                if (isWildcard) {
+                    // Update mask for wildcard
+                    if (maskToZeros) {
+                        readDataMask[byteIdx] &= ~(0xF << shift);
+                    } else {
+                        readDataMask[byteIdx] |= (0xF << shift);
+                    }
+                } else {
+                    // Set expected value
+                    readDataCheck[byteIdx] |= (nibbleVal << shift);
+                }
+            }
+        } else {
+            // Standard hex string without wildcards
+            // Compute length
+            uint32_t lenBytes = (readStrLC.length() - hexIdx - 2 + 1) / 2;
+            // Extract the read data
+            readDataMask.resize(lenBytes);
+            readDataCheck.resize(lenBytes);
+            Raft::getBytesFromHexStr(readStrLC.c_str() + hexIdx + 2, readDataCheck.data(), readDataCheck.size());
+            for (int i = 0; i < readDataMask.size(); i++) {
+                readDataMask[i] = maskToZeros ? 0xff : 0;
+            }
         }
         return true;
     }
@@ -448,6 +509,29 @@ bool DeviceTypeRecords::extractCheckInfoFromHexStr(const String& readStr, std::v
             bool maskToZeros)
 {
     checkValues.clear();
+    
+    // Check if this is a CRC validation format
+    if (readStr.indexOf("{crc:") >= 0) {
+        // Handle as multi-field check with CRC validation
+        std::vector<DeviceDetectionRec::FieldCheck> fieldChecks;
+        if (!extractFieldChecksFromStr(readStr, fieldChecks, maskToZeros)) {
+            return false;
+        }
+        
+        // Convert field checks to traditional format for backward compatibility
+        // Note: This only works for simple checks without CRC validation
+        for (const auto& fieldCheck : fieldChecks) {
+            if (!fieldCheck.hasCRC) {
+                checkValues.push_back(std::make_pair(fieldCheck.mask, fieldCheck.expectedValue));
+            }
+        }
+        
+        // If all fields have CRC, we won't have any check values, but that's OK
+        // The CRC validation will be handled separately in DeviceIdentMgr
+        return true;
+    }
+    
+    // Traditional format without CRC validation
     // Iterate over comma separated sections of string
     String readStrLC = readStr;
     readStrLC.toLowerCase();
@@ -533,8 +617,25 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
         DeviceDetectionRec detectionRec;
         if (!extractBufferDataFromHexStr(detectionNameValue.name, detectionRec.writeData))
             continue;
-        if (!extractCheckInfoFromHexStr(detectionNameValue.value, detectionRec.checkValues, true))
-            continue;
+            
+        // Check if this is a response with CRC validation
+        if (detectionNameValue.value.indexOf("{crc:") >= 0) {
+            // Set multi-field check flag
+            detectionRec.useMultiFieldCheck = true;
+            
+            // Extract field checks
+            if (!extractFieldChecksFromStr(detectionNameValue.value, detectionRec.fieldChecks, true))
+                continue;
+                
+            // Also extract traditional check values for backward compatibility
+            if (!extractCheckInfoFromHexStr(detectionNameValue.value, detectionRec.checkValues, true))
+                continue;
+        } else {
+            // Traditional format without CRC validation
+            if (!extractCheckInfoFromHexStr(detectionNameValue.value, detectionRec.checkValues, true))
+                continue;
+        }
+        
         detectionRec.pauseAfterSendMs = extractBarAccessMs(detectionNameValue.value);
         detectionRecs.push_back(detectionRec);
     }
@@ -617,9 +718,10 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
             Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
             for (int devAddr : addressList)
             {
-                if (priorityLists.size() == 0)
-                    priorityLists.push_back(std::vector<BusElemAddrType>());
-                priorityLists[0].push_back(devAddr);
+                if (devAddr >= 0 && devAddr < 0x10000)
+                {
+                    priorityLists[0].push_back(devAddr);
+                }
             }
         }
         xSemaphoreGive(_extDeviceTypeRecordsMutex);
@@ -629,70 +731,151 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Add extended device type record
 /// @param devTypeRec device type record
-/// @param deviceTypeIndex (out) device type index
 /// @return true if added
-bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, uint16_t& deviceTypeIndex)
+bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecord& devTypeRec)
 {
-    // Lock
-    if (!xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY))
-        return false;
-
-    // Check if max number of records reached
-    if (_extendedDevTypeRecords.size() >= MAX_EXTENDED_DEV_TYPE_RECORDS)
+    bool isAdded = false;
+    if (xSemaphoreTake(_extDeviceTypeRecordsMutex, portMAX_DELAY) == pdTRUE)
     {
-        xSemaphoreGive(_extDeviceTypeRecordsMutex);
-#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
-        LOG_W(MODULE_PREFIX, "addExtendedDeviceTypeRecord MAX_EXTENDED_DEV_TYPE_RECORDS reached");
-#endif
-        return false;
-    }
-
-    // Check if already added
-    bool recFound = false;
-    for (uint16_t i = 0; i < _extendedDevTypeRecords.size(); i++)
-    {
-        if (_extendedDevTypeRecords[i].nameMatches(devTypeRec))
+        // Check if already exists (same device type name)
+        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
-            recFound = true;
-            deviceTypeIndex = i + BASE_DEV_TYPE_ARRAY_SIZE;
-            break;
+            if (extDevTypeRec.deviceTypeName == devTypeRec.deviceTypeName)
+                return false; // Already exists
         }
-    }
-
-    // Add to list
-    if (!recFound)
-    {
+        // Add the record
         _extendedDevTypeRecords.push_back(devTypeRec);
+        isAdded = true;
+
+        // Update flag
         _extendedRecordsAdded = true;
-        deviceTypeIndex = _extendedDevTypeRecords.size() - 1 + BASE_DEV_TYPE_ARRAY_SIZE;
+        LOG_I(MODULE_PREFIX, "Extended device type record added: %s", devTypeRec.deviceTypeName);
+        
+        // TODO - save to non-volatile storage
+        // ...
+        
+        xSemaphoreGive(_extDeviceTypeRecordsMutex);
     }
-
-    // Unlock
-    xSemaphoreGive(_extDeviceTypeRecordsMutex);
-
-#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
-    LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
-                recFound ? "ALREADY PRESENT" : "ADDED OK",
-                devTypeRec.deviceTypeName_.c_str(), 
-                deviceTypeIndex,
-                devTypeRec.addresses_.c_str(), devTypeRec.detectionValues_.c_str(),
-                devTypeRec.initValues_.c_str(), devTypeRec.pollInfo_.c_str());
-#endif
-    return !recFound;
+    return isAdded;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get device poll decode function
-/// @param deviceTypeIdx device type index
-/// @return poll decode function
-DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(uint16_t deviceTypeIdx) const
+/// @brief Extract CRC validation from string
+/// @param crcStr CRC validation string (e.g. "{crc:crc-sensirion-8,1}")
+/// @param crcValidation CRC validation structure to fill
+/// @return true if successful
+bool DeviceTypeRecords::extractCRCValidationFromStr(const String& crcStr, DeviceDetectionRec::CRCValidation& crcValidation)
 {
+    // Format: {crc:<algorithm>,<size>}
+    // Default values
+    crcValidation.algorithm = DeviceDetectionRec::CRCAlgorithm::NONE;
+    crcValidation.size = 0;
+    
+    // Check for correct format
+    if (crcStr.length() < 6 || !crcStr.startsWith("{crc:") || !crcStr.endsWith("}"))
+        return false;
+    
+    // Extract algorithm and size
+    String innerPart = crcStr.substring(5, crcStr.length() - 1);
+    int commaPos = innerPart.indexOf(',');
+    if (commaPos <= 0)
+        return false;
+        
+    String algorithmStr = innerPart.substring(0, commaPos);
+    String sizeStr = innerPart.substring(commaPos + 1);
+    algorithmStr.trim();
+    sizeStr.trim();
+    
+    // Parse algorithm
+    if (algorithmStr == "crc-sensirion-8") {
+        crcValidation.algorithm = DeviceDetectionRec::CRCAlgorithm::CRC_SENSIRION_8;
+    } else if (algorithmStr == "crc-max30101-8") {
+        crcValidation.algorithm = DeviceDetectionRec::CRCAlgorithm::CRC_MAX30101_8;
+    } else {
+        return false; // Unknown algorithm
+    }
+    
+    // Parse size
+    crcValidation.size = sizeStr.toInt();
+    if (crcValidation.size <= 0 || crcValidation.size > 8)
+        return false;
+        
+    return true;
+}
 
-    // TODO - see if copying can be avoided
-
-    // Get device type record
-    DeviceTypeRecord devTypeRec;
-    if (!getDeviceInfo(deviceTypeIdx, devTypeRec))
-        return nullptr;
-    return devTypeRec.pollResultDecodeFn;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Extract field checks from string
+/// @param readStr String containing field checks
+/// @param fieldChecks Vector of field checks to fill
+/// @param maskToZeros Whether X in hex should be masked to zeros
+/// @return true if successful
+bool DeviceTypeRecords::extractFieldChecksFromStr(const String& readStr, std::vector<DeviceDetectionRec::FieldCheck>& fieldChecks, bool maskToZeros)
+{
+    fieldChecks.clear();
+    
+    String remainingStr = readStr;
+    int curPos = 0;
+    
+    while (curPos < remainingStr.length()) {
+        DeviceDetectionRec::FieldCheck fieldCheck;
+        
+        // Find the data part (0x or 0b prefix)
+        int dataStart = -1;
+        if (remainingStr.indexOf("0x", curPos) >= 0) {
+            dataStart = remainingStr.indexOf("0x", curPos);
+        } else if (remainingStr.indexOf("0b", curPos) >= 0) {
+            dataStart = remainingStr.indexOf("0b", curPos);
+        }
+        
+        if (dataStart < 0)
+            break;
+            
+        // Find the end of this section (either start of CRC or another field)
+        int dataEnd = remainingStr.indexOf("{", dataStart);
+        if (dataEnd < 0) {
+            // Look for next field
+            int nextField = remainingStr.indexOf("0x", dataStart + 2);
+            if (nextField < 0) {
+                nextField = remainingStr.indexOf("0b", dataStart + 2);
+            }
+            dataEnd = nextField >= 0 ? nextField : remainingStr.length();
+        }
+        
+        // Extract the data part
+        String dataPart = remainingStr.substring(dataStart, dataEnd);
+        
+        // Parse data and mask
+        std::vector<uint8_t> dataMask;
+        std::vector<uint8_t> dataValue;
+        uint32_t pauseMs = 0;
+        if (!extractMaskAndDataFromHexStr(dataPart, dataMask, dataValue, maskToZeros, pauseMs)) {
+            return false;
+        }
+        
+        fieldCheck.mask = dataMask;
+        fieldCheck.expectedValue = dataValue;
+        
+        // Check for CRC validation
+        if (dataEnd < remainingStr.length() && remainingStr.charAt(dataEnd) == '{') {
+            int crcEnd = remainingStr.indexOf("}", dataEnd);
+            if (crcEnd < 0)
+                return false;
+                
+            String crcPart = remainingStr.substring(dataEnd, crcEnd + 1);
+            fieldCheck.hasCRC = true;
+            
+            if (!extractCRCValidationFromStr(crcPart, fieldCheck.crcValidation)) {
+                return false;
+            }
+            
+            curPos = crcEnd + 1;
+        } else {
+            fieldCheck.hasCRC = false;
+            curPos = dataEnd;
+        }
+        
+        fieldChecks.push_back(fieldCheck);
+    }
+    
+    return !fieldChecks.empty();
 }
