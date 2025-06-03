@@ -15,6 +15,7 @@
 #include "HWElemReq.h"
 #include "RaftBusConsts.h"
 
+// Forward declarations
 class BusRequestResult;
 class BusRequestInfo;
 typedef std::function<void(void*, BusRequestResult&)> BusRequestCallbackType;

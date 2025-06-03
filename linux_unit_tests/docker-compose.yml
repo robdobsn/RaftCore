@@ -1,0 +1,13 @@
+services:
+  unit-tests:
+    build:
+      context: ..
+      dockerfile: linux_unit_tests/Dockerfile
+      args:
+        - BUILDKIT_PROGRESS=plain
+    volumes:
+      # Mount the source code for easy development
+      - ..:/app 
+    # Ensure proper error code propagation to the host
+    environment:
+      - BUILDKIT_PROGRESS=plain 

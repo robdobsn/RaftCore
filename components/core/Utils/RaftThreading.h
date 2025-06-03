@@ -96,6 +96,7 @@ extern "C" {
     #include <semaphore.h>
     #include <time.h>
     #include <unistd.h>
+    #include <cstddef>
 
     typedef struct {
         pthread_mutex_t mutex RAFT_THREAD_CPP_INIT;
