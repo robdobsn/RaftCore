@@ -43,6 +43,7 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator);
 #else
 
 #include <string.h>
+#include "ArduinoWString.h"
 
 #ifdef __cplusplus
 extern "C" {
