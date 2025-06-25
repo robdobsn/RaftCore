@@ -61,6 +61,7 @@ idf_component_register(
     "components/core/DebugGlobals/DebugGlobals.cpp"
     "components/core/DeviceManager/DeviceFactory.cpp"
     "components/core/DeviceManager/DeviceManager.cpp"
+    "components/core/DeviceManager/DemoDevice.cpp"
     "components/core/DeviceTypes/DeviceTypeRecords.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ESPMDNS/mdns.c"

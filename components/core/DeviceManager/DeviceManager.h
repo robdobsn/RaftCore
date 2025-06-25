@@ -14,6 +14,7 @@
 class APISourceInfo;
 class RaftBus;
 class RaftDevice;
+class DemoDevice;
 
 class DeviceManager : public RaftSysMod
 {
@@ -184,6 +185,28 @@ private:
     /// @param eventName Name of the event
     /// @param eventData Data associated with the event
     void deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData);
+
+    /// @brief Start demo device
+    /// @param deviceType Device type from DevTypes.json
+    /// @param sampleRateMs Sample rate in milliseconds
+    /// @param durationMs Duration in milliseconds (0 = infinite)
+    /// @return true if demo started successfully
+    bool startDemo(const String& deviceType, uint32_t sampleRateMs, uint32_t durationMs = 0);
+
+    /// @brief Stop demo device
+    /// @return true if demo was stopped
+    bool stopDemo();
+
+    /// @brief Check if demo is active
+    /// @return true if demo is active
+    bool isDemoActive() const;
+
+    /// @brief Get demo device type
+    /// @return demo device type
+    String getDemoDeviceType() const;
+
+    // Demo device instance
+    class DemoDevice* _pDemoDevice = nullptr;
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;
