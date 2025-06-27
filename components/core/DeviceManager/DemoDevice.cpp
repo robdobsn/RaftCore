@@ -5,21 +5,22 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "DemoDevice.h"
-#include "DeviceTypeRecords.h"
+#include "DeviceManager.h"
+#include "DeviceTypeRecordDynamic.h"
 #include "RaftUtils.h"
 #include "RaftArduino.h"
 #include <cmath>
-#include <algorithm>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
+/// @param pClassName class name
+/// @param pDevConfigJson device configuration JSON
 DemoDevice::DemoDevice(const char* pDeviceClassName, const char* pConfigStr)
     : RaftDevice(pDeviceClassName, pConfigStr)
 {
     // Initialize timestamps
-    _startTimeMs = millis();
-    _lastUpdateMs = _startTimeMs;
-    updateTimestamp();
+    _lastUpdateMs = millis();
+    _dataTimestampMs = _lastUpdateMs;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -32,123 +33,65 @@ DemoDevice::~DemoDevice()
 /// @brief Setup
 void DemoDevice::setup()
 {
+    // Extract demo settings from device config
+    _sampleRateMs = deviceConfig.getInt("sampleRateMs", DEFAULT_SAMPLE_RATE_MS);
+    
+    // Clamp sample rate to reasonable bounds
+    if (_sampleRateMs < MIN_SAMPLE_RATE_MS)
+        _sampleRateMs = MIN_SAMPLE_RATE_MS;
+    if (_sampleRateMs > MAX_SAMPLE_RATE_MS)
+        _sampleRateMs = MAX_SAMPLE_RATE_MS;
+
     // Call base class setup
     RaftDevice::setup();
-        
-    LOG_I(MODULE_PREFIX, "setup device %s", getDeviceName().c_str());
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Post setup
-void DemoDevice::postSetup()
-{
-    // Call base class post setup
-    RaftDevice::postSetup();
     
-    LOG_I(MODULE_PREFIX, "postSetup device %s", getDeviceName().c_str());
+    // Generate initial data
+    generateDemoData();
+        
+    LOG_I(MODULE_PREFIX, "setup device %s rate=%dms", getDeviceName().c_str(), _sampleRateMs);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Loop
 void DemoDevice::loop()
 {
-    // Check if demo is active
-    if (!_isActive)
-        return;
-
-    // Check if duration has expired
-    if (_durationMs > 0)
-    {
-        uint32_t elapsedMs = millis() - _startTimeMs;
-        if (elapsedMs >= _durationMs)
-        {
-            _isActive = false;
-            LOG_I(MODULE_PREFIX, "loop demo duration expired for %s", _demoDeviceType.c_str());
-            return;
-        }
-    }        // Check if it's time to generate new data
+    // Check if it's time to generate new data
     uint32_t currentTimeMs = millis();
     if (Raft::isTimeout(currentTimeMs, _lastUpdateMs, _sampleRateMs))
     {
         generateDemoData();
         _lastUpdateMs = currentTimeMs;
-        updateTimestamp();
-        
-        // Notify data change callbacks
-        if (_dataChangeCB && _currentDataBinary.size() > 0)
-        {
-            _dataChangeCB(getDeviceTypeIndex(), _currentDataBinary, _pCallbackInfo);
-        }
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Configure demo device
-bool DemoDevice::configureDemoDevice(const String& deviceType, uint32_t sampleRateMs, uint32_t durationMs)
-{
-    String chosenType = deviceType;
-    uint32_t chosenSampleRate = sampleRateMs;
-    // If no type provided or not found, default to LSM6DS
-    if (chosenType.isEmpty() || !loadDeviceTypeInfo(chosenType)) {
-        chosenType = "LSM6DS";
-        if (!loadDeviceTypeInfo(chosenType)) {
-            LOG_E(MODULE_PREFIX, "configureDemoDevice failed to load default device type LSM6DS");
-            return false;
-        }
-    }
-    // Store configuration
-    _demoDeviceType = chosenType;
-    // Default to 1s if not specified or out of range
-    if (chosenSampleRate < MIN_SAMPLE_RATE_MS || chosenSampleRate > MAX_SAMPLE_RATE_MS)
-        chosenSampleRate = 1000;
-    _sampleRateMs = chosenSampleRate;
-    _durationMs = durationMs;
-    _startTimeMs = millis();
-    _lastUpdateMs = _startTimeMs;
-    _isActive = true;
-
-    // Generate initial data
-    generateDemoData();
-    updateTimestamp();
-
-    LOG_I(MODULE_PREFIX, "configureDemoDevice %s rate=%dms duration=%dms", 
-          _demoDeviceType.c_str(), _sampleRateMs, _durationMs);
-
-    return true;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Check if demo is active
-bool DemoDevice::isDemoActive() const
-{
-    return _isActive;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get demo device type
-String DemoDevice::getDemoDeviceType() const
-{
-    return _demoDeviceType;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get status JSON
+/// @brief Get status JSON following DevicePower.cpp pattern
 String DemoDevice::getStatusJSON() const
 {
-    if (!_isActive || _currentDataJSON.length() == 0)
-        return "{}";
-    
-    return _currentDataJSON;
+    // Buffer
+    std::vector<uint8_t> data;
+    formDeviceDataResponse(data);
+ 
+    // Return JSON in the same format as DevicePower
+    return "{\"0\":{\"x\":\"" + Raft::getHexStr(data.data(), data.size()) + "\",\"_t\":\"" + getPublishDeviceType() + "\"}}";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get status binary
+/// @brief Get status binary following DevicePower.cpp pattern
 std::vector<uint8_t> DemoDevice::getStatusBinary() const
 {
-    if (!_isActive)
-        return std::vector<uint8_t>();
-    
-    return _currentDataBinary;
+    // Get device data
+    std::vector<uint8_t> data;
+    formDeviceDataResponse(data);
+
+    // Buffer
+    std::vector<uint8_t> binBuf;
+
+    // Generate binary device message
+    RaftDevice::genBinaryDataMsg(binBuf, DeviceManager::DEVICE_CONN_MODE_DIRECT, 0, getDeviceTypeIndex(), true, data);
+
+    // Return binary data
+    return binBuf;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -157,18 +100,8 @@ String DemoDevice::getDebugJSON(bool includePlugAndPlayInfo) const
 {
     String debugStr = "{";
     debugStr += "\"name\":\"" + getDeviceName() + "\",";
-    debugStr += "\"type\":\"" + _demoDeviceType + "\",";
-    debugStr += "\"active\":" + String(_isActive ? "true" : "false") + ",";
-    debugStr += "\"sampleRate\":" + String(_sampleRateMs) + ",";
-    debugStr += "\"duration\":" + String(_durationMs);
-    
-    if (_isActive && _durationMs > 0)
-    {
-        uint32_t elapsedMs = millis() - _startTimeMs;
-        uint32_t remainingMs = (_durationMs > elapsedMs) ? (_durationMs - elapsedMs) : 0;
-        debugStr += ",\"remaining\":" + String(remainingMs);
-    }
-    
+    debugStr += "\"type\":\"" + getPublishDeviceType() + "\",";
+    debugStr += "\"sampleRate\":" + String(_sampleRateMs);
     debugStr += "}";
     return debugStr;
 }
@@ -181,284 +114,127 @@ uint32_t DemoDevice::getDeviceInfoTimestampMs(bool includeElemOnlineStatusChange
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Load device type information
-bool DemoDevice::loadDeviceTypeInfo(const String& deviceType)
-{
-    // Get device type info from global device type records
-    extern DeviceTypeRecords deviceTypeRecords;
-    String deviceTypeInfoStr = deviceTypeRecords.getDevTypeInfoJsonByTypeName(deviceType, false);
-    
-    if (deviceTypeInfoStr.length() == 0 || deviceTypeInfoStr == "{}")
-    {
-        LOG_W(MODULE_PREFIX, "loadDeviceTypeInfo device type %s not found", deviceType.c_str());
-        return false;
-    }
-
-    // Parse device type info
-    _deviceTypeInfo.setJsonDoc(deviceTypeInfoStr.c_str());
-    
-    LOG_I(MODULE_PREFIX, "loadDeviceTypeInfo loaded %s: %s", 
-          deviceType.c_str(), deviceTypeInfoStr.c_str());
-    
-    return true;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Generate demo data
 void DemoDevice::generateDemoData()
 {
-    if (!_isActive)
-        return;
-
     uint32_t currentTimeMs = millis();
     
-    // Generate JSON data
-    _currentDataJSON = generateDeviceTypeJSON();
-    
-    // Generate binary data  
-    _currentDataBinary = generateDeviceTypeBinary();
+    // Generate ACCDEMO-specific data
+    generateACCDEMOData(currentTimeMs);
     
     // Update timestamp
     _dataTimestampMs = currentTimeMs;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Generate sensor value with realistic patterns
-double DemoDevice::generateSensorValue(const String& fieldName, double minVal, double maxVal, uint32_t timeMs)
+/// @brief Generate ACCDEMO specific data following Device.cpp test mode pattern
+void DemoDevice::generateACCDEMOData(uint32_t timeMs)
 {
-    // Helper function for random number generation
-    auto getRandomFloat = []() -> double {
-        return ((double)random() / RAND_MAX) * 2.0 - 1.0; // -1.0 to 1.0
+    // Generate simulated IMU data with sine and triangle waves
+    float time_factor = timeMs * 0.001f; // Convert to seconds
+    
+    // Helper function for triangle wave generation
+    auto triangleWave = [](float t, float phase) -> float {
+        float phase_shifted = t + phase;
+        float period = 2.0f * M_PI;
+        float normalized = fmod(phase_shifted, period);
+        if (normalized < 0) normalized += period;
+        
+        if (normalized < M_PI / 2.0f) {
+            return 2.0f * normalized / M_PI;
+        } else if (normalized < 3.0f * M_PI / 2.0f) {
+            return 2.0f - 2.0f * normalized / M_PI;
+        } else {
+            return 2.0f * normalized / M_PI - 4.0f;
+        }
     };
-
-    // Use different patterns for different sensor types
-    double t = timeMs / 1000.0; // Convert to seconds
-    double range = maxVal - minVal;
-    double center = (minVal + maxVal) / 2.0;
-    double value = center;
-
-    // Apply patterns based on field name
-    if (fieldName.indexOf("temp") >= 0 || fieldName.indexOf("Temp") >= 0)
-    {
-        // Temperature: slow sine wave with noise
-        value = center + (range * 0.3) * sin(t * 0.1) + (range * 0.1) * sin(t * 0.7) + (range * 0.05) * getRandomFloat();
-    }
-    else if (fieldName.indexOf("accel") >= 0 || fieldName.indexOf("Accel") >= 0 || 
-             fieldName.indexOf("gyro") >= 0 || fieldName.indexOf("Gyro") >= 0)
-    {
-        // Accelerometer/Gyro: more dynamic with occasional spikes
-        value = center + (range * 0.2) * sin(t * 2.0) + (range * 0.15) * cos(t * 5.0) + (range * 0.1) * getRandomFloat();
-        
-        // Occasional spike every ~10 seconds
-        if ((int(t) % 10) < 1 && fmod(t, 1.0) < 0.1)
-        {
-            value += (range * 0.5) * getRandomFloat();
-        }
-    }
-    else if (fieldName.indexOf("light") >= 0 || fieldName.indexOf("Light") >= 0 || 
-             fieldName.indexOf("lux") >= 0 || fieldName.indexOf("Lux") >= 0)
-    {
-        // Light sensor: gradual changes with some variation
-        value = center + (range * 0.4) * sin(t * 0.05) + (range * 0.2) * sin(t * 0.3) + (range * 0.1) * getRandomFloat();
-    }
-    else if (fieldName.indexOf("dist") >= 0 || fieldName.indexOf("Dist") >= 0 || 
-             fieldName.indexOf("range") >= 0 || fieldName.indexOf("Range") >= 0)
-    {
-        // Distance sensor: step changes with noise
-        int step = int(t / 3.0) % 4; // Change every 3 seconds
-        double stepValue = minVal + (range * step / 4.0);
-        value = stepValue + (range * 0.05) * getRandomFloat();
-    }
-    else if (fieldName.indexOf("press") >= 0 || fieldName.indexOf("Press") >= 0)
-    {
-        // Pressure: very slow changes
-        value = center + (range * 0.1) * sin(t * 0.02) + (range * 0.05) * getRandomFloat();
-    }
-    else if (fieldName.indexOf("humid") >= 0 || fieldName.indexOf("Humid") >= 0)
-    {
-        // Humidity: slow changes
-        value = center + (range * 0.2) * sin(t * 0.03) + (range * 0.1) * getRandomFloat();
-    }
-    else
-    {
-        // Default: gentle sine wave with noise
-        value = center + (range * 0.3) * sin(t * 0.5) + (range * 0.1) * getRandomFloat();
-    }
-
-    // Constrain to valid range
-    return std::max(minVal, std::min(value, maxVal));
+    
+    // Accelerometer data as sine waves with phase shifts (in g units)
+    // 30 samples per cycle at 10Hz = 3 seconds per cycle = 1/3 Hz frequency
+    float freq_accel = 1.0f / 3.0f; // 0.333 Hz frequency for 30 samples per cycle
+    float ax = 0.1f * sin(time_factor * freq_accel * 2.0f * M_PI);                    // Phase 0
+    float ay = 0.1f * sin(time_factor * freq_accel * 2.0f * M_PI + 2.0f * M_PI / 3.0f); // Phase 120°
+    float az = 0.1f * sin(time_factor * freq_accel * 2.0f * M_PI + 4.0f * M_PI / 3.0f); // Phase 240°
+    
+    // Gyroscope data as triangle waves with phase shifts (in deg/s)
+    // 50 samples per cycle at 10Hz = 5 seconds per cycle = 1/5 Hz frequency
+    float freq_gyro = 1.0f / 5.0f; // 0.2 Hz frequency for 50 samples per cycle
+    float gx = 10.0f * triangleWave(time_factor * freq_gyro * 2.0f * M_PI, 0.0f);                    // Phase 0
+    float gy = 10.0f * triangleWave(time_factor * freq_gyro * 2.0f * M_PI, 2.0f * M_PI / 3.0f);      // Phase 120°
+    float gz = 10.0f * triangleWave(time_factor * freq_gyro * 2.0f * M_PI, 4.0f * M_PI / 3.0f);      // Phase 240°
+    
+    // Store current data values for formDeviceDataResponse
+    _currentAx = ax;
+    _currentAy = ay;
+    _currentAz = az;
+    _currentGx = gx;
+    _currentGy = gy;
+    _currentGz = gz;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Generate device type JSON
-String DemoDevice::generateDeviceTypeJSON()
+/// @brief Form device data response
+/// @param data (out) Data buffer
+void DemoDevice::formDeviceDataResponse(std::vector<uint8_t>& data) const
 {
-    String jsonStr = "{";
-    bool firstField = true;
-    uint32_t currentTimeMs = millis();
-
-    // Get poll responses from device type info
-    std::vector<String> pollResponses;
-    _deviceTypeInfo.getArrayElems("resp", pollResponses);
-
-    for (const String& respStr : pollResponses)
-    {
-        RaftJson respJson;
-        respJson.setJsonDoc(respStr.c_str());
-        
-        // Get fields from this response
-        std::vector<String> fields;
-        respJson.getArrayElems("vals", fields);
-        
-        for (const String& fieldStr : fields)
-        {
-            RaftJson fieldJson;
-            fieldJson.setJsonDoc(fieldStr.c_str());
-            
-            String fieldName = fieldJson.getString("n", "");
-            String fieldType = fieldJson.getString("t", "u");
-            double minVal = fieldJson.getDouble("min", 0.0);
-            double maxVal = fieldJson.getDouble("max", 100.0);
-            
-            if (fieldName.length() == 0)
-                continue;
-                
-            if (!firstField)
-                jsonStr += ",";
-            
-            // Generate value based on type
-            if (fieldType == "f" || fieldType == "d")
-            {
-                // Float/double
-                double value = generateSensorValue(fieldName, minVal, maxVal, currentTimeMs);
-                jsonStr += "\"" + fieldName + "\":" + String(value, 3);
-            }
-            else
-            {
-                // Integer types
-                int32_t value = (int32_t)generateSensorValue(fieldName, minVal, maxVal, currentTimeMs);
-                jsonStr += "\"" + fieldName + "\":" + String(value);
-            }
-            
-            firstField = false;
-        }
-    }
+    // Get time of last status update (16-bit timestamp like DevicePower)
+    uint16_t timeVal = (uint16_t)(_dataTimestampMs & 0xFFFF);
+    data.push_back((timeVal >> 8) & 0xFF);
+    data.push_back(timeVal & 0xFF);
     
-    jsonStr += "}";
-    return jsonStr;
+    // Accelerometer data (6 bytes, scaled to int16)
+    int16_t ax_int = (int16_t)(_currentAx * 1000); // Scale to mg
+    int16_t ay_int = (int16_t)(_currentAy * 1000);
+    int16_t az_int = (int16_t)(_currentAz * 1000);
+    
+    data.push_back((ax_int >> 8) & 0xFF);
+    data.push_back(ax_int & 0xFF);
+    data.push_back((ay_int >> 8) & 0xFF);
+    data.push_back(ay_int & 0xFF);
+    data.push_back((az_int >> 8) & 0xFF);
+    data.push_back(az_int & 0xFF);
+    
+    // Gyroscope data (6 bytes, scaled to int16)
+    int16_t gx_int = (int16_t)(_currentGx * 100); // Scale to 0.01 deg/s
+    int16_t gy_int = (int16_t)(_currentGy * 100);
+    int16_t gz_int = (int16_t)(_currentGz * 100);
+    
+    data.push_back((gx_int >> 8) & 0xFF);
+    data.push_back(gx_int & 0xFF);
+    data.push_back((gy_int >> 8) & 0xFF);
+    data.push_back(gy_int & 0xFF);
+    data.push_back((gz_int >> 8) & 0xFF);
+    data.push_back(gz_int & 0xFF);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Generate device type binary
-std::vector<uint8_t> DemoDevice::generateDeviceTypeBinary()
+/// @brief Get the device type record for this device so that it can be added to the device type records
+/// @param devTypeRec (out) Device type record
+/// @return true if the device has a device type record
+bool DemoDevice::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
 {
-    std::vector<uint8_t> binaryData;
-    binaryData.reserve(64);
-    
-    uint32_t currentTimeMs = millis();
-    
-    // Add device identifier (could be device type index)
-    binaryData.push_back(0x01); // Demo device marker
-    binaryData.push_back(_demoDeviceType.length());
-    for (char c : _demoDeviceType)
-    {
-        binaryData.push_back((uint8_t)c);
-    }
-    
-    // Add timestamp (4 bytes)
-    binaryData.push_back((currentTimeMs) & 0xFF);
-    binaryData.push_back((currentTimeMs >> 8) & 0xFF);
-    binaryData.push_back((currentTimeMs >> 16) & 0xFF);
-    binaryData.push_back((currentTimeMs >> 24) & 0xFF);
-    
-    // Add some demo sensor data
-    std::vector<String> pollResponses;
-    _deviceTypeInfo.getArrayElems("resp", pollResponses);
+    // Device info JSON for ACCDEMO following DevicePower pattern
+    static const char* devInfoJson = R"~({"name":"ACCDEMO Demo IMU","desc":"ACCDEMO Accelerometer/Gyroscope","manu":"Demo","type":"ACCDEMO")~"
+            R"~(,"resp":{"b":14,"a":[)~"
+            R"~({"n":"ax","t":">h","u":"mg","r":[-2000,2000],"d":1000,"f":".3f","o":"float"},)~"
+            R"~({"n":"ay","t":">h","u":"mg","r":[-2000,2000],"d":1000,"f":".3f","o":"float"},)~"
+            R"~({"n":"az","t":">h","u":"mg","r":[-2000,2000],"d":1000,"f":".3f","o":"float"},)~"
+            R"~({"n":"gx","t":">h","u":"deg/s","r":[-2000,2000],"d":100,"f":".2f","o":"float"},)~"
+            R"~({"n":"gy","t":">h","u":"deg/s","r":[-2000,2000],"d":100,"f":".2f","o":"float"},)~"
+            R"~({"n":"gz","t":">h","u":"deg/s","r":[-2000,2000],"d":100,"f":".2f","o":"float"})~"
+            R"~(]}})~";
 
-    for (const String& respStr : pollResponses)
-    {
-        RaftJson respJson;
-        respJson.setJsonDoc(respStr.c_str());
-        
-        std::vector<String> fields;
-        respJson.getArrayElems("vals", fields);
-        
-        for (const String& fieldStr : fields)
-        {
-            RaftJson fieldJson;
-            fieldJson.setJsonDoc(fieldStr.c_str());
-            
-            String fieldName = fieldJson.getString("n", "");
-            String fieldType = fieldJson.getString("t", "u");
-            double minVal = fieldJson.getDouble("min", 0.0);
-            double maxVal = fieldJson.getDouble("max", 100.0);
-            
-            if (fieldName.length() == 0)
-                continue;
-                
-            // Generate and add binary value
-            if (fieldType == "f")
-            {
-                // Float (4 bytes)
-                float value = (float)generateSensorValue(fieldName, minVal, maxVal, currentTimeMs);
-                uint8_t* pBytes = (uint8_t*)&value;
-                for (int i = 0; i < 4; i++)
-                {
-                    binaryData.push_back(pBytes[i]);
-                }
-            }
-            else if (fieldType == "d")
-            {
-                // Double (8 bytes) - convert to float for space
-                float value = (float)generateSensorValue(fieldName, minVal, maxVal, currentTimeMs);
-                uint8_t* pBytes = (uint8_t*)&value;
-                for (int i = 0; i < 4; i++)
-                {
-                    binaryData.push_back(pBytes[i]);
-                }
-            }
-            else if (fieldType == "u16")
-            {
-                // 16-bit unsigned
-                uint16_t value = (uint16_t)generateSensorValue(fieldName, minVal, maxVal, currentTimeMs);
-                binaryData.push_back(value & 0xFF);
-                binaryData.push_back((value >> 8) & 0xFF);
-            }
-            else if (fieldType == "i16")
-            {
-                // 16-bit signed
-                int16_t value = (int16_t)generateSensorValue(fieldName, minVal, maxVal, currentTimeMs);
-                binaryData.push_back(value & 0xFF);
-                binaryData.push_back((value >> 8) & 0xFF);
-            }
-            else
-            {
-                // Default: 8-bit unsigned
-                uint8_t value = (uint8_t)generateSensorValue(fieldName, minVal, maxVal, currentTimeMs);
-                binaryData.push_back(value);
-            }
-        }
-    }
-    
-    return binaryData;
+    // Set the device type record
+    devTypeRec = DeviceTypeRecordDynamic(
+        getPublishDeviceType().c_str(),
+        "",
+        "",
+        "",
+        "",
+        1, // Device type index for demo
+        devInfoJson,
+        nullptr
+    );
+
+    return true;
 }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Update timestamp
-void DemoDevice::updateTimestamp()
-{
-    _dataTimestampMs = millis();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Register for device data notifications
-void DemoDevice::registerForDeviceData(RaftDeviceDataChangeCB dataChangeCB, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
-{
-    _dataChangeCB = dataChangeCB;
-    _minTimeBetweenReportsMs = minTimeBetweenReportsMs;
-    _pCallbackInfo = pCallbackInfo;
-    
-    LOG_I(MODULE_PREFIX, "registerForDeviceData demo device %s callback registered", getDeviceName().c_str());
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@
 // Warnings
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND
 #define WARN_ON_DEVICE_INSTANTIATION_FAILED
+#define WARN_ON_SETUP_DEVICE_FAILED
 
 // Debug
 #define DEBUG_BUS_OPERATION_STATUS_OK_CB
@@ -343,6 +344,99 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Setup a single device
+/// @param pDeviceClass class of the device to setup
+/// @param devConfig configuration for the device
+/// @return RaftDevice* pointer to the created device or nullptr if failed
+RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig)
+{
+    // Check valid
+    if (!pDeviceClass)
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_E(MODULE_PREFIX, "setupDevice invalid parameters pDeviceClass %s", 
+                pDeviceClass ? pDeviceClass : "NULL");
+#endif
+        return nullptr;
+    }
+
+    // Find the device class in the factory
+    const DeviceFactory::RaftDeviceClassDef* pDeviceClassDef = deviceFactory.findDeviceClass(pDeviceClass);
+    if (!pDeviceClassDef)
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_W(MODULE_PREFIX, "setupDevice class %s not found", pDeviceClass);
+#endif
+        return nullptr;
+    }
+    // Create the device
+    auto pDevice = pDeviceClassDef->pCreateFn(pDeviceClass, devConfig.c_str());
+    if (!pDevice)
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_E(MODULE_PREFIX, "setupDevice class %s create failed devConf %s", 
+                pDeviceClass, devConfig.c_str());
+#endif
+        return nullptr;
+    }
+    // Add to the list of instantiated devices
+    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) == pdTRUE)
+    {
+        // Add to the list of instantiated devices
+        _deviceList.push_back(pDevice);
+        xSemaphoreGive(_accessMutex);
+        // Setup device
+        pDevice->setup();
+        pDevice->postSetup();
+#ifdef DEBUG_DEVICE_SETUP
+        LOG_I(MODULE_PREFIX, "setupDevice %s devConf %s", 
+                pDeviceClass, devConfig.c_str());
+#endif
+    }
+    else
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_E(MODULE_PREFIX, "setupDevice failed to add device %s", pDeviceClass);
+#endif
+        // Delete the device to avoid memory leak
+        delete pDevice;
+        pDevice = nullptr;
+    }
+
+    // If the device has a device type record, add it to the device type records
+    DeviceTypeRecordDynamic devTypeRec;
+    if (pDevice && pDevice->getDeviceTypeRecord(devTypeRec))
+    {
+        // Add the device type record to the device type records
+        uint16_t deviceTypeIndex = 0;
+        deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec, deviceTypeIndex);
+        pDevice->setDeviceTypeIndex(deviceTypeIndex);
+    }
+
+    // If the device was successfully created, register for device data notifications
+    if (pDevice)
+    {
+        // Register for device data notifications
+        registerForDeviceDataChangeCBs(pDevice->getDeviceName().c_str());
+    }
+
+    // Debug
+#ifdef DEBUG_DEVICE_SETUP
+    if (pDevice)
+    {
+        LOG_I(MODULE_PREFIX, "setupDevice %s name %s class %s pubType %s", 
+                        pDeviceClass, 
+                        pDevice->getDeviceName().c_str(),
+                        pDevice->getDeviceClassName().c_str(),
+                        pDevice->getPublishDeviceType().c_str());
+    }
+#endif
+
+    // Return success
+    return pDevice;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get devices' data as JSON
 /// @return JSON string
 String DeviceManager::getDevicesDataJSON() const
@@ -569,7 +663,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             " devman/typeinfo?bus=<busName>&type=<typeName> - Get type info,"
                             " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
-                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&enable=<true/false> - Start/stop demo device");
+                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
 
@@ -667,7 +761,11 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         }
 
 #ifdef DEBUG_DEVMAN_API
-        LOG_I(MODULE_PREFIX, "apiHWDevice bus %s type %s devInfo %s", busName.c_str(), devTypeName.c_str(), devInfo.c_str());
+        LOG_I(MODULE_PREFIX, "apiHWDevice bus %s busFound %s type %s devInfo %s", 
+                busName.c_str(), 
+                pBus ? "Y" : "N",
+                devTypeName.c_str(), 
+                devInfo.c_str());
 #endif
 
         // Set result
@@ -751,45 +849,54 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, rslt);    
     }
 
+#ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
+
     // Check for demo command
     if (cmdName.equalsIgnoreCase("demo"))
     {
-        // Get enable parameter
-        bool enable = jsonParams.getBool("enable", true);
-        
-        if (!enable)
-        {
-            // Stop demo
-            bool wasActive = stopDemo();
-            return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, 
-                ("\"demoStopped\":" + String(wasActive ? "true" : "false")).c_str());
-        }
-        
         // Get demo parameters
         String deviceType = jsonParams.getString("type", "");
         if (deviceType.length() == 0)
-            deviceType = "LSM6DS";
+            deviceType = "ACCDEMO";
 
-        uint32_t sampleRateMs = jsonParams.getLong("rate", 1000);
+        uint32_t sampleRateMs = jsonParams.getLong("rate", 100);
         uint32_t durationMs = jsonParams.getLong("duration", 0);
+        uint32_t offlineIntvS = jsonParams.getLong("offlineIntvS", 0);
+        uint32_t offlineDurS = jsonParams.getLong("offlineDurS", 10);
 
         // Validate parameters
         if (sampleRateMs < 10)
             sampleRateMs = 10; // Minimum 10ms
         if (sampleRateMs > 60000)
             sampleRateMs = 60000; // Maximum 60s
+        if (offlineDurS < 1)
+            offlineDurS = 1; // Minimum 1s offline duration
 
-        // Start demo
-        bool success = startDemo(deviceType, sampleRateMs, durationMs);
-        if (!success)
-            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDemoStart");
+        // Check if the device already exists
+        RaftDevice* pExistingDevice = getDeviceByID(deviceType.c_str());
+        if (pExistingDevice)
+        {
+            // Return error if the device already exists
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDemoDeviceExists");
+        }
+
+        // Setup the demo device
+        RaftJson jsonConfig = "{\"name\":\"DemoDevice\",\"type\":\"" + deviceType + 
+                                 "\",\"sampleRateMs\":" + String(sampleRateMs) + 
+                                 ",\"durationMs\":" + String(durationMs) +
+                                 ",\"offlineIntvS\":" + String(offlineIntvS) +
+                                 ",\"offlineDurS\":" + String(offlineDurS) + "}";
+        setupDevice(deviceType.c_str(), jsonConfig);
 
         // Set result
         String resultStr = "\"demoStarted\":true,\"type\":\"" + deviceType + 
                           "\",\"rate\":" + String(sampleRateMs) + 
-                          ",\"duration\":" + String(durationMs);
+                          ",\"duration\":" + String(durationMs) +
+                          ",\"offlineIntvS\":" + String(offlineIntvS) +
+                          ",\"offlineDurS\":" + String(offlineDurS);
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, resultStr.c_str());
     }
+#endif
 
     // Set result
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
@@ -970,100 +1077,4 @@ void DeviceManager::deviceEventCB(RaftDevice& device, const char* eventName, con
         "SysMan",
         cmdStr.c_str()
     );
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Demo device management
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Start demo device
-bool DeviceManager::startDemo(const String& deviceType, uint32_t sampleRateMs, uint32_t durationMs)
-{
-    // Stop any existing demo
-    stopDemo();
-
-    // Create demo device
-    String demoConfig = "{\"name\":\"Demo_" + deviceType + "\",\"type\":\"" + deviceType + "\"}";
-    _pDemoDevice = new DemoDevice("DemoDevice", demoConfig.c_str());
-    if (!_pDemoDevice)
-    {
-        LOG_E(MODULE_PREFIX, "startDemo failed to create demo device");
-        return false;
-    }
-
-    // Configure demo device
-    if (!_pDemoDevice->configureDemoDevice(deviceType, sampleRateMs, durationMs))
-    {
-        delete _pDemoDevice;
-        _pDemoDevice = nullptr;
-        LOG_E(MODULE_PREFIX, "startDemo failed to configure demo device type %s", deviceType.c_str());
-        return false;
-    }
-
-    // Add to device list
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(10)) == pdTRUE)
-    {
-        _deviceList.push_back(_pDemoDevice);
-        xSemaphoreGive(_accessMutex);
-    }
-    else
-    {
-        delete _pDemoDevice;
-        _pDemoDevice = nullptr;
-        LOG_E(MODULE_PREFIX, "startDemo failed to add demo device to list");
-        return false;
-    }
-
-    // Setup demo device
-    _pDemoDevice->setup();
-    _pDemoDevice->postSetup();
-
-    // Register for device data notifications for the demo device
-    registerForDeviceDataChangeCBs(_pDemoDevice->getDeviceName().c_str());
-
-    LOG_I(MODULE_PREFIX, "startDemo %s rate %dms duration %dms", 
-          deviceType.c_str(), sampleRateMs, durationMs);
-
-    return true;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Stop demo device
-bool DeviceManager::stopDemo()
-{
-    if (!_pDemoDevice)
-        return false;
-
-    // Remove from device list
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(10)) == pdTRUE)
-    {
-        auto it = std::find(_deviceList.begin(), _deviceList.end(), _pDemoDevice);
-        if (it != _deviceList.end())
-        {
-            _deviceList.erase(it);
-        }
-        xSemaphoreGive(_accessMutex);
-    }
-
-    // Delete demo device
-    delete _pDemoDevice;
-    _pDemoDevice = nullptr;
-
-    LOG_I(MODULE_PREFIX, "stopDemo completed");
-    return true;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Check if demo is active
-bool DeviceManager::isDemoActive() const
-{
-    return _pDemoDevice && _pDemoDevice->isDemoActive();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get demo device type
-String DeviceManager::getDemoDeviceType() const
-{
-    return _pDemoDevice ? _pDemoDevice->getDemoDeviceType() : "";
 }
