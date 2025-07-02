@@ -553,6 +553,12 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline, const DeviceTypeRecord* pDevTypeRec, 
         const std::vector<uint8_t>& devicePollResponseData) const
 {
+    if (devicePollResponseData.size() == 0)
+    {
+        // No data to report
+        return "";
+    }
+    
     // Device type name
     String devTypeName = pDevTypeRec ? pDevTypeRec->deviceType : "";
     // Form a hex buffer

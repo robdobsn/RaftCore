@@ -28,6 +28,7 @@
 // #define DEBUG_DEVICE_FACTORY
 // #define DEBUG_LIST_DEVICES
 // #define DEBUG_JSON_DEVICE_DATA
+// #define DEBUG_BINARY_DEVICE_DATA
 // #define DEBUG_JSON_DEVICE_HASH
 // #define DEBUG_DEVMAN_API
 // #define DEBUG_BUS_ELEMENT_STATUS
@@ -522,6 +523,11 @@ std::vector<uint8_t> DeviceManager::getDevicesDataBinary() const
         RaftDevice* pDevice = pDeviceListCopy[devIdx];
         std::vector<uint8_t> deviceBinaryData = pDevice->getStatusBinary();
         binaryData.insert(binaryData.end(), deviceBinaryData.begin(), deviceBinaryData.end());
+
+#ifdef DEBUG_BINARY_DEVICE_DATA
+        LOG_I(MODULE_PREFIX, "getDevicesDataBinary DEV %s hex %s", 
+                pDevice->getDeviceName().c_str(), Raft::getHexStr(deviceBinaryData.data(), deviceBinaryData.size()).c_str());
+#endif        
     }
 
     return binaryData;
@@ -549,7 +555,8 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
             stateHash[1] ^= ((identPollLastMs >> 8) & 0xff);
 
 #ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
-            LOG_I(MODULE_PREFIX, "getDevicesHash %s %02x%02x", pBus->getBusName().c_str(), stateHash[0], stateHash[1]);
+            LOG_I(MODULE_PREFIX, "getDevicesHash %s ms %d %02x%02x", 
+                    pBus->getBusName().c_str(), (int)identPollLastMs, stateHash[0], stateHash[1]);
 #endif
         }
     }
@@ -568,7 +575,8 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
         stateHash[1] ^= ((identPollLastMs >> 8) & 0xff);
 
 #ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
-        LOG_I(MODULE_PREFIX, "getDevicesHash %s %02x%02x", pDevice->getDeviceName().c_str(), stateHash[0], stateHash[1]);
+        LOG_I(MODULE_PREFIX, "getDevicesHash %s ms %d %02x%02x", 
+                pDevice->getDeviceName().c_str(), (int)identPollLastMs, stateHash[0], stateHash[1]);
 #endif
     }
 
