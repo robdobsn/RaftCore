@@ -24,6 +24,19 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_adc)
 endif()
 
+if (NOT DEFINED NETWORK_MDNS_DISABLED)
+  set (RAFT_CORE_ADDITIONAL_SRCS 
+      "components/core/ESPMDNS/mdns.c"
+    # "components/core/ESPMDNS/mdns_networking_lwip.c"
+    "components/core/ESPMDNS/mdns_networking_socket.c"
+  )
+  set(RAFT_CORE_ADDITIONAL_INCLUDES 
+      "components/core/ESPMDNS"
+  )
+else()
+  add_compile_definitions(NETWORK_MDNS_DISABLED)
+endif()
+
 # ESP-IDF-specific configurations
 idf_component_register(
   NAME
@@ -64,9 +77,6 @@ idf_component_register(
     "components/core/DeviceManager/DemoDevice.cpp"
     "components/core/DeviceTypes/DeviceTypeRecords.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
-    "components/core/ESPMDNS/mdns.c"
-    # "components/core/ESPMDNS/mdns_networking_lwip.c"
-    "components/core/ESPMDNS/mdns_networking_socket.c"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
     "components/core/ExpressionEval/tinyexpr.c"
@@ -95,6 +105,7 @@ idf_component_register(
     "components/core/Utils/PlatformUtils.cpp"
     "components/core/Utils/RaftThreading.cpp"
     "components/core/Utils/RaftUtils.cpp"
+    ${RAFT_CORE_ADDITIONAL_SRCS}
   INCLUDE_DIRS
     "components"
     "components/comms/CommsBridgeMsg"
@@ -121,7 +132,6 @@ idf_component_register(
     "components/core/DeviceManager"
     "components/core/DeviceTypes"
     "components/core/DNSResolver"
-    "components/core/ESPMDNS"
     "components/core/ExpressionEval"
     "components/core/FileSystem"
     "components/core/LEDPixels"
@@ -144,7 +154,8 @@ idf_component_register(
     "components/core/SysTypes"
     "components/core/ThreadSafeQueue"
     "components/core/Utils"
-    "${RAFT_BUILD_ARTIFACTS_FOLDER}"
+    ${RAFT_CORE_ADDITIONAL_INCLUDES}
+    ${RAFT_BUILD_ARTIFACTS_FOLDER}
   REQUIRES
     ${RAFT_CORE_REQUIRES}
 )

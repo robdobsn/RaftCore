@@ -23,8 +23,11 @@
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
 #include "RaftArduino.h"
-#include "mdns.h"
 #include "esp_idf_version.h"
+
+#ifndef NETWORK_MDNS_DISABLED
+#include "mdns.h"
+#endif
 
 // Only for recent versions of ESP-IDF
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
@@ -1067,8 +1070,10 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", _wifiIPV4Addr.c_str());
+#ifndef NETWORK_MDNS_DISABLED
         // Setup mDNS
         setupMDNS();
+#endif
         break;
     }
     case IP_EVENT_STA_LOST_IP:
@@ -1094,8 +1099,10 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", _ethIPV4Addr.c_str());
+#ifndef NETWORK_MDNS_DISABLED
         // Setup mDNS
         setupMDNS();
+#endif
         break;
     }
     case IP_EVENT_ETH_LOST_IP:
@@ -1108,8 +1115,10 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
 #endif
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
+#ifndef NETWORK_MDNS_DISABLED
         // Setup mDNS
         setupMDNS();
+#endif
         break;
     case IP_EVENT_PPP_LOST_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP lost IP");
@@ -1170,7 +1179,9 @@ void NetworkSystem::warnOnWiFiDisconnectIfEthNotConnected()
 
 void NetworkSystem::setupMDNS()
 {
-    // Check valid
+#ifndef NETWORK_MDNS_DISABLED
+
+// Check valid
     if (!_isSetup)
         return;
 
@@ -1216,4 +1227,5 @@ void NetworkSystem::setupMDNS()
 
     // Debug
     LOG_I(MODULE_PREFIX, "setupMDNS OK hostname %s", _hostname.c_str());
+#endif // NETWORK_MDNS_DISABLED
 }
