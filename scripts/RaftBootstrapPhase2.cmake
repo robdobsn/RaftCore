@@ -258,6 +258,15 @@ endif()
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} CopyFSAndWebUI WebUI)
 
 ################################################
+# Generate File System Image (Deferred)
+################################################
+
+# Defer the file system image generation until after ESP-IDF components are loaded
+if(DEFINED FS_TYPE)
+    cmake_language(DEFER CALL include "${raftcore_SOURCE_DIR}/scripts/RaftGenFSImage.cmake")
+endif()
+
+################################################
 # compile_commands.json
 ################################################
 
