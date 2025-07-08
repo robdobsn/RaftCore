@@ -87,7 +87,7 @@ foreach(_raft_component ${RAFT_COMPONENTS})
         GIT_REPOSITORY https://github.com/robdobsn/${_raft_component_name}.git
         GIT_TAG        ${_raft_component_tag}
     )
-    FetchContent_MakeAvailable(${_raft_component_lower})
+    FetchContent_Populate(${_raft_component_lower})
 
     # Add the component dir to the list of extra component dirs
     set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${${_raft_component_lower}_SOURCE_DIR})
