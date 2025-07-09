@@ -484,6 +484,12 @@ String DeviceManager::getDevicesDataJSON() const
     LOG_I(MODULE_PREFIX, "getDevicesDataJSON BUS %s DEV %s ", jsonStrBus.c_str(), jsonStrDev.c_str());
 #endif
 
+    if (jsonStrBus.length() == 0 && jsonStrDev.length() == 0)
+    {
+        // No data available
+        return "";
+    }
+
     return "{" + (jsonStrBus.length() == 0 ? (jsonStrDev.length() == 0 ? "" : jsonStrDev) : (jsonStrDev.length() == 0 ? jsonStrBus : jsonStrBus + "," + jsonStrDev)) + "}";
 }
 
