@@ -21,6 +21,10 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+// Platform-independent mutex timeout constant
+// Use this value to wait indefinitely for a mutex lock
+static const uint32_t RAFT_MUTEX_WAIT_FOREVER = 0xFFFFFFFF;
+
 // Platform-independent thread handle and mutex definitions
 #if defined(MICROPY_PY_THREAD)
 
@@ -108,7 +112,7 @@ extern "C" {
     void RaftMutex_destroy(RaftMutex &mutex);
 
     // Thread handle
-    static const pthread_t RAFT_THREAD_HANDLE_INVALID = nullptr;
+    static const pthread_t RAFT_THREAD_HANDLE_INVALID = 0;
     typedef pthread_t RaftThreadHandle;
 
     // Thread functions

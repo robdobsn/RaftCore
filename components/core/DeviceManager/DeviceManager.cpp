@@ -36,14 +36,16 @@
 DeviceManager::DeviceManager(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
 {
-    // Access semaphore
-    _accessMutex = xSemaphoreCreateMutex();
+    // Create mutex
+    RaftMutex_init(_accessMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Destructor
 DeviceManager::~DeviceManager()
 {
+    // Delete mutex
+    RaftMutex_destroy(_accessMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -168,11 +170,11 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                 newlyCreated = true;
 
                 // Add to the list of instantiated devices & setup
-                if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) == pdTRUE)
+                if (RaftMutex_lock(_accessMutex, 5))
                 {
                     // Add to the list of instantiated devices
                     _deviceList.push_back(pDevice);
-                    xSemaphoreGive(_accessMutex);
+                    RaftMutex_unlock(_accessMutex);
 
                     // Setup device
                     pDevice->setup();
@@ -468,7 +470,7 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
 RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
 {
     // Obtain access to the device list
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
 
     // Loop through the devices
@@ -479,13 +481,13 @@ RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
 #endif
         if (pDevice && pDevice->getDeviceName() == pDeviceName)
         {
-            xSemaphoreGive(_accessMutex);
+            RaftMutex_unlock(_accessMutex);
             return pDevice;
         }
     }
 
-    // Return semaphore
-    xSemaphoreGive(_accessMutex);
+    // Unlock mutex
+    RaftMutex_unlock(_accessMutex);
     return nullptr;
 }
 
@@ -785,7 +787,7 @@ void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statu
 /// @return number of devices
 uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices) const
 {
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return 0;
     uint32_t numDevices = 0;
     for (auto* pDevice : _deviceList)
@@ -795,7 +797,7 @@ uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxD
         if (pDevice)
             pDevices[numDevices++] = pDevice;
     }
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
     return numDevices;
 }
 
@@ -805,17 +807,17 @@ uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxD
 /// @return pointer to device if found
 RaftDevice* DeviceManager::getDeviceByID(const char* pDeviceID) const
 {
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
     for (auto* pDevice : _deviceList)
     {
         if (pDevice && (pDevice->idMatches(pDeviceID)))
         {
-            xSemaphoreGive(_accessMutex);
+            RaftMutex_unlock(_accessMutex);
             return pDevice;
         }
     }
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
     return nullptr;
 }
 
@@ -827,10 +829,10 @@ RaftDevice* DeviceManager::getDeviceByID(const char* pDeviceID) const
 void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusElemAddrAndStatus& el, bool newlyCreated)
 {
     // Obtain a lock & make a copy of the device status change callbacks
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return;
     std::vector<RaftDeviceStatusChangeCB> statusChangeCallbacks(_deviceStatusChangeCBList.begin(), _deviceStatusChangeCBList.end());
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
 
     // Call the device status change callbacks
     for (RaftDeviceStatusChangeCB statusChangeCB : statusChangeCallbacks)
@@ -845,8 +847,8 @@ void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusElem
 /// @return number of devices registered for data change callbacks
 uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
 {
-    // Get semaphore
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    // Get mutex
+    if (!RaftMutex_lock(_accessMutex, 5))
         return 0;
 
     // Create a vector of devices for the device data change callbacks
@@ -872,7 +874,7 @@ uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
             continue;
         deviceListForDataChangeCB.push_back({pDevice, rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo});
     }
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
 
     // Check for any device data change callbacks
     for (auto& cbRec : deviceListForDataChangeCB)

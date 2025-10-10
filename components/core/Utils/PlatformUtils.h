@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "ArduinoWString.h"
 
 #ifdef ESP_PLATFORM
 

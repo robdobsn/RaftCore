@@ -51,7 +51,7 @@ public:
             {
                 // Split dependency list on commas
                 String depListStr(pDependencyListCSV);
-                int startPos = 0;
+                unsigned int startPos = 0;
                 while (startPos < depListStr.length())
                 {
                     int commaPos = depListStr.indexOf(',', startPos);

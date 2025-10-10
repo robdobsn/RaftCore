@@ -78,8 +78,8 @@ private:
     std::list<RaftDevice*> _deviceList;
     static const uint32_t DEVICE_LIST_MAX_SIZE = 50;
 
-    // Access mutex
-    SemaphoreHandle_t _accessMutex = nullptr;    
+    // Access mutex (mutable to allow locking in const methods)
+    mutable RaftMutex _accessMutex;    
 
     // Device data change record
     class DeviceDataChangeRec
