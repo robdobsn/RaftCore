@@ -383,11 +383,11 @@ RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& dev
         return nullptr;
     }
     // Add to the list of instantiated devices
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) == pdTRUE)
+    if (RaftMutex_lock(_accessMutex, 5))
     {
         // Add to the list of instantiated devices
         _deviceList.push_back(pDevice);
-        xSemaphoreGive(_accessMutex);
+        RaftMutex_unlock(_accessMutex);
         // Setup device
         pDevice->setup();
         pDevice->postSetup();
@@ -1082,7 +1082,7 @@ uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
 void DeviceManager::deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData)
 {
     // Get sys manager
-    SysManager* pSysMan = getSysManager();
+    SysManagerIF* pSysMan = getSysManager();
     if (!pSysMan)
         return;
     String cmdStr = "{\"msgType\":\"sysevent\",\"msgName\":\"" + String(eventName) + "\"";

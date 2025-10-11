@@ -100,7 +100,6 @@ public:
     virtual String configGetString(const char *dataPath, const String& defaultValue);
     virtual RaftJsonIF::RaftJsonType configGetType(const char *dataPath, int& arrayLen);
     virtual bool configGetArrayElems(const char *dataPath, std::vector<String>& strList) const;
-    virtual int configGetPin(const char* dataPath, const char* defaultValue);
     virtual void configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback);
     virtual RaftJsonIF& configGetConfig()
     {

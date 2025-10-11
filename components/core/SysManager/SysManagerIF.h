@@ -115,8 +115,8 @@ public:
         return RAFT_OK;
     }
 
-    // // Register data source (message generator functions)
-    // bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
+    // Register data source (message generator functions)
+    bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
 
     // // Get named value 
     // virtual double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const override;

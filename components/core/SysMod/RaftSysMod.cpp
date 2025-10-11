@@ -129,12 +129,6 @@ void RaftSysMod::configRegisterChangeCallback(RaftJsonChangeCallbackType configC
     config.registerChangeCallback(configChangeCallback);
 }
 
-int RaftSysMod::configGetPin(const char* dataPath, const char* defaultValue)
-{
-    String pinName = configGetString(dataPath, defaultValue);
-    return ConfigPinMap::getPinFromName(pinName.c_str());
-}
-
 void RaftSysMod::configSaveData(const String& configStr)
 {
     config.setJsonDoc(configStr.c_str());
