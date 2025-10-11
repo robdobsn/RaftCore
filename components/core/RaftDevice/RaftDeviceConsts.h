@@ -21,3 +21,7 @@ typedef std::function<void(uint16_t deviceTypeIdx, std::vector<uint8_t> data, co
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Callback type for device status change
 typedef std::function<void(RaftDevice& device, bool isOnline, bool isNew)> RaftDeviceStatusChangeCB;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Callback type for device event
+typedef std::function<void(RaftDevice& device, const char* eventName, const char* eventData)> RaftDeviceEventCB;

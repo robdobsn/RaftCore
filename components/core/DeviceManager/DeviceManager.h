@@ -14,6 +14,7 @@
 class APISourceInfo;
 class RaftBus;
 class RaftDevice;
+class DemoDevice;
 
 class DeviceManager : public RaftSysMod
 {
@@ -79,7 +80,7 @@ private:
     static const uint32_t DEVICE_LIST_MAX_SIZE = 50;
 
     // Access mutex (mutable to allow locking in const methods)
-    mutable RaftMutex _accessMutex;    
+    mutable RaftMutex _accessMutex;
 
     // Device data change record
     class DeviceDataChangeRec
@@ -110,6 +111,12 @@ private:
     /// @param pConfigPrefix Prefix for configuration
     /// @param devManConfig Device manager configuration
     void setupDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
+
+    /// @brief Setup a single device
+    /// @param pDeviceClass class of the device to setup
+    /// @param devConfig configuration for the device
+    /// @return RaftDevice* pointer to the created device or nullptr if failed
+    RaftDevice* setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig);
     
     /// @brief Bus element status callback
     /// @param bus a reference to the bus which has elements with changed status
@@ -178,6 +185,12 @@ private:
     /// @param pDeviceName Name of the device (nullptr for all devices)
     /// @return number of devices registered
     uint32_t registerForDeviceDataChangeCBs(const char* pDeviceName = nullptr);
+
+    /// @brief Device event callback
+    /// @param device Device
+    /// @param eventName Name of the event
+    /// @param eventData Data associated with the event
+    void deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData);
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;

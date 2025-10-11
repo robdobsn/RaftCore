@@ -8,11 +8,10 @@
 
 #include "Logger.h"
 #include "RaftSysMod.h"
-#include "SysManager.h"
-#include "ConfigPinMap.h"
+#include "SysManagerIF.h"
 #include "CommsCoreIF.h"
 
-SysManager* RaftSysMod::_pSysManager = NULL;
+SysManagerIF* RaftSysMod::_pSysManager = NULL;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -193,23 +192,23 @@ SupervisorStats* RaftSysMod::getSysManagerStats()
 // File/stream system activity - main firmware update
 bool RaftSysMod::isSystemMainFWUpdate()
 {
-    if (getSysManager())
-        return getSysManager()->isSystemMainFWUpdate();
+    if (_pSysManager)
+        return _pSysManager->isSystemMainFWUpdate();
     return false;
 }
 
 // File/stream system activity - file transfer
 bool RaftSysMod::isSystemFileTransferring()
 {
-    if (getSysManager())
-        return getSysManager()->isSystemFileTransferring();
+    if (_pSysManager)
+        return _pSysManager->isSystemFileTransferring();
     return false;
 }
 
 // File/stream system activity - streaming
 bool RaftSysMod::isSystemStreaming()
 {
-    if (getSysManager())
-        return getSysManager()->isSystemStreaming();
+    if (_pSysManager)
+        return _pSysManager->isSystemStreaming();
     return false;
 }

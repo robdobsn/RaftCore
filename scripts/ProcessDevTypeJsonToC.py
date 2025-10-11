@@ -4,6 +4,7 @@ import re
 import argparse
 
 from DecodeGenerator import DecodeGenerator
+from MicroPythonGenerator import MicroPythonGenerator
 
 # ProcessDevTypeJsonToC.py
 # Rob Dobson 2024
@@ -33,6 +34,11 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
     # Split the input string into a list of file paths
     json_files = json_paths.split(',')
     decodeGenerator = DecodeGenerator(gen_options)
+
+    # Add MicroPython generator if requested
+    micropython_generator = None
+    if gen_options.get("generate_micropython", False):
+        micropython_generator = MicroPythonGenerator(gen_options, decodeGenerator)
 
     dev_ident_json = {'devTypes': {}}
     for json_file_path in json_files:
@@ -269,6 +275,28 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # Write out the number of priority scan lists
         header_file.write(f'\nstatic const uint8_t numScanPriorityLists = {NUM_PRIORITY_LEVELS};\n')
 
+    # Generate MicroPython files if requested
+    if micropython_generator:
+        generate_micropython_files(dev_ident_json['devTypes'], micropython_generator, gen_options)
+
+def generate_micropython_files(dev_type_records, micropython_generator, gen_options):
+    """Generate all MicroPython support files in separate function"""
+    
+    # Generate QSTR definitions
+    qstr_header_path = gen_options.get("mp_qstr_header", "")
+    if qstr_header_path:
+        micropython_generator.generate_qstr_header_file(dev_type_records, qstr_header_path)
+    
+    # Generate decoder header
+    decoder_header_path = gen_options.get("mp_decoder_header", "")
+    if decoder_header_path:
+        micropython_generator.generate_micropython_header(dev_type_records, decoder_header_path)
+    
+    # Generate decoder source
+    decoder_source_path = gen_options.get("mp_decoder_source", "")
+    if decoder_source_path:
+        micropython_generator.generate_micropython_source(dev_type_records, decoder_source_path)
+
 if __name__ == "__main__":
     argparse = argparse.ArgumentParser()
     argparse.add_argument("json_path", help="Path to the JSON file with the device types")
@@ -288,6 +316,16 @@ if __name__ == "__main__":
     argparse.add_argument("--decodestructtsresus", help="Decoded struct timestamp resolution in us", type=int, default=1000)
     # Arg for decoded timestamp variable name
     argparse.add_argument("--decodestructtsvar", help="Decoded struct timestamp variable name", default="")
+    
+    # MicroPython generation arguments
+    argparse.add_argument("--gen-micropython", help="Generate MicroPython support files", action="store_true")
+    argparse.add_argument("--mp-qstr-header", help="Path to generated QSTR header file", default="")
+    argparse.add_argument("--mp-decoder-header", help="Path to generated MicroPython decoder header", default="")
+    argparse.add_argument("--mp-decoder-source", help="Path to generated MicroPython decoder source", default="")
+    argparse.add_argument("--mp-module-name", help="MicroPython module name", default="device")
+    argparse.add_argument("--mp-include-metadata", help="Include device metadata in MicroPython dicts", action="store_true", default=True)
+    argparse.add_argument("--mp-include-units", help="Include field units in MicroPython dicts", action="store_true")
+    argparse.add_argument("--mp-include-ranges", help="Include field ranges in MicroPython dicts", action="store_true")
     args = argparse.parse_args()
     gen_options = {
         "gen_decode": args.gendecode,
@@ -296,7 +334,16 @@ if __name__ == "__main__":
         "POLL_RESULT_RESOLUTION_US": args.pollresptsresus,
         "DECODE_STRUCT_TIMESTAMP_C_TYPE": args.decodestructtsctype,
         "DECODE_STRUCT_TIMESTAMP_RESOLUTION_US": args.decodestructtsresus,
-        "struct_time_var_name": args.decodestructtsvar
+        "struct_time_var_name": args.decodestructtsvar,
+        # MicroPython options
+        "generate_micropython": args.gen_micropython,
+        "mp_qstr_header": args.mp_qstr_header,
+        "mp_decoder_header": args.mp_decoder_header,
+        "mp_decoder_source": args.mp_decoder_source,
+        "micropython_module_name": args.mp_module_name,
+        "mp_include_metadata": args.mp_include_metadata,
+        "mp_include_units": args.mp_include_units,
+        "mp_include_ranges": args.mp_include_ranges
     }
     process_dev_types(args.json_path, args.dev_type_header_path, args.dev_poll_header_path, gen_options)
     sys.exit(0)

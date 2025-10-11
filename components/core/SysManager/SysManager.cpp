@@ -19,6 +19,7 @@
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
 #include "DebugGlobals.h"
+#include "RICRESTMsg.h"
 
 #ifdef ESP_PLATFORM
 #include "esp_system.h"
@@ -39,6 +40,8 @@
 // #define DEBUG_SYSMOD_FACTORY
 // #define DEBUG_FRIENDLY_NAME_SET
 // #define DEBUG_STATUS_CHANGE_CALLBACK
+// #define DEBUG_GET_FRIENDLY_NAME
+#define DEBUG_SEND_REPORT_MESSAGE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -626,16 +629,74 @@ String SysManager::getDebugJSON(const char* sysModName) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Send command to SysMod
-/// @param sysModName - name of the SysMod
-/// @param cmdJSON - JSON string
-/// @return response code
+/// @brief Notify of system shutdown
+/// @param isRestart True if this is a restart (false if shutdown)
+/// @param reasonOrNull Reason for shutdown (may be nullptr)
+void SysManager::notifyOfShutdown(bool isRestart, const char* reasonOrNull)
+{
+    // Notify event
+    String shutdownCmdAndReason = "{\"msgType\":\"sysevent\",\"msgName\":\"shutdown\",\"isRestart\":";
+    shutdownCmdAndReason += isRestart ? "1" : "0";
+    if (reasonOrNull)
+    {
+        shutdownCmdAndReason += ",\"reason\":\"";
+        shutdownCmdAndReason += reasonOrNull;
+        shutdownCmdAndReason += "\"";
+    }
+    shutdownCmdAndReason += "}";
+
+    // Send report
+    sendReportMessage(shutdownCmdAndReason.c_str());
+
+    // Log
+    LOG_I(MODULE_PREFIX, "notifyOfShutdown isRestart %s reason %s", 
+            isRestart ? "YES" : "NO",
+            reasonOrNull ? reasonOrNull : "N/A");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Send command to one or all SysMods
+/// @param sysModName Name of SysMod to send command to or nullptr for all SysMods
+/// @param cmdJSON Command JSON string
+/// @return Result code
+/// @note The command JSON string should be in the format:
+///       {"cmd":"<command>",...other args...}
+///       where <command> is the command to be sent and other args are any additional arguments
+///       to be passed to the command handler.
+///       The command will be sent to the SysMod's command handler.
+///       The SysMod should handle the command and return a result.
 RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 {
-    // See if the sysmod is in the list
+    // Check if SysMod name is null or empty
+    if (sysModName == nullptr || sysModName[0] == '\0')
+    {
+        RaftRetCode rslt = RAFT_OK;
+        // Loop over all SysMods
+        for (RaftSysMod* pSysMod : _sysModuleList)
+        {
+            if (pSysMod)
+            {
+                RaftRetCode tmpRslt = pSysMod->receiveCmdJSON(cmdJSON);
+                if (rslt == RAFT_OK)
+                    rslt = tmpRslt;
+            }
+        }
+        return rslt;
+    }
+
+    // Performance test
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     uint64_t startUs = micros();
 #endif
+    
+    // Check if this is a SysManager command
+    if (strcasecmp(sysModName, "SysMan") == 0)
+    {
+        // Send report
+        sendReportMessage(cmdJSON);
+        return RAFT_OK;
+    }
+    
     // Get SysMod
     RaftSysMod* pSysMod = getSysMod(sysModName);
     if (pSysMod)
@@ -742,6 +803,42 @@ bool SysManager::registerDataSource(const char* sysModName, const char* pubTopic
     LOG_W(MODULE_PREFIX, "registerDataSource NOT FOUND %s topic %s", sysModName, pubTopic);
 #endif
     return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Send report message
+void SysManager::sendReportMessage(const char* msg)
+{
+    // Check comms core
+    if (!getCommsCore() || !msg)
+        return;
+
+    // Endpoint message we're going to send
+    CommsChannelMsg endpointMsg(MSG_CHANNEL_ID_ALL, MSG_PROTOCOL_RICREST, 0, MSG_TYPE_REPORT);
+
+    // Generate message
+    RICRESTMsg::encode(msg, endpointMsg, RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON);
+
+#ifdef DEBUG_SEND_REPORT_MESSAGE
+    LOG_I(MODULE_PREFIX, "sendReportMessage payload %s", msg);
+#endif
+
+    // Send message
+#ifdef DEBUG_SEND_REPORT_MESSAGE
+    CommsCoreRetCode retc =
+#endif 
+    getCommsCore()->outboundHandleMsg(endpointMsg);
+
+#ifdef DEBUG_SEND_REPORT_MESSAGE
+    if (retc != CommsCoreRetCode::COMMS_CORE_RET_OK)
+    {
+        LOG_W(MODULE_PREFIX, "sendReportMessage failed %d", retc);
+    }
+    else
+    {
+        LOG_I(MODULE_PREFIX, "sendReportMessage OK");
+    }
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1094,12 +1191,14 @@ String SysManager::getFriendlyName(bool& isSet) const
         if (_systemUniqueString.length() >= 6)
             friendlyName += "_" + _systemUniqueString.substring(_systemUniqueString.length()-6);
     }
+#ifdef DEBUG_GET_FRIENDLY_NAME
     LOG_I(MODULE_PREFIX, "getFriendlyName %s (isSet %s nvsStr %s default %s uniqueStr %s)", 
                 friendlyName.c_str(), 
                 isSet ? "Y" : "N",
                 friendlyNameNVS.c_str(),
                 _defaultFriendlyName.c_str(), 
                 _systemUniqueString.c_str());
+#endif
     return friendlyName;
 }
 

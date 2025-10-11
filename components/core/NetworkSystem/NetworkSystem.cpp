@@ -23,8 +23,11 @@
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
 #include "RaftArduino.h"
-#include "mdns.h"
 #include "esp_idf_version.h"
+
+#ifndef NETWORK_MDNS_DISABLED
+#include "mdns.h"
+#endif
 
 // Only for recent versions of ESP-IDF
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
@@ -257,12 +260,12 @@ bool NetworkSystem::isEthConnectedWithIP() const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get settings JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get JSON settings
+/// @param includeBraces true to include braces
+/// @return String JSON settings
 String NetworkSystem::getSettingsJSON(bool includeBraces) const
 {
-    // Get the status JSON
+    // Get the setting JSON
     String jsonStr = R"("wifiSTA":")" + String(_networkSettings.enableWifiSTAMode) + 
                         R"(","wifiAP":")" + String(_networkSettings.enableWifiAPMode) + 
                         R"(","eth":")" + String(_networkSettings.enableEthernet) +
@@ -276,9 +279,13 @@ String NetworkSystem::getSettingsJSON(bool includeBraces) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get conn state JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get conn state JSON
+/// @param includeBraces true to include braces
+/// @param staInfo true to include STA info
+/// @param apInfo true to include AP info
+/// @param ethInfo true to include Ethernet info
+/// @param useBeforePauseValue true to use the value before pause
+/// @return String JSON connection state
 String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue) const
 {
     // Get the status JSON
@@ -290,39 +297,40 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
         if (useBeforePauseValue)
             wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
-        jsonStr += R"("wifiSTA":{"en":)" + String(_networkSettings.enableWifiSTAMode);
-        if (_networkSettings.enableWifiSTAMode)
-            jsonStr += R"(,"conn":)" + String(wifiStaConnWithIP) + 
+        jsonStr += R"("wifiSTA":{"conn":)" + String(wifiStaConnWithIP) + 
                             R"(,"SSID":")" + (wifiStaConnWithIP ? _wifiStaSSID : _wifiStaSSIDConnectingTo) +
-                            R"(","RSSI":)" + String(_wifiRSSI) + 
-                            R"(,"IP":")" + _wifiIPV4Addr + 
-                            R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") +
-                            R"(","paused":)" + String(isPaused() ? 1 : 0);
+                        R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":");
+        if (wifiStaConnWithIP)
+        {
+            jsonStr += R"(","RSSI":)" + String(_wifiRSSI) + 
+            R"(,"IP":")" + _wifiIPV4Addr;
+        }
+        if (isPaused())
+        {
+            jsonStr += R"(","paused":1)";
+        }
         jsonStr += R"(})";
     }
     if (apInfo && _networkSettings.enableWifiAPMode)
     {
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
-        jsonStr += R"("wifiAP":{"en":)" + String(_networkSettings.enableWifiAPMode);
-        if (_networkSettings.enableWifiAPMode)
-            jsonStr += R"(,"SSID":")" + _wifiAPSSID +
-                        R"(","clients":)" + String(_wifiAPClientCount);
+        jsonStr += R"("wifiAP":{"SSID":")" + _wifiAPSSID;
+        if (_wifiAPClientCount > 0)
+            jsonStr += R"(","clients":)" + String(_wifiAPClientCount);
         jsonStr += R"(})";
     }
+#ifdef ETHERNET_IS_ENABLED
     if (ethInfo && _networkSettings.enableEthernet)
     {
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
-        jsonStr += R"("eth":{"en":)" + String(_networkSettings.enableEthernet);
-#ifdef ETHERNET_IS_ENABLED
-        if (_networkSettings.enableEthernet)
-            jsonStr += R"(,"conn":)" + String(isEthConnectedWithIP()) +
+        jsonStr += R"("eth":{"conn":)" + String(isEthConnectedWithIP()) +
                         R"(,"IP":")" + _ethIPV4Addr +
                         R"(","MAC":")" + _ethMACAddress + R"(")";
-#endif
         jsonStr += R"(})";
     }
+#endif
     // Add braces if required
     if (includeBraces)
         return "{" + jsonStr + "}";
@@ -445,8 +453,6 @@ bool NetworkSystem::startWifi()
         LOG_E(MODULE_PREFIX, "startWifi failed to start WiFi err %s (%d)", esp_err_to_name(err), err);
         return false;
     }
-
-    LOG_I(MODULE_PREFIX, "startWifi init complete");
     return true;
 }
 
@@ -575,7 +581,6 @@ bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
     }
 
     // Debug
-    LOG_I(MODULE_PREFIX, "configWifiAP OK SSID %s", apSSID);
     _wifiAPSSID = apSSID;
     return true;
 }
@@ -1065,8 +1070,10 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", _wifiIPV4Addr.c_str());
+#ifndef NETWORK_MDNS_DISABLED
         // Setup mDNS
         setupMDNS();
+#endif
         break;
     }
     case IP_EVENT_STA_LOST_IP:
@@ -1092,8 +1099,10 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", _ethIPV4Addr.c_str());
+#ifndef NETWORK_MDNS_DISABLED
         // Setup mDNS
         setupMDNS();
+#endif
         break;
     }
     case IP_EVENT_ETH_LOST_IP:
@@ -1106,8 +1115,10 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
 #endif
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
+#ifndef NETWORK_MDNS_DISABLED
         // Setup mDNS
         setupMDNS();
+#endif
         break;
     case IP_EVENT_PPP_LOST_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP lost IP");
@@ -1168,7 +1179,9 @@ void NetworkSystem::warnOnWiFiDisconnectIfEthNotConnected()
 
 void NetworkSystem::setupMDNS()
 {
-    // Check valid
+#ifndef NETWORK_MDNS_DISABLED
+
+// Check valid
     if (!_isSetup)
         return;
 
@@ -1214,4 +1227,5 @@ void NetworkSystem::setupMDNS()
 
     // Debug
     LOG_I(MODULE_PREFIX, "setupMDNS OK hostname %s", _hostname.c_str());
+#endif // NETWORK_MDNS_DISABLED
 }

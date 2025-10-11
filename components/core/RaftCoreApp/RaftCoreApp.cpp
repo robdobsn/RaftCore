@@ -80,6 +80,12 @@ RaftCoreApp::RaftCoreApp() :
     // SysTypeManager endpoints
     _sysTypeManager.addRestAPIEndpoints(_restAPIEndpointManager);
 
+    // Protocol exchange file stream activity fn
+    _protocolExchange.setFileStreamActivityHook( [](bool isMainFWUpdate, bool isFileSystemActivity, bool isStreaming) {
+            _sysManager.informOfFileStreamActivity(isMainFWUpdate, isFileSystemActivity, isStreaming);
+        }
+    );
+
     // Setup SysManager
     _sysManager.setRestAPIEndpoints(_restAPIEndpointManager);
     _sysManager.setCommsCore(&_commsChannelManager);

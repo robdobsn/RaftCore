@@ -84,7 +84,7 @@ project_dir = env['PROJECT_DIR']
 source_dir = os.path.dirname(current_dir)
 build_dir = env['PROJECT_BUILD_DIR']
 build_systype = determine_build_systype(env, current_dir, source_dir)
-artifacts_folder = os.path.join(build_dir, build_systype, 'build_raft_artifacts')
+artifacts_folder = os.path.join(build_dir, build_systype, 'raft')
 
 print(f"------------------ RaftCore systype {build_systype} ------------------")
 print(f"------------------ RaftCore build folder {build_dir} ------------------")

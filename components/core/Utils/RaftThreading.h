@@ -96,6 +96,7 @@ static const uint32_t RAFT_MUTEX_WAIT_FOREVER = 0xFFFFFFFF;
 #elif defined(__linux__)
 
     // Linux platform using pthread
+    #include <cstddef>
     #include <pthread.h>
     #include <semaphore.h>
     #include <time.h>

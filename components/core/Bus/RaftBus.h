@@ -292,20 +292,17 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Set virtual pin mode on IO expander
-    /// @param pinNum - pin number
-    /// @param mode - true for input, false for output
-    /// @param level - initial level (true for high, false for low)
-    virtual void virtualPinMode(int pinNum, bool level)
+    /// @brief Set virtual pin levels on IO expander (pins must be on the same expander or on GPIO)
+    /// @param numPins - number of pins to set
+    /// @param pPinNums - array of pin numbers
+    /// @param pLevels - array of levels (0 for low)
+    /// @param pResultCallback - callback for result when complete/failed
+    /// @param pCallbackData - callback data
+    /// @return RAFT_OK if successful
+    virtual RaftRetCode virtualPinsSet(uint32_t numPins, const int* pPinNums, const uint8_t* pLevels, 
+        VirtualPinSetCallbackType pResultCallback = nullptr, void* pCallbackData = nullptr)
     {
-    }
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Set virtual pin level on IO expander
-    /// @param pinNum - pin number
-    /// @param level - true for on, false for off
-    virtual void virtualPinWrite(int pinNum, bool level)
-    {
+        return RAFT_INVALID_DATA;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -313,17 +310,21 @@ public:
     /// @param pinNum - pin number
     /// @param vPinCallback - callback for virtual pin changes
     /// @param pCallbackData - callback data
-    virtual void virtualPinRead(int pinNum, VirtualPinCallbackType vPinCallback, void* pCallbackData = nullptr)
+    /// @return RAFT_OK if successful
+    virtual RaftRetCode virtualPinRead(int pinNum, VirtualPinReadCallbackType vPinCallback, void* pCallbackData = nullptr)
     {
+        return RAFT_INVALID_DATA;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Update IO expander
-    /// @param forceCommunication - true to force communication
-    /// @param vPinCallback - callback for virtual pin changes
-    /// @param pCallbackData - callback data    
-    virtual void virtualPinsUpdate(bool forceCommunication, VirtualPinCallbackType vPinCallback = nullptr, void* pCallbackData = nullptr)
+    /// @brief Enable bus slot
+    /// @param slotNum - slot number (0 is the main bus)
+    /// @param enablePower - true to enable, false to disable
+    /// @param enableData - true to enable data, false to disable
+    /// @return RAFT_OK if successful
+    virtual RaftRetCode enableSlot(uint32_t slotNum, bool enablePower, bool enableData)
     {
+        return RAFT_NOT_IMPLEMENTED;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

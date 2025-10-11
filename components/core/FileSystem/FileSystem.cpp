@@ -7,8 +7,14 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "FileSystem.h"
+#include "RaftUtils.h"
+#include "Logger.h"
+
 #include <sys/stat.h>
 #include <sys/unistd.h>
+
+#if !defined(__linux__)
 #include "esp_spiffs.h"
 #include "esp_vfs_fat.h"
 #include "esp_err.h"
@@ -17,15 +23,14 @@
 #include "driver/sdmmc_defs.h"
 #include "driver/sdspi_host.h"
 #include "esp_idf_version.h"
-#include "FileSystem.h"
-#include "RaftUtils.h"
 #include "ConfigPinMap.h"
-#include "Logger.h"
 #include "SpiramAwareAllocator.h"
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 #include "esp_littlefs.h"
 #endif
+#endif
 
+// File system
 FileSystem fileSystem;
 
 // Warn
@@ -49,13 +54,12 @@ FileSystem fileSystem;
 
 FileSystem::FileSystem()
 {
-    _fileSysMutex = xSemaphoreCreateMutex();
+    RaftMutex_init(_fileSysMutex);
 }
 
 FileSystem::~FileSystem()
 {
-    if (_fileSysMutex)
-        vSemaphoreDelete(_fileSysMutex);
+    RaftMutex_destroy(_fileSysMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +127,8 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
         return false;
     }
 
+#if !defined(__linux__)
+
     // TODO - check WDT maybe enabled
     // Reformat - need to disable Watchdog timer while formatting
     // Watchdog is not enabled on core 1 in Arduino according to this
@@ -141,6 +147,13 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     // enableCore0WDT();
     Raft::setJsonBoolResult("reformat", respStr, ret == ESP_OK);
     LOG_W(MODULE_PREFIX, "Reformat result %s", (ret == ESP_OK ? "OK" : "FAIL"));
+#else
+
+    Raft::setJsonBoolResult("reformat", respStr, true);
+    LOG_W(MODULE_PREFIX, "Reformat result %s", "OK");
+
+#endif
+
     return true;
 }
 
@@ -176,7 +189,7 @@ bool FileSystem::getFileInfo(const String& fileSystemStr, const String& filename
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return false;
 
     // Check file exists
@@ -185,7 +198,7 @@ bool FileSystem::getFileInfo(const String& fileSystemStr, const String& filename
 
     if (stat(rootFilename.c_str(), &st) != 0)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef DEBUG_FILE_NOT_FOUND
         LOG_I(MODULE_PREFIX, "getFileInfo %s cannot stat", rootFilename.c_str());
 #endif
@@ -193,14 +206,14 @@ bool FileSystem::getFileInfo(const String& fileSystemStr, const String& filename
     }
     if (!S_ISREG(st.st_mode))
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef WARN_ON_FILE_SYSTEM_ERRORS
         LOG_W(MODULE_PREFIX, "getFileInfo %s is a folder", rootFilename.c_str());
 #endif
         return false;
     }
     fileLength = st.st_size;
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return true;
 }
 
@@ -254,14 +267,14 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     String rootFilename = getFilePath(nameOfFS, filename);
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return nullptr;
 
     // Get file info - to check length
     struct stat st;
     if (stat(rootFilename.c_str(), &st) != 0)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef WARN_ON_FILE_NOT_FOUND
         LOG_W(MODULE_PREFIX, "getContents %s cannot stat", rootFilename.c_str());
 #endif
@@ -269,7 +282,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     }
     if (!S_ISREG(st.st_mode))
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef WARN_ON_GET_CONTENTS_IS_FOLDER
         LOG_I(MODULE_PREFIX, "getContents %s is a folder", rootFilename.c_str());
 #endif
@@ -283,7 +296,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     }
     if (st.st_size >= maxLen-1)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef WARN_ON_FILE_TOO_BIG
         LOG_W(MODULE_PREFIX, "getContents %s free heap %d size %d too big to read", rootFilename.c_str(), maxLen, (int)st.st_size);
 #endif
@@ -295,7 +308,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     FILE* pFile = fopen(rootFilename.c_str(), "rb");
     if (!pFile)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef WARN_ON_FILE_NOT_FOUND
         LOG_W(MODULE_PREFIX, "getContents failed to open file to read %s", rootFilename.c_str());
 #endif
@@ -312,7 +325,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     if (!pBuf)
     {
         fclose(pFile);
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef WARN_ON_FILE_TOO_BIG
         LOG_W(MODULE_PREFIX, "getContents failed to allocate %d", fileSize);
 #endif
@@ -322,7 +335,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     // Read
     size_t bytesRead = fread(pBuf, 1, fileSize, pFile);
     fclose(pFile);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     pBuf[bytesRead] = 0;
 
 #ifdef DEBUG_GET_FILE_CONTENTS
@@ -349,7 +362,7 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT16_MAX))
         return false;
 
     // Open file for writing
@@ -357,7 +370,7 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
     FILE* pFile = fopen(rootFilename.c_str(), "wb");
     if (!pFile)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
 #ifdef WARN_ON_FILE_SYSTEM_ERRORS
         LOG_W(MODULE_PREFIX, "setContents failed to open file to write %s", rootFilename.c_str());
 #endif
@@ -373,7 +386,7 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
     LOG_I(MODULE_PREFIX, "setFileContents cache invalid");
 #endif
     markFileCacheDirty(nameOfFS, filename);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return bytesWritten == fileContents.length();
 }
 
@@ -391,7 +404,7 @@ bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
     }
     
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return false;
 
     // Remove file
@@ -406,7 +419,7 @@ bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
     LOG_I(MODULE_PREFIX, "deleteFile cache invalid");
 #endif
     markFileCacheDirty(nameOfFS, filename);
-    xSemaphoreGive(_fileSysMutex);   
+    RaftMutex_unlock(_fileSysMutex);   
     return true;
 }
 
@@ -571,7 +584,7 @@ bool FileSystem::exists(const char* path) const
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st1 = micros();
 #endif
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return false;
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st2 = micros();
@@ -581,7 +594,7 @@ bool FileSystem::exists(const char* path) const
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st3 = micros();
 #endif
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st4 = micros();
     LOG_I(MODULE_PREFIX, "exists 1:%lld 2:%lld 3:%lld", st2-st1, st3-st2, st4-st3);
@@ -596,11 +609,11 @@ bool FileSystem::exists(const char* path) const
 FileSystem::FileSystemStatType FileSystem::pathType(const char* filename)
 {
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return FILE_SYSTEM_STAT_NO_EXIST;
     struct stat buffer;
     bool rslt = stat(filename, &buffer);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     if (rslt != 0)
         return FILE_SYSTEM_STAT_NO_EXIST;
     if (S_ISREG(buffer.st_mode))
@@ -624,7 +637,7 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return false;
 
     // Open file
@@ -632,7 +645,7 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
     FILE* pFile = fopen(rootFilename.c_str(), "rb");
     if (!pFile)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
         LOG_W(MODULE_PREFIX, "getFileSection failed to open file to read %s", rootFilename.c_str());
         return false;
     }
@@ -643,7 +656,7 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
     // Read
     readLen = fread((char*)pBuf, 1, sectionLen, pFile);
     fclose(pFile);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return true;
 }
 
@@ -666,7 +679,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return SpiramAwareUint8Vector();
 
     // Open file
@@ -674,7 +687,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     FILE* pFile = fopen(rootFilename.c_str(), "rb");
     if (!pFile)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
         LOG_W(MODULE_PREFIX, "getFileSection failed to open file to read %s", rootFilename.c_str());
         return SpiramAwareUint8Vector();
     }
@@ -687,7 +700,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     fileData.resize(sectionLen);
     int readLen = fread((char*)fileData.data(), 1, fileData.size(), pFile);
     fclose(pFile);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
 
     // Return data
     if (readLen <= 0)
@@ -713,7 +726,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return false;
 
     // Open file for text reading
@@ -721,7 +734,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
     FILE* pFile = fopen(rootFilename.c_str(), "r");
     if (!pFile)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
         LOG_W(MODULE_PREFIX, "getFileLine failed to open file to read %s", rootFilename.c_str());
         return false;
     }
@@ -737,7 +750,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
 
     // Close
     fclose(pFile);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
 
     // Ok if we got something
     return pReadLine != NULL;
@@ -763,7 +776,7 @@ String FileSystem::getFileLine(const String& fileSystemStr, const String& filena
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return "";
 
     // Open file for text reading
@@ -771,7 +784,7 @@ String FileSystem::getFileLine(const String& fileSystemStr, const String& filena
     FILE* pFile = fopen(rootFilename.c_str(), "r");
     if (!pFile)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
         LOG_W(MODULE_PREFIX, "getFileLine failed to open file to read %s", rootFilename.c_str());
         return "";
     }
@@ -787,7 +800,7 @@ String FileSystem::getFileLine(const String& fileSystemStr, const String& filena
 
     // Close
     fclose(pFile);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
 
     // Return line
     return line;
@@ -813,7 +826,7 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return nullptr;
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
@@ -847,7 +860,7 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
 #endif
 
     // Release mutex
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t releaseMutexMs = millis() - startMs;
@@ -886,7 +899,7 @@ bool FileSystem::fileClose(FILE* pFile, const String& fileSystemStr, const Strin
     checkFileSystem(fileSystemStr, nameOfFS);
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return false;
 
     // Check if file modified
@@ -899,7 +912,7 @@ bool FileSystem::fileClose(FILE* pFile, const String& fileSystemStr, const Strin
     fclose(pFile);
 
     // Release mutex
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return true;
 }
 
@@ -917,14 +930,14 @@ uint32_t FileSystem::fileRead(FILE* pFile, uint8_t* pBuf, uint32_t readLen)
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return 0;
 
     // Read
     uint32_t lenRead = fread((char*)pBuf, 1, readLen, pFile);
 
     // Release mutex
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return lenRead;
 }
 
@@ -942,7 +955,7 @@ SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return SpiramAwareUint8Vector();
 
     // Read
@@ -951,7 +964,7 @@ SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
     uint32_t lenRead = fread((char*)fileData.data(), 1, fileData.size(), pFile);
 
     // Release mutex
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
 
     // Check for error
     if (lenRead == 0)
@@ -975,14 +988,14 @@ uint32_t FileSystem::fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeL
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return 0;
 
     // Read
     uint32_t lenWritten = fwrite((char*)pBuf, 1, writeLen, pFile);
 
     // Release mutex
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return lenWritten;
 }
 
@@ -1009,14 +1022,14 @@ uint32_t FileSystem::filePos(FILE* pFile)
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return 0;
 
     // Read
     uint32_t filePosition = ftell(pFile);
 
     // Release mutex
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return filePosition;
 }
 
@@ -1034,14 +1047,14 @@ bool FileSystem::fileSeek(FILE* pFile, uint32_t seekPos)
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, portMAX_DELAY) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
         return false;
 
     // Seek
     fseek(pFile, seekPos, SEEK_SET);
 
     // Release mutex
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     return true;
 }
 
@@ -1111,6 +1124,8 @@ void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup local file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if !defined(__linux__)
 
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
@@ -1422,7 +1437,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     }
 
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, 0) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, 0))
     {
         Raft::setJsonErrorResult(req, respStr, "fsbusy");
         return false;
@@ -1434,7 +1449,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     // Check file system is valid
     if (cachedFs.fsSizeBytes == 0)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
         LOG_W(MODULE_PREFIX, "getFilesJSON No valid file system");
         Raft::setJsonErrorResult(req, respStr, "nofs");
         return false;
@@ -1448,7 +1463,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     DIR* dir = opendir(rootFolder.c_str());
     if (!dir)
     {
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
         LOG_W(MODULE_PREFIX, "getFilesJSON Failed to open base folder %s", rootFolder.c_str());
         Raft::setJsonErrorResult(req, respStr, "nofolder");
         return false;
@@ -1489,7 +1504,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 
     // Finished with file list
     closedir(dir);
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
 
     // Format response
     respStr = formatJSONFileInfo(req, cachedFs, fileListStr, rootFolder);
@@ -1508,7 +1523,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr)
 {
     // Take mutex
-    if (xSemaphoreTake(_fileSysMutex, 0) != pdTRUE)
+    if (!RaftMutex_lock(_fileSysMutex, 0))
     {
         Raft::setJsonErrorResult(req, respStr, "fsbusy");
         return false;
@@ -1529,7 +1544,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
             ret = esp_spiffs_info(_fsPartitionName.c_str(), &sizeBytes, &usedBytes);
         if (ret != ESP_OK)
         {
-            xSemaphoreGive(_fileSysMutex);
+            RaftMutex_unlock(_fileSysMutex);
             LOG_W(MODULE_PREFIX, "fileSysInfoUpdateCache failed to get file system info (error %s)", esp_err_to_name(ret));
             Raft::setJsonErrorResult(req, respStr, "fsInfo");
             return false;
@@ -1560,7 +1575,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
             cachedFs.isSizeInfoValid = true;
         }
     }
-    xSemaphoreGive(_fileSysMutex);
+    RaftMutex_unlock(_fileSysMutex);
     uint32_t debugGetFsInfoMs = millis() - debugStartMs;
     LOG_I(MODULE_PREFIX, "fileSysInfoUpdateCache timing fsInfo %dms", debugGetFsInfoMs);
     return true;
@@ -1636,7 +1651,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         uint32_t debugStartMs = millis();
 
         // Take mutex
-        if (xSemaphoreTake(_fileSysMutex, 0) != pdTRUE)
+        if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
             return;
 
         // Clear file list
@@ -1647,7 +1662,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         DIR* dir = opendir(rootFolder.c_str());
         if (!dir)
         {
-            xSemaphoreGive(_fileSysMutex);
+            RaftMutex_unlock(_fileSysMutex);
             return;
         }
         // Read directory entries
@@ -1684,7 +1699,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         closedir(dir);
         cachedFs.isFileInfoSetup = true;
         cachedFs.isFileInfoValid = true;
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
         uint32_t debugCachedFsSetupMs = millis() - debugStartMs;
         LOG_I(MODULE_PREFIX, "fileSystemCacheService fs %s files %d took %dms", 
                     cachedFs.fsName.c_str(), fileCount, debugCachedFsSetupMs);
@@ -1696,7 +1711,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
     {
         // Update info for specific file(s)
         // Take mutex
-        if (xSemaphoreTake(_fileSysMutex, 0) != pdTRUE)
+        if (!RaftMutex_lock(_fileSysMutex, 0))
             return;
         String rootFolder = (cachedFs.fsBase + "/").c_str();
         bool allValid = true;
@@ -1730,9 +1745,11 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         }
         LOG_I(MODULE_PREFIX, "fileSystemCacheService fileInfo %s", allValid ? "valid" : "invalid");
         cachedFs.isFileInfoValid = allValid;
-        xSemaphoreGive(_fileSysMutex);
+        RaftMutex_unlock(_fileSysMutex);
     }
 }
+
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Format JSON file info

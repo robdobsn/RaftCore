@@ -60,7 +60,12 @@
     }
     bool RaftMutex_lock(RaftMutex &mutex, uint32_t timeout_ms)
     {
-        return xSemaphoreTake(mutex.mutex, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
+        uint32_t ticksToWait = timeout_ms;
+        if (timeout_ms == UINT32_MAX)
+            ticksToWait = portMAX_DELAY;
+        else
+            ticksToWait = pdMS_TO_TICKS(timeout_ms);
+        return xSemaphoreTake(mutex.mutex, ticksToWait) == pdTRUE;
     }
     void RaftMutex_unlock(RaftMutex &mutex)
     {
@@ -116,7 +121,7 @@
     {
         if (timeout_ms == 0) {
             return pthread_mutex_trylock(&mutex.mutex) == 0;
-        } else if (timeout_ms == UINT16_MAX) {
+        } else if (timeout_ms == UINT32_MAX) {
             return pthread_mutex_lock(&mutex.mutex) == 0;
         } else {
             struct timespec ts;

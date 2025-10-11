@@ -21,7 +21,6 @@ public:
         // Mutex for ThreadSafeQueue
         RaftMutex_init(_queueMutex);
         _maxLen = maxLen;
-        _maxMsToWaitDefault = DEFAULT_MAX_MS_TO_WAIT;
     }
 
     virtual ~ThreadSafeQueue()
@@ -37,7 +36,7 @@ public:
     bool put(const ElemT& elem, uint32_t maxMsToWait = 0)
     {
         // Get mutex
-        if (RaftMutex_lock(_queueMutex, _getMaxMsToWait(maxMsToWait)))
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             // Check if queue is full
             if (_queue.size() >= _maxLen)
@@ -60,7 +59,7 @@ public:
     bool get(ElemT& elem, uint32_t maxMsToWait = 0)
     {
         // Get Mutex
-        if (RaftMutex_lock(_queueMutex, _getMaxMsToWait(maxMsToWait)))
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             if (_queue.empty())
             {
@@ -83,7 +82,7 @@ public:
     bool peek(ElemT& elem, uint32_t maxMsToWait = 0)
     {
         // Get Mutex
-        if (RaftMutex_lock(_queueMutex, _getMaxMsToWait(maxMsToWait)))
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             if (_queue.empty())
             {
@@ -104,7 +103,7 @@ public:
 
     void clear(uint32_t maxMsToWait = 0)
     {
-        if (RaftMutex_lock(_queueMutex, _getMaxMsToWait(maxMsToWait)))
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             // Clear queue
             while(!_queue.empty())
@@ -117,7 +116,7 @@ public:
 
     uint32_t count(uint32_t maxMsToWait = 0)
     {
-        if (RaftMutex_lock(_queueMutex, _getMaxMsToWait(maxMsToWait)))
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             int qSize = _queue.size();
             // Return mutex
@@ -137,23 +136,11 @@ public:
         return _queue.size() < _maxLen;
     }
 
-    void setMaxMsToWait(uint32_t maxMsToWait)
-    {
-        _maxMsToWaitDefault = maxMsToWait;
-    }
-
 private:
     std::queue<ElemT> _queue;
     static const uint16_t DEFAULT_MAX_QUEUE_LEN = 50;
     uint16_t _maxLen = DEFAULT_MAX_QUEUE_LEN;
     static const uint16_t DEFAULT_MAX_MS_TO_WAIT = 1;
-    uint16_t _maxMsToWaitDefault = DEFAULT_MAX_MS_TO_WAIT;
-    inline uint32_t _getMaxMsToWait(uint32_t maxMsToWait)
-    {
-        if (maxMsToWait == 0)
-            return _maxMsToWaitDefault;
-        return maxMsToWait;
-    }
     // Mutex for queue
     RaftMutex _queueMutex;
 };

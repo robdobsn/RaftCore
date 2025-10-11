@@ -53,4 +53,13 @@ public:
         return false;
     }
 
+    static NamedValueProvider* getNullProvider()
+    {
+        if (_nullValueProvider == nullptr)
+            _nullValueProvider = new NamedValueProvider();
+        return _nullValueProvider;
+    }
+
+private:
+    static NamedValueProvider* _nullValueProvider;
 };

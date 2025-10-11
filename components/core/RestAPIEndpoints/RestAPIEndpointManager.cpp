@@ -46,7 +46,7 @@ int RestAPIEndpointManager::getNumEndpoints()
 RestAPIEndpoint *RestAPIEndpointManager::getNthEndpoint(int n)
 {
     // Check valid
-    if (n < 0 || n >= _endpointsList.size())
+    if (n < 0 || n >= (int)_endpointsList.size())
         return nullptr;
 
     // Get N'th endpoint

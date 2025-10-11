@@ -16,6 +16,7 @@
 #include "RaftSysMod.h"
 #include "FileStreamBase.h"
 #include "FileStreamSession.h"
+#include "FileStreamActivityHookFnType.h"
 
 class APISourceInfo;
 
@@ -24,6 +25,12 @@ class ProtocolExchange : public RaftSysMod
 public:
     ProtocolExchange(const char *pModuleName, RaftJsonIF& sysConfig);
     virtual ~ProtocolExchange();
+
+    // Set file stream activity hook function
+    void setFileStreamActivityHook(FileStreamActivityHookFnType fileStreamActivityHookFn)
+    {
+        _fileStreamActivityHookFn = fileStreamActivityHookFn;
+    }
 
     // Set firmware update handler
     void setFWUpdateHandler(RaftSysMod* pFirmwareUpdater)
@@ -82,6 +89,9 @@ private:
                     FileStreamBase::FileStreamContentType fileStreamContentType, const char* restAPIEndpointName,
                     FileStreamBase::FileStreamFlowType flowType, uint32_t fileStreamLength);
     FileStreamSession* getFileStreamExistingSession(const char* fileStreamName, uint32_t channelID, uint32_t streamID);
+
+    // File stream activity hook fn
+    FileStreamActivityHookFnType _fileStreamActivityHookFn;
 
     // Debug
     void debugEndpointMessage(const CommsChannelMsg& msg);

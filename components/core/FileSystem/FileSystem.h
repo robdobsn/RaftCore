@@ -179,7 +179,7 @@ private:
     CachedFileSystem _localFsCache;
 
     // Mutex controlling access to file system
-    SemaphoreHandle_t _fileSysMutex = nullptr;
+    mutable RaftMutex _fileSysMutex;
 
     // File system partition name
     String _fsPartitionName;

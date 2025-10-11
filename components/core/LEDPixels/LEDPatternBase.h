@@ -10,9 +10,9 @@
 
 #include <stdint.h>
 #include "RaftArduino.h"
+#include "NamedValueProvider.h"
 
 class LEDPixelIF;
-class NamedValueProvider;
 class LEDPatternBase;
 
 // Create function for LED pattern factory
@@ -23,8 +23,12 @@ class LEDPatternBase
 {
 public:
     LEDPatternBase(NamedValueProvider* pNamedValueProvider, LEDPixelIF& pixels) :
-        _pNamedValueProvider(pNamedValueProvider), _pixels(pixels)
+        _pixels(pixels)
     {
+        if (pNamedValueProvider)
+            _pNamedValueProvider = pNamedValueProvider;
+        else
+            _pNamedValueProvider = NamedValueProvider::getNullProvider();
     }
     virtual ~LEDPatternBase()
     {

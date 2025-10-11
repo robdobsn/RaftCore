@@ -106,7 +106,7 @@ private:
     String _restAPIEndpointName;
     
     // REST API endpoint manager
-    RestAPIEndpointManager* _pRestAPIEndpointManager;
+    RestAPIEndpointManager* _pRestAPIEndpointManager = nullptr;
 
     // Callbacks to stream endpoint
     RestAPIFnChunk _pStreamChunkCB;
@@ -123,10 +123,10 @@ private:
     FileStreamBase* _pFileStreamProtocolHandler = nullptr;
 
     // Chunker
-    FileSystemChunker* _pFileChunker;
+    FileSystemChunker* _pFileChunker = nullptr;
 
     // Handlers
-    RaftSysMod* _pFirmwareUpdater;
+    RaftSysMod* _pFirmwareUpdater = nullptr;
 
     // Session idle handler
     uint32_t _sessionLastActiveMs;

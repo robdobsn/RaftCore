@@ -21,7 +21,7 @@ class CommsCoreIF;
 class CommsChannelMsg;
 class SupervisorStats;
 class FileStreamBlock;
-class SysManager;
+class SysManagerIF;
 
 // Status change callback function type
 typedef std::function<void(const String& sourceName, bool changeToOnline)> SysMod_statusChangeCB;
@@ -131,16 +131,16 @@ public:
     }
 
     // Static function to define the manager for system modules
-    static void setSysManager(SysManager* pSysManager)
+    static void setSysManager(SysManagerIF* pSysManager)
     {
         _pSysManager = pSysManager;
     }
 
-    SysManager* getSysManager() const
+    SysManagerIF* getSysManager() const
     {
         return _pSysManager;
     }
-    const SysManager* getSysManagerConst() const
+    const SysManagerIF* getSysManagerConst() const
     {
         return _pSysManager;
     }
@@ -277,7 +277,7 @@ private:
     String _configPrefix;
     
     // Manager (parent)
-    static SysManager* _pSysManager;
+    static SysManagerIF* _pSysManager;
 
     // Status change callbacks
     std::list<SysMod_statusChangeCB> _statusChangeCBs;

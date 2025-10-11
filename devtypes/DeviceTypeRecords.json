@@ -16,6 +16,7 @@
                 "desc": "Light Sensor",
                 "manu": "Robotical",
                 "type": "RoboticalLightSensor",
+                "clas": ["LGHT"],
                 "resp": {
                     "b": 7,
                     "a": [
@@ -69,6 +70,7 @@
                 "desc": "Servo",
                 "manu": "Robotical",
                 "type": "RoboticalServo",
+                "clas": ["SRVO"],
                 "resp": {
                     "b": 6,
                     "a": [
@@ -143,6 +145,7 @@
                 "desc": "Pump",
                 "manu": "Robotical",
                 "type": "RoboticalWaterPump",
+                "clas": ["PUMP"],
                 "resp": {
                     "b": 4,
                     "a": [
@@ -210,6 +213,7 @@
                 "desc": "Prox&ALS",
                 "manu": "Vishay",
                 "type": "VCNL4040",
+                "clas": ["PROX","LGHT"],
                 "resp": {
                     "b": 6,
                     "a": [
@@ -261,6 +265,7 @@
                 "desc": "ToF",
                 "manu": "ST",
                 "type": "VL6180",
+                "clas": ["DIST"],
                 "resp": {
                     "b": 2,
                     "a": [
@@ -305,6 +310,7 @@
                 "desc": "ToF",
                 "manu": "ST",
                 "type": "VL53L4CD",
+                "clas": ["DIST"],
                 "resp": {
                     "b": 3,
                     "a": [
@@ -350,6 +356,7 @@
                 "desc": "Prox&ALS",
                 "manu": "Vishay",
                 "type": "MAX30101",
+                "clas": ["HRM"],
                 "resp": {
                     "b": 51,
                     "a": [
@@ -394,11 +401,12 @@
                 "desc": "3-Axis Accel",
                 "manu": "Analog Devices",
                 "type": "ADXL313",
+                "clas": ["ACC"],
                 "resp": {
                     "b": 6,
                     "a": [
                         {
-                            "n": "x",
+                            "n": "ax",
                             "t": "<h",
                             "u": "g",
                             "r": [-4.0, 4.0],
@@ -407,7 +415,7 @@
                             "o": "float"
                         },
                         {
-                            "n": "y",
+                            "n": "ay",
                             "t": "<h",
                             "u": "g",
                             "r": [-4.0,4.0],
@@ -416,7 +424,7 @@
                             "o": "float"
                         },
                         {
-                            "n": "z",
+                            "n": "az",
                             "t": "<h",
                             "u": "g",
                             "r": [-4.0,4.0],
@@ -445,6 +453,7 @@
                 "desc": "3-Axis Accel",
                 "manu": "Memsic",
                 "type": "MXC400xXC",
+                "clas": ["ACC"],
                 "resp": {
                     "b": 7,
                     "a": [
@@ -506,6 +515,7 @@
                 "desc": "6-Axis IMU",
                 "manu": "ST",
                 "type": "LSM6DS",
+                "clas": ["ACC","GYRO"],
                 "resp": {
                     "b": 12,
                     "a": [
@@ -583,6 +593,7 @@
                 "desc": "Temp&Humid",
                 "manu": "Asair",
                 "type": "AHT20",
+                "clas": ["TEMP","RH"],
                 "resp": {
                     "b": 6,
                     "a": [
@@ -637,6 +648,7 @@
                 "desc": "Temp",
                 "manu": "Microchip",
                 "type": "MCP9808",
+                "clas": ["LGHT"],
                 "resp": {
                     "b": 2,
                     "a": [
@@ -672,6 +684,7 @@
                 "desc": "Pressure",
                 "manu": "ST",
                 "type": "LPS25",
+                "clas": ["PRES","TEMP"],
                 "resp": {
                     "b": 6,
                     "a": [
@@ -726,6 +739,7 @@
                 "desc": "Capacitive Touch x 3",
                 "manu": "Sparkfun",
                 "type": "CAP1203",
+                "clas": ["TCH"],
                 "resp": {
                     "b": 2,
                     "a": [
@@ -786,6 +800,7 @@
                 "desc": "Button",
                 "manu": "Sparkfun",
                 "type": "QwiicButton",
+                "clas": ["BTN"],
                 "resp": {
                     "b": 1,
                     "a": [
@@ -844,6 +859,7 @@
                 "desc": "Magnetic Encoder",
                 "manu": "AMS",
                 "type": "AS5600",
+                "clas": ["ANG"],
                 "resp": {
                     "b": 2,
                     "a": [
@@ -876,6 +892,7 @@
                 "desc": "Rotary encoder",
                 "manu": "M5Stack",
                 "type": "M5Encoder",
+                "clas": ["ROT"],
                 "resp": {
                     "b": 4,
                     "a": [
@@ -930,6 +947,7 @@
                 "desc": "Adafruit Gamepad",
                 "manu": "Adafruit",
                 "type": "Gamepad",
+                "clas": ["GAME"],
                 "resp": {
                     "b": 8,
                     "a": [
@@ -1031,6 +1049,7 @@
                 "desc": "LEDs",
                 "manu": "Sparkfun",
                 "type": "QwiicLEDStick",
+                "clas": ["PIX"],
                 "actions": [
                     {
                         "n": "pixels",
@@ -1070,6 +1089,7 @@
                 "desc": "Force Sensor",
                 "manu": "Avia",
                 "type": "HX711",
+                "clas": ["FRCE"],
                 "resp": {
                     "b": 5,
                     "a": [
@@ -1108,6 +1128,7 @@
                 "desc": "BTHome",
                 "manu": "Allterco",
                 "type": "BLEBTHome",
+                "clas": ["BTHM"],
                 "resp": {
                     "b": 17,
                     "a": [
@@ -1178,6 +1199,7 @@
                 "desc": "SoilSensor",
                 "manu": "Adafruit",
                 "type": "AdafruitSoilSensor",
+                "clas": ["SOIL"],
                 "resp": {
                     "b": 2,
                     "a": [

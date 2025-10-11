@@ -12,21 +12,15 @@
 
 #pragma once 
 
+#include "SysManagerIF.h"
 #include "SysTypeManager.h"
 #include "SysModFactory.h"
-#include "NamedValueProvider.h"
 #include "SupervisorStats.h"
 #include "ProtocolExchange.h"
 #include "DeviceManager.h"
 #include "RaftJsonNVS.h"
 
-typedef String (*SysManager_statsCB)();
-
-class RaftSysMod;
-
-class RestAPIEndpointManager;
-
-class SysManager : public NamedValueProvider
+class SysManager : public SysManagerIF
 {
 public:
     // Constructor
@@ -55,21 +49,21 @@ public:
     }
 
     // Add a pre-constructed SysMod to the managed list
-    void addManagedSysMod(RaftSysMod* pSysMod);
+    virtual void addManagedSysMod(RaftSysMod* pSysMod);
 
     /// @brief Get SysMod instance by name
     /// @param sysModName
     /// @return Pointer to SysMod instance or nullptr if not found
-    RaftSysMod* getSysMod(const char* sysModName) const;
+    virtual RaftSysMod* getSysMod(const char* sysModName) const;
 
     // Get system name
-    String getSystemName() const
+    virtual String getSystemName() const
     {
         return _systemName;
     }
 
     // Get system version
-    String getSystemVersion() const
+    virtual String getSystemVersion() const
     {
         return platform_getAppVersion();
     }
@@ -99,7 +93,7 @@ public:
     }
 
     // Get friendly name
-    String getFriendlyName(bool& isSet) const;
+    virtual String getFriendlyName(bool& isSet) const;
     bool getFriendlyNameIsSet() const;
     bool setFriendlyName(const String& friendlyName, bool setHostname, String& respStr);
 
@@ -110,7 +104,7 @@ public:
     }
 
     // Get system unique string
-    String getSystemUniqueString() const
+    virtual String getSystemUniqueString() const
     {
         return _systemUniqueString;
     }
@@ -122,16 +116,30 @@ public:
     }
 
     // Add status change callback on a SysMod
-    void setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
+    virtual void setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
 
     // Get status from SysMod
-    String getStatusJSON(const char* sysModName) const;
+    virtual String getStatusJSON(const char* sysModName) const;
 
     // Get debug from SysMod
     String getDebugJSON(const char* sysModName) const;
 
-    // Send command to SysMod
-    RaftRetCode sendCmdJSON(const char* sysModName, const char* cmdJSON);
+    /// @brief Notify of system shutdown
+    /// @param isRestart True if this is a restart (false if shutdown)
+    /// @param reasonOrNull Reason for shutdown (may be nullptr)
+    void notifyOfShutdown(bool isRestart = true, const char* reasonOrNull = nullptr);
+
+    /// @brief Send command to one or all SysMods
+    /// @param sysModName Name of SysMod to send command to or nullptr for all SysMods
+    /// @param cmdJSON Command JSON string
+    /// @return Result code
+    /// @note The command JSON string should be in the format:
+    ///       {"cmd":"<command>",...other args...}
+    ///       where <command> is the command to be sent and other args are any additional arguments
+    ///       to be passed to the command handler.
+    ///       The command will be sent to the SysMod's command handler.
+    ///       The SysMod should handle the command and return a result.
+    virtual RaftRetCode sendCmdJSON(const char* sysModNameOrNullForAll, const char* cmdJSON);
 
     // Register data source (message generator functions)
     bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
@@ -151,6 +159,9 @@ public:
     // Request system restart
     void systemRestart()
     {
+        // Notify all SysMods of restart
+        notifyOfShutdown(true);
+
         // Actual restart occurs within loop routine after a short delay
         _systemRestartPending = true;
         _systemRestartMs = millis();
@@ -162,7 +173,7 @@ public:
         _pRestAPIEndpointManager = &restAPIEndpoints;
     }
 
-    RestAPIEndpointManager* getRestAPIEndpointManager()
+    virtual RestAPIEndpointManager* getRestAPIEndpointManager()
     {
         return _pRestAPIEndpointManager;
     }
@@ -172,7 +183,7 @@ public:
     {
         _pCommsCore = pCommsCore;
     }
-    CommsCoreIF* getCommsCore()
+    virtual CommsCoreIF* getCommsCore()
     {
         return _pCommsCore;
     }
@@ -198,7 +209,7 @@ public:
     }
 
     // Get supervisor stats
-    SupervisorStats* getStats()
+    virtual SupervisorStats* getStats()
     {
         return &_supervisorStats;
     }
@@ -211,19 +222,19 @@ public:
     }
 
     // File/stream system activity - main FW update
-    bool isSystemMainFWUpdate()
+    virtual bool isSystemMainFWUpdate()
     {
         return _isSystemMainFWUpdate;
     }
 
     // File/stream system activity - streaming
-    bool isSystemFileTransferring()
+    virtual bool isSystemFileTransferring()
     {
         return _isSystemFileTransferring;
     }
 
     // File/stream system activity - streaming
-    bool isSystemStreaming()
+    virtual bool isSystemStreaming()
     {
         return _isSystemStreaming;
     }
@@ -405,6 +416,10 @@ private:
 
     // System restart
     void systemRestartNow();
+
+    /// @brief Send report message
+    /// @param msg Message to send
+    void sendReportMessage(const char* msg);
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "SysMan";

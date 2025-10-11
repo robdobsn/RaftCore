@@ -227,7 +227,8 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
         }
         std::vector<uint8_t> readDataMask;
         std::vector<uint8_t> readData;
-        if (!extractMaskAndDataFromHexStr(pollWriteReadPair.value, readDataMask, readData, false))
+        uint32_t pauseAfterSendMs = 0; 
+        if (!extractMaskAndDataFromHexStr(pollWriteReadPair.value, readDataMask, readData, false, pauseAfterSendMs))
         {
 #ifdef DEBUG_POLL_REQUEST_REQS
             LOG_I(MODULE_PREFIX, "getPollInfo FAIL extractMaskAndDataFromHexStr %s (name %s)", 
@@ -243,8 +244,8 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
         Raft::getHexStrFromBytes(readDataMask.data(), readDataMask.size(), readDataMaskStr);
         String readDataStr;
         Raft::getHexStrFromBytes(readData.data(), readData.size(), readDataStr);
-        LOG_I(MODULE_PREFIX, "getPollInfo addr %04x writeData %s readDataMask %s readData %s", 
-                    addr, writeDataStr.c_str(), readDataMaskStr.c_str(), readDataStr.c_str());
+        LOG_I(MODULE_PREFIX, "getPollInfo addr %04x pauseAfterSendMs %d writeData %s readDataMask %s readData %s", 
+                    addr, pauseAfterSendMs, writeDataStr.c_str(), readDataMaskStr.c_str(), readDataStr.c_str());
 #endif
 
         // Create the poll request
@@ -254,7 +255,7 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
                 writeData.size(),
                 writeData.data(), 
                 readDataMask.size(),
-                0, 
+                pauseAfterSendMs,
                 NULL, 
                 NULL);
         pollingInfo.pollReqs.push_back(pollReq);
@@ -350,22 +351,29 @@ bool DeviceTypeRecords::extractBufferDataFromHexStr(const String& writeStr, std:
 /// @param readDataMask (out) mask data
 /// @param readDataCheck (out) check data
 /// @param maskToZeros true if mask should be set to zeros
+/// @param pauseAfterSendMs (out) pause after send time in ms
+/// @return true if successful
 bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std::vector<uint8_t>& readDataMask, 
-            std::vector<uint8_t>& readDataCheck, bool maskToZeros)
+            std::vector<uint8_t>& readDataCheck, bool maskToZeros, uint32_t& pauseAfterSendMs)
 {
     readDataCheck.clear();
     readDataMask.clear();
     String readStrLC = readStr;
     readStrLC.toLowerCase();
-    // Check for readStr starts with rNNNN (for read NNNN bytes)
-    if (readStrLC.startsWith("r"))
+
+    // Check bar access time
+    pauseAfterSendMs = extractBarAccessMs(readStr);
+
+    // If readStr contains rNNNN then it is a read request
+    int readIdx = readStrLC.indexOf("r");
+    if (readIdx >= 0)
     {
         // Compute length
-        uint32_t lenBytes = strtol(readStrLC.c_str() + 1, NULL, 10);
+        uint32_t lenBytes = strtol(readStrLC.c_str() + readIdx + 1, NULL, 10);
         // Extract the read data
         readDataMask.resize(lenBytes);
         readDataCheck.resize(lenBytes);
-        for (int i = 1; i < readStrLC.length(); i++)
+        for (int i = readIdx + 1; i < readStrLC.length(); i++)
         {
             readDataMask[i - 1] = maskToZeros ? 0xff : 0;
             readDataCheck[i - 1] = 0;
@@ -374,14 +382,15 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
     }
 
     // Check if readStr starts with 0x
-    else if (readStrLC.startsWith("0x"))
+    else if (readStrLC.indexOf("0x") >= 0)
     {
+        int hexIdx = readStrLC.indexOf("0x");
         // Compute length
-        uint32_t lenBytes = (readStrLC.length() - 2 + 1) / 2;
+        uint32_t lenBytes = (readStrLC.length() - hexIdx - 2 + 1) / 2;
         // Extract the read data
         readDataMask.resize(lenBytes);
         readDataCheck.resize(lenBytes);
-        Raft::getBytesFromHexStr(readStrLC.c_str() + 2, readDataCheck.data(), readDataCheck.size());
+        Raft::getBytesFromHexStr(readStrLC.c_str() + hexIdx + 2, readDataCheck.data(), readDataCheck.size());
         for (int i = 0; i < readDataMask.size(); i++)
         {
             readDataMask[i] = maskToZeros ? 0xff : 0;
@@ -390,17 +399,18 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
     }
 
     // Check if readStr starts with 0b 
-    else if (readStrLC.startsWith("0b"))
+    else if (readStrLC.indexOf("0b") >= 0)
     {
+        int binIdx = readStrLC.indexOf("0b");
         // Compute length
-        uint32_t lenBits = readStrLC.length() - 2;
+        uint32_t lenBits = readStrLC.length() - binIdx - 2;
         uint32_t lenBytes = (lenBits + 7) / 8;
         // Extract the read data
         readDataMask.resize(lenBytes);
         readDataCheck.resize(lenBytes);
         uint32_t bitMask = 0x80;
         uint32_t byteIdx = 0;
-        for (int i = 2; i < readStrLC.length(); i++)
+        for (int i = binIdx + 2; i < readStrLC.length(); i++)
         {
             if (bitMask == 0x80)
             {
@@ -451,7 +461,8 @@ bool DeviceTypeRecords::extractCheckInfoFromHexStr(const String& readStr, std::v
         // Extract the check data
         std::vector<uint8_t> readDataMask;
         std::vector<uint8_t> readDataCheck;
-        if (!extractMaskAndDataFromHexStr(readStrLC.substring(0, sectionIdx), readDataMask, readDataCheck, maskToZeros))
+        uint32_t pauseAfterSendMs = 0;
+        if (!extractMaskAndDataFromHexStr(readStrLC.substring(0, sectionIdx), readDataMask, readDataCheck, maskToZeros, pauseAfterSendMs))
         {
             return false;
         }
@@ -543,6 +554,12 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline, const DeviceTypeRecord* pDevTypeRec, 
         const std::vector<uint8_t>& devicePollResponseData) const
 {
+    if (devicePollResponseData.size() == 0)
+    {
+        // No data to report
+        return "";
+    }
+    
     // Device type name
     String devTypeName = pDevTypeRec ? pDevTypeRec->deviceType : "";
     // Form a hex buffer

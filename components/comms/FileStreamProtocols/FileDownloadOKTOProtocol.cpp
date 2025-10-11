@@ -126,8 +126,8 @@ RaftRetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTRe
     RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     String fileName = cmdFrame.getString("fileName", "");
     String fileType = cmdFrame.getString("fileType", "");
-    uint32_t blockSizeFromHost = cmdFrame.getLong("batchMsgSize", -1);
-    uint32_t batchAckSizeFromHost = cmdFrame.getLong("batchAckSize", -1);
+    int blockSizeFromHost = cmdFrame.getLong("batchMsgSize", -1);
+    int batchAckSizeFromHost = cmdFrame.getLong("batchAckSize", -1);
 
     // Validate the start message
     String errorMsg;

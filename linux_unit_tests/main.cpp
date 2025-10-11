@@ -1,8 +1,11 @@
 #include <stdio.h>
+#include "testhdr.h"
 #include "ArduinoWString.h"
 #include "RaftJson.h"
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
+
+#include "MsgExchangeHookTest.h"
 
 #include "JSON_test_data_large.h"
 #include "JSON_test_data_small.h"
@@ -335,6 +338,10 @@ int main()
         idx++;
         // printf("testObjectJSON %s: %s\n", myTestVar.first.c_str(), myTestVar.second.toString().c_str());
     }
+
+    // Test message handler
+    MsgExchangeHookTest msgExchangeHookTest;
+    msgExchangeHookTest.loop();
 
     // Check failCount
     if (failCount > 0)
