@@ -116,7 +116,11 @@ public:
     }
 
     // Register data source (message generator functions)
-    bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
+    virtual bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+    {
+        // Default implementation does nothing
+        return false;
+    }
 
     // // Get named value 
     // virtual double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const override;
