@@ -13,12 +13,12 @@
 
 #include <sys/stat.h>
 #include <sys/unistd.h>
+#include <dirent.h>
 
 #if !defined(__linux__)
 #include "esp_spiffs.h"
 #include "esp_vfs_fat.h"
 #include "esp_err.h"
-#include "dirent.h"
 #include "driver/sdmmc_host.h"
 #include "driver/sdmmc_defs.h"
 #include "driver/sdspi_host.h"
@@ -92,10 +92,12 @@ void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsForma
 
 void FileSystem::loop()
 {
+#if !defined(__linux__)
     if (!_cacheFileSystemInfo)
         return;
     fileSystemCacheService(_localFsCache);
     fileSystemCacheService(_sdFsCache);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -235,11 +237,13 @@ bool FileSystem::getFilesJSON(const char* req, const String& fileSystemStr, cons
 
     // Check if cached information can be used
     CachedFileSystem& cachedFs = nameOfFS.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
+#if !defined(__linux__)
     if (cachedFs.isUsed && _cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
     {
         LOG_I(MODULE_PREFIX, "getFilesJSON using cached info");
         return fileInfoCacheToJSON(req, cachedFs, "/", respStr);
     }
+#endif
 
     // Generate info immediately
     return fileInfoGenImmediate(req, cachedFs, folderStr, respStr);
@@ -385,7 +389,9 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
 #ifdef DEBUG_CACHE_FS_INFO
     LOG_I(MODULE_PREFIX, "setFileContents cache invalid");
 #endif
+#if !defined(__linux__)
     markFileCacheDirty(nameOfFS, filename);
+#endif
     RaftMutex_unlock(_fileSysMutex);
     return bytesWritten == fileContents.length();
 }
@@ -418,8 +424,10 @@ bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
 #ifdef DEBUG_CACHE_FS_INFO
     LOG_I(MODULE_PREFIX, "deleteFile cache invalid");
 #endif
+#if !defined(__linux__)
     markFileCacheDirty(nameOfFS, filename);
-    RaftMutex_unlock(_fileSysMutex);   
+#endif
+    RaftMutex_unlock(_fileSysMutex);
     return true;
 }
 
@@ -905,7 +913,9 @@ bool FileSystem::fileClose(FILE* pFile, const String& fileSystemStr, const Strin
     // Check if file modified
     if (fileModified)
     {
+#if !defined(__linux__)
         markFileCacheDirty(nameOfFS, filename);
+#endif
     }
     
     // Close file
@@ -1125,7 +1135,17 @@ void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
 // Setup local file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if !defined(__linux__)
+#if defined(__linux__)
+
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
+{
+    // Linux uses same directory-based approach for both SPIFFS and LittleFS
+    return localFileSystemSetupSPIFFS(formatIfCorrupt);
+}
+#endif
+
+#else  // ESP32 version
 
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
 bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
@@ -1195,9 +1215,30 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 }
 #endif
 
+#endif  // __linux__ / ESP32 LittleFS setup
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup local file system
+// Setup local file system - SPIFFS
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(__linux__)
+
+bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
+{
+    // Create directory for local file system simulation
+    mkdir("/tmp/sandbot_local", 0755);
+    _localFsType = LOCAL_FS_SPIFFS;
+    _localFsCache.isUsed = true;
+    _localFsCache.fsName = LOCAL_FILE_SYSTEM_NAME;
+    _localFsCache.fsBase = "/tmp/sandbot_local";
+    _localFsCache.fsSizeBytes = 1024 * 1024 * 100; // 100MB
+    _localFsCache.fsUsedBytes = 0;
+    _localFsCache.isSizeInfoValid = true;
+    LOG_I(MODULE_PREFIX, "localFileSystemSetup Linux directory /tmp/sandbot_local created");
+    return true;
+}
+
+#else  // ESP32 version
 
 bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
 {
@@ -1264,9 +1305,35 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     return true;
 }
 
+#endif  // __linux__ / ESP32 SPIFFS setup
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup SD file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(__linux__)
+
+bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin)
+{
+    if (!enableSD)
+    {
+        LOG_I(MODULE_PREFIX, "sdFileSystemSetup SD disabled");
+        return false;
+    }
+
+    // Create directory for SD card simulation
+    mkdir("/tmp/sandbot_sd", 0755);
+    _sdFsCache.isUsed = true;
+    _sdFsCache.fsName = SD_FILE_SYSTEM_NAME;
+    _sdFsCache.fsBase = "/tmp/sandbot_sd";
+    _sdFsCache.fsSizeBytes = 1024 * 1024 * 1000; // 1GB
+    _sdFsCache.fsUsedBytes = 0;
+    _sdFsCache.isSizeInfoValid = true;
+    LOG_I(MODULE_PREFIX, "sdFileSystemSetup Linux directory /tmp/sandbot_sd created");
+    return true;
+}
+
+#else  // ESP32 version
 
 bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin)
 {
@@ -1389,9 +1456,13 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
     return true;
 }
 
+#endif  // __linux__ / ESP32 SD setup
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Convert cached file system info to JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if !defined(__linux__)
 
 bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr)
 {
@@ -1422,6 +1493,8 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
     Raft::setJsonErrorResult(req, respStr, "fsinfodirty");
     return false;
 }
+
+#endif  // !defined(__linux__) - ESP32-only cache function
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get JSON file info immediately
@@ -1520,6 +1593,20 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 // Update File system info cache
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#if defined(__linux__)
+
+bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr)
+{
+    // On Linux, size info is already set during setup
+    if (cachedFs.isSizeInfoValid)
+        return true;
+
+    LOG_W(MODULE_PREFIX, "fileSysInfoUpdateCache size info not valid on Linux");
+    return false;
+}
+
+#else  // ESP32 version
+
 bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr)
 {
     // Take mutex
@@ -1581,9 +1668,13 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
     return true;
 }
 
+#endif  // __linux__ / ESP32 fileSysInfoUpdateCache
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Mark file cache dirty
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if !defined(__linux__)
 
 void FileSystem::markFileCacheDirty(const String& fsName, const String& filename)
 {
@@ -1628,7 +1719,7 @@ void FileSystem::markFileCacheDirty(const String& fsName, const String& filename
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Mark file cache dirty
+// File system cache service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
@@ -1749,7 +1840,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
     }
 }
 
-#endif
+#endif  // !defined(__linux__) - ESP32-only cache functions
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Format JSON file info
