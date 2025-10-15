@@ -116,7 +116,7 @@ RestAPIEndpoint* RestAPIEndpointManager::getMatchingEndpoint(const char *request
 
 #ifdef DEBUG_REST_API_ENDPOINTS_GET
     // Debug
-    LOG_I(MODULE_PREFIX, "reqStr %s requestEndpoint %s, num endpoints %d", 
+    LOG_I(MODULE_PREFIX, "reqStr %s requestEndpoint %s, num endpoints %zu",
                 requestStr, requestEndpoint.c_str(), _endpointsList.size());
 #endif
 
