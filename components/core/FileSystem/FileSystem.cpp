@@ -117,7 +117,8 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     String nameOfFS;
     if (!force && !checkFileSystem(fileSystemStr, nameOfFS))
     {
-        LOG_W(MODULE_PREFIX, "reformat invalid file system %s returned %s default %s", fileSystemStr.c_str(), nameOfFS.c_str(), getDefaultFSRoot());
+        LOG_W(MODULE_PREFIX, "reformat invalid file system %s returned %s default %s", 
+                        fileSystemStr.c_str(), nameOfFS.c_str(), getDefaultFSRoot().c_str());
         Raft::setJsonErrorResult("reformat", respStr, "invalidfs");
         return false;
     }
