@@ -19,6 +19,7 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "esp_app_desc.h"
+#include "esp_random.h"
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #ifdef __cplusplus
 extern "C" {
@@ -138,6 +139,36 @@ String platform_getCompileTime(bool includeDate)
     return (includeDate ? " " + String(pAppDesc->date) : "") + String(pAppDesc->time);
 }
 
+/// @brief Convert ESP-IDF/LWIP error code to string
+/// @param err Error code (err_t from lwip/err.h)
+/// @return String description of the error
+const char* espIdfErrToStr(int err)
+{
+    // LWIP error codes - from lwip/err.h
+    // ERR_OK = 0, ERR_MEM = -1, ERR_BUF = -2, etc.
+    switch(err)
+    {
+        case 0: return "OK";              // ERR_OK
+        case -1: return "Out of Mem";     // ERR_MEM
+        case -2: return "Buffer error";   // ERR_BUF
+        case -3: return "Timeout";        // ERR_TIMEOUT
+        case -4: return "Routing problem"; // ERR_RTE
+        case -5: return "Op in progress"; // ERR_INPROGRESS
+        case -6: return "Illegal value";  // ERR_VAL
+        case -7: return "Op would block"; // ERR_WOULDBLOCK
+        case -8: return "Addr in Use";    // ERR_USE
+        case -9: return "Already connecting"; // ERR_ALREADY
+        case -10: return "Already connected"; // ERR_ISCONN
+        case -11: return "Write error";   // ERR_CONN
+        case -12: return "NETIF error";   // ERR_IF
+        case -13: return "Conn aborted";  // ERR_ABRT
+        case -14: return "Conn reset";    // ERR_RST
+        case -15: return "Conn closed";   // ERR_CLSD
+        case -16: return "Illegal arg";   // ERR_ARG
+    }
+    return "UNKNOWN";
+}
+
 #endif // ESP8266
 
 #else
@@ -145,6 +176,7 @@ String platform_getCompileTime(bool includeDate)
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 // char* utoa(unsigned value, char* result, int base) {
 //     // check that the base if valid
@@ -529,4 +561,15 @@ uint32_t utilsGetSPIRAMSize()
 #else
     return UINT32_MAX;
 #endif // ESP_PLATFORM
+}
+
+// Get a platform-independent random number
+uint32_t platform_random()
+{
+#ifdef ESP_PLATFORM
+    return esp_random();
+#else
+    // Use standard library random for non-ESP platforms
+    return (uint32_t)rand();
+#endif
 }
