@@ -15,6 +15,8 @@ typedef String (*SysManager_statsCB)();
 
 class RaftSysMod;
 class RestAPIEndpointManager;
+class ProtocolExchange;
+class DeviceManager;
 
 class SysManagerIF : public NamedValueProvider
 {
@@ -59,8 +61,24 @@ public:
     {
         return "";
     }
-    // bool getFriendlyNameIsSet() const;
-    // bool setFriendlyName(const String& friendlyName, bool setHostname, String& respStr);
+
+    // Get friendly name is set
+    virtual bool getFriendlyNameIsSet() const
+    {
+        return false;
+    }
+
+    // Set friendly name
+    virtual bool setFriendlyName(const String& friendlyName, bool setHostname, String& respStr)
+    {
+        return false;
+    }
+
+    // Get system version
+    virtual String getSystemVersion() const
+    {
+        return "";
+    }
 
     // // Set system unique string
     // void setSystemUniqueString(const char* sysUniqueStr)
@@ -122,6 +140,12 @@ public:
         return false;
     }
 
+    // Request system restart
+    virtual void systemRestart()
+    {
+        // Default implementation does nothing
+    }
+
     // // Get named value 
     // virtual double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const override;
 
@@ -166,25 +190,17 @@ public:
         return nullptr;
     }
 
-    // // Protocol exchange
-    // void setProtocolExchange(ProtocolExchange* pProtocolExchange)
-    // {
-    //     _pProtocolExchange = pProtocolExchange;
-    // }
-    // ProtocolExchange* getProtocolExchange()
-    // {
-    //     return _pProtocolExchange;
-    // }
+    // Protocol exchange
+    virtual ProtocolExchange* getProtocolExchange()
+    {
+        return nullptr;
+    }
 
-    // // Device manager
-    // void setDeviceManager(DeviceManager* pDeviceManager)
-    // {
-    //     _pDeviceManager = pDeviceManager;
-    // }
-    // DeviceManager* getDeviceManager()
-    // {
-    //     return _pDeviceManager;
-    // }
+    // Device manager
+    virtual DeviceManager* getDeviceManager()
+    {
+        return nullptr;
+    }
 
     // Get supervisor stats
     virtual SupervisorStats* getStats()
