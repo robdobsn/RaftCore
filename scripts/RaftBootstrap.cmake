@@ -15,21 +15,26 @@ get_filename_component(_test_build_base_folder ${CMAKE_BINARY_DIR} DIRECTORY)
 get_filename_component(_test_build_base_folder ${_test_build_base_folder} NAME)
 if(${_systype_name} STREQUAL "build" AND NOT ${_test_build_base_folder} STREQUAL "build")
 
-    # We are building in the root of the build folder so we now need to find the first systype
-    set(_systype_name "")
-    file(GLOB _all_systype_dirs RELATIVE ${CMAKE_SOURCE_DIR}/systypes ${CMAKE_SOURCE_DIR}/systypes/*)
+    # Check if the parent folder is a valid systype (e.g., systypes/SandBotLinux/build)
+    if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/systypes/${_test_build_base_folder})
+        set(_systype_name ${_test_build_base_folder})
+    else()
+        # We are building in the root of the build folder so we now need to find the first systype
+        set(_systype_name "")
+        file(GLOB _all_systype_dirs RELATIVE ${CMAKE_SOURCE_DIR}/systypes ${CMAKE_SOURCE_DIR}/systypes/*)
 
-    # Iterate over all systype folders (skip the Common folder if it exists)
-    foreach(_systype_dir IN LISTS _all_systype_dirs)
-        if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/systypes/${_systype_dir} AND NOT _systype_dir STREQUAL "Common")
-            set(_systype_name ${_systype_dir})
-            break()
+        # Iterate over all systype folders (skip the Common folder if it exists)
+        foreach(_systype_dir IN LISTS _all_systype_dirs)
+            if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/systypes/${_systype_dir} AND NOT _systype_dir STREQUAL "Common")
+                set(_systype_name ${_systype_dir})
+                break()
+            endif()
+        endforeach()
+
+        # Check if a valid systype was found
+        if(_systype_name STREQUAL "")
+            message(FATAL_ERROR "No valid systype found in systypes folder")
         endif()
-    endforeach()
-
-    # Check if a valid systype was found
-    if(_systype_name STREQUAL "")
-        message(FATAL_ERROR "No valid systype found in systypes folder")
     endif()
 else()
     # We are building in a subfolder of the build folder so we can use the subfolder name as the systype name
@@ -62,6 +67,18 @@ file(WRITE "${RAFT_BUILD_ARTIFACTS_FOLDER}/cursystype.txt" "${_systype_name}")
 # Configure build config specific features (options, flags, etc).
 include(${BUILD_CONFIG_DIR}/features.cmake)
 
+# Check if this is a Linux build
+if(DEFINED IDF_TARGET AND IDF_TARGET STREQUAL "linux")
+    message(STATUS "Detected Linux target build")
+    set(RAFT_BUILD_FOR_LINUX TRUE)
+    add_compile_definitions(__linux__)
+    add_compile_definitions(RAFT_CORE)
+    # For Linux, we don't use ESP-IDF's custom language system
+    set(ADDED_PROJECT_DEPENDENCIES "")
+else()
+    set(RAFT_BUILD_FOR_LINUX FALSE)
+endif()
+
 ################################################
 # Raft components
 ################################################
@@ -72,19 +89,41 @@ foreach(_raft_component ${RAFT_COMPONENTS})
     # Split the component name into the component name and the optional tag on the @ or # symbol
     string(REGEX REPLACE "[@#]" ";" _raft_component_split ${_raft_component})
     list(GET _raft_component_split 0 _raft_component_name)
-    string(TOLOWER ${_raft_component_name} _raft_component_lower)
-
+    
     # Get the tag if present
     list(LENGTH _raft_component_split _raft_component_split_len)
     if(${_raft_component_split_len} GREATER 1)
         list(GET _raft_component_split 1 _raft_component_tag)
+    else()
+        set(_raft_component_tag "")
     endif()
+
+    # Check if the component name is a full URL or just a repo name
+    if(_raft_component_name MATCHES "^https?://")
+        # Full URL provided (e.g., https://github.com/robdobsn/RaftCore.git)
+        set(_raft_repo_url ${_raft_component_name})
+        
+        # Extract the repository name from the URL for the source directory
+        # Remove .git suffix if present
+        string(REGEX REPLACE "\\.git$" "" _raft_repo_url_no_git ${_raft_component_name})
+        # Extract last component of path (repo name)
+        string(REGEX REPLACE "^.*/([^/]+)$" "\\1" _raft_repo_name ${_raft_repo_url_no_git})
+        
+        set(_raft_component_name ${_raft_repo_name})
+    else()
+        # Just a repo name provided (e.g., RaftCore)
+        # Construct the full GitHub URL
+        set(_raft_repo_url "https://github.com/robdobsn/${_raft_component_name}.git")
+    endif()
+    
+    # Create lowercase version for FetchContent variable names
+    string(TOLOWER ${_raft_component_name} _raft_component_lower)
 
     # Fetch the Raft library
     FetchContent_Declare(
         ${_raft_component_lower}
         SOURCE_DIR     ${RAFT_BUILD_ARTIFACTS_FOLDER}/${_raft_component_name}
-        GIT_REPOSITORY https://github.com/robdobsn/${_raft_component_name}.git
+        GIT_REPOSITORY ${_raft_repo_url}
         GIT_TAG        ${_raft_component_tag}
     )
     FetchContent_Populate(${_raft_component_lower})
@@ -101,5 +140,16 @@ endforeach()
 # Continue with the RaftCore script
 ################################################
 
-# Include the RaftCore script
-include("${RAFT_BUILD_ARTIFACTS_FOLDER}/RaftCore/scripts/RaftBootstrapPhase2.cmake")
+if(RAFT_BUILD_FOR_LINUX)
+    # For Linux builds, use a simplified build process
+    message(STATUS "Using Linux build process")
+    # Check if there's a local RaftBootstrapLinux.cmake (for development/testing)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/RaftBootstrapLinux.cmake")
+        include("${CMAKE_SOURCE_DIR}/RaftBootstrapLinux.cmake")
+    else()
+        include("${RAFT_BUILD_ARTIFACTS_FOLDER}/RaftCore/scripts/RaftBootstrapLinux.cmake")
+    endif()
+else()
+    # For ESP32 builds, use the standard Phase2 script
+    include("${RAFT_BUILD_ARTIFACTS_FOLDER}/RaftCore/scripts/RaftBootstrapPhase2.cmake")
+endif()
