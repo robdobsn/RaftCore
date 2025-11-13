@@ -300,6 +300,45 @@ message(STATUS "RaftWebServer source: ${raftwebserver_SOURCE_DIR}")
 message(STATUS "RaftMotorControl source: ${raftmotorcontrol_SOURCE_DIR}")
 
 ################################################
+# WebUI Build and Deployment
+################################################
+
+# Check if UI_SOURCE_PATH is defined in features.cmake
+if(DEFINED UI_SOURCE_PATH)
+    # Convert relative path to absolute
+    if(NOT IS_ABSOLUTE ${UI_SOURCE_PATH})
+        set(_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
+    else()
+        set(_ui_source_path "${UI_SOURCE_PATH}")
+    endif()
+    
+    # WebUI output directory
+    set(_ui_output_dir "${CMAKE_BINARY_DIR}/linuxfs")
+    
+    message(STATUS "WebUI source: ${_ui_source_path}")
+    message(STATUS "WebUI output: ${_ui_output_dir}")
+    
+    # Check if package.json exists (indicating a buildable WebUI)
+    if(EXISTS "${_ui_source_path}/package.json")
+        # Add custom target to build WebUI
+        add_custom_target(BuildWebUI
+            COMMAND ${CMAKE_COMMAND} -E echo "Building WebUI..."
+            COMMAND bash -c "cd ${_ui_source_path} && if [ ! -d node_modules ]; then npm install; fi && npm run build"
+            COMMAND ${CMAKE_COMMAND} -E echo "Copying WebUI to ${_ui_output_dir}..."
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${_ui_output_dir}
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${_ui_source_path}/dist ${_ui_output_dir}
+            COMMENT "Building and deploying WebUI"
+            VERBATIM
+        )
+        message(STATUS "WebUI build target created - run 'make BuildWebUI' to build")
+    else()
+        message(STATUS "No package.json found in ${_ui_source_path}, skipping WebUI build")
+    endif()
+else()
+    message(STATUS "UI_SOURCE_PATH not defined, skipping WebUI setup")
+endif()
+
+################################################
 # Application Sources
 ################################################
 

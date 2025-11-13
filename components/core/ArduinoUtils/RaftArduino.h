@@ -13,6 +13,7 @@
 #ifdef ESP_PLATFORM
 #include "sdkconfig.h"
 #include "esp_idf_version.h"
+#include "esp_attr.h"
 #else
 #define IRAM_ATTR
 #endif
