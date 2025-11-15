@@ -189,11 +189,17 @@ add_dependencies(RaftCoreLinux GenerateSysTypeInfoRecs)
 set(RAFTSYSMODS_SOURCES
     ${raftsysmods_SOURCE_DIR}/components/SerialConsole/SerialConsole.cpp
     ${raftsysmods_SOURCE_DIR}/components/FileManager/FileManager.cpp
+    ${raftsysmods_SOURCE_DIR}/components/StatePublisher/StatePublisher.cpp
+    ${raftsysmods_SOURCE_DIR}/components/CommandFile/CommandFile.cpp
+    ${raftsysmods_SOURCE_DIR}/components/CommandSerial/CommandSerial.cpp
 )
 
 set(RAFTSYSMODS_INCLUDES
     ${raftsysmods_SOURCE_DIR}/components/SerialConsole
     ${raftsysmods_SOURCE_DIR}/components/FileManager
+    ${raftsysmods_SOURCE_DIR}/components/StatePublisher
+    ${raftsysmods_SOURCE_DIR}/components/CommandFile
+    ${raftsysmods_SOURCE_DIR}/components/CommandSerial
     ${raftsysmods_SOURCE_DIR}/components/RegisterSysMods
 )
 
