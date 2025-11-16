@@ -19,7 +19,7 @@ public:
     PollDataAggregator()
     {
         // Access semaphore
-        _accessMutex = xSemaphoreCreateMutex();
+        RaftMutex_init(_accessMutex);
     }
 
     ////////////////////////////////////////////////////////////////////////////
