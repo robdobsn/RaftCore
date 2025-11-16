@@ -25,6 +25,7 @@
 
 CommsChannel::CommsChannel(const char* pSourceProtocolName, 
             const char* interfaceName, 
+            const char* channelGroup,
             const char* channelName,
             CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
             CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
@@ -39,6 +40,7 @@ CommsChannel::CommsChannel(const char* pSourceProtocolName,
     _channelProtocolName = pSourceProtocolName;
     _outboundHandleMsgCB = outboundHandleMsgCB;
     _interfaceName = interfaceName;
+    _channelGroup = channelGroup;
     _channelName = channelName;
     _outboundCanAcceptCB = outboundCanAcceptCB;
     _pProtocolCodec = NULL;
