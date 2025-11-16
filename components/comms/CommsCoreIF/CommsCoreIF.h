@@ -41,7 +41,6 @@ public:
     // Returns an ID used to identify this channel
     virtual uint32_t registerChannel(const char* protocolName, 
                 const char* interfaceName,
-                const char* channelGroup,
                 const char* channelName, 
                 CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
                 CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
@@ -71,7 +70,6 @@ public:
 
     // Get channel IDs
     virtual int32_t getChannelIDByName(const String& channelName, const String& protocolName) = 0;
-    virtual void getChannelIDsByGroup(const String& channelGroup, const String& protocolName, std::vector<uint32_t>& channelIDs) = 0;
 
     // Register and unregister a bridge between two different interfaces
     virtual uint32_t bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, 

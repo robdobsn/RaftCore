@@ -27,7 +27,6 @@ public:
     // xxBlockMax and xxQueueMaxLen parameters can be 0 for defaults to be used
     CommsChannel(const char* pSourceProtocolName, 
                 const char* interfaceName, 
-                const char* channelGroup,
                 const char* channelName,
                 CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
                 CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
@@ -37,11 +36,6 @@ private:
     String getInterfaceName()
     {
         return _interfaceName;
-    }
-
-    String getChannelGroup()
-    {
-        return _channelGroup;
     }
 
     String getChannelName()
@@ -132,9 +126,8 @@ private:
     // Callback to send message on channel
     CommsChannelOutboundHandleMsgFnType _outboundHandleMsgCB;
 
-    // Name of interface, channel group, and channel
+    // Name of interface and channel
     String _interfaceName;
-    String _channelGroup;
     String _channelName;
 
     // Protocol codec

@@ -25,12 +25,10 @@
 
 #define WARN_ON_NO_CHANNEL_MATCH
 // #define DEBUG_OUTBOUND_NON_PUBLISH
-// #define DEBUG_OUTBOUND_PUBLISH
+#define DEBUG_OUTBOUND_PUBLISH
 // #define DEBUG_OUTBOUND_MSG
 // #define DEBUG_INBOUND_MESSAGE
 // #define DEBUG_COMMS_MANAGER_SERVICE
-// #define DEBUG_REGISTER_CHANNEL
-// #define DEBUG_CHANNEL_ID
 // #define DEBUG_COMMS_MANAGER_SERVICE_NOTSENT
 // #define DEBUG_CHANNEL_ID
 // #define DEBUG_PROTOCOL_CODEC
@@ -148,13 +146,13 @@ void CommsChannelManager::loop()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 uint32_t CommsChannelManager::registerChannel(const char* protocolName, 
-                    const char* interfaceName, const char* channelGroup, const char* channelName,
+                    const char* interfaceName, const char* channelName,
                     CommsChannelOutboundHandleMsgFnType outboundHandleMsgCB, 
                     CommsChannelOutboundCanAcceptFnType outboundCanAcceptCB,
                     const CommsChannelSettings* pSettings)
 {
     // Create new command definition and add
-    CommsChannel* pCommsChannel = new CommsChannel(protocolName, interfaceName, channelGroup, channelName, 
+    CommsChannel* pCommsChannel = new CommsChannel(protocolName, interfaceName, channelName, 
                     outboundHandleMsgCB, outboundCanAcceptCB, pSettings);
     if (pCommsChannel)
     {
@@ -165,8 +163,8 @@ uint32_t CommsChannelManager::registerChannel(const char* protocolName,
         uint32_t channelID = _commsChannelVec.size() - 1;
 
 #ifdef DEBUG_REGISTER_CHANNEL
-        LOG_I(MODULE_PREFIX, "registerChannel protocolName %s interfaceName %s channelGroup %s channelID %d", 
-                    protocolName, interfaceName, channelGroup, channelID);
+        LOG_I(MODULE_PREFIX, "registerChannel protocolName %s interfaceName %s channelID %d", 
+                    protocolName, interfaceName, channelID);
 #endif
 
         // Return channelID
@@ -174,8 +172,8 @@ uint32_t CommsChannelManager::registerChannel(const char* protocolName,
     }
 
     // Failed to create channel
-    LOG_W(MODULE_PREFIX, "registerChannel FAILED protocolName %s interfaceName %s channelGroup %s", 
-                protocolName, interfaceName, channelGroup);
+    LOG_W(MODULE_PREFIX, "registerChannel FAILED protocolName %s interfaceName %s", 
+                protocolName, interfaceName);
     return CommsCoreIF::CHANNEL_ID_UNDEFINED;
 }
 
@@ -210,46 +208,14 @@ int32_t CommsChannelManager::getChannelIDByName(const String& channelName, const
                     pChannel->getChannelName().c_str(), channelName.c_str(),
                     pChannel->getSourceProtocolName().c_str(), protocolName.c_str());
 #endif
-        // Match by channel name
         if (pChannel->getChannelName().equalsIgnoreCase(channelName) &&
-            pChannel->getSourceProtocolName().equalsIgnoreCase(protocolName))
-                return channelID;
+                        (pChannel->getSourceProtocolName().equalsIgnoreCase(protocolName)))
+            return channelID;
     }
 #ifdef WARN_ON_NO_CHANNEL_MATCH
     LOG_W(MODULE_PREFIX, "getChannelID noMatch chName %s protocol %s", channelName.c_str(), protocolName.c_str());
 #endif
     return -1;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get channel IDs by group
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void CommsChannelManager::getChannelIDsByGroup(const String& channelGroup, const String& protocolName, std::vector<uint32_t>& channelIDs)
-{
-    // Iterate the channels list to find matches
-    channelIDs.clear();
-    for (uint32_t channelID = 0; channelID < _commsChannelVec.size(); channelID++)
-    {
-        // Check if channel is used
-        CommsChannel* pChannel = _commsChannelVec[channelID];
-        if (!pChannel)
-            continue;
-
-#ifdef DEBUG_CHANNEL_ID
-        LOG_I(MODULE_PREFIX, "Testing chGroup %s with %s protocol %s with %s", 
-                    pChannel->getChannelGroup().c_str(), channelGroup.c_str(),
-                    pChannel->getSourceProtocolName().c_str(), protocolName.c_str());
-#endif
-        // Match by channel group
-        if (pChannel->getChannelGroup().equalsIgnoreCase(channelGroup) &&
-            pChannel->getSourceProtocolName().equalsIgnoreCase(protocolName))
-            channelIDs.push_back(channelID);
-    }
-#ifdef WARN_ON_NO_CHANNEL_MATCH
-    if (channelIDs.size() == 0)
-        LOG_W(MODULE_PREFIX, "getChannelIDsByGroup noMatch chGroup %s protocol %s", channelGroup.c_str(), protocolName.c_str());
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
