@@ -109,7 +109,7 @@ extern "C" {
     void RaftMutex_destroy(RaftMutex &mutex);
 
     // Thread handle
-    static const pthread_t RAFT_THREAD_HANDLE_INVALID = nullptr;
+    static const pthread_t RAFT_THREAD_HANDLE_INVALID = 0;
     typedef pthread_t RaftThreadHandle;
 
     // Thread functions

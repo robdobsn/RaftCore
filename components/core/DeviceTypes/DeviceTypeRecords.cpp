@@ -9,6 +9,7 @@
 #include "DeviceTypeRecords.h"
 #include "BusRequestInfo.h"
 #include "RaftJson.h"
+#include "RaftUtils.h"
 
 // #define DEBUG_DEVICE_INFO_RECORDS
 // #define DEBUG_POLL_REQUEST_REQS
@@ -732,8 +733,9 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Add extended device type record
 /// @param devTypeRec device type record
+/// @param deviceTypeIndex (out) device type index
 /// @return true if added
-bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecord& devTypeRec)
+bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, uint16_t& deviceTypeIndex)
 {
     bool isAdded = false;
     if (RaftMutex_lock(_extDeviceTypeRecordsMutex, UINT32_MAX))
@@ -742,15 +744,19 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecord& devT
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
             if (extDevTypeRec.deviceTypeName == devTypeRec.deviceTypeName)
+            {
+                RaftMutex_unlock(_extDeviceTypeRecordsMutex);
                 return false; // Already exists
+            }
         }
         // Add the record
         _extendedDevTypeRecords.push_back(devTypeRec);
+        deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE + _extendedDevTypeRecords.size() - 1;
         isAdded = true;
 
         // Update flag
         _extendedRecordsAdded = true;
-        LOG_I(MODULE_PREFIX, "Extended device type record added: %s", devTypeRec.deviceTypeName);
+        LOG_I(MODULE_PREFIX, "Extended device type record added: %s (idx=%d)", devTypeRec.deviceTypeName.c_str(), deviceTypeIndex);
         
         // TODO - save to non-volatile storage
         // ...
@@ -806,7 +812,7 @@ bool DeviceTypeRecords::extractCRCValidationFromStr(const String& crcStr, Device
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Extract field checks from string
-/// @param readStr String containing field checks
+/// @param readStr String containing field checks (format: "0xADDR=XXXX{crc:...}XXXX{crc:...}")
 /// @param fieldChecks Vector of field checks to fill
 /// @param maskToZeros Whether X in hex should be masked to zeros
 /// @return true if successful
@@ -814,38 +820,67 @@ bool DeviceTypeRecords::extractFieldChecksFromStr(const String& readStr, std::ve
 {
     fieldChecks.clear();
     
-    String remainingStr = readStr;
+    // First, check if this contains an '=' separator (address=data format)
+    int equalsPos = readStr.indexOf('=');
+    if (equalsPos < 0) {
+        // No '=' means invalid format for CRC validation
+        return false;
+    }
+    
+    // Skip the address part (everything before '=')
+    String dataStr = readStr.substring(equalsPos + 1);
+    
+    // Now parse the data part which contains fields and CRC markers
     int curPos = 0;
     
-    while (curPos < remainingStr.length()) {
+    while (curPos < dataStr.length()) {
         DeviceDetectionRec::FieldCheck fieldCheck;
         
-        // Find the data part (0x or 0b prefix)
-        int dataStart = -1;
-        if (remainingStr.indexOf("0x", curPos) >= 0) {
-            dataStart = remainingStr.indexOf("0x", curPos);
-        } else if (remainingStr.indexOf("0b", curPos) >= 0) {
-            dataStart = remainingStr.indexOf("0b", curPos);
+        // Find the next data field (starting with XXXX or 0x or 0b)
+        // Skip any leading characters
+        while (curPos < dataStr.length() && dataStr.charAt(curPos) != 'X' && 
+               dataStr.charAt(curPos) != 'x' && dataStr.charAt(curPos) != '0') {
+            curPos++;
         }
         
-        if (dataStart < 0)
+        if (curPos >= dataStr.length())
             break;
-            
-        // Find the end of this section (either start of CRC or another field)
-        int dataEnd = remainingStr.indexOf("{", dataStart);
-        if (dataEnd < 0) {
-            // Look for next field
-            int nextField = remainingStr.indexOf("0x", dataStart + 2);
-            if (nextField < 0) {
-                nextField = remainingStr.indexOf("0b", dataStart + 2);
+        
+        // Determine the data part end (either '{' for CRC or next field)
+        int dataEnd = curPos;
+        bool foundDataBytes = false;
+        
+        // Count the data bytes (X's or hex digits)
+        while (dataEnd < dataStr.length() && dataStr.charAt(dataEnd) != '{') {
+            char c = dataStr.charAt(dataEnd);
+            if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || 
+                (c >= 'a' && c <= 'f') || c == 'X' || c == 'x') {
+                foundDataBytes = true;
+                dataEnd++;
+            } else if (c == ' ' || c == '&') {
+                // Allow separators but stop at them if we've found data
+                if (foundDataBytes)
+                    break;
+                dataEnd++;
+            } else {
+                break;
             }
-            dataEnd = nextField >= 0 ? nextField : remainingStr.length();
         }
         
-        // Extract the data part
-        String dataPart = remainingStr.substring(dataStart, dataEnd);
+        if (!foundDataBytes) {
+            return false;
+        }
         
-        // Parse data and mask
+        // Extract the data part (just the hex/wildcard bytes)
+        String dataPart = dataStr.substring(curPos, dataEnd);
+        dataPart.trim();
+        
+        // Parse data and mask - prepend "0x" if not present
+        if (!dataPart.startsWith("0x") && !dataPart.startsWith("0X") && 
+            !dataPart.startsWith("0b") && !dataPart.startsWith("0B")) {
+            dataPart = "0x" + dataPart;
+        }
+        
         std::vector<uint8_t> dataMask;
         std::vector<uint8_t> dataValue;
         uint32_t pauseMs = 0;
@@ -853,16 +888,17 @@ bool DeviceTypeRecords::extractFieldChecksFromStr(const String& readStr, std::ve
             return false;
         }
         
+        fieldCheck.dataToCheck = dataValue;  // Store the data pattern
         fieldCheck.mask = dataMask;
         fieldCheck.expectedValue = dataValue;
         
-        // Check for CRC validation
-        if (dataEnd < remainingStr.length() && remainingStr.charAt(dataEnd) == '{') {
-            int crcEnd = remainingStr.indexOf("}", dataEnd);
+        // Check for CRC validation following this field
+        if (dataEnd < dataStr.length() && dataStr.charAt(dataEnd) == '{') {
+            int crcEnd = dataStr.indexOf("}", dataEnd);
             if (crcEnd < 0)
                 return false;
                 
-            String crcPart = remainingStr.substring(dataEnd, crcEnd + 1);
+            String crcPart = dataStr.substring(dataEnd, crcEnd + 1);
             fieldCheck.hasCRC = true;
             
             if (!extractCRCValidationFromStr(crcPart, fieldCheck.crcValidation)) {
@@ -879,4 +915,69 @@ bool DeviceTypeRecords::extractFieldChecksFromStr(const String& readStr, std::ve
     }
     
     return !fieldChecks.empty();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Calculate CRC using specified algorithm
+/// @param data Pointer to data buffer
+/// @param length Length of data
+/// @param algorithm CRC algorithm to use
+/// @return Calculated CRC value
+uint8_t DeviceTypeRecords::calculateCRC(const uint8_t* data, size_t length, DeviceDetectionRec::CRCAlgorithm algorithm)
+{
+    switch (algorithm)
+    {
+        case DeviceDetectionRec::CRCAlgorithm::CRC_SENSIRION_8:
+            return calculateSensirionCRC8(data, length);
+        case DeviceDetectionRec::CRCAlgorithm::CRC_MAX30101_8:
+            return calculateMAX30101CRC8(data, length);
+        case DeviceDetectionRec::CRCAlgorithm::NONE:
+        default:
+            return 0;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Calculate Sensirion CRC-8
+/// @param data Pointer to data buffer
+/// @param length Length of data
+/// @return Calculated CRC value
+/// @note Algorithm: Polynomial 0x31 (x^8 + x^5 + x^4 + 1), Initial value 0xFF
+///       Based on Sensirion embedded-i2c-scd4x driver implementation
+///       Reference: https://github.com/Sensirion/embedded-i2c-scd4x/blob/main/sensirion_i2c.c
+uint8_t DeviceTypeRecords::calculateSensirionCRC8(const uint8_t* data, size_t length)
+{
+    const uint8_t CRC8_POLYNOMIAL = 0x31;
+    const uint8_t CRC8_INIT = 0xFF;
+    
+    uint8_t crc = CRC8_INIT;
+    
+    // Calculate 8-bit checksum with given polynomial
+    for (size_t currentByte = 0; currentByte < length; ++currentByte)
+    {
+        crc ^= data[currentByte];
+        for (uint8_t crcBit = 8; crcBit > 0; --crcBit)
+        {
+            if (crc & 0x80)
+                crc = (crc << 1) ^ CRC8_POLYNOMIAL;
+            else
+                crc = (crc << 1);
+        }
+    }
+    
+    return crc;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Calculate MAX30101 CRC-8
+/// @param data Pointer to data buffer
+/// @param length Length of data
+/// @return Calculated CRC value
+/// @note This is a placeholder implementation. The MAX30101 datasheet should be consulted
+///       for the specific CRC algorithm used by this sensor if different from Sensirion
+uint8_t DeviceTypeRecords::calculateMAX30101CRC8(const uint8_t* data, size_t length)
+{
+    // For now, use the same CRC-8 algorithm as Sensirion
+    // This may need to be updated based on MAX30101 datasheet specifications
+    return calculateSensirionCRC8(data, length);
 }

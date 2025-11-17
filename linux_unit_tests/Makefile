@@ -11,7 +11,7 @@ INCLUDES = -I. -I../unit_tests/main -I../components/core/ArduinoUtils -I../compo
 MAIN_SOURCES = main.cpp ../components/core/ArduinoUtils/ArduinoWString.cpp ../components/core/Utils/RaftUtils.cpp ../components/core/Utils/PlatformUtils.cpp
 
 # Source files for device type records test
-DEVICE_TYPE_SOURCES = DeviceTypeRecordsTest.cpp ../components/core/ArduinoUtils/ArduinoWString.cpp ../components/core/Utils/RaftUtils.cpp ../components/core/Utils/PlatformUtils.cpp ../components/core/DeviceTypes/DeviceTypeRecords.cpp
+DEVICE_TYPE_SOURCES = DeviceTypeRecordsTest.cpp ../components/core/ArduinoUtils/ArduinoWString.cpp ../components/core/Utils/RaftUtils.cpp ../components/core/Utils/PlatformUtils.cpp ../components/core/Utils/RaftThreading.cpp ../components/core/DeviceTypes/DeviceTypeRecords.cpp
 
 # Output binaries
 MAIN_OUTPUT = linux_unit_tests
