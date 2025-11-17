@@ -390,7 +390,7 @@ SpiramAwareUint8Vector FileSystemChunker::nextReadKeepOpen(uint32_t maxLen,
         debugCloseTimeMs = millis() - debugStartMs;
         LOG_I(MODULE_PREFIX, "nextReadKeepOpen fileOpen %dms read %dms close %dms filename %s readBytes %d busy %s", 
                 debugFileOpenTimeMs, debugReadTimeMs, debugCloseTimeMs,
-                _filePath.c_str(), readData.size(), _isActive ? "YES" : "NO");
+                _filePath.c_str(), (int)readData.size(), _isActive ? "YES" : "NO");
     }
 #endif
 #ifdef DEBUG_FILE_CHUNKER_CHUNKS

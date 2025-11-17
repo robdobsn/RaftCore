@@ -10,7 +10,7 @@
 #pragma once
 
 #include <vector>
-#include "RingBufferPosnRTOS.h"
+#include "RingBufferPosn.h"
 
 template<typename ElemT, uint32_t bufferSize>
 class RingBufferRTOS
@@ -61,6 +61,6 @@ public:
     }
 
 private:
-    RingBufferPosnRTOS _bufPos;
+    RingBufferPosn _bufPos;
     ElemT _buffer[bufferSize];
 };

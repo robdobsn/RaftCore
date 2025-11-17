@@ -8,8 +8,7 @@
 
 #include "unity.h"
 #include "Logger.h"
-#include "RaftArduino.h"
-#include "RaftUtils.h"
+#include "RaftCore.h"
 #include "SysTypeManager.h"
 
 static const char* MODULE_PREFIX = "SysTypeManagerTest";

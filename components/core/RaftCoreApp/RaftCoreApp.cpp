@@ -7,12 +7,15 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // #include <stdio.h>
+#if !defined(__linux__)
 #include "sdkconfig.h"
 #include "esp_log.h"
+#endif
 #include "RaftCoreApp.h"
 #include "RaftJsonNVS.h"
 #include "SysTypeInfoRec.h"
 #include "RaftThreading.h"
+#include "Logger.h"
 
 #if __has_include("SysTypeInfoRecs.h")
 #include "SysTypeInfoRecs.h"
@@ -80,6 +83,12 @@ RaftCoreApp::RaftCoreApp() :
     // SysTypeManager endpoints
     _sysTypeManager.addRestAPIEndpoints(_restAPIEndpointManager);
 
+    // Protocol exchange file stream activity fn
+    _protocolExchange.setFileStreamActivityHook( [this](bool isMainFWUpdate, bool isFileSystemActivity, bool isStreaming) {
+            _sysManager.informOfFileStreamActivity(isMainFWUpdate, isFileSystemActivity, isStreaming);
+        }
+    );
+
     // Setup SysManager
     _sysManager.setRestAPIEndpoints(_restAPIEndpointManager);
     _sysManager.setCommsCore(&_commsChannelManager);
@@ -94,16 +103,28 @@ RaftCoreApp::RaftCoreApp() :
     startDebuggingThread();
 
     // Log out system info
-    ESP_LOGI(MODULE_PREFIX, PROJECT_BASENAME " %s (built " __DATE__ " " __TIME__ ") Heap (int) %d (all) %d", 
+#if defined(__linux__)
+    LOG_I(MODULE_PREFIX, "%s %s (built %s %s)", PROJECT_BASENAME, systemVersion.c_str(), __DATE__, __TIME__);
+#else
+    ESP_LOGI(MODULE_PREFIX, PROJECT_BASENAME " %s (built " __DATE__ " " __TIME__ ") Heap (int) %d (all) %d",
                         systemVersion.c_str(),
                         heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                         heap_caps_get_free_size(MALLOC_CAP_8BIT));
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Destructor
 RaftCoreApp::~RaftCoreApp()
 {
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Setup
+void RaftCoreApp::setup()
+{
+    // Nothing to do here - setup is done in constructor
+    // This is just for API compatibility
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

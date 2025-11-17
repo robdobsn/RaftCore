@@ -187,7 +187,7 @@ void MiniHDLC::handleChar(uint8_t ch)
                 // is not to include this in the length returned - it really is just
                 // a last resort fallback in case the buffer is not a C string and
                 // someone uses an older C-style string manipulation function
-                if ((_framePos >= 2) && (_rxBuffer.size() >= _framePos-1))
+                if ((_framePos >= 2) && (_rxBuffer.size() >= (unsigned int)(_framePos-1)))
                 {
                     _rxBuffer.setAt(_framePos-2, 0);
                     // Handle the frame

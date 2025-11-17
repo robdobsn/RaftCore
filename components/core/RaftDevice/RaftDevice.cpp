@@ -10,6 +10,7 @@
 #include "RaftUtils.h"
 
 // #define DEBUG_RAFT_DEVICE_CONSTRUCTOR
+// #define DEBUG_BINARY_DEVICE_DATA 
 
 /// @brief Construct a new Raft Device object
 /// @param pDevConfigJson JSON configuration for the device
@@ -100,9 +101,10 @@ bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData,
     {
         // Reserve space
         uint32_t msgLen = deviceMsgData.size() + 7;
-        binData.reserve(binData.size() + 2 + msgLen);
+        const uint32_t origSize = binData.size();
+        binData.reserve(origSize + 2 + msgLen);
 
-        // Overall length of message section
+        // Overall length of message section (excluding length bytes)
         binData.push_back((msgLen >> 8) & 0xff);
         binData.push_back(msgLen & 0xff);
 
@@ -121,6 +123,12 @@ bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData,
 
         // Add binary data
         binData.insert(binData.end(), deviceMsgData.begin(), deviceMsgData.end());
+
+#ifdef DEBUG_BINARY_DEVICE_DATA
+        LOG_I(MODULE_PREFIX, "genBinaryDataMsg origLen %d deviceMsgLen %d binDataLen %d ", 
+            origSize, deviceMsgData.size(), binData.size());
+#endif
+
         return true;
     }
 

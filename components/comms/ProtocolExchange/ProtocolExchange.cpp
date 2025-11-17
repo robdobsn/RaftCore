@@ -7,6 +7,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "RaftArduino.h"
 #include "Logger.h"
 #include "ProtocolExchange.h"
 #include "CommsChannelMsg.h"
@@ -15,7 +16,6 @@
 #include "ProtocolRICFrame.h"
 #include "ProtocolRICJSON.h"
 #include "RICRESTMsg.h"
-#include "SysManager.h"
 #include "RaftJson.h"
 #include "CommsBridgeMsg.h"
 
@@ -101,8 +101,8 @@ void ProtocolExchange::loop()
     bool isActive = isMainFWUpdate || isFileSystemActivity || isStreaming;
     if (_sysManStateIndWasActive != isActive)
     {
-        if (getSysManager())
-            getSysManager()->informOfFileStreamActivity(isMainFWUpdate, isFileSystemActivity, isStreaming);
+        if (_fileStreamActivityHookFn)
+            _fileStreamActivityHookFn(isMainFWUpdate, isFileSystemActivity, isStreaming);
         _sysManStateIndWasActive = isActive;
     }
 }

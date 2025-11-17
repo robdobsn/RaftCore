@@ -1,5 +1,10 @@
 # Todo
 
+[] if there is no content in the web page then put a plain index.html saying welcome to Raft or similar? Or maybe something to show sensor values?
+[] IP address reported for WIFISTA is missing " at end
+[] in the build system do a macro expansion of CONFIG_PARTITION_TABLE_CUSTOM_FILENAME using {{systype}} so that the systype name can be substituted - also make change in Raft new to generate a suitable handlbars entry for {{systype}}
+[] remove SysTypeName from the SysTypes.json to avoid duplication - the name of the folder should be this info - maybe auto-add the name into the C++ header when generated to avoid it being hard-coded into the JSON? - also make appropriate change in raft new
+[] add rate-level to dev-type info - maybe 3 levels - high, medium, low - and then have corresponding rates specified in the systype for statepub - so an accelerometer might be high and a battery sensor might be low
 [] implement a mechanism that allows coord system transforms like rotation/inversion/etc - either as an expression or as a named transformation
 [] provide a way to set the sampling rate for devices - similar to actions - there may be a need to send an I2C command to device to change internal rate - and also to change the reporting rate / publish rate?
 [] dockerfile and other build specific stuff - maybe allow different ESP IDF versions???

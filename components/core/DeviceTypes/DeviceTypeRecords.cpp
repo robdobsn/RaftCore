@@ -58,7 +58,7 @@ std::vector<uint16_t> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrTyp
     std::vector<uint16_t> devTypeIdxsForAddr;
 
     // Check if any of the extended device type records match
-    if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, UINT32_MAX))
+    if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         // Ext devType indices continue on from the base devType indices
         uint16_t devTypeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
@@ -119,7 +119,7 @@ bool DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& 
     if (deviceTypeIdx >= BASE_DEV_TYPE_ARRAY_SIZE)
     {
         // Check extended device type records
-        if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, UINT32_MAX))
+        if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
         {
             const uint32_t extDevTypeIdx = deviceTypeIdx - BASE_DEV_TYPE_ARRAY_SIZE;
             if (extDevTypeIdx < _extendedDevTypeRecords.size())
@@ -151,7 +151,7 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRe
     // Iterate the extended device types first - so that device type names can be overridden
     bool isValid = false;
     uint32_t typeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
-    if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, UINT32_MAX))
+    if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
@@ -656,6 +656,12 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline, const DeviceTypeRecord* pDevTypeRec, 
         const std::vector<uint8_t>& devicePollResponseData) const
 {
+    if (devicePollResponseData.size() == 0)
+    {
+        // No data to report
+        return "";
+    }
+    
     // Device type name
     String devTypeName = pDevTypeRec ? pDevTypeRec->deviceType : "";
     // Form a hex buffer
@@ -712,7 +718,7 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
     }
 
     // Add any extended device type record addresses to the highest priority list
-    if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, UINT32_MAX))
+    if (_extendedRecordsAdded && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
@@ -737,11 +743,25 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
 /// @return true if added
 bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, uint16_t& deviceTypeIndex)
 {
-    bool isAdded = false;
-    if (RaftMutex_lock(_extDeviceTypeRecordsMutex, UINT32_MAX))
+    // Lock
+    if (!RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+
+    // Check if max number of records reached
+    if (_extendedDevTypeRecords.size() >= MAX_EXTENDED_DEV_TYPE_RECORDS)
     {
-        // Check if already exists (same device type name)
-        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+        RaftMutex_unlock(_extDeviceTypeRecordsMutex);
+#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
+        LOG_W(MODULE_PREFIX, "addExtendedDeviceTypeRecord MAX_EXTENDED_DEV_TYPE_RECORDS reached");
+#endif
+        return false;
+    }
+
+    // Check if already added
+    bool recFound = false;
+    for (uint16_t i = 0; i < _extendedDevTypeRecords.size(); i++)
+    {
+        if (_extendedDevTypeRecords[i].nameMatches(devTypeRec))
         {
             if (extDevTypeRec.deviceTypeName == devTypeRec.deviceTypeName)
             {
@@ -760,10 +780,20 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
         
         // TODO - save to non-volatile storage
         // ...
-        
-        RaftMutex_unlock(_extDeviceTypeRecordsMutex);
     }
-    return isAdded;
+
+    // Unlock
+    RaftMutex_unlock(_extDeviceTypeRecordsMutex);
+
+#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
+    LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
+                recFound ? "ALREADY PRESENT" : "ADDED OK",
+                devTypeRec.deviceTypeName_.c_str(), 
+                deviceTypeIndex,
+                devTypeRec.addresses_.c_str(), devTypeRec.detectionValues_.c_str(),
+                devTypeRec.initValues_.c_str(), devTypeRec.pollInfo_.c_str());
+#endif
+    return !recFound;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

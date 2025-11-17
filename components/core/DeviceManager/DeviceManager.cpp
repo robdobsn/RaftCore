@@ -5,6 +5,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <functional>
+#include <algorithm>
 #include "DeviceManager.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeRecords.h"
@@ -13,10 +14,12 @@
 #include "DeviceFactory.h"
 #include "SysManager.h"
 #include "RestAPIEndpointManager.h"
+#include "DemoDevice.h"
 
 // Warnings
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND
 #define WARN_ON_DEVICE_INSTANTIATION_FAILED
+#define WARN_ON_SETUP_DEVICE_FAILED
 
 // Debug
 #define DEBUG_BUS_OPERATION_STATUS_OK_CB
@@ -25,6 +28,7 @@
 // #define DEBUG_DEVICE_FACTORY
 // #define DEBUG_LIST_DEVICES
 // #define DEBUG_JSON_DEVICE_DATA
+// #define DEBUG_BINARY_DEVICE_DATA
 // #define DEBUG_JSON_DEVICE_HASH
 // #define DEBUG_DEVMAN_API
 // #define DEBUG_BUS_ELEMENT_STATUS
@@ -38,14 +42,16 @@
 DeviceManager::DeviceManager(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
 {
-    // Access semaphore
-    _accessMutex = xSemaphoreCreateMutex();
+    // Create mutex
+    RaftMutex_init(_accessMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Destructor
 DeviceManager::~DeviceManager()
 {
+    // Delete mutex
+    RaftMutex_destroy(_accessMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -180,11 +186,11 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
                 newlyCreated = true;
 
                 // Add to the list of instantiated devices & setup
-                if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) == pdTRUE)
+                if (RaftMutex_lock(_accessMutex, 5))
                 {
                     // Add to the list of instantiated devices
                     _deviceList.push_back(pDevice);
-                    xSemaphoreGive(_accessMutex);
+                    RaftMutex_unlock(_accessMutex);
 
                     // Setup device
                     pDevice->setup();
@@ -341,6 +347,99 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Setup a single device
+/// @param pDeviceClass class of the device to setup
+/// @param devConfig configuration for the device
+/// @return RaftDevice* pointer to the created device or nullptr if failed
+RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig)
+{
+    // Check valid
+    if (!pDeviceClass)
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_E(MODULE_PREFIX, "setupDevice invalid parameters pDeviceClass %s", 
+                pDeviceClass ? pDeviceClass : "NULL");
+#endif
+        return nullptr;
+    }
+
+    // Find the device class in the factory
+    const DeviceFactory::RaftDeviceClassDef* pDeviceClassDef = deviceFactory.findDeviceClass(pDeviceClass);
+    if (!pDeviceClassDef)
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_W(MODULE_PREFIX, "setupDevice class %s not found", pDeviceClass);
+#endif
+        return nullptr;
+    }
+    // Create the device
+    auto pDevice = pDeviceClassDef->pCreateFn(pDeviceClass, devConfig.c_str());
+    if (!pDevice)
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_E(MODULE_PREFIX, "setupDevice class %s create failed devConf %s", 
+                pDeviceClass, devConfig.c_str());
+#endif
+        return nullptr;
+    }
+    // Add to the list of instantiated devices
+    if (RaftMutex_lock(_accessMutex, 5))
+    {
+        // Add to the list of instantiated devices
+        _deviceList.push_back(pDevice);
+        RaftMutex_unlock(_accessMutex);
+        // Setup device
+        pDevice->setup();
+        pDevice->postSetup();
+#ifdef DEBUG_DEVICE_SETUP
+        LOG_I(MODULE_PREFIX, "setupDevice %s devConf %s", 
+                pDeviceClass, devConfig.c_str());
+#endif
+    }
+    else
+    {
+#ifdef WARN_ON_SETUP_DEVICE_FAILED
+        LOG_E(MODULE_PREFIX, "setupDevice failed to add device %s", pDeviceClass);
+#endif
+        // Delete the device to avoid memory leak
+        delete pDevice;
+        pDevice = nullptr;
+    }
+
+    // If the device has a device type record, add it to the device type records
+    DeviceTypeRecordDynamic devTypeRec;
+    if (pDevice && pDevice->getDeviceTypeRecord(devTypeRec))
+    {
+        // Add the device type record to the device type records
+        uint16_t deviceTypeIndex = 0;
+        deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec, deviceTypeIndex);
+        pDevice->setDeviceTypeIndex(deviceTypeIndex);
+    }
+
+    // If the device was successfully created, register for device data notifications
+    if (pDevice)
+    {
+        // Register for device data notifications
+        registerForDeviceDataChangeCBs(pDevice->getDeviceName().c_str());
+    }
+
+    // Debug
+#ifdef DEBUG_DEVICE_SETUP
+    if (pDevice)
+    {
+        LOG_I(MODULE_PREFIX, "setupDevice %s name %s class %s pubType %s", 
+                        pDeviceClass, 
+                        pDevice->getDeviceName().c_str(),
+                        pDevice->getDeviceClassName().c_str(),
+                        pDevice->getPublishDeviceType().c_str());
+    }
+#endif
+
+    // Return success
+    return pDevice;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get devices' data as JSON
 /// @return JSON string
 String DeviceManager::getDevicesDataJSON() const
@@ -387,6 +486,12 @@ String DeviceManager::getDevicesDataJSON() const
     LOG_I(MODULE_PREFIX, "getDevicesDataJSON BUS %s DEV %s ", jsonStrBus.c_str(), jsonStrDev.c_str());
 #endif
 
+    if (jsonStrBus.length() == 0 && jsonStrDev.length() == 0)
+    {
+        // No data available
+        return "";
+    }
+
     return "{" + (jsonStrBus.length() == 0 ? (jsonStrDev.length() == 0 ? "" : jsonStrDev) : (jsonStrDev.length() == 0 ? jsonStrBus : jsonStrBus + "," + jsonStrDev)) + "}";
 }
 
@@ -426,6 +531,11 @@ std::vector<uint8_t> DeviceManager::getDevicesDataBinary() const
         RaftDevice* pDevice = pDeviceListCopy[devIdx];
         std::vector<uint8_t> deviceBinaryData = pDevice->getStatusBinary();
         binaryData.insert(binaryData.end(), deviceBinaryData.begin(), deviceBinaryData.end());
+
+#ifdef DEBUG_BINARY_DEVICE_DATA
+        LOG_I(MODULE_PREFIX, "getDevicesDataBinary DEV %s hex %s", 
+                pDevice->getDeviceName().c_str(), Raft::getHexStr(deviceBinaryData.data(), deviceBinaryData.size()).c_str());
+#endif        
     }
 
     return binaryData;
@@ -453,7 +563,8 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
             stateHash[1] ^= ((identPollLastMs >> 8) & 0xff);
 
 #ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
-            LOG_I(MODULE_PREFIX, "getDevicesHash %s %02x%02x", pBus->getBusName().c_str(), stateHash[0], stateHash[1]);
+            LOG_I(MODULE_PREFIX, "getDevicesHash %s ms %d %02x%02x", 
+                    pBus->getBusName().c_str(), (int)identPollLastMs, stateHash[0], stateHash[1]);
 #endif
         }
     }
@@ -472,7 +583,8 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
         stateHash[1] ^= ((identPollLastMs >> 8) & 0xff);
 
 #ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
-        LOG_I(MODULE_PREFIX, "getDevicesHash %s %02x%02x", pDevice->getDeviceName().c_str(), stateHash[0], stateHash[1]);
+        LOG_I(MODULE_PREFIX, "getDevicesHash %s ms %d %02x%02x", 
+                pDevice->getDeviceName().c_str(), (int)identPollLastMs, stateHash[0], stateHash[1]);
 #endif
     }
 
@@ -489,7 +601,7 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
 RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
 {
     // Obtain access to the device list
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
 
     // Loop through the devices
@@ -500,13 +612,13 @@ RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
 #endif
         if (pDevice && pDevice->getDeviceName() == pDeviceName)
         {
-            xSemaphoreGive(_accessMutex);
+            RaftMutex_unlock(_accessMutex);
             return pDevice;
         }
     }
 
-    // Return semaphore
-    xSemaphoreGive(_accessMutex);
+    // Unlock mutex
+    RaftMutex_unlock(_accessMutex);
     return nullptr;
 }
 
@@ -566,7 +678,8 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             " devman/typeinfo?bus=<busName>&type=<typeName> - Get type info,"
-                            " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device");
+                            " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
+                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
 
@@ -664,7 +777,11 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         }
 
 #ifdef DEBUG_DEVMAN_API
-        LOG_I(MODULE_PREFIX, "apiHWDevice bus %s type %s devInfo %s", busName.c_str(), devTypeName.c_str(), devInfo.c_str());
+        LOG_I(MODULE_PREFIX, "apiHWDevice bus %s busFound %s type %s devInfo %s", 
+                busName.c_str(), 
+                pBus ? "Y" : "N",
+                devTypeName.c_str(), 
+                devInfo.c_str());
 #endif
 
         // Set result
@@ -748,6 +865,55 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, rslt);    
     }
 
+#ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
+
+    // Check for demo command
+    if (cmdName.equalsIgnoreCase("demo"))
+    {
+        // Get demo parameters
+        String deviceType = jsonParams.getString("type", "");
+        if (deviceType.length() == 0)
+            deviceType = "ACCDEMO";
+
+        uint32_t sampleRateMs = jsonParams.getLong("rate", 100);
+        uint32_t durationMs = jsonParams.getLong("duration", 0);
+        uint32_t offlineIntvS = jsonParams.getLong("offlineIntvS", 0);
+        uint32_t offlineDurS = jsonParams.getLong("offlineDurS", 10);
+
+        // Validate parameters
+        if (sampleRateMs < 10)
+            sampleRateMs = 10; // Minimum 10ms
+        if (sampleRateMs > 60000)
+            sampleRateMs = 60000; // Maximum 60s
+        if (offlineDurS < 1)
+            offlineDurS = 1; // Minimum 1s offline duration
+
+        // Check if the device already exists
+        RaftDevice* pExistingDevice = getDeviceByID(deviceType.c_str());
+        if (pExistingDevice)
+        {
+            // Return error if the device already exists
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDemoDeviceExists");
+        }
+
+        // Setup the demo device
+        RaftJson jsonConfig = "{\"name\":\"DemoDevice\",\"type\":\"" + deviceType + 
+                                 "\",\"sampleRateMs\":" + String(sampleRateMs) + 
+                                 ",\"durationMs\":" + String(durationMs) +
+                                 ",\"offlineIntvS\":" + String(offlineIntvS) +
+                                 ",\"offlineDurS\":" + String(offlineDurS) + "}";
+        setupDevice(deviceType.c_str(), jsonConfig);
+
+        // Set result
+        String resultStr = "\"demoStarted\":true,\"type\":\"" + deviceType + 
+                          "\",\"rate\":" + String(sampleRateMs) + 
+                          ",\"duration\":" + String(durationMs) +
+                          ",\"offlineIntvS\":" + String(offlineIntvS) +
+                          ",\"offlineDurS\":" + String(offlineDurS);
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, resultStr.c_str());
+    }
+#endif
+
     // Set result
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
 }
@@ -806,7 +972,7 @@ void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statu
 /// @return number of devices
 uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices) const
 {
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return 0;
     uint32_t numDevices = 0;
     for (auto* pDevice : _deviceList)
@@ -816,7 +982,7 @@ uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxD
         if (pDevice)
             pDevices[numDevices++] = pDevice;
     }
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
     return numDevices;
 }
 
@@ -826,17 +992,17 @@ uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxD
 /// @return pointer to device if found
 RaftDevice* DeviceManager::getDeviceByID(const char* pDeviceID) const
 {
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
     for (auto* pDevice : _deviceList)
     {
         if (pDevice && (pDevice->idMatches(pDeviceID)))
         {
-            xSemaphoreGive(_accessMutex);
+            RaftMutex_unlock(_accessMutex);
             return pDevice;
         }
     }
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
     return nullptr;
 }
 
@@ -848,10 +1014,10 @@ RaftDevice* DeviceManager::getDeviceByID(const char* pDeviceID) const
 void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusElemAddrAndStatus& el, bool newlyCreated)
 {
     // Obtain a lock & make a copy of the device status change callbacks
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    if (!RaftMutex_lock(_accessMutex, 5))
         return;
     std::vector<RaftDeviceStatusChangeCB> statusChangeCallbacks(_deviceStatusChangeCBList.begin(), _deviceStatusChangeCBList.end());
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
 
     // Call the device status change callbacks
     for (RaftDeviceStatusChangeCB statusChangeCB : statusChangeCallbacks)
@@ -866,8 +1032,8 @@ void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusElem
 /// @return number of devices registered for data change callbacks
 uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
 {
-    // Get semaphore
-    if (xSemaphoreTake(_accessMutex, pdMS_TO_TICKS(5)) != pdTRUE)
+    // Get mutex
+    if (!RaftMutex_lock(_accessMutex, 5))
         return 0;
 
     // Create a vector of devices for the device data change callbacks
@@ -893,7 +1059,7 @@ uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
             continue;
         deviceListForDataChangeCB.push_back({pDevice, rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo});
     }
-    xSemaphoreGive(_accessMutex);
+    RaftMutex_unlock(_accessMutex);
 
     // Check for any device data change callbacks
     for (auto& cbRec : deviceListForDataChangeCB)
@@ -916,7 +1082,7 @@ uint32_t DeviceManager::registerForDeviceDataChangeCBs(const char* pDeviceName)
 void DeviceManager::deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData)
 {
     // Get sys manager
-    SysManager* pSysMan = getSysManager();
+    SysManagerIF* pSysMan = getSysManager();
     if (!pSysMan)
         return;
     String cmdStr = "{\"msgType\":\"sysevent\",\"msgName\":\"" + String(eventName) + "\"";

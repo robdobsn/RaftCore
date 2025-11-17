@@ -19,15 +19,13 @@ public:
     ThreadSafeQueue(uint32_t maxLen = DEFAULT_MAX_QUEUE_LEN)
     {
         // Mutex for ThreadSafeQueue
-        _queueMutex = xSemaphoreCreateMutex();
+        RaftMutex_init(_queueMutex);
         _maxLen = maxLen;
-        _maxTicksToWaitDefault = DEFAULT_MAX_MS_TO_WAIT;
     }
 
     virtual ~ThreadSafeQueue()
     {
-        if (_queueMutex)
-            vSemaphoreDelete(_queueMutex);
+        RaftMutex_destroy(_queueMutex);
     }
 
     void setMaxLen(uint32_t maxLen)
@@ -38,21 +36,21 @@ public:
     bool put(const ElemT& elem, uint32_t maxMsToWait = 0)
     {
         // Get mutex
-        if (xSemaphoreTake(_queueMutex, _getMaxTicksToWait(maxMsToWait)) == pdTRUE)
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             // Check if queue is full
             if (_queue.size() >= _maxLen)
             {
-                // Return semaphore
-                xSemaphoreGive(_queueMutex);
+                // Return mutex
+                RaftMutex_unlock(_queueMutex);
                 return false;
             }
 
             // Queue up the item
             _queue.push(elem);
 
-            // Return semaphore
-            xSemaphoreGive(_queueMutex);
+            // Return mutex
+            RaftMutex_unlock(_queueMutex);
             return true;
         }
         return false;
@@ -61,12 +59,12 @@ public:
     bool get(ElemT& elem, uint32_t maxMsToWait = 0)
     {
         // Get Mutex
-        if (xSemaphoreTake(_queueMutex, _getMaxTicksToWait(maxMsToWait)) == pdTRUE)
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             if (_queue.empty())
             {
-                // Return semaphore
-                xSemaphoreGive(_queueMutex);
+                // Return mutex
+                RaftMutex_unlock(_queueMutex);
                 return false;
             }
 
@@ -74,8 +72,8 @@ public:
             elem = _queue.front();
             _queue.pop();
 
-            // Return semaphore
-            xSemaphoreGive(_queueMutex);
+            // Return mutex
+            RaftMutex_unlock(_queueMutex);
             return true;
         }
         return false;
@@ -84,20 +82,20 @@ public:
     bool peek(ElemT& elem, uint32_t maxMsToWait = 0)
     {
         // Get Mutex
-        if (xSemaphoreTake(_queueMutex, _getMaxTicksToWait(maxMsToWait)) == pdTRUE)
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             if (_queue.empty())
             {
-                // Return semaphore
-                xSemaphoreGive(_queueMutex);
+                // Return mutex
+                RaftMutex_unlock(_queueMutex);
                 return false;
             }
 
             // read the item (but do not remove)
             elem = _queue.front();
 
-            // Return semaphore
-            xSemaphoreGive(_queueMutex);
+            // Return mutex
+            RaftMutex_unlock(_queueMutex);
             return true;
         }
         return false;
@@ -105,24 +103,24 @@ public:
 
     void clear(uint32_t maxMsToWait = 0)
     {
-        if (xSemaphoreTake(_queueMutex, _getMaxTicksToWait(maxMsToWait)) == pdTRUE)
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             // Clear queue
-            while(!_queue.empty()) 
+            while(!_queue.empty())
                 _queue.pop();
 
-            // Return semaphore
-            xSemaphoreGive(_queueMutex);
+            // Return mutex
+            RaftMutex_unlock(_queueMutex);
         }
     }
 
     uint32_t count(uint32_t maxMsToWait = 0)
     {
-        if (xSemaphoreTake(_queueMutex, _getMaxTicksToWait(maxMsToWait)) == pdTRUE)
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             int qSize = _queue.size();
-            // Return semaphore
-            xSemaphoreGive(_queueMutex);
+            // Return mutex
+            RaftMutex_unlock(_queueMutex);
             return qSize;
         }
         return 0;
@@ -138,23 +136,11 @@ public:
         return _queue.size() < _maxLen;
     }
 
-    void setMaxMsToWait(uint32_t maxMsToWait)
-    {
-        _maxTicksToWaitDefault = pdMS_TO_TICKS(maxMsToWait);
-    }
-
 private:
     std::queue<ElemT> _queue;
     static const uint16_t DEFAULT_MAX_QUEUE_LEN = 50;
     uint16_t _maxLen = DEFAULT_MAX_QUEUE_LEN;
     static const uint16_t DEFAULT_MAX_MS_TO_WAIT = 1;
-    uint16_t _maxTicksToWaitDefault = DEFAULT_MAX_MS_TO_WAIT;
-    inline uint32_t _getMaxTicksToWait(uint32_t maxMsToWait)
-    {
-        if (maxMsToWait == 0)
-            return _maxTicksToWaitDefault;
-        return pdMS_TO_TICKS(maxMsToWait);
-    }
     // Mutex for queue
-    SemaphoreHandle_t _queueMutex = nullptr;
+    RaftMutex _queueMutex;
 };

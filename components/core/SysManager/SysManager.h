@@ -12,21 +12,15 @@
 
 #pragma once 
 
+#include "SysManagerIF.h"
 #include "SysTypeManager.h"
 #include "SysModFactory.h"
-#include "NamedValueProvider.h"
 #include "SupervisorStats.h"
 #include "ProtocolExchange.h"
 #include "DeviceManager.h"
 #include "RaftJsonNVS.h"
 
-typedef String (*SysManager_statsCB)();
-
-class RaftSysMod;
-
-class RestAPIEndpointManager;
-
-class SysManager : public NamedValueProvider
+class SysManager : public SysManagerIF
 {
 public:
     // Constructor
@@ -55,21 +49,21 @@ public:
     }
 
     // Add a pre-constructed SysMod to the managed list
-    void addManagedSysMod(RaftSysMod* pSysMod);
+    virtual void addManagedSysMod(RaftSysMod* pSysMod);
 
     /// @brief Get SysMod instance by name
     /// @param sysModName
     /// @return Pointer to SysMod instance or nullptr if not found
-    RaftSysMod* getSysMod(const char* sysModName) const;
+    virtual RaftSysMod* getSysMod(const char* sysModName) const;
 
     // Get system name
-    String getSystemName() const
+    virtual String getSystemName() const
     {
         return _systemName;
     }
 
     // Get system version
-    String getSystemVersion() const
+    virtual String getSystemVersion() const
     {
         return platform_getAppVersion();
     }
@@ -99,7 +93,7 @@ public:
     }
 
     // Get friendly name
-    String getFriendlyName(bool& isSet) const;
+    virtual String getFriendlyName(bool& isSet) const;
     bool getFriendlyNameIsSet() const;
     bool setFriendlyName(const String& friendlyName, bool setHostname, String& respStr);
 
@@ -110,7 +104,7 @@ public:
     }
 
     // Get system unique string
-    String getSystemUniqueString() const
+    virtual String getSystemUniqueString() const
     {
         return _systemUniqueString;
     }
@@ -122,10 +116,10 @@ public:
     }
 
     // Add status change callback on a SysMod
-    void setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
+    virtual void setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
 
     // Get status from SysMod
-    String getStatusJSON(const char* sysModName) const;
+    virtual String getStatusJSON(const char* sysModName) const;
 
     // Get debug from SysMod
     String getDebugJSON(const char* sysModName) const;
@@ -145,7 +139,7 @@ public:
     ///       to be passed to the command handler.
     ///       The command will be sent to the SysMod's command handler.
     ///       The SysMod should handle the command and return a result.
-    RaftRetCode sendCmdJSON(const char* sysModNameOrNullForAll, const char* cmdJSON);
+    virtual RaftRetCode sendCmdJSON(const char* sysModNameOrNullForAll, const char* cmdJSON);
 
     // Register data source (message generator functions)
     bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
@@ -179,7 +173,7 @@ public:
         _pRestAPIEndpointManager = &restAPIEndpoints;
     }
 
-    RestAPIEndpointManager* getRestAPIEndpointManager()
+    virtual RestAPIEndpointManager* getRestAPIEndpointManager()
     {
         return _pRestAPIEndpointManager;
     }
@@ -189,7 +183,7 @@ public:
     {
         _pCommsCore = pCommsCore;
     }
-    CommsCoreIF* getCommsCore()
+    virtual CommsCoreIF* getCommsCore()
     {
         return _pCommsCore;
     }
@@ -215,7 +209,7 @@ public:
     }
 
     // Get supervisor stats
-    SupervisorStats* getStats()
+    virtual SupervisorStats* getStats()
     {
         return &_supervisorStats;
     }
@@ -228,19 +222,19 @@ public:
     }
 
     // File/stream system activity - main FW update
-    bool isSystemMainFWUpdate()
+    virtual bool isSystemMainFWUpdate()
     {
         return _isSystemMainFWUpdate;
     }
 
     // File/stream system activity - streaming
-    bool isSystemFileTransferring()
+    virtual bool isSystemFileTransferring()
     {
         return _isSystemFileTransferring;
     }
 
     // File/stream system activity - streaming
-    bool isSystemStreaming()
+    virtual bool isSystemStreaming()
     {
         return _isSystemStreaming;
     }

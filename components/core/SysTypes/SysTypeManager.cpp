@@ -327,9 +327,18 @@ RaftRetCode SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &
     {
         // Get the non-volatile document
         const char* pPersistedJsonDoc = _systemConfig.getJsonDoc();
-        settingsResp += String(",\"nv\":") + pPersistedJsonDoc;
+        // Ensure we have a valid JSON document (check for nullptr and valid JSON start)
+        if (pPersistedJsonDoc && (pPersistedJsonDoc[0] == '{' || pPersistedJsonDoc[0] == '['))
+        {
+            settingsResp += String(",\"nv\":") + pPersistedJsonDoc;
+        }
+        else
+        {
+            // Default to empty object if no valid JSON document
+            settingsResp += String(",\"nv\":{}");
+        }
 #ifdef DEBUG_SYS_TYPE_MANAGER_API
-        LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings nv %s", pPersistedJsonDoc);
+        LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings nv %s", pPersistedJsonDoc ? pPersistedJsonDoc : "nullptr");
 #endif
     }
     if (filterSettings.equalsIgnoreCase("base") || filterSettings.equalsIgnoreCase("all") || (filterSettings == ""))
@@ -341,7 +350,16 @@ RaftRetCode SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &
         {
             // Get the base JSON doc
             const char* pBaseJsonDoc = pBaseRaftJson->getJsonDoc();
-            settingsResp += String(",\"base\":") + pBaseJsonDoc;
+            // Ensure we have a valid JSON document (check for nullptr and valid JSON start)
+            if (pBaseJsonDoc && (pBaseJsonDoc[0] == '{' || pBaseJsonDoc[0] == '['))
+            {
+                settingsResp += String(",\"base\":") + pBaseJsonDoc;
+            }
+            else
+            {
+                // Default to empty object if no valid JSON document
+                settingsResp += String(",\"base\":{}");
+            }
         }
     }
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, settingsResp.c_str());

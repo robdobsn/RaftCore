@@ -146,7 +146,7 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Set the firmware image name (if not already set)
 if(NOT DEFINED FW_IMAGE_NAME)
-    set(FW_IMAGE_NAME "${_build_config_name}")
+    set(FW_IMAGE_NAME "${_systype_name}")
 endif()
 
 # Configuration message
@@ -256,6 +256,15 @@ endif()
 
 # Dependency on FS image
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} CopyFSAndWebUI WebUI)
+
+################################################
+# Generate File System Image (Deferred)
+################################################
+
+# Defer the file system image generation until after ESP-IDF components are loaded
+if(DEFINED FS_TYPE)
+    cmake_language(DEFER CALL include "${raftcore_SOURCE_DIR}/scripts/RaftGenFSImage.cmake")
+endif()
 
 ################################################
 # compile_commands.json

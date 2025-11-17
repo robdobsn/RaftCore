@@ -12,8 +12,6 @@
 #include "RaftJsonPrefixed.h"
 #include "RaftArduino.h"
 
-static const char* MODULE_PREFIX = "RaftJsonPrefixed_unit_test";
-
 static bool testGetString(const char* pathPrefix,
             const char* dataPath, const char* expectedStr, const char* pSourceStr)
 {
@@ -23,10 +21,10 @@ static bool testGetString(const char* pathPrefix,
 
     // Get string
     String rsltStr = testConfig.getString(dataPath, "<<NOT_FOUND>>");
-    // LOG_I(MODULE_PREFIX, "testGetString dataPath %s expected %s", dataPath, expectedStr);
+    // LOG_I("RaftJsonPrefixed_unit_test", "testGetString dataPath %s expected %s", dataPath, expectedStr);
     if (!rsltStr.equals(expectedStr))
     {
-        LOG_E(MODULE_PREFIX, "testGetString dataPath %s expected %s != %s", dataPath, expectedStr, rsltStr.c_str());
+        LOG_E("RaftJsonPrefixed_unit_test", "testGetString dataPath %s expected %s != %s", dataPath, expectedStr, rsltStr.c_str());
         return false;
     }
     return true;
@@ -36,14 +34,14 @@ static bool testGetString(const char* pathPrefix,
 const char* testJSONConfigBase =
     R"({)"
     R"("SystemName":")" SYSTEM_NAME R"(",)"
-    R"("SystemVersion":")" SYSTEM_VERSION R"(",)"
+    R"("SystemVersion":"UnitTests",)"
     R"("IDFVersion":")" IDF_VER R"(",)"
     R"("SysManager":{"monitorPeriodMs":10000,"reportList":["NetMan","RobotCtrl"]},)"
     R"("NetMan":{"WiFiEnabled":1, "defaultHostname":"Marty", "logLevel":"D"},)"
     R"("NTPClient":{"enable":1,"NTPServer":"pool.ntp.org", "GMTOffsetSecs":0, "DSTOffsetSecs":0},)"
     R"("MQTTManager":{"enable":0},)"
     R"("ESPOTAUpdate":{"enable":1,"OTADirectEnabled":0,"server":"192.168.86.235","port":5076,)"
-            R"("sysName":")" SYSTEM_NAME R"(","sysVers":")" SYSTEM_VERSION R"("},)"
+            R"("sysName":")" SYSTEM_NAME R"(","sysVers":"UnitTests",)"
     R"("FileManager":{"SPIFFSEnabled":1,"SPIFFSFormatIfCorrupt":1,"SDEnabled":0,"CacheFileList":0},)"
     R"("WebServer":{"enable":1,"webServerPort":80,"allowOriginAll":1,"apiPrefix":"api/","logLevel":"D"},)"
     R"("SerialConsole":{"enable":1,"uartNum":0,"baudRate":115200,"crlfOnTx":1,"logLevel":"D"},)"
@@ -57,7 +55,7 @@ const char* testJSONConfigBase =
 TEST_CASE("test_getString", "[raftjsonprefixed]")
 {
     // Debug
-    // LOG_I(MODULE_PREFIX, "JSON input string\n%s", testJSONConfigBase);
+    // LOG_I("RaftJsonPrefixed_unit_test", "JSON input string\n%s", testJSONConfigBase);
 
     // Test getString
     struct TestElem

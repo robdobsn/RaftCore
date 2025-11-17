@@ -10,16 +10,28 @@
 
 #pragma once
 
+#include "RaftThreading.h"
+
 class RingBufferPosn
 {
 public:
     volatile unsigned int _putPos;
     volatile unsigned int _getPos;
     unsigned int _bufLen;
+    RaftMutex _rbMutex;
+    static const int PUT_TICKS_TO_WAIT = 1;
+    static const int GET_TICKS_TO_WAIT = 1;
+    static const int CLEAR_TICKS_TO_WAIT = 2;
 
     RingBufferPosn(int maxLen)
     {
         init(maxLen);
+        RaftMutex_init(_rbMutex);
+    }
+
+    virtual ~RingBufferPosn()
+    {
+        RaftMutex_destroy(_rbMutex);
     }
 
     void init(int maxLen)
@@ -31,7 +43,11 @@ public:
 
     void clear()
     {
-        _getPos = _putPos = 0;
+        if (RaftMutex_lock(_rbMutex, CLEAR_TICKS_TO_WAIT))
+        {
+            _getPos = _putPos = 0;
+            RaftMutex_unlock(_rbMutex);
+        }
     }
 
     inline unsigned int posToGet()
@@ -71,24 +87,39 @@ public:
 
     void hasPut()
     {
+        // Put
         _putPos++;
         if (_putPos >= _bufLen)
             _putPos = 0;
+        
+        // Return the mutex
+        RaftMutex_unlock(_rbMutex);
     }
 
     void hasGot()
     {
+        // Get
         _getPos++;
         if (_getPos >= _bufLen)
             _getPos = 0;
+
+        // Return the mutex
+        RaftMutex_unlock(_rbMutex);
     }
 
     unsigned int count()
     {
-        unsigned int posToGet = _getPos;
-        if (posToGet <= _putPos)
-            return _putPos - posToGet;
-        return _bufLen - posToGet + _putPos;
+        unsigned int retVal = 0;
+        if (RaftMutex_lock(_rbMutex, GET_TICKS_TO_WAIT))
+        {
+            unsigned int posToGet = _getPos;
+            if (posToGet <= _putPos)
+                retVal = _putPos - posToGet;
+            else
+                retVal = _bufLen - posToGet + _putPos;
+            RaftMutex_unlock(_rbMutex);
+        }
+        return retVal;
     }
 
     // Get Nth element prior to the put position

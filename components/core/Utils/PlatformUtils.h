@@ -38,6 +38,11 @@ void disableCore1WDT();
 // Ethernet is base +3
 String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator);
 
+/// @brief Convert ESP-IDF/LWIP error code to string
+/// @param err Error code (err_t from lwip/err.h)
+/// @return String description of the error
+const char* espIdfErrToStr(int err);
+
 #endif // ESP8266
 
 #else
@@ -68,6 +73,9 @@ extern "C" {
 
 // Get size of SPIRAM (returns 0 if not available) or UINT32_MAX if on a non-ESP platform
 uint32_t utilsGetSPIRAMSize();
+
+// Get a platform-independent random number
+uint32_t platform_random();
 
 // Get the app version string
 String platform_getAppVersion();

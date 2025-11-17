@@ -12,8 +12,6 @@
 #include "RaftUtils.h"
 #include "FileSystem.h"
 
-static const char* MODULE_PREFIX = "FileSystemTest";
-
 TEST_CASE("file_system_test", "[filesystem]")
 {
     fileSystem.setup(FileSystem::LOCAL_FS_LITTLEFS, true, false, -1, -1, -1, -1, false, false);
@@ -23,8 +21,8 @@ TEST_CASE("file_system_test", "[filesystem]")
     String respStr;
     TEST_ASSERT_TRUE(fileSystem.getFilesJSON("", "", "/", respStr));
 
-    const char* expectedFilesJson = "{\"req\":\"\",\"rslt\":\"ok\",\"fsName\":\"local\",\"fsBase\":\"/local\",\"diskSize\":524288,\"diskUsed\":8192,\"folder\":\"/local/\",\"files\":[]}";
-    // LOG_I(MODULE_PREFIX, "file_system_test getFilesJson %s", respStr.c_str());
+    const char* expectedFilesJson = "{\"req\":\"\",\"rslt\":\"ok\",\"fsName\":\"local\",\"fsBase\":\"/local\",\"diskSize\":524288,\"diskUsed\":8192,\"folder\":\"/local/\",\"files\":[{\"name\":\"testFile.txt\",\"size\":65}]}";
+    // LOG_I("FileSystemTest", "file_system_test getFilesJson %s", respStr.c_str());
     TEST_ASSERT_EQUAL_STRING(expectedFilesJson, respStr.c_str());
 
     const char* testFileName = "testFile.txt";

@@ -231,3 +231,52 @@ extern uint16_t analogRead(uint8_t pin) __attribute__ ((weak, alias("__analogRea
 #endif // ARDUINO
 
 #endif // ESP_PLATFORM
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Linux stub implementations
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(__linux__) && !defined(ESP_PLATFORM)
+
+#include "ArduinoGPIO.h"
+#include "Logger.h"
+
+#define WARN_ON_GPIO_MODE_STUBS
+// #define WARN_ON_GPIO_READ_STUBS
+// #define WARN_ON_GPIO_WRITE_STUBS
+// #define WARN_ON_GPIO_ANALOG_READ_STUBS
+
+static const char* MODULE_PREFIX = "ArduinoGPIO";
+
+// Stub implementations for Linux - these do nothing but log warnings
+extern "C" void pinMode(int pin, uint8_t mode)
+{
+#ifdef WARN_ON_GPIO_MODE_STUBS
+    LOG_W(MODULE_PREFIX, "pinMode(%d, %d) - stub implementation for Linux", pin, mode);
+#endif
+}
+
+extern "C" void digitalWrite(uint8_t pin, uint8_t val)
+{
+#ifdef WARN_ON_GPIO_WRITE_STUBS
+    LOG_W(MODULE_PREFIX, "digitalWrite(%d, %d) - stub implementation for Linux", pin, val);
+#endif
+}
+
+extern "C" int digitalRead(uint8_t pin)
+{
+#ifdef WARN_ON_GPIO_READ_STUBS
+    LOG_W(MODULE_PREFIX, "digitalRead(%d) - stub implementation for Linux", pin);
+#endif
+    return 0;
+}
+
+extern "C" uint16_t analogRead(uint8_t pin)
+{
+#ifdef WARN_ON_GPIO_ANALOG_READ_STUBS
+    LOG_W(MODULE_PREFIX, "analogRead(%d) - stub implementation for Linux", pin);
+#endif
+    return 0;
+}
+
+#endif // __linux__ && !ESP_PLATFORM

@@ -133,7 +133,7 @@ bool RICRESTMsg::decode(const uint8_t* pBuf, uint32_t len)
             _payloadJson = String(pBuf+RICREST_COMMAND_FRAME_PAYLOAD_POS, contentLen);
 
             // Check for any binary element
-            if ((terminatorFoundIdx >= 0) && (len > terminatorFoundIdx + 1))
+            if ((terminatorFoundIdx >= 0) && ((int)len > terminatorFoundIdx + 1))
                 _binaryData.assign(pBuf + terminatorFoundIdx + 1, pBuf + len - terminatorFoundIdx - 1);
 
 #ifdef DEBUG_RICREST_MSG

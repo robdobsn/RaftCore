@@ -46,7 +46,7 @@ int RestAPIEndpointManager::getNumEndpoints()
 RestAPIEndpoint *RestAPIEndpointManager::getNthEndpoint(int n)
 {
     // Check valid
-    if (n < 0 || n >= _endpointsList.size())
+    if (n < 0 || n >= (int)_endpointsList.size())
         return nullptr;
 
     // Get N'th endpoint
@@ -116,7 +116,7 @@ RestAPIEndpoint* RestAPIEndpointManager::getMatchingEndpoint(const char *request
 
 #ifdef DEBUG_REST_API_ENDPOINTS_GET
     // Debug
-    LOG_I(MODULE_PREFIX, "reqStr %s requestEndpoint %s, num endpoints %d", 
+    LOG_I(MODULE_PREFIX, "reqStr %s requestEndpoint %s, num endpoints %zu",
                 requestStr, requestEndpoint.c_str(), _endpointsList.size());
 #endif
 
