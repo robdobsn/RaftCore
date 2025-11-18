@@ -59,6 +59,15 @@ public:
     static const uint8_t DEVICE_CONN_MODE_DIRECT = 0;
     static const uint8_t DEVICE_CONN_MODE_FIRST_BUS = 1;
 
+    // Named value access (routes to devices using "DeviceName.paramName" syntax)
+    virtual double getNamedValue(const char* valueName, bool& isValid) override;
+    virtual bool setNamedValue(const char* valueName, double value) override;
+    virtual String getNamedString(const char* valueName, bool& isValid) override;
+    virtual bool setNamedString(const char* valueName, const char* value) override;
+
+    // JSON command routing (routes to device specified in "device" field)
+    virtual RaftRetCode receiveCmdJSON(const char* cmdJSON) override;
+
 protected:
 
     /// @brief Setup

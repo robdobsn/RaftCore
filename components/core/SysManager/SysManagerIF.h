@@ -127,11 +127,7 @@ public:
     ///       to be passed to the command handler.
     ///       The command will be sent to the SysMod's command handler.
     ///       The SysMod should handle the command and return a result.
-    RaftRetCode sendCmdJSON(const char* sysModNameOrNullForAll, const char* cmdJSON)
-    {
-        // Default implementation does nothing
-        return RAFT_OK;
-    }
+    virtual RaftRetCode sendCmdJSON(const char* sysModNameOrNullForAll, const char* cmdJSON) = 0;
 
     // Register data source (message generator functions)
     virtual bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
