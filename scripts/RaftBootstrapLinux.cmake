@@ -241,7 +241,6 @@ target_include_directories(RaftWebServerLinux PUBLIC ${RAFTWEBSERVER_INCLUDES})
 target_include_directories(RaftWebServerLinux PUBLIC ${RAFTCORE_INCLUDES})
 target_link_libraries(RaftWebServerLinux PUBLIC RaftCoreLinux)
 target_compile_definitions(RaftWebServerLinux PUBLIC
-    WEB_CONN_USE_BERKELEY_SOCKETS
     __linux__
 )
 
