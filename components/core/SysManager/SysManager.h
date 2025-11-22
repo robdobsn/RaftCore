@@ -23,7 +23,15 @@
 class SysManager : public SysManagerIF
 {
 public:
-    // Constructor
+    /// @brief Constructor
+    /// @param pModuleName Module name
+    /// @param systemConfig System configuration (based on a JSON document)
+    /// @param sysManagerNVSNamespace NVS namespace for SysManager
+    /// @param sysTypeManager SysTypeManager instance
+    /// @param pSystemName Optional system name
+    /// @param pDefaultFriendlyName Optional default friendly name
+    /// @param serialLengthBytes Length of serial number in bytes
+    /// @param pSerialMagicStr Optional magic string for serial number generation
     SysManager(const char* pModuleName,
             RaftJsonIF& systemConfig,
             const String sysManagerNVSNamespace,
@@ -33,96 +41,55 @@ public:
             uint32_t serialLengthBytes = DEFAULT_SERIAL_LEN_BYTES, 
             const char* pSerialMagicStr = nullptr);
 
-    // Pre-setup - called before all other modules setup
+    /// @brief Pre-setup - called before all other modules setup
     void preSetup();
 
-    // Post-setup - called after other modules setup (and to setup SysMods)
+    /// @brief Post-setup - called after other modules setup (and to setup SysMods)
     void postSetup();
 
-    // Loop (called from main loop)
-    void loop();
+    /// @brief Loop (called from main loop)
+    virtual void loop();
 
-    // Register SysMod with the SysMod factory
+    /// @brief Register SysMod with the SysMod factory
+    /// @param pClassName Class name of the SysMod
+    /// @param pCreateFn Function pointer to create the SysMod
+    /// @param alwaysEnable Whether to always enable this SysMod
+    /// @param pDependencyListCSV Comma-separated list of dependencies
     void registerSysMod(const char* pClassName, SysModCreateFn pCreateFn, bool alwaysEnable = false, const char* pDependencyListCSV = nullptr)
     {
         _sysModFactory.registerSysMod(pClassName, pCreateFn, alwaysEnable, pDependencyListCSV);
     }
 
-    // Add a pre-constructed SysMod to the managed list
-    virtual void addManagedSysMod(RaftSysMod* pSysMod);
+    /// @brief Add a pre-constructed SysMod to the managed list
+    /// @param pSysMod Pointer to the SysMod instance to add
+    virtual void addManagedSysMod(RaftSysMod* pSysMod) override final;
 
     /// @brief Get SysMod instance by name
-    /// @param sysModName
+    /// @param pSysModName Name of the SysMod
     /// @return Pointer to SysMod instance or nullptr if not found
-    virtual RaftSysMod* getSysMod(const char* sysModName) const;
+    virtual RaftSysMod* getSysMod(const char* pSysModName) const override final;
 
-    // Get system name
-    virtual String getSystemName() const
-    {
-        return _systemName;
-    }
-
-    // Get system version
-    virtual String getSystemVersion() const
-    {
-        return platform_getAppVersion();
-    }
-
-    // Get system serial number
-    String getSystemSerialNo() const
-    {
-        return _mutableConfig.getString("serialNo", "");
-    }
-
-    // Get system manufacturer
-    String getSystemManufacturer() const
-    {
-        return _systemConfig.getString("Manufacturer", "");
-    }
-
-    // Set base SysType version
-    void setBaseSysTypeVersion(const char* pVersionStr)
-    {
-        _sysTypeManager.setBaseSysTypeVersion(pVersionStr);
-    }
-
-    // Get base SysType version
-    String getBaseSysTypeVersion() const
-    {
-        return _sysTypeManager.getBaseSysTypeVersion();
-    }
-
-    // Get friendly name
-    virtual String getFriendlyName(bool& isSet) const;
-    bool getFriendlyNameIsSet() const;
-    bool setFriendlyName(const String& friendlyName, bool setHostname, String& respStr);
-
-    // Set system unique string
-    void setSystemUniqueString(const char* sysUniqueStr)
-    {
-        _systemUniqueString = sysUniqueStr;
-    }
-
-    // Get system unique string
-    virtual String getSystemUniqueString() const
-    {
-        return _systemUniqueString;
-    }
-
-    // Set stats callback (for SysManager's own stats)
+    /// @brief Set stats callback (for SysManager's own stats)
+    /// @param statsCB Callback function for stats
     void setStatsCB(SysManager_statsCB statsCB)
     {
         _statsCB = statsCB;
     }
 
-    // Add status change callback on a SysMod
-    virtual void setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
+    /// @brief Add status change callback on a SysMod
+    /// @param sysModName Name of the SysMod
+    /// @param statusChangeCB Callback function for status change
+    virtual void setStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB) override final;
 
-    // Get status from SysMod
-    virtual String getStatusJSON(const char* sysModName) const;
+    /// @brief Get status from SysMod
+    /// @param pSysModName Name of the SysMod
+    /// @return Status string (JSON)
+    virtual String getStatusJSON(const char* pSysModName) const override final;
 
-    // Get debug from SysMod
-    String getDebugJSON(const char* sysModName) const;
+    /// @brief Get debug information from SysMod
+    /// @param pSysModName Name of the SysMod
+    /// @return Debug string (JSON)
+    String getDebugJSON(const char* pSysModName) const;
 
     /// @brief Notify of system shutdown
     /// @param isRestart True if this is a restart (false if shutdown)
@@ -130,7 +97,7 @@ public:
     void notifyOfShutdown(bool isRestart = true, const char* reasonOrNull = nullptr);
 
     /// @brief Send command to one or all SysMods
-    /// @param sysModName Name of SysMod to send command to or nullptr for all SysMods
+    /// @param pSysModNameOrNullForAll Name of SysMod to send command to or nullptr for all SysMods
     /// @param cmdJSON Command JSON string
     /// @return Result code
     /// @note The command JSON string should be in the format:
@@ -139,25 +106,48 @@ public:
     ///       to be passed to the command handler.
     ///       The command will be sent to the SysMod's command handler.
     ///       The SysMod should handle the command and return a result.
-    virtual RaftRetCode sendCmdJSON(const char* sysModNameOrNullForAll, const char* cmdJSON);
+    virtual RaftRetCode sendCmdJSON(const char* pSysModNameOrNullForAll, const char* cmdJSON) override final;
 
-    // Register data source (message generator functions)
-    bool registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB);
+    /// @brief Register data source (message generator functions)
+    /// @param pSysModName Name of the SysMod
+    /// @param pubTopic Publish topic
+    /// @param msgGenCB Message generator callback
+    /// @param stateDetectCB State detect callback
+    /// @return True if registration was successful
+    virtual bool registerDataSource(const char* pSysModName, const char* pubTopic, 
+            SysMod_publishMsgGenFn msgGenCB, 
+            SysMod_stateDetectCB stateDetectCB) override final;
+    
+    /// @brief Get named value
+    /// @param pSysModName Name of the SysMod
+    /// @param valueName Value name
+    /// @param isValid (out) true if value is valid
+    /// @return value
+    virtual double getNamedValue(const char* pSysModName, const char* valueName, bool& isValid) const override final;
 
-    // Get named value 
-    virtual double getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const override;
+    /// @brief Set named value
+    /// @param pSysModName Name of the SysMod
+    /// @param valueName Value name
+    /// @param value Value to set
+    /// @return true if set
+    virtual bool setNamedValue(const char* pSysModName, const char* valueName, double value) override final;
 
-    // Set named value
-    virtual bool setNamedValue(const char* sysModName, const char* valueName, double value) override;
+    /// @brief Get named value string
+    /// @param pSysModName Name of the SysMod
+    /// @param valueName Value name
+    /// @param isValid (out) true if value is valid
+    /// @return value string
+    virtual String getNamedString(const char* pSysModName, const char* valueName, bool& isValid) const override final;
 
-    // Get named value string
-    virtual String getNamedString(const char* sysModName, const char* valueName, bool& isValid) const override;
+    /// @brief Set named value string
+    /// @param pSysModName Name of the SysMod
+    /// @param valueName Value name
+    /// @param value Value to set
+    /// @return true if set
+    virtual bool setNamedString(const char* pSysModName, const char* valueName, const char* value) override final;
 
-    // Set named value string
-    virtual bool setNamedString(const char* sysModName, const char* valueName, const char* value) override;
-
-    // Request system restart
-    void systemRestart()
+    /// @brief Request system restart
+    virtual void systemRestart() override final
     {
         // Notify all SysMods of restart
         notifyOfShutdown(true);
@@ -167,49 +157,64 @@ public:
         _systemRestartMs = millis();
     }
 
-    // REST API Endpoints
+    /// @brief Set REST API endpoints
+    /// @param restAPIEndpoints Reference to RestAPIEndpointManager
     void setRestAPIEndpoints(RestAPIEndpointManager& restAPIEndpoints)
     {
         _pRestAPIEndpointManager = &restAPIEndpoints;
     }
 
-    virtual RestAPIEndpointManager* getRestAPIEndpointManager()
+    /// @brief Get REST API endpoint manager
+    /// @return Pointer to RestAPIEndpointManager
+    virtual RestAPIEndpointManager* getRestAPIEndpointManager() override final
     {
         return _pRestAPIEndpointManager;
     }
 
-    // CommsCore
+    // @brief Set communications core interface
+    /// @param pCommsCore Pointer to CommsCoreIF
     void setCommsCore(CommsCoreIF* pCommsCore)
     {
         _pCommsCore = pCommsCore;
     }
-    virtual CommsCoreIF* getCommsCore()
+
+    /// @brief Get communications core interface
+    /// @return Pointer to CommsCoreIF
+    virtual CommsCoreIF* getCommsCore() override final
     {
         return _pCommsCore;
     }
 
-    // Protocol exchange
+    /// @brief Set protocol exchange interface
+    /// @param pProtocolExchange Pointer to ProtocolExchange
     void setProtocolExchange(ProtocolExchange* pProtocolExchange)
     {
         _pProtocolExchange = pProtocolExchange;
     }
-    ProtocolExchange* getProtocolExchange()
+
+    /// @brief Get protocol exchange interface
+    /// @return Pointer to ProtocolExchange
+    virtual ProtocolExchange* getProtocolExchange() override final
     {
         return _pProtocolExchange;
     }
 
-    // Device manager
+    /// @brief Set device manager
+    /// @param pDeviceManager Pointer to DeviceManager
     void setDeviceManager(DeviceManager* pDeviceManager)
     {
         _pDeviceManager = pDeviceManager;
     }
-    DeviceManager* getDeviceManager()
+
+    /// @brief Get device manager
+    /// @return Pointer to DeviceManager
+    virtual DeviceManager* getDeviceManager() override final
     {
         return _pDeviceManager;
     }
 
     // Get supervisor stats
-    virtual SupervisorStats* getStats()
+    virtual SupervisorStats* getStats() override final
     {
         return &_supervisorStats;
     }
@@ -219,24 +224,6 @@ public:
         _isSystemMainFWUpdate = isMainFWUpdate;
         _isSystemFileTransferring = isFileSystemActivity;
         _isSystemStreaming = isStreaming;
-    }
-
-    // File/stream system activity - main FW update
-    virtual bool isSystemMainFWUpdate()
-    {
-        return _isSystemMainFWUpdate;
-    }
-
-    // File/stream system activity - streaming
-    virtual bool isSystemFileTransferring()
-    {
-        return _isSystemFileTransferring;
-    }
-
-    // File/stream system activity - streaming
-    virtual bool isSystemStreaming()
-    {
-        return _isSystemStreaming;
     }
 
     // Get SysConfig
@@ -374,6 +361,9 @@ private:
     // Device manager
     DeviceManager* _pDeviceManager = nullptr;
 
+    // Auto-set hostname when friendly name is set
+    bool _autoSetHostname = true;
+
     // API to reset system
     RaftRetCode apiReset(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
@@ -420,6 +410,17 @@ private:
     /// @brief Send report message
     /// @param msg Message to send
     void sendReportMessage(const char* msg);
+
+    /// @brief get friendly name
+    /// @param (out) isSet
+    /// @return friendly name
+    String getFriendlyName(bool& isSet) const;
+
+    /// @brief set friendly name
+    /// @param friendlyName
+    /// @param forceSetHostname
+    /// @return true if set
+    bool setFriendlyName(const String& friendlyName, bool forceSetHostname = false);
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "SysMan";

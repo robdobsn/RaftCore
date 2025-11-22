@@ -48,22 +48,28 @@ RaftSysMod::~RaftSysMod()
 
 String RaftSysMod::getSystemName()
 {
+    bool isValid = false;
     if (_pSysManager)
-        return _pSysManager->getSystemName();
+        return _pSysManager->getNamedString(nullptr, "SystemName", isValid);
     return "";
 }
 
 String RaftSysMod::getSystemUniqueString()
 {
+    bool isValid = false;
     if (_pSysManager)
-        return _pSysManager->getSystemUniqueString();
+        return _pSysManager->getNamedString(nullptr, "SystemUniqueString", isValid);
     return "";
 }
 
 String RaftSysMod::getFriendlyName(bool& isSet)
 {
+    bool isValid = false;
     if (_pSysManager)
-        return _pSysManager->getFriendlyName(isSet);
+    {
+        isSet = _pSysManager->getNamedValue(nullptr, "FriendlyNameIsSet", isValid) != 0.0;
+        return _pSysManager->getNamedString(nullptr, "FriendlyName", isValid);
+    }
     isSet = false;
     return "";
 }
@@ -186,23 +192,26 @@ SupervisorStats* RaftSysMod::getSysManagerStats()
 // File/stream system activity - main firmware update
 bool RaftSysMod::isSystemMainFWUpdate()
 {
+    bool isValid;
     if (_pSysManager)
-        return _pSysManager->isSystemMainFWUpdate();
+        return _pSysManager->getNamedValue(nullptr, "IsSystemMainFWUpdate", isValid) != 0.0;
     return false;
 }
 
 // File/stream system activity - file transfer
 bool RaftSysMod::isSystemFileTransferring()
 {
+    bool isValid = false;
     if (_pSysManager)
-        return _pSysManager->isSystemFileTransferring();
+        return _pSysManager->getNamedValue(nullptr, "IsSystemFileTransferring", isValid) != 0.0;
     return false;
 }
 
 // File/stream system activity - streaming
 bool RaftSysMod::isSystemStreaming()
 {
+    bool isValid = false;
     if (_pSysManager)
-        return _pSysManager->isSystemStreaming();
+        return _pSysManager->getNamedValue(nullptr, "IsSystemStreaming", isValid) != 0.0;
     return false;
 }

@@ -511,14 +511,16 @@ void SysManager::addManagedSysMod(RaftSysMod* pSysMod)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get SysMod instance by name
-/// @param sysModName
+/// @param pSysModName
 /// @return Pointer to SysMod instance or nullptr if not found
-RaftSysMod* SysManager::getSysMod(const char* sysModName) const
+RaftSysMod* SysManager::getSysMod(const char* pSysModName) const
 {
+    if (!pSysModName)
+        return nullptr;
     // See if the sysmod is in the list
     for (RaftSysMod* pSysMod : _sysModuleList)
     {
-        if (pSysMod->modNameStr().equals(sysModName))
+        if (pSysMod->modNameStr().equals(pSysModName))
         {
             return pSysMod;
         }
@@ -720,14 +722,40 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get named value from SysMod
-/// @param sysModName 
+/// @param pSysModName (nullptr for SysManager)
 /// @param valueName 
 /// @param isValid 
 /// @return 
-double SysManager::getNamedValue(const char* sysModName, const char* valueName, bool& isValid) const
+double SysManager::getNamedValue(const char* pSysModName, const char* valueName, bool& isValid) const
 {
+    // Check for SysManager named values
+    if (!pSysModName)
+    {
+        if (strcasecmp(valueName, "FriendlyNameIsSet") == 0)
+        {
+            isValid = true;
+            return _mutableConfig.getLong("nameSet", 0) ? 1.0 : 0.0;
+        }
+        else if (strcasecmp(valueName, "IsSystemMainFWUpdate") == 0)
+        {
+            isValid = true;
+            return _isSystemMainFWUpdate ? 1.0 : 0.0;
+        }
+        else if (strcasecmp(valueName, "IsSystemFileTransferring") == 0)
+        {
+            isValid = true;
+            return _isSystemFileTransferring ? 1.0 : 0.0;
+        }
+        else if (strcasecmp(valueName, "IsSystemStreaming") == 0)
+        {
+            isValid = true;
+            return _isSystemStreaming ? 1.0 : 0.0;
+        }
+        isValid = false;
+        return 0;
+    }
     // Get SysMod
-    RaftSysMod* pSysMod = getSysMod(sysModName);
+    RaftSysMod* pSysMod = getSysMod(pSysModName);
     if (pSysMod)
             return pSysMod->getNamedValue(valueName, isValid);
     isValid = false;
@@ -736,14 +764,23 @@ double SysManager::getNamedValue(const char* sysModName, const char* valueName, 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set named value in SysMod
-/// @param sysModName
+/// @param pSysModName (nullptr for SysManager)
 /// @param valueName
 /// @param value
 /// @return true if set
-bool SysManager::setNamedValue(const char* sysModName, const char* valueName, double value)
+bool SysManager::setNamedValue(const char* pSysModName, const char* valueName, double value)
 {
+    // Check for SysManager
+    if (!pSysModName)
+    {
+        if (strcasecmp(valueName, "AutoSetHostname") == 0)
+        {
+            _autoSetHostname = value != 0.0;
+        }
+    }
+
     // Get SysMod
-    RaftSysMod* pSysMod = getSysMod(sysModName);
+    RaftSysMod* pSysMod = getSysMod(pSysModName);
     if (pSysMod)
         return pSysMod->setNamedValue(valueName, value);
     return false;
@@ -751,14 +788,55 @@ bool SysManager::setNamedValue(const char* sysModName, const char* valueName, do
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get named value string from SysMod
-/// @param sysModName
+/// @param pSysModName (nullptr for SysManager)
 /// @param valueName
 /// @param isValid
 /// @return string
-String SysManager::getNamedString(const char* sysModName, const char* valueName, bool& isValid) const
+String SysManager::getNamedString(const char* pSysModName, const char* valueName, bool& isValid) const
 {
+    // Check for SysManager named values
+    if (!pSysModName)
+    {
+        if (strcasecmp(valueName, "FriendlyName") == 0)
+        {
+            return getFriendlyName(isValid);
+        }
+        else if (strcasecmp(valueName, "SerialNumber") == 0)
+        {
+            isValid = true;
+            return _mutableConfig.getString("serialNo", "");
+        }
+        else if (strcasecmp(valueName, "SystemVersion") == 0)
+        {
+            isValid = true;
+            return platform_getAppVersion();
+        }
+        else if (strcasecmp(valueName, "SystemName") == 0)
+        {
+            isValid = true;
+            return _systemName;
+        }
+        else if (strcasecmp(valueName, "Manufacturer") == 0)
+        {
+            isValid = true;
+            return _systemConfig.getString("Manufacturer", "");
+        }
+        else if (strcasecmp(valueName, "BaseSysTypeVersion") == 0)
+        {
+            isValid = true;
+            return _sysTypeManager.getBaseSysTypeVersion();
+        }
+        else if (strcasecmp(valueName, "SystemUniqueString") == 0)
+        {
+            isValid = true;
+            return _systemUniqueString;
+        }
+        isValid = false;
+        return "";
+    }
+
     // Get SysMod
-    RaftSysMod* pSysMod = getSysMod(sysModName);
+    RaftSysMod* pSysMod = getSysMod(pSysModName);
     if (pSysMod)
         return pSysMod->getNamedString(valueName, isValid);
     isValid = false;
@@ -767,14 +845,34 @@ String SysManager::getNamedString(const char* sysModName, const char* valueName,
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set named value string in SysMod
-/// @param sysModName
+/// @param pSysModName (nullptr for SysManager)
 /// @param valueName
 /// @param value
 /// @return true if set
-bool SysManager::setNamedString(const char* sysModName, const char* valueName, const char* value)
+bool SysManager::setNamedString(const char* pSysModName, const char* valueName, const char* value)
 {
+    // Check for SysManager named values
+    if (!pSysModName)
+    {
+        if (strcasecmp(valueName, "FriendlyName") == 0)
+        {
+            setFriendlyName(value);
+        }
+        else if (strcasecmp(valueName, "BaseSysTypeVersion") == 0)
+        {
+            _sysTypeManager.setBaseSysTypeVersion(value);
+            return true;
+        }
+        else if (strcasecmp(valueName, "SystemUniqueString") == 0)
+        {
+            _systemUniqueString = value;
+            return true;
+        }
+        return false;
+    }
+
     // Get SysMod
-    RaftSysMod* pSysMod = getSysMod(sysModName);
+    RaftSysMod* pSysMod = getSysMod(pSysModName);
     if (pSysMod)
         return pSysMod->setNamedString(valueName, value);
     return false;
@@ -933,11 +1031,10 @@ RaftRetCode SysManager::apiFriendlyName(const String &reqStr, String& respStr, c
     {
         // Set name
         String friendlyName = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
-        String errorStr;
-        bool rslt = setFriendlyName(friendlyName.c_str(), true, errorStr);
+        bool rslt = setFriendlyName(friendlyName.c_str(), true);
         if (!rslt)
         {
-            Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
+            Raft::setJsonErrorResult(reqStr.c_str(), respStr, "");
             return RaftRetCode::RAFT_INVALID_DATA;
         }
     }
@@ -1145,7 +1242,7 @@ void SysManager::statsShow()
                 friendlyNameStr.c_str(),
                 _systemName.c_str(),
                 platform_getAppVersion().c_str(),
-                getBaseSysTypeVersion().c_str(),
+                _sysTypeManager.getBaseSysTypeVersion().c_str(),
 #ifdef ESP_PLATFORM
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                 heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
@@ -1180,7 +1277,7 @@ void SysManager::statsShow()
 String SysManager::getFriendlyName(bool& isSet) const
 {
     // Check if set
-    isSet = getFriendlyNameIsSet();
+    isSet =  _mutableConfig.getLong("nameSet", 0);
 
     // Handle default naming
     String friendlyNameNVS = _mutableConfig.getString("friendlyName", "");
@@ -1203,20 +1300,11 @@ String SysManager::getFriendlyName(bool& isSet) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief get friendly name is set
-/// @return true if set
-bool SysManager::getFriendlyNameIsSet() const
-{
-    return _mutableConfig.getLong("nameSet", 0);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief set friendly name
 /// @param friendlyName
-/// @param setHostname
-/// @param (out) errorStr
+/// @param forceSetHostname
 /// @return true if set
-bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, String& errorStr)
+bool SysManager::setFriendlyName(const String& friendlyName, bool forceSetHostname)
 {
     // Update cached name
     _mutableConfigCache.friendlyName = friendlyName;
@@ -1238,7 +1326,7 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool setHostname, S
 
     // Setup network system hostname
 #ifdef ESP_PLATFORM
-    if (_mutableConfigCache.friendlyNameIsSet && setHostname)
+    if (_mutableConfigCache.friendlyNameIsSet && (_autoSetHostname || forceSetHostname))
         networkSystem.setHostname(_mutableConfigCache.friendlyName.c_str());
 #endif
 
