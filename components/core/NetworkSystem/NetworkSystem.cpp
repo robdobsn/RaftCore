@@ -303,11 +303,11 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (wifiStaConnWithIP)
         {
             jsonStr += R"(","RSSI":)" + String(_wifiRSSI) + 
-            R"(,"IP":")" + _wifiIPV4Addr;
+            R"(,"IP":")" + _wifiIPV4Addr + R"(")";
         }
         if (isPaused())
         {
-            jsonStr += R"(","paused":1)";
+            jsonStr += R"(,"paused":1)";
         }
         jsonStr += R"(})";
     }
