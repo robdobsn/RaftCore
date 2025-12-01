@@ -77,6 +77,12 @@ bool LEDPixels::setup(LEDPixelConfig& config)
     {
         // Setup segments
         _segments.resize(config.segmentConfigs.size());
+
+        // If there is exactly one segment and it does not specify a numPixels, assume it covers all pixels
+        if ((config.segmentConfigs.size() == 1) && (config.segmentConfigs[0].numPixels == 0))
+        {
+            config.segmentConfigs[0].numPixels = config.totalPixels;
+        }
         for (uint32_t segIdx = 0; segIdx < _segments.size(); segIdx++)
         {
             _segments[segIdx].setNamedValueProvider(_pDefaultNamedValueProvider, true);
