@@ -38,6 +38,15 @@
 #endif
 #endif
 
+// SPI Ethernet support (W5500)
+#if defined(CONFIG_ETH_USE_SPI_ETHERNET)
+#include "driver/spi_master.h"
+#ifdef ETHERNET_IS_ENABLED
+#include "esp_eth_phy.h"
+#include "esp_eth_mac.h"
+#endif
+#endif
+
 // Global object
 NetworkSystem networkSystem;
 
@@ -744,6 +753,108 @@ bool NetworkSystem::startEthernet()
     if (pEthNetif && !_hostname.isEmpty())
         esp_netif_set_hostname(pEthNetif, _hostname.c_str());
 
+    // Handle W5500 SPI Ethernet
+#if defined(CONFIG_ETH_USE_SPI_ETHERNET) && defined(CONFIG_ETH_SPI_ETHERNET_W5500)
+    if (_networkSettings.ethLanChip == NetworkSettings::ETH_CHIP_TYPE_W5500)
+    {
+        LOG_I(MODULE_PREFIX, "startEthernet - W5500 SPI mode MOSI:%d MISO:%d SCLK:%d CS:%d INT:%d RST:%d",
+                    _networkSettings.spiMOSIPin, _networkSettings.spiMISOPin, _networkSettings.spiSCLKPin,
+                    _networkSettings.spiCSPin, _networkSettings.spiIntPin, _networkSettings.phyRstPin);
+
+        // Configure SPI bus
+        spi_bus_config_t buscfg = {
+            .mosi_io_num = _networkSettings.spiMOSIPin,
+            .miso_io_num = _networkSettings.spiMISOPin,
+            .sclk_io_num = _networkSettings.spiSCLKPin,
+            .quadwp_io_num = -1,
+            .quadhd_io_num = -1,
+            .data4_io_num = -1,
+            .data5_io_num = -1,
+            .data6_io_num = -1,
+            .data7_io_num = -1,
+            .data_io_default_level = 0,
+            .max_transfer_sz = 0,
+            .flags = 0,
+            .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
+            .intr_flags = 0
+        };
+        esp_err_t err = spi_bus_initialize((spi_host_device_t)_networkSettings.spiHostDevice, &buscfg, SPI_DMA_CH_AUTO);
+        if (err != ESP_OK)
+        {
+            LOG_E(MODULE_PREFIX, "startEthernet - W5500 SPI bus init failed err %s", esp_err_to_name(err));
+            return false;
+        }
+
+        // Configure SPI device
+        spi_device_interface_config_t devcfg = {};
+        devcfg.command_bits = 16;
+        devcfg.address_bits = 8;
+        devcfg.mode = 0;
+        devcfg.clock_speed_hz = _networkSettings.spiClockSpeedMHz * 1000 * 1000;
+        devcfg.queue_size = 20;
+        devcfg.spics_io_num = _networkSettings.spiCSPin;
+
+        // W5500 specific configuration
+        eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG((spi_host_device_t)_networkSettings.spiHostDevice, &devcfg);
+        w5500_config.int_gpio_num = _networkSettings.spiIntPin;
+
+        // MAC configuration
+        eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+        mac_config.rx_task_stack_size = 4096;
+        
+        // Create MAC instance
+        esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+        if (!mac)
+        {
+            LOG_E(MODULE_PREFIX, "startEthernet - W5500 MAC creation failed");
+            return false;
+        }
+
+        // PHY configuration
+        eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+        phy_config.phy_addr = _networkSettings.phyAddr;
+        phy_config.reset_gpio_num = _networkSettings.phyRstPin;
+
+        // Create PHY instance
+        esp_eth_phy_t *phy = esp_eth_phy_new_w5500(&phy_config);
+        if (!phy)
+        {
+            LOG_E(MODULE_PREFIX, "startEthernet - W5500 PHY creation failed");
+            return false;
+        }
+
+        // Install Ethernet driver
+        esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy);
+        err = esp_eth_driver_install(&eth_config, &_ethernetHandle);
+        if (err != ESP_OK)
+        {
+            LOG_E(MODULE_PREFIX, "startEthernet - W5500 driver install failed err %s", esp_err_to_name(err));
+            return false;
+        }
+
+        // Attach Ethernet driver to TCP/IP stack
+        err = esp_netif_attach(pEthNetif, esp_eth_new_netif_glue(_ethernetHandle));
+        if (err != ESP_OK)
+        {
+            LOG_E(MODULE_PREFIX, "startEthernet - W5500 netif attach failed err %s", esp_err_to_name(err));
+            return false;
+        }
+
+        // Start Ethernet driver
+        err = esp_eth_start(_ethernetHandle);
+        if (err != ESP_OK)
+        {
+            LOG_E(MODULE_PREFIX, "startEthernet - W5500 start failed err %s", esp_err_to_name(err));
+            return false;
+        }
+
+        LOG_I(MODULE_PREFIX, "startEthernet - W5500 initialized successfully");
+        return true;
+    }
+#endif
+
+    // RMII-based Ethernet (LAN87XX, etc.)
+#if defined(CONFIG_ETH_USE_ESP32_EMAC)
     // Handle power pin
     if (_networkSettings.powerPin >= 0)
     {
@@ -890,8 +1001,13 @@ bool NetworkSystem::startEthernet()
     // Debug
     LOG_I(MODULE_PREFIX, "setup ethernet OK");
     return true;
+#endif // CONFIG_ETH_USE_ESP32_EMAC
+
+    // If we get here, no supported ethernet type was configured
+    LOG_E(MODULE_PREFIX, "startEthernet - no supported Ethernet type configured");
+    return false;
 }
-#endif
+#endif // ETHERNET_IS_ENABLED
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle WiFi events

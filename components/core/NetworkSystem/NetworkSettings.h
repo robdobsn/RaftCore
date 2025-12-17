@@ -20,7 +20,8 @@ public:
     enum EthLanChip
     {
         ETH_CHIP_TYPE_NONE,
-        ETH_CHIP_TYPE_LAN87XX
+        ETH_CHIP_TYPE_LAN87XX,
+        ETH_CHIP_TYPE_W5500
     };
 
     void setFromConfig(RaftJsonIF& config, const String& defaultHostnameIn, const char* pPrefix = nullptr)
@@ -52,6 +53,15 @@ public:
         smiMDIOPin = configPrefixed.getLong("ethMDIOPin", -1);
         phyAddr = configPrefixed.getLong("ethPhyAddr", -1);
         phyRstPin = configPrefixed.getLong("ethPhyRstPin", -1);
+
+        // SPI Ethernet settings (for W5500)
+        spiHostDevice = configPrefixed.getLong("spiHostDevice", 2);
+        spiMOSIPin = configPrefixed.getLong("spiMOSIPin", -1);
+        spiMISOPin = configPrefixed.getLong("spiMISOPin", -1);
+        spiSCLKPin = configPrefixed.getLong("spiSCLKPin", -1);
+        spiCSPin = configPrefixed.getLong("spiCSPin", -1);
+        spiIntPin = configPrefixed.getLong("spiIntPin", -1);
+        spiClockSpeedMHz = configPrefixed.getLong("spiClockSpeedMHz", 20);
 
         // NTP settings
         ntpServer = configPrefixed.getString("NTPServer", "pool.ntp.org");
@@ -85,6 +95,15 @@ public:
     int phyAddr = 0;
     int phyRstPin = -1;
 
+    // SPI Ethernet (W5500)
+    int spiHostDevice = 2;      // SPI2_HOST
+    int spiMOSIPin = -1;
+    int spiMISOPin = -1;
+    int spiSCLKPin = -1;
+    int spiCSPin = -1;
+    int spiIntPin = -1;
+    int spiClockSpeedMHz = 20;
+
     // NTP
     String ntpServer;
     String timezone;
@@ -97,6 +116,8 @@ private:
     {
         if (ethLanChip.equalsIgnoreCase("LAN87XX"))
             return ETH_CHIP_TYPE_LAN87XX;
+        if (ethLanChip.equalsIgnoreCase("W5500"))
+            return ETH_CHIP_TYPE_W5500;
         return ETH_CHIP_TYPE_NONE;
     }
     wifi_auth_mode_t getAuthModeFromStr(const String& inStr)
