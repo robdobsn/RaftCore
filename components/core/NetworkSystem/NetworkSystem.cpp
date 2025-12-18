@@ -832,6 +832,18 @@ bool NetworkSystem::startEthernet()
             return false;
         }
 
+        // Set MAC address for W5500 from ESP32's base MAC
+        uint8_t eth_mac[6];
+        esp_read_mac(eth_mac, ESP_MAC_ETH);
+        err = esp_eth_ioctl(_ethernetHandle, ETH_CMD_S_MAC_ADDR, eth_mac);
+        if (err != ESP_OK)
+        {
+            LOG_E(MODULE_PREFIX, "startEthernet - W5500 set MAC failed err %s", esp_err_to_name(err));
+            return false;
+        }
+        LOG_I(MODULE_PREFIX, "startEthernet - W5500 MAC set to %02x:%02x:%02x:%02x:%02x:%02x", 
+              eth_mac[0], eth_mac[1], eth_mac[2], eth_mac[3], eth_mac[4], eth_mac[5]);
+
         // Attach Ethernet driver to TCP/IP stack
         err = esp_netif_attach(pEthNetif, esp_eth_new_netif_glue(_ethernetHandle));
         if (err != ESP_OK)
