@@ -124,18 +124,19 @@ public:
 
     // Pixel comms - defaults are from WS2812B datasheet
     // https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf
-    uint32_t rmtResolutionHz = 10000000; // 10MHz
-    static constexpr const double defaultRMTTicksPerUs = rmtResolutionHz / 1000000.0;
+    static constexpr const double rmtResolutionMHz = 10.0;
+    static constexpr const double rmtTicksPerUs = rmtResolutionMHz;
     static constexpr const uint32_t T0H_US_DEFAULT = 0.4;
     static constexpr const uint32_t T1H_US_DEFAULT = 0.8;
     static constexpr const uint32_t T0L_US_DEFAULT = 0.85; 
     static constexpr const uint32_t T1L_US_DEFAULT = 0.45;
     static constexpr const uint32_t RESET_US_DEFAULT = 100;
-    uint16_t T0H_ticks = T0H_US_DEFAULT * defaultRMTTicksPerUs;
-    uint16_t T1H_ticks = T1H_US_DEFAULT * defaultRMTTicksPerUs;
-    uint16_t T0L_ticks = T0L_US_DEFAULT * defaultRMTTicksPerUs;
-    uint16_t T1L_ticks = T1L_US_DEFAULT * defaultRMTTicksPerUs;
-    uint16_t reset_ticks = RESET_US_DEFAULT * defaultRMTTicksPerUs;
+    uint32_t rmtResolutionHz = rmtResolutionMHz * 1000000;
+    uint16_t T0H_ticks = T0H_US_DEFAULT * rmtTicksPerUs;
+    uint16_t T1H_ticks = T1H_US_DEFAULT * rmtTicksPerUs;
+    uint16_t T0L_ticks = T0L_US_DEFAULT * rmtTicksPerUs;
+    uint16_t T1L_ticks = T1L_US_DEFAULT * rmtTicksPerUs;
+    uint16_t reset_ticks = RESET_US_DEFAULT * rmtTicksPerUs;
     // Default and max num pixels
     static const uint32_t MAX_NUM_PIXELS = 2000;
     static const uint32_t DEFAULT_NUM_PIXELS = 60;
