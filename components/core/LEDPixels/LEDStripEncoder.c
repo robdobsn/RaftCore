@@ -91,15 +91,15 @@ esp_err_t rmt_new_led_strip_encoder(const led_strip_encoder_config_t *config, rm
     rmt_bytes_encoder_config_t bytes_encoder_config = {
         .bit0 = {
             .level0 = 1,
-            .duration0 = config->bit0_0_ticks,
+            .duration0 = config->T0H_ticks,
             .level1 = 0,
-            .duration1 = config->bit0_1_ticks,
+            .duration1 = config->T0L_ticks,
         },
         .bit1 = {
             .level0 = 1,
-            .duration0 = config->bit1_0_ticks,
+            .duration0 = config->T1H_ticks,
             .level1 = 0,
-            .duration1 = config->bit1_1_ticks,
+            .duration1 = config->T1L_ticks,
         },
         .flags.msb_first = config->msbFirst ? 1 : 0 // WS2812 transfer bit order: G7...G0R7...R0B7...B0
     };

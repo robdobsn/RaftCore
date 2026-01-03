@@ -21,10 +21,10 @@ extern "C" {
  */
 typedef struct {
     uint32_t resolution; // Encoder resolution in Hz
-    uint16_t bit0_0_ticks; // Duration of 0 bit in 0 state, in RMT clock ticks
-    uint16_t bit0_1_ticks; // Duration of 0 bit in 1 state, in RMT clock ticks
-    uint16_t bit1_0_ticks; // Duration of 1 bit in 0 state, in RMT clock ticks
-    uint16_t bit1_1_ticks; // Duration of 1 bit in 1 state, in RMT clock ticks
+    uint16_t T0H_ticks; // Duration of high time for 0 bit (WS2812: T0H), in RMT clock ticks
+    uint16_t T0L_ticks; // Duration of low time for 0 bit (WS2812: T0L), in RMT clock ticks
+    uint16_t T1H_ticks; // Duration of high time for 1 bit (WS2812: T1H), in RMT clock ticks
+    uint16_t T1L_ticks; // Duration of low time for 1 bit (WS2812: T1L), in RMT clock ticks
     uint16_t reset_ticks; // Duration of reset code, in RMT clock ticks
     bool msbFirst;
 } led_strip_encoder_config_t;

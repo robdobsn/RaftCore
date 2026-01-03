@@ -96,10 +96,10 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
 
     _ledStripEncoderConfig = {
         .resolution = config.rmtResolutionHz,
-        .bit0_0_ticks = config.bit0_0_ticks,
-        .bit0_1_ticks = config.bit0_1_ticks,
-        .bit1_0_ticks = config.bit1_0_ticks,
-        .bit1_1_ticks = config.bit1_1_ticks,
+        .bit0_0_ticks = config.T0H_ticks,
+        .bit0_1_ticks = config.T0L_ticks,
+        .bit1_0_ticks = config.T1H_ticks,
+        .bit1_1_ticks = config.T1L_ticks,
         .reset_ticks = config.reset_ticks, 
         .msbFirst = config.msbFirst,
     };
