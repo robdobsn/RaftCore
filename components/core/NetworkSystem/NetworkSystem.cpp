@@ -308,10 +308,10 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
             wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
         jsonStr += R"("wifiSTA":{"conn":)" + String(wifiStaConnWithIP) + 
                             R"(,"SSID":")" + (wifiStaConnWithIP ? _wifiStaSSID : _wifiStaSSIDConnectingTo) +
-                        R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":");
+                        R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") + R"(")";
         if (wifiStaConnWithIP)
         {
-            jsonStr += R"(","RSSI":)" + String(_wifiRSSI) + 
+            jsonStr += R"(,"RSSI":)" + String(_wifiRSSI) + 
             R"(,"IP":")" + _wifiIPV4Addr + R"(")";
         }
         if (isPaused())
