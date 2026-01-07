@@ -16,13 +16,12 @@
 #include "LEDSegment.h"
 #include "ESP32RMTLedStrip.h"
 #include "LEDPatternBase.h"
+#include "LEDPixelsShowCB.h"
 #include "esp_idf_version.h"
 
 class RaftJsonIF;
 class BusRequestResult;
 class NamedValueProvider;
-
-typedef std::function<void(uint32_t segmentIdx, bool postShow, std::vector<LEDPixel>& ledPixels)> LEDPixelsShowCB;
 
 class LEDPixels
 {
@@ -241,7 +240,7 @@ private:
     std::vector<LEDSegment> _segments;
 
     // LED strip drivers
-    std::vector<ESP32RMTLedStrip> _ledStripDrivers;
+    std::vector<ESP32RMTLedStrip*> _ledStripDrivers;
 
     // LED patterns
     std::vector<LEDPatternBase::LEDPatternListItem> _ledPatterns;

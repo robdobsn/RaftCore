@@ -138,3 +138,22 @@ static const uint32_t RAFT_MUTEX_WAIT_FOREVER = 0xFFFFFFFF;
 #ifdef __cplusplus
 }
 #endif
+
+// Platform-independent atomic bool
+// Simple wrapper that provides atomic bool operations across platforms
+typedef struct {
+    volatile uint32_t value;
+} RaftAtomicBool;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Atomic bool functions
+void RaftAtomicBool_init(RaftAtomicBool &atomic, bool initialValue);
+void RaftAtomicBool_set(RaftAtomicBool &atomic, bool value);
+bool RaftAtomicBool_get(const RaftAtomicBool &atomic);
+
+#ifdef __cplusplus
+}
+#endif

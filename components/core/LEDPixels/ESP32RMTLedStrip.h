@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <stdint.h>
+#include "RaftThreading.h"
 #include "SpiramAwareAllocator.h"
 #include "LEDPixel.h"
 #include "LEDStripConfig.h"
@@ -24,6 +25,10 @@ public:
     ESP32RMTLedStrip();
     virtual ~ESP32RMTLedStrip();
 
+    // Delete copy constructor and copy assignment
+    ESP32RMTLedStrip(const ESP32RMTLedStrip&) = delete;
+    ESP32RMTLedStrip& operator=(const ESP32RMTLedStrip&) = delete;
+
     // Setup
     bool setup(const LEDStripConfig& ledStripConfig, uint32_t pixelIndexStartOffset);
 
@@ -31,7 +36,8 @@ public:
     void loop();
 
     // Show pixels
-    void showPixels(std::vector<LEDPixel>& pixels);
+    // Returns false if show is skipped (busy or error), true if transmission started
+    bool showPixels(std::vector<LEDPixel>& pixels);
 
     // Wait for show to complete
     void waitUntilShowComplete();
@@ -59,15 +65,18 @@ private:
     bool _isPowerOn = false;
     bool _powerOffAfterTxAsAllBlank = false;
 
-    // Tx in progress
-    volatile bool _txInProgress = false;
+    // Tx in progress (atomic for thread safety)
+    RaftAtomicBool _txInProgress;
 
     // LED strip encoder
     rmt_encoder_handle_t _ledStripEncoderHandle = nullptr;
 
     // Last pixel transmit activity time
-    static const uint32_t STOP_AFTER_TX_TIME_MS = 2;
+    static const uint32_t STOP_AFTER_TX_TIME_MS = 100;
     uint32_t _lastTxTimeMs = 0;
+
+    // Mutex for state synchronization
+    RaftMutex _stateMutex;
 
     // Pixel working buffer
     SpiramAwareUint8Vector _pixelBuffer;
@@ -79,8 +88,8 @@ private:
     // Helpers
     bool initRMTPeripheral();
     void deinitRMTPeripheral();
-    static bool rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
-    bool rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);
+    static bool IRAM_ATTR rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
+    bool IRAM_ATTR rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);
     void powerControl(bool enablePower);
 
     // Debug

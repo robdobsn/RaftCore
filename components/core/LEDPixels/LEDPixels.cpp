@@ -24,6 +24,12 @@ LEDPixels::LEDPixels()
 
 LEDPixels::~LEDPixels()
 {
+    // Clean up LED strip drivers
+    for (auto* ledStrip : _ledStripDrivers)
+    {
+        delete ledStrip;
+    }
+    _ledStripDrivers.clear();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -50,12 +56,14 @@ bool LEDPixels::setup(LEDPixelConfig& config)
     _pixels.resize(config.totalPixels);
 
     // Setup hardware drivers
-    _ledStripDrivers.resize(config.stripConfigs.size());
+    _ledStripDrivers.reserve(config.stripConfigs.size());
     bool rslt = false;
     uint32_t pixelCount = 0;
-    for (uint32_t ledStripIdx = 0; ledStripIdx < _ledStripDrivers.size(); ledStripIdx++)
+    for (uint32_t ledStripIdx = 0; ledStripIdx < config.stripConfigs.size(); ledStripIdx++)
     {
-        rslt = _ledStripDrivers[ledStripIdx].setup(config.stripConfigs[ledStripIdx], pixelCount);
+        ESP32RMTLedStrip* ledStrip = new ESP32RMTLedStrip();
+        _ledStripDrivers.push_back(ledStrip);
+        rslt = ledStrip->setup(config.stripConfigs[ledStripIdx], pixelCount);
         if (!rslt)
             break;
         pixelCount += config.stripConfigs[ledStripIdx].numPixels;
@@ -106,9 +114,9 @@ bool LEDPixels::setup(LEDPixelConfig& config)
 void LEDPixels::loop()
 {
     // Loop over LED strips
-    for (auto& ledStrip : _ledStripDrivers)
+    for (auto* ledStrip : _ledStripDrivers)
     {
-        ledStrip.loop();
+        ledStrip->loop();
     }
 
     // Loop over segments
@@ -184,16 +192,18 @@ int32_t LEDPixels::getSegmentIdx(const String& segmentName) const
 
 bool LEDPixels::show()
 {
-    // Show
+    // Show on all strips, tracking if any fail
+    bool allSucceeded = true;
     uint32_t ledStripIdx = 0;
-    for (auto& ledStrip : _ledStripDrivers)
+    for (auto* ledStrip : _ledStripDrivers)
     {
         // Pre-show callback if specified
         if (_showCB)
             _showCB(ledStripIdx, false, _pixels);
 
-        // Show
-        ledStrip.showPixels(_pixels);
+        // Show - continue even if this one fails
+        if (!ledStrip->showPixels(_pixels))
+            allSucceeded = false;
 
         // Post-show callback if specified
         if (_showCB)
@@ -212,7 +222,7 @@ bool LEDPixels::show()
     LOG_I(MODULE_PREFIX, "show %d pixels %s", (int)_pixels.size(), outStr.c_str());
 #endif
 
-    return true;
+    return allSucceeded;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -221,9 +231,9 @@ bool LEDPixels::show()
 
 void LEDPixels::waitUntilShowComplete()
 {
-    for (auto& ledStrip : _ledStripDrivers)
+    for (auto* ledStrip : _ledStripDrivers)
     {
-        ledStrip.waitUntilShowComplete();
+        ledStrip->waitUntilShowComplete();
     }
 }
 

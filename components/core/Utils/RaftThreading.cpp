@@ -164,3 +164,40 @@
     }
 
 #endif // Platform-specific threading
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Atomic bool functions - platform independent
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void RaftAtomicBool_init(RaftAtomicBool &atomic, bool initialValue)
+{
+    atomic.value = initialValue ? 1 : 0;
+}
+
+void RaftAtomicBool_set(RaftAtomicBool &atomic, bool value)
+{
+#if defined(ESP_PLATFORM)
+    // Use ESP-IDF atomic operations
+    __atomic_store_n(&atomic.value, value ? 1 : 0, __ATOMIC_SEQ_CST);
+#elif defined(__linux__)
+    // Use GCC built-in atomic operations
+    __atomic_store_n(&atomic.value, value ? 1 : 0, __ATOMIC_SEQ_CST);
+#else
+    // Fallback for other platforms - just use volatile
+    atomic.value = value ? 1 : 0;
+#endif
+}
+
+bool RaftAtomicBool_get(const RaftAtomicBool &atomic)
+{
+#if defined(ESP_PLATFORM)
+    // Use ESP-IDF atomic operations
+    return __atomic_load_n(&atomic.value, __ATOMIC_SEQ_CST) != 0;
+#elif defined(__linux__)
+    // Use GCC built-in atomic operations  
+    return __atomic_load_n(&atomic.value, __ATOMIC_SEQ_CST) != 0;
+#else
+    // Fallback for other platforms - just use volatile
+    return atomic.value != 0;
+#endif
+}

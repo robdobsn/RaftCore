@@ -13,7 +13,6 @@
 #include "RaftUtils.h"
 #include "RaftJsonPrefixed.h"
 #include "RaftJson.h"
-#include "esp_idf_version.h"
 
 class LEDStripConfig
 {
@@ -65,6 +64,11 @@ public:
         // Delay before deinit
         delayBeforeDeinitMs = config.getLong("beforeDeinitMs", 0);
 
+        // RMT peripheral configuration
+        memBlockSymbols = config.getLong("memBlockSymbols", 64);
+        transQueueDepth = config.getLong("transQueueDepth", 1);
+        minChunkSize = config.getLong("minChunkSize", 64);
+
         return true;
     }
 
@@ -82,7 +86,10 @@ public:
                     " rmtHz:" + String(rmtResolutionHz) +
                     " T0Hticks:" + String(T0H_ticks) + " T0Lticks:" + String(T0L_ticks) +
                     " T1Hticks:" + String(T1H_ticks) + " T1Lticks:" + String(T1L_ticks) +
-                    " rst_tks:" + String(reset_ticks) + " msb1st:" + String(msbFirst);
+                    " rst_tks:" + String(reset_ticks) + " msb1st:" + String(msbFirst) +
+                    " memBlkSym:" + String(memBlockSymbols) +
+                    " transQDepth:" + String(transQueueDepth) +
+                    " minChunk:" + String(minChunkSize);
         return str;
     }
 
@@ -121,6 +128,11 @@ public:
 
     // Delay before deinit
     uint16_t delayBeforeDeinitMs = 0;
+
+    // RMT peripheral configuration - for simple encoder implementations
+    uint16_t memBlockSymbols = 64;      // RMT memory block size (larger = less flicker)
+    uint16_t transQueueDepth = 1;       // Transaction queue depth (only 1 to prevent buffer corruption)
+    uint16_t minChunkSize = 64;         // Min chunk size for simple encoder
 
     // Pixel comms - defaults are from WS2812B datasheet
     // https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf
