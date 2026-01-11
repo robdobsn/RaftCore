@@ -876,6 +876,38 @@
                 }
             }
         },
+        "MT6701": {
+            "addresses": "0x06",
+            "deviceType": "MT6701",
+            "detectionValues": "",
+            "initValues": "",
+            "pollInfo": {
+                "c": "0x03=r2",
+                "i": 100,
+                "s": 1
+            },
+            "devInfoJson": {
+                "name": "MT6701",
+                "desc": "Magnetic Encoder",
+                "manu": "MagnTek",
+                "type": "MT6701",
+                "clas": ["ANG"],
+                "resp": {
+                    "b": 2,
+                    "a": [
+                        {
+                            "n": "angle",
+                            "t": ">H",
+                            "u": "degrees",
+                            "r": [0, 360],
+                            "f": "3.1f",
+                            "o": "float",
+                            "d": 45.511111111111111
+                        }
+                    ]
+                }
+            }
+        },
         "M5Encoder": {
             "addresses": "0x40",
             "deviceType": "M5Encoder",
