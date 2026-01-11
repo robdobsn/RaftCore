@@ -306,10 +306,20 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
         if (useBeforePauseValue)
             wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
+        String ssidToUse = wifiStaConnWithIP ? _wifiStaSSID : _wifiStaSSIDConnectingTo;
         jsonStr += R"("wifiSTA":{"conn":)" + String(wifiStaConnWithIP) + 
-                            R"(,"SSID":")" + (wifiStaConnWithIP ? _wifiStaSSID : _wifiStaSSIDConnectingTo) +
-                        R"(","MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") + R"(")";
+                            R"(,"SSID":")" + ssidToUse + R"(")";
         if (wifiStaConnWithIP)
+        {
+            jsonStr += R"(,"MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") + 
+                        R"(","RSSI":)" + String(_wifiRSSI) + 
+                        R"(,"IP":")" + _wifiIPV4Addr + R"(")";
+        }
+        else
+        {
+            jsonStr += R"(,"MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") + R"(")";
+        }
+        if (isPaused())
         {
             jsonStr += R"(,"RSSI":)" + String(_wifiRSSI) + 
             R"(,"IP":")" + _wifiIPV4Addr + R"(")";
