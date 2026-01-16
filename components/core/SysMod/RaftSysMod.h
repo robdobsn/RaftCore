@@ -14,6 +14,7 @@
 #include "RaftArduino.h"
 #include "RaftRetCode.h"
 #include "RaftJsonPrefixed.h"
+#include "RaftDevice.h"
 
 // Forward declarations
 class RestAPIEndpointManager;
@@ -35,64 +36,84 @@ typedef std::function<void(const char* stateName, std::vector<uint8_t>& stateHas
 class RaftSysMod
 {
 public:
+    /// @brief Constructor
+    /// @param pModuleName Module name
+    /// @param sysConfig System configuration interface
+    /// @param pConfigPrefix Configuration prefix
+    /// @param pMutableConfigNamespace Mutable configuration namespace
+    /// @param pMutableConfigPrefix Mutable configuration prefix
     RaftSysMod(const char *pModuleName, 
             RaftJsonIF& sysConfig,
             const char* pConfigPrefix = nullptr, 
             const char* pMutableConfigNamespace = nullptr,
             const char* pMutableConfigPrefix = nullptr);
+
+    /// @brief Destructor
     virtual ~RaftSysMod();
 
-    // Setup
+    /// @brief Setup (called once at startup)
     virtual void setup()
     {
     }
 
-    // Add REST API endpoints
+    /// @brief Add REST API endpoints
+    /// @param endpointManager Reference to the REST API endpoint manager
     virtual void addRestAPIEndpoints(RestAPIEndpointManager& endpointManager)
     {
     }
 
-    // Add comms channels
+    /// @brief Add communication channels
+    /// @param commsCore Reference to the communications core interface
     virtual void addCommsChannels(CommsCoreIF& commsCore)
     {
     }
 
-    // Loop (called frequently)
+    /// @brief Loop (called frequently)
     virtual void loop()
     {
     }
 
-    // Post-setup - called after setup of all sysMods complete
+    /// @brief Post-setup (called after setup of all sysMods complete)
     virtual void postSetup()
     {
     }
 
-    // Get name
+    /// @brief Get name of sysMod
+    /// @return Name of sysMod as const char*
     virtual const char* modName()
     {
         return _sysModName.c_str();
     }
+
+    /// @brief Get name of sysMod as String
+    /// @return Name of sysMod as String
     virtual String& modNameStr()
     {
         return _sysModName;
     }
 
-    // Check if main activity busy
+    /// @brief Check if main activity busy
+    /// @return true if busy, false otherwise
     virtual bool isBusy()
     {
         return false;
     }
     
-    // System name
+    /// @brief Get system name
+    /// @return System name
     virtual String getSystemName();
 
-    // System unique string
+    /// @brief Get system unique string
+    /// @return System unique string
     virtual String getSystemUniqueString();
 
-    // Friendly name
+    /// @brief Get friendly name
+    /// @param isSet (out) true if friendly name is set
+    /// @return Friendly name
     virtual String getFriendlyName(bool& isSet);
 
-    // Config access
+    /// @brief Configuration access methods
+    virtual int configGetInt(const char *dataPath, int defaultValue);
     virtual long configGetLong(const char *dataPath, long defaultValue);
     virtual double configGetDouble(const char *dataPath, double defaultValue);
     virtual bool configGetBool(const char *dataPath, bool defaultValue);
@@ -101,144 +122,214 @@ public:
     virtual RaftJsonIF::RaftJsonType configGetType(const char *dataPath, int& arrayLen);
     virtual bool configGetArrayElems(const char *dataPath, std::vector<String>& strList) const;
     virtual void configRegisterChangeCallback(RaftJsonChangeCallbackType configChangeCallback);
+
+    /// @brief Get config interface
+    /// @return Reference to the configuration interface
     virtual RaftJsonIF& configGetConfig()
     {
         return config;
     }
+
+    /// @brief Get modifiable config interface
+    /// @return Reference to the modifiable configuration interface
     virtual RaftJsonIF& modConfig()
     {
         return config;
     }
 
-    // Get JSON status string
+    /// @brief Get JSON status string
+    /// @return JSON status string
     virtual String getStatusJSON() const
     {
         return "{\"rslt\":\"ok\"}";
     }
 
-    // Receive JSON command
+    /// @brief Receive JSON command
+    /// @param cmdJSON Command JSON string
+    /// @return Result code
     virtual RaftRetCode receiveCmdJSON(const char* cmdJSON)
     {
         return RaftRetCode::RAFT_INVALID_OPERATION;
     }
 
-    // Register data source (msg generator callback functions)
-    // This is generally only implemented by a SysMod that handles message publishing 
+    /// @brief Register a data source (msg generator callback functions) for publishing
+    /// @param pubTopic Publish topic
+    /// @param msgGenCB Message generator callback
+    /// @param stateDetectCB State detect callback
+    /// @return true if successful, false otherwise
     virtual bool registerDataSource(const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
     {
         return false;
     }
 
-    // Static function to define the manager for system modules
+    /// @brief Set the SysManager for this SysMod
+    /// @param pSysManager Pointer to the system manager interface
     static void setSysManager(SysManagerIF* pSysManager)
     {
         _pSysManager = pSysManager;
     }
 
+    /// @brief Get SysManager interface
+    /// @return Pointer to the system manager interface
     SysManagerIF* getSysManager() const
     {
         return _pSysManager;
     }
+
+    /// @brief Get const SysManager interface
+    /// @return Pointer to the const system manager interface
     const SysManagerIF* getSysManagerConst() const
     {
         return _pSysManager;
     }
+
+    /// @brief Get SysManager statistics
+    /// @return Pointer to SupervisorStats
     SupervisorStats* getSysManagerStats();
 
-    // Logging destination functionality - ensure no Log calls are made while logging!
+    /// @brief Get device by name
+    /// @param pDeviceName Name of device
+    /// @return Pointer to RaftDevice or nullptr if not found
+    virtual RaftDevice* getDeviceByName(const char* pDeviceName) const;
+
+    /// @brief Log silently (no output) - ensure no Log calls are made while logging!
+    /// @param pLogStr Log string
     virtual void logSilently(const char* pLogStr)
     {
     }
 
-    // Get debug string
+    /// @brief Get Debug string
+    /// @return Debug string as JSON
     virtual String getDebugJSON() const
     {
         return "{}";
     }
 
-    // Get named value
+    /// @brief Get named value (double)
+    /// @param valueName Name of the value
+    /// @param isValid (out) true if value is valid
+    /// @return Named value
     virtual double getNamedValue(const char* valueName, bool& isValid)
     {
         isValid = false;
         return 0;
     }
 
-    // Set named value
+    /// @brief Set named value (double)
+    /// @param valueName Name of the value
+    /// @param value Value to set
+    /// @return true if successful, false otherwise
     virtual bool setNamedValue(const char* valueName, double value)
     {
         return false;
     }
 
-    // Get named string
+    /// @brief Get named string
+    /// @param valueName Name of the value
+    /// @param isValid (out) true if value is valid
+    /// @return Named string
     virtual String getNamedString(const char* valueName, bool& isValid)
     {
         isValid = false;
         return "";
     }
 
-    // Set named string
+    /// @brief Set named string
+    /// @param valueName Name of the value
+    /// @param value Value to set
+    /// @return true if successful, false otherwise
     virtual bool setNamedString(const char* valueName, const char* value)
     {
         return false;
     }
 
-    // File/Stream Start
+    /// @brief File/stream system activity - start file stream
+    /// @param fileName Name of file
+    /// @param fileLen Length of file
+    /// @return true if successful, false otherwise
     virtual bool fileStreamStart(const char* fileName, size_t fileLen)
     {
         return false;
     }
+
+    /// @brief File/stream system activity - data block
+    /// @param fileStreamBlock Reference to the file stream block
+    /// @return RaftRetCode
     virtual RaftRetCode fileStreamDataBlock(FileStreamBlock& fileStreamBlock)
     {
         return RaftRetCode::RAFT_INVALID_OPERATION;
     }
+
+    /// @brief File/stream system activity - cancel/end file stream
+    /// @param isNormalEnd true if normal end, false if cancelled
+    /// @return true if successful, false otherwise
     virtual bool fileStreamCancelEnd(bool isNormalEnd)
     {
         return true;
     }
 
-    // File/stream system activity - main firmware update
+    /// @brief Check if system main firmware update is in progress
+    /// @return true if main firmware update is in progress, false otherwise
     bool isSystemMainFWUpdate();
 
-    // File/stream system activity - file transfer
+    /// @brief Check if system file transfer is in progress
+    /// @return true if file transfer in progress, false otherwise
     bool isSystemFileTransferring();
 
-    // File/stream system activity - streaming
+    /// @brief Check if system streaming is in progress
+    /// @return true if streaming in progress, false otherwise
     bool isSystemStreaming();
 
 public:
     // Non-virtual methods
 
-    // Get REST API endpoints
+    /// @brief Get RestAPIEndpointManager
+    /// @return Pointer to RestAPIEndpointManager
     RestAPIEndpointManager* getRestAPIEndpointManager();
 
-    // Get CommsCore
+    /// @brief Get communications core interface
+    /// @return Pointer to CommsCoreIF
     CommsCoreIF* getCommsCore();
 
-    // Add status change callback on another SysMod
+    /// @brief Add status change callback on another SysMod
+    /// @param sysModName Name of the SysMod
+    /// @param statusChangeCB Status change callback
     void sysModSetStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
 
-    // Get JSON status of another SysMod
+    /// @brief Get JSON status of another SysMod
+    /// @param sysModName Name of the SysMod
+    /// @return JSON status string
     String sysModGetStatusJSON(const char* sysModName) const;
 
-    // Send JSON command to another SysMod
+    /// @brief Send JSON command to another SysMod
+    /// @param sysModName Name of the SysMod
+    /// @param jsonCmd JSON command string
+    /// @return RaftRetCode
     RaftRetCode sysModSendCmdJSON(const char* sysModName, const char* jsonCmd);
 
-    // SysMod get named value
+    /// @brief Get named value from another SysMod
+    /// @param sysModName Name of the SysMod
+    /// @param valueName Name of the value
+    /// @param isValid (out) true if value is valid
+    /// @return Named value
     double sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid);
 
-    // Status change callback
+    /// @brief Set status change callback for this SysMod
+    /// @param statusChangeCB Status change callback
     void setStatusChangeCB(SysMod_statusChangeCB statusChangeCB)
     {
         _statusChangeCBs.push_back(statusChangeCB);
     }
 
-    // Clear status change callbacks
+    /// @brief Clear all status change callbacks for this SysMod
     void clearStatusChangeCBs()
     {
         _statusChangeCBs.clear();
     }
 
-    // Set log level of module
+    /// @brief Set module log level
+    /// @param pModuleName Name of the module
+    /// @param logLevel Log level string
     static void setModuleLogLevel(const char* pModuleName, const String& logLevel)
     {
 #ifdef ESP_PLATFORM
