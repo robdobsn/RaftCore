@@ -69,6 +69,9 @@ add_custom_target(
 # Dependency on SysTypes header
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 
+# For backwards compatibility set _build_config_name variable to the current _systype_name
+set(_build_config_name ${_systype_name})
+
 ################################################
 # DevTypes Generation
 ################################################
