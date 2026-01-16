@@ -130,10 +130,12 @@ RaftDevice* RaftSysMod::getDeviceByName(const char* pDeviceName) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief get config long value
-/// @param dataPath Data path
-/// @param defaultValue Default value
-/// @return Long value
+/// @brief Configuration access methods
+int RaftSysMod::configGetInt(const char *dataPath, int defaultValue)
+{
+    return config.getInt(dataPath, defaultValue);
+}
+
 long RaftSysMod::configGetLong(const char *dataPath, long defaultValue)
 {
     return config.getLong(dataPath, defaultValue);
