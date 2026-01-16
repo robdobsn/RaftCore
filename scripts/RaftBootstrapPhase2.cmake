@@ -162,28 +162,32 @@ set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${OPTIONAL_COMPONENTS})
 # Partition table
 ################################################
 
-# Copy the partitions.csv file from the specific systypes folder to the build artifacts directory
-# It should not go into the build_config_dir as the sdkconfig.defaults file must reference a fixed folder
-set(_partitions_csv_file "${RAFT_BUILD_ARTIFACTS_FOLDER}/partitions.csv")
+# Copy the partitions.csv file to a fixed location so all sdkconfig.defaults files can reference the same path
+# This avoids the need for systype-specific paths in sdkconfig.defaults
+set(_partitions_csv_file "${CMAKE_SOURCE_DIR}/build/raft/partitions.csv")
+set(_partitions_csv_dir "${CMAKE_SOURCE_DIR}/build/raft")
 
-# Copy the partitions.csv file from the specific systypes folder to the build artifacts directory
+# Ensure the directory exists
+file(MAKE_DIRECTORY ${_partitions_csv_dir})
+
+# Copy the partitions.csv file during configuration
 execute_process(
     COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_CONFIG_DIR}/partitions.csv" ${_partitions_csv_file}
 )
 
-# Custom command to copy the partitions.csv file
+# Custom command to copy the partitions.csv file when it changes
 add_custom_command(
     OUTPUT ${_partitions_csv_file}
     COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_CONFIG_DIR}/partitions.csv" ${_partitions_csv_file}
     DEPENDS "${BUILD_CONFIG_DIR}/partitions.csv"
-    COMMENT "Copying partitions.csv to build artifacts directory"
+    COMMENT "Copying partitions.csv to fixed build location"
 )
 
 # Custom target to ensure the partitions.csv file is generated before the main project is built
 add_custom_target(
     partitions_csv ALL
     DEPENDS ${_partitions_csv_file}
-    COMMENT "Copying partitions.csv to build artifacts directory"
+    COMMENT "Ensuring partitions.csv is in fixed build location"
 )
 
 # Dependency on partitions.csv
