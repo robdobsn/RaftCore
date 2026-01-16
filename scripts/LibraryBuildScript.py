@@ -7,10 +7,6 @@ def determine_build_systype(env, current_dir, source_dir):
     # print("--------------- Determining build systype PIDENV: ", env['PIOENV'], " current_dir: ", current_dir, " source_dir: ", source_dir)
     return env['PIOENV']
 
-def save_build_config(build_config_name, artifacts_folder):
-    with open(os.path.join(artifacts_folder, 'cursystype.txt'), 'w') as f:
-        f.write(build_config_name)
-
 def generate_systypes_file(env, build_systype, project_dir, current_dir, artifacts_folder):
 
     # Folder containing SysTypes.json
@@ -97,8 +93,6 @@ generate_systypes_file(env, build_systype, project_dir, current_dir, artifacts_f
 # Generate device records
 generate_device_records(env, current_dir, artifacts_folder)
 env.Append(CPPPATH=[os.path.abspath(artifacts_folder)])
-
-save_build_config(build_systype, artifacts_folder)
 
 print("------------------ Generating Kconfig Defines for LittleFS -----------------")
 process_kconfig(env, current_dir)

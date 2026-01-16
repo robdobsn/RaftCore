@@ -52,9 +52,6 @@ set(BUILD_CONFIG_DIR "${CMAKE_SOURCE_DIR}/systypes/${_systype_name}")
 set(RAFT_BUILD_ARTIFACTS_FOLDER "${CMAKE_BINARY_DIR}/raft")
 file(MAKE_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER})
 
-# Save a file in the build artifacts directory to indicate the systype
-file(WRITE "${RAFT_BUILD_ARTIFACTS_FOLDER}/cursystype.txt" "${_systype_name}")
-
 ################################################
 # Include SysType specific features
 ################################################
