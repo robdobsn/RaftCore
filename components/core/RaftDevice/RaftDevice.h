@@ -165,6 +165,16 @@ public:
     /// @return true if the device has the capability
     virtual bool hasCapability(const char* pCapabilityStr) const;
 
+    /// @brief Send JSON command to device with optional error message
+    /// @param jsonCmd JSON command string
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
+    virtual RaftRetCode sendCmdJSON(const char* jsonCmd, String* respMsg)
+    {
+        // Default calls version without respMsg for backwards compatibility
+        return sendCmdJSON(jsonCmd);
+    }
+
     /// @brief Handle device status change
     /// @param isChangeToOnline true if the device has changed to online
     /// @param isChangeToOffline true if the device has changed to offline

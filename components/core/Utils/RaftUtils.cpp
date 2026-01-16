@@ -1522,6 +1522,11 @@ const char* Raft::getRetCodeStr(RaftRetCode retc)
         case RAFT_FS_FILE_READ_ERROR: return "FS_FILE_READ_ERROR";
         case RAFT_FS_FILE_OPEN_ERROR: return "FS_FILE_OPEN_ERROR";
         case RAFT_FS_OTHER_ERROR: return "FS_OTHER_ERROR";
+        case RAFT_MOTION_NO_MOVEMENT: return "MOTION_NO_MOVEMENT";
+        case RAFT_MOTION_BELOW_MIN_DISTANCE: return "MOTION_BELOW_MIN_DISTANCE";
+        case RAFT_MOTION_NO_STEPS: return "MOTION_NO_STEPS";
+        case RAFT_MOTION_BUSY: return "MOTION_BUSY";
+        case RAFT_MOTION_HOMING_REQUIRED: return "MOTION_HOMING_REQUIRED";
         default: return "UNKNOWN";
     }
 };

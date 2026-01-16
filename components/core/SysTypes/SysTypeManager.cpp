@@ -361,6 +361,14 @@ RaftRetCode SysTypeManager::apiSysTypeGetSettings(const String &reqStr, String &
                 settingsResp += String(",\"base\":{}");
             }
         }
+        else
+        {
+            // Default to empty object if no chained RaftJson exists
+            settingsResp += String(",\"base\":{}");
+        }
+#ifdef DEBUG_SYS_TYPE_MANAGER_API
+        LOG_I(MODULE_PREFIX, "apiSysTypeGetSettings base added");
+#endif
     }
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, settingsResp.c_str());
 }

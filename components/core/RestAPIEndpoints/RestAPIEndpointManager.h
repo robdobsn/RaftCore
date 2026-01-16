@@ -16,17 +16,34 @@
 class RestAPIEndpointManager
 {
 public:
+    /// @brief Constructor
     RestAPIEndpointManager();
 
+    /// @brief Destructor
     virtual ~RestAPIEndpointManager();
 
-    // Get number of endpoints
+    /// @brief Get number of endpoints
+    /// @return Number of endpoints
     int getNumEndpoints();
 
-    // Get nth endpoint
+    /// @brief Get nth endpoint
+    /// @param n Nth index
+    /// @return Pointer to nth endpoint or nullptr if invalid
     RestAPIEndpoint *getNthEndpoint(int n);
 
-    // Add an endpoint
+    /// @brief Add Endpoint to the endpoint manager
+    /// @param pEndpointStr Endpoint string
+    /// @param endpointType Endpoint type
+    /// @param endpointMethod Endpoint method
+    /// @param callbackMain Main callback function
+    /// @param pDescription Endpoint description
+    /// @param pContentType Content type
+    /// @param pContentEncoding Content encoding
+    /// @param pCache Cache control
+    /// @param pExtraHeaders Extra headers
+    /// @param callbackBody Body callback function
+    /// @param callbackChunk Chunk callback function
+    /// @param callbackIsReady Is ready callback function
     void addEndpoint(const char *pEndpointStr, 
                     RestAPIEndpoint::EndpointType endpointType,
                     RestAPIEndpoint::EndpointMethod endpointMethod,
@@ -40,43 +57,80 @@ public:
                     RestAPIFnChunk callbackChunk = nullptr,
                     RestAPIFnIsReady callbackIsReady = nullptr);
 
-    // Get the endpoint definition corresponding to a requested endpoint
+    /// @brief Get the endpoint definition corresponding to a requested endpoint
+    /// @param pEndpointStr Endpoint string
+    /// @return Pointer to endpoint or NULL if not found
     RestAPIEndpoint *getEndpoint(const char *pEndpointStr);
 
-    // Handle an API request
+    /// @brief Handle an API request
+    /// @param requestStr Request string
+    /// @param retStr Response string
+    /// @param sourceInfo Source of the request
+    /// @return RaftRetCode
     RaftRetCode handleApiRequest(const char *requestStr, String &retStr, const APISourceInfo& sourceInfo);
 
-    // Get matching endpoint def
+    /// @brief Get matching endpoint definition for REST API request
+    /// @param requestStr Request string
+    /// @param endpointMethod Endpoint method
+    /// @param optionsMatchesAll If true, OPTIONS method matches all endpoint methods
+    /// @return Pointer to matching endpoint or NULL if none matches
     RestAPIEndpoint* getMatchingEndpoint(const char *requestStr,
                     RestAPIEndpoint::EndpointMethod endpointMethod = RestAPIEndpoint::ENDPOINT_GET,
                     bool optionsMatchesAll = false);
 
-    // Form a string from a char buffer with a fixed length
-    static void formStringFromCharBuf(String &outStr, const char *pStr, int len);
-
-    // Remove first argument from string
+    /// @brief Remove first argument from string
+    /// @param argStr Argument string
+    /// @return String with first argument removed
     static String removeFirstArgStr(const char *argStr);
 
-    // Get Nth argument from a string
+    /// @brief Get nth argument from argument string
+    /// @param argStr Argument string
+    /// @param argIdx Nth argument index
+    /// @param splitOnQuestionMark When true, split on '?' character
+    /// @return Nth argument string
     static String getNthArgStr(const char *argStr, int argIdx, bool splitOnQuestionMark = true);
 
-    // Get position and length of nth arg
+    /// @brief Get pointer and length of nth argument from argument string
+    /// @param argStr Argument string
+    /// @param argIdx Nth argument index
+    /// @param argLen Reference to receive argument length
+    /// @param splitOnQuestionMark When true, split on '?' character
+    /// @return Pointer to start of nth argument string
     static const char *getArgPtrAndLen(const char *argStr, int argIdx, int &argLen, bool splitOnQuestionMark = true);
 
-    // Num args from an argStr
+    /// @brief Get number of arguments in argument string
+    /// @param argStr Argument string
+    /// @return Number of arguments
     static int getNumArgs(const char *argStr);
 
-    // Convert encoded URL
+    /// @brief Unencode HTTP characters in string
+    /// @param inStr Input string
+    /// @return Unencoded string
     static String unencodeHTTPChars(String &inStr);
 
+    /// @brief Get endpoint type string
+    /// @param endpointType Endpoint type
+    /// @return Type string
     static const char *getEndpointTypeStr(RestAPIEndpoint::EndpointType endpointType);
 
+    /// @brief Get endpoint method string
+    /// @param endpointMethod Endpoint method
+    /// @return Method string
     static const char *getEndpointMethodStr(RestAPIEndpoint::EndpointMethod endpointMethod);
 
-    // URL Parser
+    /// @brief Get JSON from REST request
+    /// @param reqStr REST request string
+    /// @return RaftJson object
+    static RaftJson getJSONFromRESTRequest(const char* reqStr);
+
+    /// @brief Get parameters and name/value pairs from REST request
+    /// @param reqStr REST request string
+    /// @param params Vector to receive parameters
+    /// @param nameValuePairs Vector to receive name/value pairs
+    /// @return true if successful
     static bool getParamsAndNameValues(const char* reqStr, std::vector<String>& params, std::vector<RaftJson::NameValuePair>& nameValuePairs);
 
-    // Special channel IDs
+    /// @brief Channel IDs for various REST API sources
     static const uint32_t CHANNEL_ID_EVENT_DETECTOR = 20000;
     static const uint32_t CHANNEL_ID_ROBOT_CONTROLLER = 20001;
     static const uint32_t CHANNEL_ID_COMMAND_FILE = 20002;
@@ -86,7 +140,7 @@ public:
     static const uint32_t CHANNEL_ID_REMOTE_CONTROL = 20006;
 
 private:
-    // List of endpoints
+    /// @brief List of endpoints
     std::list<RestAPIEndpoint> _endpointsList;
 
     // Debug

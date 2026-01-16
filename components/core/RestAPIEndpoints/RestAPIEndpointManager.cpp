@@ -21,28 +21,29 @@
 // #define DEBUG_NAME_VALUE_PAIR_EXTRACTION
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Constructor
 RestAPIEndpointManager::RestAPIEndpointManager()
 {
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Destructor
 RestAPIEndpointManager::~RestAPIEndpointManager()
 {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Access
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Get number of endpoints
+/// @brief Get number of endpoints
+/// @return Number of endpoints
 int RestAPIEndpointManager::getNumEndpoints()
 {
     return _endpointsList.size();
 }
 
-// Get nth endpoint
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get nth endpoint
+/// @param n Nth index
+/// @return Pointer to nth endpoint or nullptr if invalid
 RestAPIEndpoint *RestAPIEndpointManager::getNthEndpoint(int n)
 {
     // Check valid
@@ -56,10 +57,19 @@ RestAPIEndpoint *RestAPIEndpointManager::getNthEndpoint(int n)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Add Endpoint
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Add an endpoint
+/// @brief Add Endpoint to the endpoint manager
+/// @param pEndpointStr Endpoint string
+/// @param endpointType Endpoint type
+/// @param endpointMethod Endpoint method
+/// @param callback Main callback function
+/// @param pDescription Endpoint description
+/// @param pContentType Content type
+/// @param pContentEncoding Content encoding
+/// @param cacheControl Cache control
+/// @param pExtraHeaders Extra headers
+/// @param callbackBody Body callback function
+/// @param callbackChunk Chunk callback function
+/// @param callbackIsReady Is ready callback function
 void RestAPIEndpointManager::addEndpoint(const char *pEndpointStr, 
                     RestAPIEndpoint::EndpointType endpointType,
                     RestAPIEndpoint::EndpointMethod endpointMethod,
@@ -87,10 +97,9 @@ void RestAPIEndpointManager::addEndpoint(const char *pEndpointStr,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Get the endpoint definition corresponding to a requested endpoint
+/// @brief Get the endpoint definition corresponding to a requested endpoint
+/// @param pEndpointStr Endpoint string
+/// @return Pointer to endpoint or NULL if not found
 RestAPIEndpoint* RestAPIEndpointManager::getEndpoint(const char *pEndpointStr)
 {
     // Look for the command in the registered callbacks
@@ -105,9 +114,11 @@ RestAPIEndpoint* RestAPIEndpointManager::getEndpoint(const char *pEndpointStr)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get endpoint def matching REST API request - or NULL if none matches
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get matching endpoint definition for REST API request
+/// @param requestStr Request string
+/// @param endpointMethod Endpoint method
+/// @param optionsMatchesAll If true, OPTIONS method matches all endpoint methods
+/// @return Pointer to matching endpoint or NULL if none matches
 RestAPIEndpoint* RestAPIEndpointManager::getMatchingEndpoint(const char *requestStr,
                     RestAPIEndpoint::EndpointMethod endpointMethod, bool optionsMatchesAll)
 {
@@ -139,9 +150,11 @@ RestAPIEndpoint* RestAPIEndpointManager::getMatchingEndpoint(const char *request
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle simple REST API request
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Handle an API request
+/// @param requestStr Request string
+/// @param retStr Response string
+/// @param sourceInfo Source of the request
+/// @return RaftRetCode
 RaftRetCode RestAPIEndpointManager::handleApiRequest(const char *requestStr, String &retStr, const APISourceInfo& sourceInfo)
 {
     // Get matching def
@@ -164,22 +177,9 @@ RaftRetCode RestAPIEndpointManager::handleApiRequest(const char *requestStr, Str
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Helpers
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Form a string from a char buffer with a fixed length
-void RestAPIEndpointManager::formStringFromCharBuf(String &outStr, const char *pStr, int len)
-{
-    outStr = "";
-    outStr.reserve(len + 1);
-    for (int i = 0; i < len; i++)
-    {
-        outStr.concat(*pStr);
-        pStr++;
-    }
-}
-
-// Remove first argument from string
+/// @brief Remove first argument from a REST API argument string
+/// @param argStr Argument string
+/// @return Argument string with first argument removed
 String RestAPIEndpointManager::removeFirstArgStr(const char *argStr)
 {
     // Get location of / (excluding first char if needed)
@@ -191,7 +191,12 @@ String RestAPIEndpointManager::removeFirstArgStr(const char *argStr)
     return oStr.substring(idxSlash+1);
 }
 
-// Get Nth argument from a string
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get Nth argument from a REST API argument string
+/// @param argStr Argument string
+/// @param argIdx Argument index
+/// @param splitOnQuestionMark If true, split on question mark as well as slash
+/// @return Nth argument string
 String RestAPIEndpointManager::getNthArgStr(const char *argStr, int argIdx, bool splitOnQuestionMark)
 {
     int argLen = 0;
@@ -200,13 +205,19 @@ String RestAPIEndpointManager::getNthArgStr(const char *argStr, int argIdx, bool
 
     if (pStr)
     {
-        formStringFromCharBuf(oStr, pStr, argLen);
+        oStr = String(pStr, argLen);
     }
     oStr = unencodeHTTPChars(oStr);
     return oStr;
 }
 
-// Get position and length of nth arg
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get position and length of nth arg in a REST API argument string
+/// @param argStr Argument string
+/// @param argIdx Argument index
+/// @param argLen Reference to receive argument length
+/// @param splitOnQuestionMark If true, split on question mark as well as slash
+/// @return Pointer to argument string or NULL if not found
 const char* RestAPIEndpointManager::getArgPtrAndLen(const char *argStr, int argIdx, int &argLen, bool splitOnQuestionMark)
 {
     int curArgIdx = 0;
@@ -241,7 +252,10 @@ const char* RestAPIEndpointManager::getArgPtrAndLen(const char *argStr, int argI
     return NULL;
 }
 
-// Num args from an argStr
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the number of arguments in a REST API argument string
+/// @param argStr Argument string
+/// @return Number of arguments
 int RestAPIEndpointManager::getNumArgs(const char *argStr)
 {
     int numArgs = 0;
@@ -275,7 +289,10 @@ int RestAPIEndpointManager::getNumArgs(const char *argStr)
     return numArgs;
 }
 
-// Convert encoded URL
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief HTTP URL decode
+/// @param inStr Input string
+/// @return Decoded string
 String RestAPIEndpointManager::unencodeHTTPChars(String &inStr)
 {
     inStr.replace("%20", " ");
@@ -313,6 +330,10 @@ String RestAPIEndpointManager::unencodeHTTPChars(String &inStr)
     return inStr;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get endpoint type string
+/// @param endpointType Endpoint type
+/// @return Type string
 const char* RestAPIEndpointManager::getEndpointTypeStr(RestAPIEndpoint::EndpointType endpointType)
 {
     if (endpointType == RestAPIEndpoint::ENDPOINT_CALLBACK)
@@ -320,6 +341,10 @@ const char* RestAPIEndpointManager::getEndpointTypeStr(RestAPIEndpoint::Endpoint
     return "Unknown";
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get endpoint method string
+/// @param endpointMethod Endpoint method
+/// @return Method string
 const char* RestAPIEndpointManager::getEndpointMethodStr(RestAPIEndpoint::EndpointMethod endpointMethod)
 {
     switch(endpointMethod)
@@ -333,9 +358,11 @@ const char* RestAPIEndpointManager::getEndpointMethodStr(RestAPIEndpoint::Endpoi
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Extract positional parameters and name-value args
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get parameters and name/value pairs from REST request
+/// @param reqStr REST request string
+/// @param params Vector to receive parameters
+/// @param nameValuePairs Vector to receive name/value pairs
+/// @return true if successful
 bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vector<String>& params, 
             std::vector<RaftJson::NameValuePair>& nameValuePairs)
 {
@@ -413,4 +440,33 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
 #endif
     return true;
 
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get JSON from REST request
+/// @param reqStr REST request string
+/// @return RaftJson object
+RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
+{
+    // Extract name-value pairs and path segments
+    std::vector<RaftJson::NameValuePair> nameValues;
+    std::vector<String> params;
+    getParamsAndNameValues(reqStr, params, nameValues);
+    
+    // Build pathSegments array
+    String pathSegmentsJson = "[";
+    for (size_t i = 0; i < params.size(); i++)
+    {
+        if (i > 0)
+            pathSegmentsJson += ",";
+        pathSegmentsJson += "\"" + params[i] + "\"";
+    }
+    pathSegmentsJson += "]";
+    
+    // Get nameValues JSON
+    String nameValuesJson = RaftJson::getJSONFromNVPairs(nameValues, true);
+    
+    // Combine into final JSON
+    String combinedJson = "{\"pathSegments\":" + pathSegmentsJson + ",\"nameValues\":" + nameValuesJson + "}";
+    return RaftJson(combinedJson.c_str());
 }
