@@ -117,7 +117,7 @@ CommsCoreIF* RaftSysMod::getCommsCore()
 RaftDevice* RaftSysMod::getDeviceByName(const char* pDeviceName) const
 {
     // Check parent
-    if (!_pSysManager)
+    if (!_pSysManager || !pDeviceName)
         return nullptr;
 
     // Get device manager
@@ -126,7 +126,7 @@ RaftDevice* RaftSysMod::getDeviceByName(const char* pDeviceName) const
         return nullptr;
 
     // Get device
-    return pDeviceManager->getDeviceByName(pDeviceName);
+    return pDeviceManager->getDevice(pDeviceName);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -748,7 +748,7 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
 RaftDevice* DeviceManager::getDevice(const char* pDeviceName) const
 {
     // Obtain access to the device list
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!pDeviceName || !RaftMutex_lock(_accessMutex, 5))
         return nullptr;
 
     // Loop through the devices
