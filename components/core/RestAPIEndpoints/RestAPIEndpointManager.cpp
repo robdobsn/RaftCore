@@ -446,6 +446,13 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
 /// @brief Get JSON from REST request
 /// @param reqStr REST request string
 /// @return RaftJson object
+/// @note The returned JSON has the form:
+/// {
+///    "pathSegments": [ "segment0", "segment1", ... ],
+///    "params": { "name0": "value0", "name1": "value1", ... }
+/// }
+/// for a URL of the form:
+/// /segment0/segment1/.../segmentN?name0=value0&name1=value1&...
 RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
 {
     // Extract name-value pairs and path segments
@@ -467,6 +474,6 @@ RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
     String nameValuesJson = RaftJson::getJSONFromNVPairs(nameValues, true);
     
     // Combine into final JSON
-    String combinedJson = "{\"pathSegments\":" + pathSegmentsJson + ",\"nameValues\":" + nameValuesJson + "}";
+    String combinedJson = "{\"pathSegments\":" + pathSegmentsJson + ",\"params\":" + nameValuesJson + "}";
     return RaftJson(combinedJson.c_str());
 }
