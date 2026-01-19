@@ -465,7 +465,6 @@ RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
     const char* segmentStart = pCh;
     bool firstSegment = true;
     bool insideInvCommas = false;
-    bool inParams = false;
     
     // Skip leading slash if present
     if (*pCh == '/')
