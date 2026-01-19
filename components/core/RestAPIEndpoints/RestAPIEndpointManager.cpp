@@ -455,25 +455,126 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
 /// /segment0/segment1/.../segmentN?name0=value0&name1=value1&...
 RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
 {
-    // Extract name-value pairs and path segments
-    std::vector<RaftJson::NameValuePair> nameValues;
-    std::vector<String> params;
-    getParamsAndNameValues(reqStr, params, nameValues);
+    // Single-pass optimized parsing
+    String result;
+    result.reserve(strlen(reqStr) * 2 + 100);  // Pre-allocate to avoid reallocations
     
-    // Build pathSegments array
-    String pathSegmentsJson = "[";
-    for (size_t i = 0; i < params.size(); i++)
+    result = "{\"pathSegments\":[";
+    
+    const char* pCh = reqStr;
+    const char* segmentStart = pCh;
+    bool firstSegment = true;
+    bool insideInvCommas = false;
+    bool inParams = false;
+    
+    // Skip leading slash if present
+    if (*pCh == '/')
     {
-        if (i > 0)
-            pathSegmentsJson += ",";
-        pathSegmentsJson += "\"" + params[i] + "\"";
+        pCh++;
+        segmentStart = pCh;
     }
-    pathSegmentsJson += "]";
     
-    // Get nameValues JSON
-    String nameValuesJson = RaftJson::getJSONFromNVPairs(nameValues, true);
+    // Parse path segments until we hit '?' or end
+    while (*pCh && *pCh != '?')
+    {
+        if (*pCh == '\"')
+        {
+            insideInvCommas = !insideInvCommas;
+        }
+        else if (*pCh == '/' && !insideInvCommas)
+        {
+            // Found a segment separator
+            if (pCh > segmentStart)
+            {
+                if (!firstSegment)
+                    result += ",";
+                result += "\"";
+                
+                // Copy and unencode segment if needed
+                String segment = String(segmentStart, pCh - segmentStart);
+                if (segment.indexOf('%') >= 0)
+                    segment = unencodeHTTPChars(segment);
+                result += segment;
+                result += "\"";
+                firstSegment = false;
+            }
+            segmentStart = pCh + 1;
+        }
+        pCh++;
+    }
     
-    // Combine into final JSON
-    String combinedJson = "{\"pathSegments\":" + pathSegmentsJson + ",\"params\":" + nameValuesJson + "}";
-    return RaftJson(combinedJson.c_str());
+    // Handle last segment before '?' or end
+    if (pCh > segmentStart && *segmentStart != '?')
+    {
+        if (!firstSegment)
+            result += ",";
+        result += "\"";
+        String segment = String(segmentStart, pCh - segmentStart);
+        if (segment.indexOf('%') >= 0)
+            segment = unencodeHTTPChars(segment);
+        result += segment;
+        result += "\"";
+    }
+    
+    result += "],\"params\":{";
+    
+    // Parse parameters if present
+    if (*pCh == '?')
+    {
+        pCh++;  // Skip '?'
+        
+        const char* nameStart = pCh;
+        const char* valueStart = nullptr;
+        bool firstParam = true;
+        
+        while (*pCh)
+        {
+            if (*pCh == '=')
+            {
+                // Found name=value separator
+                if (!firstParam)
+                    result += ",";
+                
+                result += "\"";
+                String name = String(nameStart, pCh - nameStart);
+                name.trim();
+                if (name.indexOf('%') >= 0)
+                    name = unencodeHTTPChars(name);
+                result += name;
+                result += "\":\"";
+                
+                valueStart = pCh + 1;
+                firstParam = false;
+            }
+            else if ((*pCh == '&' || *pCh == ';') && valueStart)
+            {
+                // Found value terminator
+                String value = String(valueStart, pCh - valueStart);
+                value.trim();
+                if (value.indexOf('%') >= 0)
+                    value = unencodeHTTPChars(value);
+                result += value;
+                result += "\"";
+                
+                nameStart = pCh + 1;
+                valueStart = nullptr;
+            }
+            pCh++;
+        }
+        
+        // Handle last parameter
+        if (valueStart && pCh > valueStart)
+        {
+            String value = String(valueStart, pCh - valueStart);
+            value.trim();
+            if (value.indexOf('%') >= 0)
+                value = unencodeHTTPChars(value);
+            result += value;
+            result += "\"";
+        }
+    }
+    
+    result += "}}";
+    
+    return RaftJson(result.c_str());
 }
