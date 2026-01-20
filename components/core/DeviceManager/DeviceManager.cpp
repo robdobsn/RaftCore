@@ -591,8 +591,14 @@ RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& dev
 /// @return JSON string
 String DeviceManager::getDevicesDataJSON() const
 {
-    // JSON strings
-    String jsonStrBus, jsonStrDev;
+    // Pre-allocate string capacity to avoid multiple reallocations
+    // Estimate: ~200 bytes per device/bus element
+    String jsonStr;
+    jsonStr.reserve(1024);
+    
+    // Start JSON object
+    jsonStr += "{";
+    bool needsComma = false;
 
     // Check all buses for data
     for (RaftBus* pBus : raftBusSystem.getBusList())
@@ -608,7 +614,13 @@ String DeviceManager::getDevicesDataJSON() const
         // Check for empty string or empty JSON object
         if (jsonRespStr.length() > 2)
         {
-            jsonStrBus += (jsonStrBus.length() == 0 ? "\"" : ",\"") + pBus->getBusName() + "\":" + jsonRespStr;
+            if (needsComma)
+                jsonStr += ",";
+            jsonStr += "\"";
+            jsonStr += pBus->getBusName();
+            jsonStr += "\":";
+            jsonStr += jsonRespStr;
+            needsComma = true;
         }
     }
 
@@ -625,21 +637,29 @@ String DeviceManager::getDevicesDataJSON() const
         // Check for empty string or empty JSON object
         if (jsonRespStr.length() > 2)
         {
-            jsonStrDev += (jsonStrDev.length() == 0 ? "\"" : ",\"") + pDevice->getPublishDeviceType() + "\":" + jsonRespStr;
+            if (needsComma)
+                jsonStr += ",";
+            jsonStr += "\"";
+            jsonStr += pDevice->getPublishDeviceType();
+            jsonStr += "\":";
+            jsonStr += jsonRespStr;
+            needsComma = true;
         }
     }
 
 #ifdef DEBUG_JSON_DEVICE_DATA
-    LOG_I(MODULE_PREFIX, "getDevicesDataJSON BUS %s DEV %s ", jsonStrBus.c_str(), jsonStrDev.c_str());
+    LOG_I(MODULE_PREFIX, "getDevicesDataJSON %s", jsonStr.c_str());
 #endif
 
-    if (jsonStrBus.length() == 0 && jsonStrDev.length() == 0)
+    // Close JSON object only if we added data
+    if (!needsComma)
     {
         // No data available
         return "";
     }
 
-    return "{" + (jsonStrBus.length() == 0 ? (jsonStrDev.length() == 0 ? "" : jsonStrDev) : (jsonStrDev.length() == 0 ? jsonStrBus : jsonStrBus + "," + jsonStrDev)) + "}";
+    jsonStr += "}";
+    return jsonStr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -693,10 +713,8 @@ std::vector<uint8_t> DeviceManager::getDevicesDataBinary() const
 /// @param stateHash hash of the currently available data
 void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
 {
-    // Clear hash to two bytes
-    stateHash.clear();
-    stateHash.push_back(0);
-    stateHash.push_back(0);
+    // Initialize hash to two bytes
+    stateHash.assign(2, 0);
 
     // Check all buses for data
     for (RaftBus* pBus : raftBusSystem.getBusList())

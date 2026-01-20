@@ -38,6 +38,13 @@
 // #define DEBUG_INBOUND_BLOCK_MAX
 // #define DEBUG_OUTBOUND_BLOCK_MAX
 // #define DEBUG_COMMS_MAN_ADD_PROTOCOL
+// #define DEBUG_OUTBOUND_CAN_ACCEPT_TIMING
+
+#ifdef DEBUG_OUTBOUND_CAN_ACCEPT_TIMING
+#ifdef ESP_PLATFORM
+#include <xtensa/hal.h>
+#endif
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -365,6 +372,20 @@ void CommsChannelManager::inboundHandleMsgVec(uint32_t channelID, const SpiramAw
 
 bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode msgType, bool &noConn)
 {
+#ifdef DEBUG_OUTBOUND_CAN_ACCEPT_TIMING
+    static uint32_t callCount = 0;
+    static uint32_t totalElapsedUs = 0;
+    static uint32_t maxElapsedUs = 0;
+    static uint64_t totalCpuCycles = 0;
+    static uint32_t maxCpuUs = 0;
+    static uint32_t lastReportMs = 0;
+    
+    uint64_t startUs = micros();
+#ifdef ESP_PLATFORM
+    uint32_t startCycles = xthal_get_ccount();
+#endif
+#endif
+
     // Check the channel
     if (channelID >= _commsChannelVec.size())
         return false;
@@ -378,7 +399,49 @@ bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode
     ensureProtocolCodecExists(channelID);
 
     // Check validity
-    return pChannel->outboundCanAccept(channelID, msgType, noConn);
+    bool result = pChannel->outboundCanAccept(channelID, msgType, noConn);
+
+#ifdef DEBUG_OUTBOUND_CAN_ACCEPT_TIMING
+    uint64_t endUs = micros();
+    uint32_t elapsedUs = endUs - startUs;
+    callCount++;
+    totalElapsedUs += elapsedUs;
+    if (elapsedUs > maxElapsedUs)
+        maxElapsedUs = elapsedUs;
+    
+#ifdef ESP_PLATFORM
+    uint32_t endCycles = xthal_get_ccount();
+    uint32_t elapsedCycles = endCycles - startCycles;
+    // ESP32 runs at 240MHz by default, so cycles / 240 = microseconds
+    uint32_t cpuTimeUs = elapsedCycles / 240;
+    totalCpuCycles += elapsedCycles;
+    if (cpuTimeUs > maxCpuUs)
+        maxCpuUs = cpuTimeUs;
+#endif
+    
+    // Report every 5 seconds
+    if (Raft::isTimeout(millis(), lastReportMs, 5000))
+    {
+#ifdef ESP_PLATFORM
+        uint32_t avgCpuUs = callCount > 0 ? (totalCpuCycles / 240) / callCount : 0;
+        LOG_I(MODULE_PREFIX, "outboundCanAccept: calls=%d | ELAPSED: avgUs=%d maxUs=%d | CPU: avgUs=%d maxUs=%d",
+                    callCount, 
+                    callCount > 0 ? totalElapsedUs/callCount : 0, maxElapsedUs,
+                    avgCpuUs, maxCpuUs);
+#else
+        LOG_I(MODULE_PREFIX, "outboundCanAccept stats: calls=%d avgUs=%d maxUs=%d (CPU timing not available)",
+                    callCount, callCount > 0 ? totalElapsedUs/callCount : 0, maxElapsedUs);
+#endif
+        lastReportMs = millis();
+        callCount = 0;
+        totalElapsedUs = 0;
+        maxElapsedUs = 0;
+        totalCpuCycles = 0;
+        maxCpuUs = 0;
+    }
+#endif
+
+    return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

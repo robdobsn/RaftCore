@@ -366,77 +366,100 @@ const char* RestAPIEndpointManager::getEndpointMethodStr(RestAPIEndpoint::Endpoi
 bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vector<String>& params, 
             std::vector<RaftJson::NameValuePair>& nameValuePairs)
 {
-    // Params
-    uint32_t numParams = getNumArgs(reqStr);
-    params.resize(numParams);
-    for (uint32_t i = 0; i < numParams; i++)
-        params[i] = getNthArgStr(reqStr, i);
-
-    // Check for existence of value pairs
+    // Single-pass parsing - extract params and name/value pairs in one iteration
+    params.clear();
     nameValuePairs.clear();
-    const char* pQMark = strstr(reqStr, "?");
-    if (!pQMark)
-        return true;
-
-    // Count the pairs
-    uint32_t pairCount = 0;
-    const char* pCurSep = pQMark;
-    while(pCurSep)
+    
+    const char* pCh = reqStr;
+    const char* segmentStart = pCh;
+    bool insideInvCommas = false;
+    
+    // Skip leading slash if present
+    if (*pCh == '/')
     {
-        pCurSep = strstr(pCurSep+1, "=");
-        if (pCurSep)
-            pairCount++;
+        pCh++;
+        segmentStart = pCh;
     }
-    // LOG_I(MODULE_PREFIX, "getParamsAndNamedValues found %d nameValues", pairCount);
-
-    // Extract the pairs
-    nameValuePairs.resize(pairCount);
-    pCurSep = pQMark;
-    bool sepTypeIsEqualsSign = true;
-    uint32_t pairIdx = 0;
-    String name, val;
-    while(pCurSep)
+    
+    // Parse path segments until we hit '?' or end
+    while (*pCh && *pCh != '?')
     {
-        // Each pair has the form "name=val;" (semicolon missing on last pair)
-        const char* pElemStart = pCurSep+1;
-        if (sepTypeIsEqualsSign)
+        if (*pCh == '\"')
         {
-            // Check for missing =
-            pCurSep = strstr(pElemStart, "=");
-            if (!pCurSep)
-                break;
-            name = String((uint8_t*)pElemStart, pCurSep-pElemStart);
+            insideInvCommas = !insideInvCommas;
         }
-        else
+        else if (*pCh == '/' && !insideInvCommas)
         {
-            // Handle two alternatives - sep or no sep
-            pCurSep = strstr(pElemStart, ";");
-            if (!pCurSep)
-                pCurSep = strstr(pElemStart, "&");
-            if (pCurSep)
-                val = String((uint8_t*)pElemStart, pCurSep-pElemStart);
-            else
-                val = pElemStart;
+            // Found a segment separator
+            if (pCh > segmentStart)
+            {
+                String segment = String(segmentStart, pCh - segmentStart);
+                segment = unencodeHTTPChars(segment);
+                params.push_back(segment);
+            }
+            segmentStart = pCh + 1;
         }
-
-        // Next separator
-        sepTypeIsEqualsSign = !sepTypeIsEqualsSign;
-        if (!sepTypeIsEqualsSign)
-            continue;
-
-        // Store and move on
-        if (pairIdx >= pairCount)
-            break;
-        name.trim();
-        val.trim();
-        nameValuePairs[pairIdx] = {name,val};
-        pairIdx++;
+        pCh++;
+    }
+    
+    // Handle last segment before '?' or end
+    if (pCh > segmentStart && *segmentStart != '?')
+    {
+        String segment = String(segmentStart, pCh - segmentStart);
+        segment = unencodeHTTPChars(segment);
+        params.push_back(segment);
+    }
+    
+    // Parse query parameters if present
+    if (*pCh == '?')
+    {
+        pCh++;  // Skip '?'
+        
+        const char* nameStart = pCh;
+        const char* valueStart = nullptr;
+        String name, val;
+        
+        while (*pCh)
+        {
+            if (*pCh == '=')
+            {
+                // Found name=value separator
+                name = String(nameStart, pCh - nameStart);
+                name.trim();
+                name = unencodeHTTPChars(name);
+                valueStart = pCh + 1;
+            }
+            else if ((*pCh == '&' || *pCh == ';') && valueStart)
+            {
+                // Found value terminator
+                val = String(valueStart, pCh - valueStart);
+                val = unencodeHTTPChars(val);
+                val.trim();
+                nameValuePairs.push_back({name, val});
+                
+                nameStart = pCh + 1;
+                valueStart = nullptr;
+            }
+            pCh++;
+        }
+        
+        // Handle last parameter
+        if (valueStart && pCh > valueStart)
+        {
+            val = String(valueStart, pCh - valueStart);
+            val = unencodeHTTPChars(val);
+            val.trim();
+            nameValuePairs.push_back({name, val});
+        }
     }
 
     // Debug
 #ifdef DEBUG_NAME_VALUE_PAIR_EXTRACTION
+    LOG_I(MODULE_PREFIX, "getParamsAndNameValues reqStr=%s params.size()=%d", reqStr, params.size());
+    for (size_t i = 0; i < params.size(); i++)
+        LOG_I(MODULE_PREFIX, "  param[%d]='%s'", i, params[i].c_str());
     for (RaftJson::NameValuePair& pair : nameValuePairs)
-        LOG_I(MODULE_PREFIX, "getParamsAndNamedValues name %s val %s", pair.name.c_str(), pair.value.c_str());
+        LOG_I(MODULE_PREFIX, "  nameValue %s=%s", pair.name.c_str(), pair.value.c_str());
 #endif
     return true;
 

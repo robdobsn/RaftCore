@@ -21,7 +21,7 @@ static bool testGetString(const char* pathPrefix,
 
     // Get string
     String rsltStr = testConfig.getString(dataPath, "<<NOT_FOUND>>");
-    // LOG_I("RaftJsonPrefixed_unit_test", "testGetString dataPath %s expected %s", dataPath, expectedStr);
+    LOG_I("RaftJsonPrefixed_unit_test", "testGetString prefix %s dataPath %s expected %s got %s", pathPrefix, dataPath, expectedStr, rsltStr.c_str());
     if (!rsltStr.equals(expectedStr))
     {
         LOG_E("RaftJsonPrefixed_unit_test", "testGetString dataPath %s expected %s != %s", dataPath, expectedStr, rsltStr.c_str());
@@ -41,7 +41,7 @@ const char* testJSONConfigBase =
     R"("NTPClient":{"enable":1,"NTPServer":"pool.ntp.org", "GMTOffsetSecs":0, "DSTOffsetSecs":0},)"
     R"("MQTTManager":{"enable":0},)"
     R"("ESPOTAUpdate":{"enable":1,"OTADirectEnabled":0,"server":"192.168.86.235","port":5076,)"
-            R"("sysName":")" SYSTEM_NAME R"(","sysVers":"UnitTests",)"
+            R"("sysName":")" SYSTEM_NAME R"(","sysVers":"UnitTests"},)"
     R"("FileManager":{"SPIFFSEnabled":1,"SPIFFSFormatIfCorrupt":1,"SDEnabled":0,"CacheFileList":0},)"
     R"("WebServer":{"enable":1,"webServerPort":80,"allowOriginAll":1,"apiPrefix":"api/","logLevel":"D"},)"
     R"("SerialConsole":{"enable":1,"uartNum":0,"baudRate":115200,"crlfOnTx":1,"logLevel":"D"},)"
@@ -55,7 +55,7 @@ const char* testJSONConfigBase =
 TEST_CASE("test_getString", "[raftjsonprefixed]")
 {
     // Debug
-    // LOG_I("RaftJsonPrefixed_unit_test", "JSON input string\n%s", testJSONConfigBase);
+    LOG_I("RaftJsonPrefixed_unit_test", "JSON input string\n%s", testJSONConfigBase);
 
     // Test getString
     struct TestElem

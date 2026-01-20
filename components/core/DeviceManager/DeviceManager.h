@@ -86,7 +86,7 @@ private:
 
     // List of instantiated devices
     std::list<RaftDevice*> _deviceList;
-    static const uint32_t DEVICE_LIST_MAX_SIZE = 50;
+    static const uint32_t DEVICE_LIST_MAX_SIZE = 100;
 
     // Access mutex (mutable to allow locking in const methods)
     mutable RaftMutex _accessMutex;

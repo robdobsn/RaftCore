@@ -1,6 +1,10 @@
 # Define configuration
 # Remove/repace these comments to set level to debug/info
 
+# Disable watchdog checking for idle tasks during interactive testing
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
+
 # Default log level
 CONFIG_LOG_DEFAULT_LEVEL_DEBUG=n
 
