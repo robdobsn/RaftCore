@@ -122,7 +122,7 @@ private:
     // Flag indicating if any extended records have been added - since this is set only once and
     // never cleared it is used to avoid taking the mutex in the common case where no extended records
     // have been added
-    bool _extendedRecordsAdded = false;
+    RaftAtomicBool _extendedRecordsAdded;
 
     // Maximum number of added device type records (see note below about absolute pointers since this space will be reserved)
     static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 20;
