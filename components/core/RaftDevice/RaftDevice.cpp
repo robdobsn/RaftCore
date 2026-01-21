@@ -175,16 +175,6 @@ String RaftDevice::getDataJSON(RaftDeviceJSONLevel level) const
     return "{}";
 }
 
-/// @brief Get named value from the device
-/// @param pParam Parameter name
-/// @param isFresh (out) true if the value is fresh
-/// @return double value
-double RaftDevice::getNamedValue(const char* pParam, bool& isFresh) const
-{
-    isFresh = false;
-    return 0.0;
-}
-
 /// @brief Check if device has capability
 /// @param pCapabilityStr capability string
 /// @return true if the device has the capability

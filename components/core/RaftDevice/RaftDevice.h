@@ -158,7 +158,39 @@ public:
     /// @param pParam Parameter name
     /// @param isFresh (out) true if the value is fresh
     /// @return double value
-    virtual double getNamedValue(const char* pParam, bool& isFresh) const;
+    virtual double getNamedValue(const char* pParam, bool& isFresh) const
+    {
+        isFresh = false;
+        return 0.0;
+    }
+
+    /// @brief Set named value in the device
+    /// @param pParam Parameter name
+    /// @param value Value to set
+    /// @return true if set ok
+    virtual bool setNamedValue(const char* pParam, double value)
+    {
+        return false;
+    }
+
+        /// @brief Get named string
+    /// @param pParam Parameter name
+    /// @param isValid (out) true if value is valid
+    /// @return Named string
+    virtual String getNamedString(const char* pParam, bool& isValid)
+    {
+        isValid = false;
+        return "";
+    }
+
+    /// @brief Set named string
+    /// @param pParam Parameter name
+    /// @param value Value to set
+    /// @return true if successful, false otherwise
+    virtual bool setNamedString(const char* pParam, const char* value)
+    {
+        return false;
+    }
 
     /// @brief Check if device has capability
     /// @param pCapabilityStr capability string

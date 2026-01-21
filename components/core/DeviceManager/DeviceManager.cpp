@@ -58,34 +58,33 @@ DeviceManager::~DeviceManager()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get named value from device
-/// @param valueName Name in format "DeviceName.paramName"
+/// @param pValueName Name in format "DeviceName.paramName"
 /// @param isValid (out) true if value is valid
 /// @return double value
-double DeviceManager::getNamedValue(const char* valueName, bool& isValid)
+double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
 {
+    if (!pValueName)
+        return 0.0;
     // Parse valueName as "deviceName.paramName"
-    String valueNameStr(valueName);
+    String valueNameStr(pValueName);
     int dotPos = valueNameStr.indexOf('.');
     if (dotPos > 0)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-#ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
-        LOG_I("DeviceManager", "[DEBUG] getNamedValue: device=%s param=%s", deviceName.c_str(), paramName.c_str());
-#endif
         RaftDevice* pDevice = getDevice(deviceName.c_str());
-        if (pDevice) {
-#ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
+        if (pDevice) 
+        {
             double val = pDevice->getNamedValue(paramName.c_str(), isValid);
-            LOG_I("DeviceManager", "[DEBUG] getNamedValue result: %f (valid=%d)", val, isValid);
-            return val;
-#else
-            return pDevice->getNamedValue(paramName.c_str(), isValid);
+#ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
+            LOG_I("DeviceManager", "getNamedValue: device=%s param=%s result: %f (valid=%d)", 
+                        deviceName.c_str(), paramName.c_str(), val, isValid);
 #endif
+            return val;
         }
     }
 #ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
-    LOG_W("DeviceManager", "[DEBUG] getNamedValue failed: valueName=%s", valueName);
+    LOG_W("DeviceManager", "getNamedValue failed: valueName=%s", pValueName);
 #endif
     isValid = false;
     return 0;
@@ -93,13 +92,15 @@ double DeviceManager::getNamedValue(const char* valueName, bool& isValid)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set named value in device
-/// @param valueName Name in format "DeviceName.paramName"
+/// @param pValueName Name in format "DeviceName.paramName"
 /// @param value Value to set
 /// @return true if set successfully
-bool DeviceManager::setNamedValue(const char* valueName, double value)
+bool DeviceManager::setNamedValue(const char* pValueName, double value)
 {
+    if (!pValueName)
+         return false;
     // Parse valueName as "deviceName.paramName"
-    String valueNameStr(valueName);
+    String valueNameStr(pValueName);
     int dotPos = valueNameStr.indexOf('.');
     if (dotPos > 0)
     {
@@ -108,7 +109,7 @@ bool DeviceManager::setNamedValue(const char* valueName, double value)
         RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice)
         {
-            // RaftDevice doesn't have setNamedValue, so return false for now
+            pDevice->setNamedValue(paramName.c_str(), value);
             return false;
         }
     }
@@ -117,13 +118,13 @@ bool DeviceManager::setNamedValue(const char* valueName, double value)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get named string from device
-/// @param valueName Name in format "DeviceName.paramName"
+/// @param pValueName Name in format "DeviceName.paramName"
 /// @param isValid (out) true if value is valid
 /// @return String value
-String DeviceManager::getNamedString(const char* valueName, bool& isValid)
+String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
 {
     // Parse valueName as "deviceName.paramName"
-    String valueNameStr(valueName);
+    String valueNameStr(pValueName);
     int dotPos = valueNameStr.indexOf('.');
     if (dotPos > 0)
     {
@@ -132,9 +133,7 @@ String DeviceManager::getNamedString(const char* valueName, bool& isValid)
         RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice)
         {
-            // RaftDevice doesn't have getNamedString, return empty for now
-            isValid = false;
-            return "";
+            return pDevice->getNamedString(paramName.c_str(), isValid);
         }
     }
     isValid = false;
@@ -143,13 +142,13 @@ String DeviceManager::getNamedString(const char* valueName, bool& isValid)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set named string in device
-/// @param valueName Name in format "DeviceName.paramName"
+/// @param pValueName Name in format "DeviceName.paramName"
 /// @param value Value to set
 /// @return true if set successfully
-bool DeviceManager::setNamedString(const char* valueName, const char* value)
+bool DeviceManager::setNamedString(const char* pValueName, const char* value)
 {
     // Parse valueName as "deviceName.paramName"
-    String valueNameStr(valueName);
+    String valueNameStr(pValueName);
     int dotPos = valueNameStr.indexOf('.');
     if (dotPos > 0)
     {
@@ -158,8 +157,7 @@ bool DeviceManager::setNamedString(const char* valueName, const char* value)
         RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice)
         {
-            // RaftDevice doesn't have setNamedString, return false for now
-            return false;
+            return pDevice->setNamedString(paramName.c_str(), value);
         }
     }
     return false;

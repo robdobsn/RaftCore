@@ -206,39 +206,39 @@ public:
     }
 
     /// @brief Get named value (double)
-    /// @param valueName Name of the value
+    /// @param pValueName Name of the value
     /// @param isValid (out) true if value is valid
     /// @return Named value
-    virtual double getNamedValue(const char* valueName, bool& isValid)
+    virtual double getNamedValue(const char* pValueName, bool& isValid)
     {
         isValid = false;
         return 0;
     }
 
     /// @brief Set named value (double)
-    /// @param valueName Name of the value
+    /// @param pValueName Name of the value
     /// @param value Value to set
     /// @return true if successful, false otherwise
-    virtual bool setNamedValue(const char* valueName, double value)
+    virtual bool setNamedValue(const char* pValueName, double value)
     {
         return false;
     }
 
     /// @brief Get named string
-    /// @param valueName Name of the value
+    /// @param pValueName Name of the value
     /// @param isValid (out) true if value is valid
     /// @return Named string
-    virtual String getNamedString(const char* valueName, bool& isValid)
+    virtual String getNamedString(const char* pValueName, bool& isValid)
     {
         isValid = false;
         return "";
     }
 
     /// @brief Set named string
-    /// @param valueName Name of the value
+    /// @param pValueName Name of the value
     /// @param value Value to set
     /// @return true if successful, false otherwise
-    virtual bool setNamedString(const char* valueName, const char* value)
+    virtual bool setNamedString(const char* pValueName, const char* value)
     {
         return false;
     }
