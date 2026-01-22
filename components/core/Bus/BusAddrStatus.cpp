@@ -21,7 +21,7 @@ bool BusAddrStatus::handleResponding(bool isResponding, bool &flagSpuriousRecord
     if (isResponding)
     {
         // If not already online then count upwards
-        if (!isOnline)
+        if (onlineState != DeviceOnlineState::ONLINE)
         {
             // Check if we've reached the threshold for online
             count = (count < okMax) ? count + 1 : count;
@@ -30,16 +30,16 @@ bool BusAddrStatus::handleResponding(bool isResponding, bool &flagSpuriousRecord
                 // Now online
                 isChange = !isChange;
                 count = 0;
-                isOnline = true;
-                wasOnceOnline = true;
+                onlineState = DeviceOnlineState::ONLINE;
                 return true;
             }
         }
     }
     else
     {
-        // Not responding - check for change to offline
-        if (isOnline || !wasOnceOnline)
+        // Not responding - check for change to offline/spurious
+        // Only count if we're online or still in initial state (not already offline)
+        if (onlineState != DeviceOnlineState::OFFLINE)
         {
             // Count down to offline/spurious threshold
             count = (count < -failMax) ? count : count - 1;
@@ -47,11 +47,11 @@ bool BusAddrStatus::handleResponding(bool isResponding, bool &flagSpuriousRecord
             {
                 // Now offline/spurious
                 count = 0;
-                if (!wasOnceOnline)
+                if (onlineState == DeviceOnlineState::INITIAL)
                     flagSpuriousRecord = true;
                 else
                     isChange = !isChange;
-                isOnline = false;
+                onlineState = DeviceOnlineState::OFFLINE;
                 return true;
             }
         }
@@ -67,10 +67,9 @@ String BusAddrStatus::getJson() const
     // Create JSON
     char jsonStr[128];
     snprintf(jsonStr, sizeof(jsonStr), 
-        "{\"a\":\"0x%04X\",\"s\":\"%c%c%c\"}", 
+        "{\"a\":\"0x%04X\",\"s\":\"%c%c\"}", 
         (int)address, 
-        isOnline ? 'O' : 'X', 
-        wasOnceOnline ? 'W' : 'X', 
+        onlineState == DeviceOnlineState::ONLINE ? 'O' : (onlineState == DeviceOnlineState::OFFLINE ? 'F' : 'I'),
         isNewlyIdentified ? 'N' : 'X'
     );
     return jsonStr;

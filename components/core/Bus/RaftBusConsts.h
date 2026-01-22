@@ -21,11 +21,11 @@ typedef uint32_t BusElemAddrType;
 /// @param deviceTypeIndex index of the device type (if newly identified)
 struct BusElemAddrAndStatus
 {
-    BusElemAddrType address;
-    bool isChangeToOnline:1;
-    bool isChangeToOffline:1;
-    bool isNewlyIdentified:1;
-    uint16_t deviceTypeIndex;
+    BusElemAddrType address = 0;
+    bool isChangeToOnline:1 = false;
+    bool isChangeToOffline:1 = false;
+    bool isNewlyIdentified:1 = false;
+    uint16_t deviceTypeIndex = 0;
 };
 
 enum BusOperationStatus

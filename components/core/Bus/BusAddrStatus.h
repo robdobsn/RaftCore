@@ -11,6 +11,14 @@
 #include "RaftDeviceConsts.h"
 #include "DeviceStatus.h"
 
+// Device online state
+enum class DeviceOnlineState : uint8_t
+{
+    INITIAL = 0,    // Never confirmed online (might be spurious)
+    ONLINE = 1,     // Currently responding
+    OFFLINE = 2     // Was online before, now offline
+};
+
 // Bus address status
 class BusAddrStatus
 {
@@ -29,8 +37,7 @@ public:
 
     // State
     bool isChange : 1 = false;
-    bool isOnline : 1 = false;
-    bool wasOnceOnline : 1 = false;
+    DeviceOnlineState onlineState : 2 = DeviceOnlineState::INITIAL;
     bool slotResolved : 1 = false;
     bool isNewlyIdentified : 1 = false;
 

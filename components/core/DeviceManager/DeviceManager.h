@@ -85,7 +85,13 @@ protected:
 private:
 
     // List of instantiated devices
-    std::list<RaftDevice*> _deviceList;
+    struct DevicePtrAndOnline
+    {
+        RaftDevice* pDevice = nullptr;
+        bool isOnline = false;
+    };
+    
+    std::list<DevicePtrAndOnline> _deviceList;
     static const uint32_t DEVICE_LIST_MAX_SIZE = 100;
 
     // Access mutex (mutable to allow locking in const methods)
@@ -161,10 +167,12 @@ private:
     void cmdResultReportCallback(BusRequestResult& reqResult);
 
     /// @brief Get device list frozen
-    /// @param pDevices Pointer to array to receive devices
-    /// @param maxDevices Maximum number of devices to return
+    /// @param pDeviceList (out) list of devices (must be maxNumDevices long)
+    /// @param maxNumDevices maximum number of devices to return
+    /// @param onlyOnline true to only return online devices
+    /// @param pDeviceOnlineArray pointer to array of device online flags (may be nullptr) - must be maxNumDevices long
     /// @return Number of devices
-    uint32_t getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices) const;
+    uint32_t getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, bool *pDeviceOnlineArray = nullptr) const;
 
     /// @brief Find device in device list by ID
     /// @param pDeviceID ID of the device
