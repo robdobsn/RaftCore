@@ -40,9 +40,22 @@ public:
             return false;
         String busNameStr = devNameStr.substring(0, splitPos);
         String addrStr = devNameStr.substring(splitPos + 1);
+        int indexOfX = addrStr.indexOf('x');
+        if (indexOfX >= 0)
+            addrStr = addrStr.substring(indexOfX + 1);
+        String mux = "";
+        splitPos = addrStr.indexOf('@');
+        if (splitPos >= 0)
+        {
+            mux = addrStr.substring(splitPos+1);
+            addrStr = addrStr.substring(0, splitPos);
+        }
+        // LOG_I("RaftBusDevice", "idMatches busNameStr %s busName %s addrStr %s address %s", 
+        //                 busNameStr.c_str(), _busName.c_str(), (mux + addrStr).c_str(), String(_address, 16).c_str());
+
         if (busNameStr != _busName)
             return false;
-        return String(_address, 16) == addrStr;
+        return String(_address, 16).equalsIgnoreCase(addrStr);
     }
 
     /// @brief Register for device data notifications
