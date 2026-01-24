@@ -41,10 +41,6 @@
 // #define DEBUG_OUTBOUND_CAN_ACCEPT_TIMING
 // #define DEBUG_OUTBOUND_HANDLE_MSG_TIMING
 
-#if defined(ESP_PLATFORM) && (defined(DEBUG_OUTBOUND_CAN_ACCEPT_TIMING) || defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING))
-#include <xtensa/hal.h>
-#endif
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -375,14 +371,8 @@ bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode
     static uint32_t callCount = 0;
     static uint32_t totalElapsedUs = 0;
     static uint32_t maxElapsedUs = 0;
-    static uint64_t totalCpuCycles = 0;
-    static uint32_t maxCpuUs = 0;
     static uint32_t lastReportMs = 0;
-    
     uint64_t startUs = micros();
-#ifdef ESP_PLATFORM
-    uint32_t startCycles = xthal_get_ccount();
-#endif
 #endif
 
     // Check the channel
@@ -407,35 +397,16 @@ bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode
     totalElapsedUs += elapsedUs;
     if (elapsedUs > maxElapsedUs)
         maxElapsedUs = elapsedUs;
-    
-#ifdef ESP_PLATFORM
-    uint32_t endCycles = xthal_get_ccount();
-    uint32_t elapsedCycles = endCycles - startCycles;
-    uint32_t cpuTimeUs = elapsedCycles / (esp_clk_cpu_freq() / 1000000);
-    totalCpuCycles += elapsedCycles;
-    if (cpuTimeUs > maxCpuUs)
-        maxCpuUs = cpuTimeUs;
-#endif
-    
+        
     // Report every 5 seconds
     if (Raft::isTimeout(millis(), lastReportMs, 5000))
     {
-#ifdef ESP_PLATFORM
-        uint32_t avgCpuUs = callCount > 0 ? (totalCpuCycles / (esp_clk_cpu_freq() / 1000000)) / callCount : 0;
-        LOG_I(MODULE_PREFIX, "outboundCanAccept: calls=%d | ELAPSED: avgUs=%d maxUs=%d | CPU: avgUs=%d maxUs=%d",
-                    callCount, 
-                    callCount > 0 ? totalElapsedUs/callCount : 0, maxElapsedUs,
-                    avgCpuUs, maxCpuUs);
-#else
-        LOG_I(MODULE_PREFIX, "outboundCanAccept stats: calls=%d avgUs=%d maxUs=%d (CPU timing not available)",
+        LOG_I(MODULE_PREFIX, "outboundCanAccept stats: calls=%d avgUs=%d maxUs=%d",
                     callCount, callCount > 0 ? totalElapsedUs/callCount : 0, maxElapsedUs);
-#endif
         lastReportMs = millis();
         callCount = 0;
         totalElapsedUs = 0;
         maxElapsedUs = 0;
-        totalCpuCycles = 0;
-        maxCpuUs = 0;
     }
 #endif
 
@@ -578,22 +549,8 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
         // TODO - probably have a single-element buffer for each publish type???
         //      - then service it in the service loop
 
-#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
-        static uint32_t ensureCodecCycles = 0;
-        static uint32_t canAcceptCycles = 0;
-        static uint32_t addToCodecCycles = 0;
-        static uint32_t lastReportMs = 0;
-        static uint32_t callCount = 0;
-        uint32_t startCycles = xthal_get_ccount();
-#endif
-
         // Ensure protocol handler exists
         ensureProtocolCodecExists(channelID);
-
-#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
-        uint32_t afterEnsureCodecCycles = xthal_get_ccount();
-        ensureCodecCycles += (afterEnsureCodecCycles - startCycles);
-#endif
 
 #ifdef DEBUG_OUTBOUND_PUBLISH
         // Debug
@@ -605,31 +562,7 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
         bool noConn = false;
         if (pChannel->outboundCanAccept(channelID, msg.getMsgTypeCode(), noConn))
         {
-#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
-            uint32_t afterCanAcceptCycles = xthal_get_ccount();
-            canAcceptCycles += (afterCanAcceptCycles - afterEnsureCodecCycles);
-#endif
             pChannel->addTxMsgToProtocolCodec(msg);
-
-#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
-            uint32_t afterAddToCodecCycles = xthal_get_ccount();
-            addToCodecCycles += (afterAddToCodecCycles - afterCanAcceptCycles);
-            callCount++;
-
-            // Report every 5 seconds
-            uint32_t nowMs = millis();
-            uint32_t cpuSpeedMHz = esp_clk_cpu_freq() / 1000000;
-            if (nowMs - lastReportMs > 5000)
-            {
-                LOG_I(MODULE_PREFIX, "handleOutboundMessageOnChannel timing (us): ensureCodec=%d canAccept=%d addToCodec=%d calls=%d",
-                    ensureCodecCycles / cpuSpeedMHz, canAcceptCycles / cpuSpeedMHz, addToCodecCycles / cpuSpeedMHz, callCount);
-                ensureCodecCycles = 0;
-                canAcceptCycles = 0;
-                addToCodecCycles = 0;
-                callCount = 0;
-                lastReportMs = nowMs;
-            }
-#endif
         }
     }
 

@@ -13,7 +13,6 @@
 
 // Debug
 // #define DEBUG_PROTOCOL_RIC_JSON
-// #define DEBUG_ENCODE_TX_MSG_TIMING
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -97,15 +96,6 @@ void ProtocolRICJSON::encode(CommsChannelMsg& msg, SpiramAwareUint8Vector& outMs
 
 void ProtocolRICJSON::encodeTxMsgAndSend(CommsChannelMsg& msg)
 {
-#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
-    static uint32_t encodeCycles = 0;
-    static uint32_t setFromBufferCycles = 0;
-    static uint32_t msgTxCBCycles = 0;
-    static uint32_t lastReportMs = 0;
-    static uint32_t callCount = 0;
-    uint32_t startCycles = xthal_get_ccount();
-#endif
-
     // Valid
     if (!_msgTxCB)
     {
@@ -123,18 +113,7 @@ void ProtocolRICJSON::encodeTxMsgAndSend(CommsChannelMsg& msg)
     SpiramAwareUint8Vector ricJSONMsg;
 #endif
     encode(msg, ricJSONMsg);
-
-#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
-    uint32_t afterEncodeCycles = xthal_get_ccount();
-    encodeCycles += (afterEncodeCycles - startCycles);
-#endif
-
     msg.setFromBuffer(ricJSONMsg.data(), ricJSONMsg.size());
-
-#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
-    uint32_t afterSetFromBufferCycles = xthal_get_ccount();
-    setFromBufferCycles += (afterSetFromBufferCycles - afterEncodeCycles);
-#endif
 
 #ifdef DEBUG_PROTOCOL_RIC_JSON
     // Debug
@@ -143,23 +122,4 @@ void ProtocolRICJSON::encodeTxMsgAndSend(CommsChannelMsg& msg)
 
     // Send
     _msgTxCB(msg);
-
-#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
-    uint32_t afterMsgTxCBCycles = xthal_get_ccount();
-    msgTxCBCycles += (afterMsgTxCBCycles - afterSetFromBufferCycles);
-    callCount++;
-
-    // Report every 5 seconds
-    uint32_t nowMs = millis();
-    if (nowMs - lastReportMs > 5000)
-    {
-        LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend timing (us): encode=%d setFromBuffer=%d msgTxCB=%d calls=%d",
-            encodeCycles / 240, setFromBufferCycles / 240, msgTxCBCycles / 240, callCount);
-        encodeCycles = 0;
-        setFromBufferCycles = 0;
-        msgTxCBCycles = 0;
-        callCount = 0;
-        lastReportMs = nowMs;
-    }
-#endif
 }
