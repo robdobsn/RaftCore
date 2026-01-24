@@ -100,7 +100,7 @@ String DemoDevice::getDebugJSON(bool includePlugAndPlayInfo) const
 {
     String debugStr = "{";
     debugStr += "\"name\":\"" + getDeviceName() + "\",";
-    debugStr += "\"type\":\"ACCDEMO\",";
+    debugStr += "\"type\":\"" + getPublishDeviceType() + "\",";
     debugStr += "\"sampleRate\":" + String(_sampleRateMs);
     debugStr += "}";
     return debugStr;
@@ -226,7 +226,7 @@ bool DemoDevice::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
 
     // Set the device type record
     devTypeRec = DeviceTypeRecordDynamic(
-        "ACCDEMO",
+        getPublishDeviceType().c_str(),
         "",
         "",
         "",

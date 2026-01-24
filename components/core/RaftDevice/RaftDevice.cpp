@@ -22,9 +22,12 @@ RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson, BusEl
     // Device name
     deviceName = deviceConfig.getString("name", "UNKNOWN");
 
+    // Init publish device type (default to class name)
+    publishDeviceType = deviceConfig.getString("type", pClassName);
+
 #ifdef DEBUG_RAFT_DEVICE_CONSTRUCTOR
-    LOG_I(MODULE_PREFIX, "RaftDevice class %s devConfig %s", 
-            pClassName, pDevConfigJson);
+    LOG_I(MODULE_PREFIX, "RaftDevice class %s publishDeviceType %s devConfig %s", 
+            pClassName, publishDeviceType.c_str(), pDevConfigJson);
 #endif
 }
 

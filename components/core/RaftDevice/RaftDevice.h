@@ -51,6 +51,13 @@ public:
         return deviceClassName;
     }
 
+    /// @brief Get the publish device type
+    /// @return Publish device type as a string
+    virtual String getPublishDeviceType() const
+    {
+        return publishDeviceType;
+    }
+
     /// @brief Get the device type record for this device so that it can be added to the device type records
     /// @param devTypeRec (out) Device type record
     /// @return true if the device has a device type record
@@ -239,6 +246,9 @@ protected:
 
     // Device class
     String deviceClassName;
+
+    // Publish device type
+    String publishDeviceType;
 
     // Device type record index
     uint32_t deviceTypeIndex = 0;
