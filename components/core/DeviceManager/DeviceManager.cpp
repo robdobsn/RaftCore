@@ -864,7 +864,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             " devman/typeinfo?bus=<busName>&type=<typeName> - Get type info,"
                             " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
-                            " devman/setpollinterval?bus=<busNameOrNumber>&device=<deviceIdOrAddress>&intervalUs=<microseconds> - Set device polling interval (bus devices only),"
+                            " devman/setpollms?bus=<busNameOrNumber>&device=<deviceIdOrAddress>&intervalMs=<milliseconds> - Set device polling interval (bus devices only),"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
@@ -1119,8 +1119,8 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceMissing");
         
         // Get polling interval
-        uint32_t intervalUs = jsonParams.getLong("intervalUs", 0);
-        if (intervalUs == 0)
+        uint32_t intervalMs = jsonParams.getLong("intervalMs", 0);
+        if (intervalMs == 0)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidInterval");
         
         // Find bus
@@ -1163,12 +1163,12 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         }
 
         // Set the polling interval
-        bool rslt = pBus->setDevicePollInterval(deviceAddr, intervalUs);
+        bool rslt = pBus->setDevicePollInterval(deviceAddr, intervalMs);
         
 #ifdef DEBUG_DEVMAN_API
-        LOG_I(MODULE_PREFIX, "apiDevMan setpollinterval device %s bus %s addr 0x%02x intervalUs %d result %s",
+        LOG_I(MODULE_PREFIX, "apiDevMan setpollinterval device %s bus %s addr 0x%02x intervalMs %d result %s",
                 deviceName.c_str(), pBusDevice->getBusName().c_str(), 
-                pBusDevice->getBusAddress(), intervalUs, rslt ? "OK" : "FAIL");
+                pBusDevice->getBusAddress(), intervalMs, rslt ? "OK" : "FAIL");
 #endif
         
         // Return result
