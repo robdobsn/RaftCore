@@ -17,9 +17,8 @@ class RaftBusDevice : public RaftDevice
 public:
    /// @brief Constructor
     RaftBusDevice(const char* pBusName, BusElemAddrType address, const char* pClassName, const char* pDevConfigJson) :
-        RaftDevice(pClassName, pDevConfigJson),
-        _busName(pBusName),
-        _address(address)
+        RaftDevice(pClassName, pDevConfigJson, address),
+        _busName(pBusName)
     {
     }
     
@@ -69,14 +68,18 @@ public:
         RaftBusDevicesIF* pBusDevicesIF = pBus->getBusDevicesIF();
         if (pBusDevicesIF)
             pBusDevicesIF->registerForDeviceData(_address, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo);
-    }    
+    }
+
+    /// @brief Get the bus name
+    /// @return Bus name
+    String getBusName() const
+    {
+        return _busName;
+    }
 
 protected:
     // Bus name
     String _busName;
-
-    // Bus address
-    BusElemAddrType _address = 0;
 
     // Debug
     static constexpr const char *MODULE_PREFIX = "RaftBusDevice";

@@ -14,6 +14,9 @@
 
 class RaftDevice;
 
+// Type used to identify an address
+typedef uint32_t BusElemAddrType;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Callback type for device data change
 typedef std::function<void(uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo)> RaftDeviceDataChangeCB;

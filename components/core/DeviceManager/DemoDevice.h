@@ -32,9 +32,6 @@ public:
     virtual uint32_t getDeviceInfoTimestampMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const override;
     virtual bool getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const override;
 
-    // Device type for publishing
-    virtual String getPublishDeviceType() const override { return "ACCDEMO"; }
-
 private:
     // Demo configuration
     uint32_t _sampleRateMs = DEFAULT_SAMPLE_RATE_MS;

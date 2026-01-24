@@ -13,19 +13,18 @@
 // #define DEBUG_BINARY_DEVICE_DATA 
 
 /// @brief Construct a new Raft Device object
+/// @param pClassName Class name of the device
 /// @param pDevConfigJson JSON configuration for the device
-RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson) :
-        deviceConfig(pDevConfigJson), deviceClassName(pClassName)
+/// @param address Address of the device on a bus (0 if not applicable)
+RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson, BusElemAddrType address) :
+        deviceConfig(pDevConfigJson), deviceClassName(pClassName), _address(address)
 {
     // Device name
     deviceName = deviceConfig.getString("name", "UNKNOWN");
 
-    // Init publish device type (default to class name)
-    publishDeviceType = deviceConfig.getString("type", pClassName);
-    
 #ifdef DEBUG_RAFT_DEVICE_CONSTRUCTOR
-    LOG_I(MODULE_PREFIX, "RaftDevice class %s publishDeviceType %s devConfig %s", 
-            pClassName, publishDeviceType.c_str(), pDevConfigJson);
+    LOG_I(MODULE_PREFIX, "RaftDevice class %s devConfig %s", 
+            pClassName, pDevConfigJson);
 #endif
 }
 

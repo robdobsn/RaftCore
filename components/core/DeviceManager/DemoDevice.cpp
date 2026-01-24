@@ -73,7 +73,7 @@ String DemoDevice::getStatusJSON() const
     formDeviceDataResponse(data);
  
     // Return JSON in the same format as DevicePower
-    return "{\"0\":{\"x\":\"" + Raft::getHexStr(data.data(), data.size()) + "\",\"_t\":\"" + getPublishDeviceType() + "\"}}";
+    return "{\"0\":{\"x\":\"" + Raft::getHexStr(data.data(), data.size()) + "\",\"_i\":\"" + String(getDeviceTypeIndex()) + "\"}}";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +100,7 @@ String DemoDevice::getDebugJSON(bool includePlugAndPlayInfo) const
 {
     String debugStr = "{";
     debugStr += "\"name\":\"" + getDeviceName() + "\",";
-    debugStr += "\"type\":\"" + getPublishDeviceType() + "\",";
+    debugStr += "\"type\":\"ACCDEMO\",";
     debugStr += "\"sampleRate\":" + String(_sampleRateMs);
     debugStr += "}";
     return debugStr;
@@ -226,7 +226,7 @@ bool DemoDevice::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
 
     // Set the device type record
     devTypeRec = DeviceTypeRecordDynamic(
-        getPublishDeviceType().c_str(),
+        "ACCDEMO",
         "",
         "",
         "",

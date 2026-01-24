@@ -174,8 +174,8 @@ bool RaftAtomicBool_get(const RaftAtomicBool &atomic);
 
 // Atomic uint32 functions
 void RaftAtomicUint32_init(RaftAtomicUint32 &atomic, uint32_t initialValue);
-void RaftAtomicUint32_store(RaftAtomicUint32 &atomic, uint32_t value, RaftAtomicOrdering ordering);
-uint32_t RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrdering ordering);
+void IRAM_ATTR RaftAtomicUint32_store(RaftAtomicUint32 &atomic, uint32_t value, RaftAtomicOrdering ordering);
+uint32_t IRAM_ATTR RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrdering ordering);
 
 #ifdef __cplusplus
 }

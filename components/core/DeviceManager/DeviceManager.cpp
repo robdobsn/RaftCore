@@ -343,11 +343,11 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrA
 
                     // Debug
 #ifdef DEBUG_NEW_DEVICE_FOUND_CB
-                    LOG_I(MODULE_PREFIX, "busElemStatusCB new device %s name %s class %s pubType %s", 
+                    LOG_I(MODULE_PREFIX, "busElemStatusCB new device %s name %s class %s pubTypeIdx %d", 
                                     deviceId.c_str(), 
                                     pDevice->getDeviceName().c_str(), 
                                     pDevice->getDeviceClassName().c_str(),
-                                    pDevice->getPublishDeviceType().c_str());
+                                    pDevice->getDeviceTypeIndex());
 #endif
                 }
                 else
@@ -590,11 +590,11 @@ RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& dev
 #ifdef DEBUG_DEVICE_SETUP
     if (pDevice)
     {
-        LOG_I(MODULE_PREFIX, "setupDevice %s name %s class %s pubType %s", 
+        LOG_I(MODULE_PREFIX, "setupDevice %s name %s class %s devTypeIdx %d", 
                         pDeviceClass, 
                         pDevice->getDeviceName().c_str(),
                         pDevice->getDeviceClassName().c_str(),
-                        pDevice->getPublishDeviceType().c_str());
+                        pDevice->getDeviceTypeIndex());
     }
 #endif
 
@@ -657,8 +657,8 @@ String DeviceManager::getDevicesDataJSON() const
         if (jsonRespStr.length() > 2)
         {
             char prefix[256];
-            snprintf(prefix, sizeof(prefix), "%s\"%s\":", 
-                needsComma ? "," : "", pDevice->getPublishDeviceType().c_str());
+            snprintf(prefix, sizeof(prefix), "%s\"%d\":", 
+                needsComma ? "," : "", (int)pDevice->getDeviceTypeIndex());
             jsonStr += prefix;
             jsonStr += jsonRespStr;
             needsComma = true;
@@ -846,7 +846,7 @@ String DeviceManager::getDebugJSON() const
         // Check for empty string or empty JSON object
         if (jsonRespStr.length() > 2)
         {
-            jsonStrDev += (jsonStrDev.length() == 0 ? "\"" : ",\"") + pDevice->getPublishDeviceType() + "\":{\"online\":" + (deviceOnlineArray[devIdx] ? "1" : "0") + "," + jsonRespStr + "}";
+            jsonStrDev += (jsonStrDev.length() == 0 ? "\"" : ",\"") + String(pDevice->getDeviceTypeIndex()) + "\":{\"online\":" + (deviceOnlineArray[devIdx] ? "1" : "0") + "," + jsonRespStr + "}";
         }
     }
 
@@ -864,6 +864,8 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             " devman/typeinfo?bus=<busName>&type=<typeName> - Get type info,"
                             " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
+                            " devman/setpollinterval?bus=<busNameOrNumber>&device=<deviceIdOrAddress>&intervalUs=<microseconds> - Set device polling interval (bus devices only),"
+                            " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
@@ -1103,6 +1105,99 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
     }
 #endif
 
+    // Check for set poll interval command
+    if (cmdName.equalsIgnoreCase("setpollinterval"))
+    {
+        // Get bus name
+        String busName = jsonParams.getString("bus", "");
+        if (busName.length() == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusMissing");
+
+        // Get device name
+        String deviceName = jsonParams.getString("device", "");
+        if (deviceName.length() == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceMissing");
+        
+        // Get polling interval
+        uint32_t intervalUs = jsonParams.getLong("intervalUs", 0);
+        if (intervalUs == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidInterval");
+        
+        // Find bus
+        RaftBus* pBus = raftBusSystem.getBusByName(busName);
+        if (!pBus)
+        {
+            // Try to get by bus number if the busName start with a number
+            if ((busName.length() > 0) && isdigit(busName[0]))
+            {
+                getBusNameByNumber(busName.toInt(), busName);
+
+                pBus = raftBusSystem.getBusByName(busName);
+                if (!pBus)
+                    return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+            }
+            else
+            {
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+            }
+        }
+
+        // Find device
+        RaftDevice* pDevice = getDevice(deviceName.c_str());
+        BusElemAddrType deviceAddr = 0;
+        if (!pDevice)
+        {
+            // Attempt to convert the device name to an address - it starts with a digit
+            if ((deviceName.length() > 0) && isdigit(deviceName[0]))
+            {
+                deviceAddr = strtol(deviceName.c_str(), NULL, 16);
+            }
+            else
+            {
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotFound");
+            }
+        }
+        else
+        {
+            deviceAddr = pDevice->getDeviceAddress();
+        }
+
+        // Set the polling interval
+        bool rslt = pBus->setDevicePollInterval(deviceAddr, intervalUs);
+        
+#ifdef DEBUG_DEVMAN_API
+        LOG_I(MODULE_PREFIX, "apiDevMan setpollinterval device %s bus %s addr 0x%02x intervalUs %d result %s",
+                deviceName.c_str(), pBusDevice->getBusName().c_str(), 
+                pBusDevice->getBusAddress(), intervalUs, rslt ? "OK" : "FAIL");
+#endif
+        
+        // Return result
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, rslt);
+    }
+
+    // Check for bus name by number command
+    if (cmdName.equalsIgnoreCase("busname"))
+    {
+        // Get bus number
+        int busNum = jsonParams.getLong("busnum", -1);
+        if (busNum < DEVICE_CONN_MODE_FIRST_BUS)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidBusNum");
+        
+        // Get bus name
+        String busName;
+        if (!getBusNameByNumber(busNum, busName))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+        
+#ifdef DEBUG_DEVMAN_API
+        LOG_I(MODULE_PREFIX, "apiDevMan busname busNum %d busName %s",
+                busNum, busName.c_str());
+#endif
+        
+        // Return result
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, 
+                                       ("\"busName\":\"" + busName + "\"").c_str());
+    }
+
     // Set result
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
 }
@@ -1197,6 +1292,35 @@ RaftDevice* DeviceManager::getDeviceByID(const char* pDeviceID) const
     }
     RaftMutex_unlock(_accessMutex);
     return nullptr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get bus name by bus number
+/// @param busNum Bus number (starting from DEVICE_CONN_MODE_FIRST_BUS)
+/// @param busName (out) Bus name if found
+/// @return true if bus found
+bool DeviceManager::getBusNameByNumber(uint16_t busNum, String& busName) const
+{
+    uint16_t connModeBusNum = DEVICE_CONN_MODE_FIRST_BUS;
+    for (RaftBus* pBus : raftBusSystem.getBusList())
+    {
+        if (!pBus)
+            continue;
+        RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+        if (!pDevicesIF)
+            continue;
+        
+        // Check if this is the requested bus number
+        if (connModeBusNum == busNum)
+        {
+            busName = pBus->getBusName();
+            return true;
+        }
+        
+        // Next bus
+        connModeBusNum++;
+    }
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

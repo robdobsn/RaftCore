@@ -24,7 +24,7 @@ class RaftDevice
 public:
     /// @brief Construct a new Raft Device object
     /// @param pDevConfigJson JSON configuration for the device
-    RaftDevice(const char* pClassName, const char* pDevConfigJson);
+    RaftDevice(const char* pClassName, const char* pDevConfigJson, BusElemAddrType address = 0);
     
     /// @brief Destroy the Raft Device object
     virtual ~RaftDevice();
@@ -49,13 +49,6 @@ public:
     virtual String getDeviceClassName() const
     {
         return deviceClassName;
-    }
-
-    /// @brief Get the publish device type
-    /// @return Publish device type as a string
-    virtual String getPublishDeviceType() const
-    {
-        return publishDeviceType;
     }
 
     /// @brief Get the device type record for this device so that it can be added to the device type records
@@ -230,6 +223,13 @@ public:
     {
     }
 
+    /// @brief Get the address of the device on a bus (if applicable)
+    /// @return Bus address (0 if not applicable)
+    BusElemAddrType getDeviceAddress() const
+    {
+        return _address;
+    }
+
 protected:
     // Device configuration
     RaftJson deviceConfig;
@@ -240,11 +240,11 @@ protected:
     // Device class
     String deviceClassName;
 
-    // Publish device type
-    String publishDeviceType;
-
     // Device type record index
     uint32_t deviceTypeIndex = 0;
+
+    // Bus address (if applicable - otherwise 0)
+    BusElemAddrType _address = 0;
 
     // Debug
     static constexpr const char *MODULE_PREFIX = "RaftDevice";

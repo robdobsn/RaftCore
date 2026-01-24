@@ -179,6 +179,12 @@ private:
     /// @return pointer to device if found
     RaftDevice* getDeviceByID(const char* pDeviceName) const;
 
+    /// @brief Get bus name by bus number
+    /// @param busNum Bus number (starting from DEVICE_CONN_MODE_FIRST_BUS)
+    /// @param busName (out) Bus name if found
+    /// @return true if bus found
+    bool getBusNameByNumber(uint16_t busNum, String& busName) const;
+
     /// @brief Call device status change callbacks
     /// @param pDevice Pointer to the device
     /// @param el Bus element address and status

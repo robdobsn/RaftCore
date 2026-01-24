@@ -9,8 +9,7 @@
 #pragma once
 
 #include <stdint.h>
-
-typedef uint32_t BusElemAddrType;
+#include "RaftDeviceConsts.h"
 
 /// @struct BusElemAddrAndStatus
 /// @brief Address and status of a bus element
