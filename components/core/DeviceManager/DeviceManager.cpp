@@ -617,6 +617,7 @@ String DeviceManager::getDevicesDataJSON() const
     bool needsComma = false;
 
     // Check all buses for data
+    uint16_t connModeBusNum = DEVICE_CONN_MODE_FIRST_BUS;
     for (RaftBus* pBus : raftBusSystem.getBusList())
     {
         if (!pBus)
@@ -624,19 +625,22 @@ String DeviceManager::getDevicesDataJSON() const
         // Get device interface
         RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
         if (!pDevicesIF)
-            continue; 
+            continue;
         String jsonRespStr = pDevicesIF->getQueuedDeviceDataJson();
 
         // Check for empty string or empty JSON object
         if (jsonRespStr.length() > 2)
         {
             char prefix[256];
-            snprintf(prefix, sizeof(prefix), "%s\"%s\":", 
-                needsComma ? "," : "", pBus->getBusName().c_str());
+            snprintf(prefix, sizeof(prefix), "%s\"%d\":", 
+                needsComma ? "," : "", connModeBusNum);
             jsonStr += prefix;
             jsonStr += jsonRespStr;
             needsComma = true;
         }
+
+        // Next bus
+        connModeBusNum++;
     }
 
     // Get a frozen copy of the device list (null-pointers excluded)
@@ -914,6 +918,7 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
                 }
             }
         }
+        uint32_t deviceTypeIndex = 0;
         if (pBus)
         {
             // Get devices interface
@@ -925,12 +930,13 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
             if ((devTypeName.length() > 0) && isdigit(devTypeName[0]))
             {
                 // Get device info by number
-                devInfo = pDevicesIF->getDevTypeInfoJsonByTypeIdx(devTypeName.toInt(), false);
+                deviceTypeIndex = devTypeName.toInt();
+                devInfo = pDevicesIF->getDevTypeInfoJsonByTypeIdx(deviceTypeIndex, false);
             }
             if (devInfo.length() == 0)
             {
                 // Get device info by name if possible
-                devInfo = pDevicesIF->getDevTypeInfoJsonByTypeName(devTypeName, false);
+                devInfo = pDevicesIF->getDevTypeInfoJsonByTypeName(devTypeName, false, deviceTypeIndex);
             }
         }
         else
@@ -939,12 +945,13 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
             if ((devTypeName.length() > 0) && isdigit(devTypeName[0]))
             {
                 // Get device info by number
-                devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(devTypeName.toInt(), false);
+                deviceTypeIndex = devTypeName.toInt();
+                devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(deviceTypeIndex, false);
             }
             if (devInfo.length() == 0)
             {
                 // Get device info by name if possible
-                devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(devTypeName, false);
+                devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(devTypeName, false, deviceTypeIndex);
             }
         }
 
@@ -966,7 +973,8 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
 #endif
 
         // Set result
-        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, ("\"devinfo\":" + devInfo).c_str());
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, 
+                    ("\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(deviceTypeIndex)).c_str());
     }
 
     // Check for raw command

@@ -61,8 +61,9 @@ public:
     /// @brief Get device type info JSON by device type name
     /// @param deviceType device type name
     /// @param includePlugAndPlayInfo include plug and play info
+    /// @param deviceTypeIndex (out) device type index
     /// @return JSON string
-    String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo) const;
+    String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo, uint32_t& deviceTypeIndex) const;
 
     // Device detection record
     class DeviceDetectionRec
@@ -92,9 +93,9 @@ public:
     /// @brief Convert poll response to JSON
     /// @param addr address
     /// @param isOnline true if device is online
-    /// @param pDevTypeRec pointer to device type record
+    /// @param deviceTypeIndex device type index
     /// @param devicePollResponseData device poll response data
-    String deviceStatusToJson(BusElemAddrType addr, bool isOnline, const DeviceTypeRecord* pDevTypeRec, 
+    String deviceStatusToJson(BusElemAddrType addr, bool isOnline, uint16_t deviceTypeIndex, 
             const std::vector<uint8_t>& devicePollResponseData) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

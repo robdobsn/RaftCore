@@ -34,3 +34,7 @@ enum BusOperationStatus
     BUS_OPERATION_OK,
     BUS_OPERATION_FAILING
 };
+
+// This can be used a prefix for addresses (such as 0x for hex)
+static constexpr const char* RAFT_BUS_ADDR_PREFIX = "";
+

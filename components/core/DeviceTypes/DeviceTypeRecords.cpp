@@ -552,9 +552,9 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 /// @brief Convert poll response to JSON
 /// @param addr address
 /// @param isOnline true if device is online
-/// @param pDevTypeRec pointer to device type record
+/// @param deviceTypeIndex device type index
 /// @param devicePollResponseData device poll response data
-String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline, const DeviceTypeRecord* pDevTypeRec, 
+String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline,  uint16_t deviceTypeIndex, 
         const std::vector<uint8_t>& devicePollResponseData) const
 {
     if (devicePollResponseData.size() == 0)
@@ -563,12 +563,11 @@ String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline
         return "";
     }
     
-    // Device type name
-    String devTypeName = pDevTypeRec ? pDevTypeRec->deviceType : "";
     // Form a hex buffer
     String hexOut;
+    hexOut.reserve(hexOut.length() + 50);
     Raft::getHexStrFromBytes(devicePollResponseData.data(), devicePollResponseData.size(), hexOut);
-    return "\"" + String(addr, 16) + "\":{\"x\":\"" + hexOut + "\",\"_o\":" + String(isOnline ? "1" : "0") + ",\"_t\":\"" + devTypeName + "\"}";
+    return "\"" + String(addr, 16) + "\":{\"x\":\"" + hexOut + "\",\"_o\":" + String(isOnline ? "1" : "0") + ",\"_i\":" + String(deviceTypeIndex) + "}";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -589,12 +588,12 @@ String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(uint16_t deviceTypeIdx, bo
 /// @brief Get device type info JSON by device type name
 /// @param deviceTypeName device type name
 /// @param includePlugAndPlayInfo include plug and play info
+/// @param deviceTypeIdx (out) device type index
 /// @return JSON string
-String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeName, bool includePlugAndPlayInfo) const
+String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeName, bool includePlugAndPlayInfo, uint32_t& deviceTypeIdx) const
 {
     // Get the device type info
     DeviceTypeRecord devTypeRec;
-    uint32_t deviceTypeIdx = 0;
     if (getDeviceInfo(deviceTypeName, devTypeRec, deviceTypeIdx))
         return devTypeRec.getJson(includePlugAndPlayInfo);
     return "{}";

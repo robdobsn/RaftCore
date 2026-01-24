@@ -235,6 +235,16 @@ public:
         return strtol(addrStr.c_str(), NULL, 16);
     }
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set device polling interval (us) for an address
+    /// @param address Composite address (slot in high bits, i2c in low)
+    /// @param pollIntervalUs Polling interval in microseconds
+    /// @return true if applied
+    virtual bool setDevicePollInterval(BusElemAddrType address, uint32_t pollIntervalUs)
+    {
+        return false;
+    }
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Return addresses of devices attached to the bus
     /// @param addresses - vector to store the addresses of devices

@@ -26,6 +26,11 @@
 // #define DEBUG_PROTOCOL_RIC_SERIAL_DECODE_FRAME_DETAIL
 // #define DEBUG_PROTOCOL_RIC_SERIAL_ENCODE
 // #define DEBUG_PROTOCOL_RIC_SERIAL_ENCODE_DETAIL
+// #define DEBUG_ENCODE_TX_MSG_TIMING
+
+#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
+#include <xtensa/hal.h>
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -123,6 +128,14 @@ void ProtocolRICSerial::addRxData(const uint8_t* pData, uint32_t dataLen)
 
 void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 {
+#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
+    static uint32_t encodeCycles = 0;
+    static uint32_t msgTxCBCycles = 0;
+    static uint32_t lastReportMs = 0;
+    static uint32_t callCount = 0;
+    uint32_t startCycles = xthal_get_ccount();
+#endif
+
 #ifdef DEBUG_PROTOCOL_RIC_SERIAL_ENCODE
     LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend msgNum %d msgType %d protocol %d bufLen %d", 
                 msg.getMsgNumber(), msg.getMsgTypeCode(), msg.getProtocol(), msg.getBufLen());
@@ -192,9 +205,32 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
         }
 #endif
 
+#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
+        uint32_t afterEncodeCycles = xthal_get_ccount();
+        encodeCycles += (afterEncodeCycles - startCycles);
+#endif
+
         // Send
         _msgTxCB(encodedMsg);
-    }
+
+#if defined(DEBUG_ENCODE_TX_MSG_TIMING) && defined(ESP_PLATFORM)
+        uint32_t afterMsgTxCBCycles = xthal_get_ccount();
+        msgTxCBCycles += (afterMsgTxCBCycles - afterEncodeCycles);
+        callCount++;
+
+        // Report every 5 seconds
+        uint32_t nowMs = millis();
+        if (nowMs - lastReportMs > 5000)
+        {
+            LOG_I(MODULE_PREFIX, "encodeTxMsgAndSend timing (us): encode=%d msgTxCB=%d calls=%d",
+                encodeCycles / 240, msgTxCBCycles / 240, callCount);
+            encodeCycles = 0;
+            msgTxCBCycles = 0;
+            callCount = 0;
+            lastReportMs = nowMs;
+        }
+#endif
+   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

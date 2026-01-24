@@ -67,7 +67,8 @@ String BusAddrStatus::getJson() const
     // Create JSON
     char jsonStr[128];
     snprintf(jsonStr, sizeof(jsonStr), 
-        "{\"a\":\"0x%04X\",\"s\":\"%c%c\"}", 
+        "{\"a\":\"%s%x\",\"s\":\"%c%c\"}", 
+        RAFT_BUS_ADDR_PREFIX,
         (int)address, 
         onlineState == DeviceOnlineState::ONLINE ? 'O' : (onlineState == DeviceOnlineState::OFFLINE ? 'F' : 'I'),
         isNewlyIdentified ? 'N' : 'X'

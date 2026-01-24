@@ -39,11 +39,10 @@
 // #define DEBUG_OUTBOUND_BLOCK_MAX
 // #define DEBUG_COMMS_MAN_ADD_PROTOCOL
 // #define DEBUG_OUTBOUND_CAN_ACCEPT_TIMING
+// #define DEBUG_OUTBOUND_HANDLE_MSG_TIMING
 
-#ifdef DEBUG_OUTBOUND_CAN_ACCEPT_TIMING
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && (defined(DEBUG_OUTBOUND_CAN_ACCEPT_TIMING) || defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING))
 #include <xtensa/hal.h>
-#endif
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -412,8 +411,7 @@ bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode
 #ifdef ESP_PLATFORM
     uint32_t endCycles = xthal_get_ccount();
     uint32_t elapsedCycles = endCycles - startCycles;
-    // ESP32 runs at 240MHz by default, so cycles / 240 = microseconds
-    uint32_t cpuTimeUs = elapsedCycles / 240;
+    uint32_t cpuTimeUs = elapsedCycles / (esp_clk_cpu_freq() / 1000000);
     totalCpuCycles += elapsedCycles;
     if (cpuTimeUs > maxCpuUs)
         maxCpuUs = cpuTimeUs;
@@ -423,7 +421,7 @@ bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode
     if (Raft::isTimeout(millis(), lastReportMs, 5000))
     {
 #ifdef ESP_PLATFORM
-        uint32_t avgCpuUs = callCount > 0 ? (totalCpuCycles / 240) / callCount : 0;
+        uint32_t avgCpuUs = callCount > 0 ? (totalCpuCycles / (esp_clk_cpu_freq() / 1000000)) / callCount : 0;
         LOG_I(MODULE_PREFIX, "outboundCanAccept: calls=%d | ELAPSED: avgUs=%d maxUs=%d | CPU: avgUs=%d maxUs=%d",
                     callCount, 
                     callCount > 0 ? totalElapsedUs/callCount : 0, maxElapsedUs,
@@ -576,23 +574,63 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
 
     else
     {
-            // TODO - maybe on callback thread here so make sure this is ok!!!!
-            // TODO - probably have a single-element buffer for each publish type???
-            //      - then service it in the service loop
+        // TODO - maybe on callback thread here so make sure this is ok!!!!
+        // TODO - probably have a single-element buffer for each publish type???
+        //      - then service it in the service loop
 
-            // Ensure protocol handler exists
-            ensureProtocolCodecExists(channelID);
-
-#ifdef DEBUG_OUTBOUND_PUBLISH
-            // Debug
-            LOG_I(MODULE_PREFIX, "handleOutboundMessage msg channelID %d, msgType %s msgNum %d, len %d",
-                msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
+#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
+        static uint32_t ensureCodecCycles = 0;
+        static uint32_t canAcceptCycles = 0;
+        static uint32_t addToCodecCycles = 0;
+        static uint32_t lastReportMs = 0;
+        static uint32_t callCount = 0;
+        uint32_t startCycles = xthal_get_ccount();
 #endif
 
-            // Check if channel can accept an outbound message and send if so
-            bool noConn = false;
-            if (pChannel->outboundCanAccept(channelID, msg.getMsgTypeCode(), noConn))
-                pChannel->addTxMsgToProtocolCodec(msg);
+        // Ensure protocol handler exists
+        ensureProtocolCodecExists(channelID);
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
+        uint32_t afterEnsureCodecCycles = xthal_get_ccount();
+        ensureCodecCycles += (afterEnsureCodecCycles - startCycles);
+#endif
+
+#ifdef DEBUG_OUTBOUND_PUBLISH
+        // Debug
+        LOG_I(MODULE_PREFIX, "handleOutboundMessage msg channelID %d, msgType %s msgNum %d, len %d",
+            msg.getChannelID(), msg.getMsgTypeAsString(msg.getMsgTypeCode()), msg.getMsgNumber(), msg.getBufLen());
+#endif
+
+        // Check if channel can accept an outbound message and send if so
+        bool noConn = false;
+        if (pChannel->outboundCanAccept(channelID, msg.getMsgTypeCode(), noConn))
+        {
+#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
+            uint32_t afterCanAcceptCycles = xthal_get_ccount();
+            canAcceptCycles += (afterCanAcceptCycles - afterEnsureCodecCycles);
+#endif
+            pChannel->addTxMsgToProtocolCodec(msg);
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_OUTBOUND_HANDLE_MSG_TIMING)
+            uint32_t afterAddToCodecCycles = xthal_get_ccount();
+            addToCodecCycles += (afterAddToCodecCycles - afterCanAcceptCycles);
+            callCount++;
+
+            // Report every 5 seconds
+            uint32_t nowMs = millis();
+            uint32_t cpuSpeedMHz = esp_clk_cpu_freq() / 1000000;
+            if (nowMs - lastReportMs > 5000)
+            {
+                LOG_I(MODULE_PREFIX, "handleOutboundMessageOnChannel timing (us): ensureCodec=%d canAccept=%d addToCodec=%d calls=%d",
+                    ensureCodecCycles / cpuSpeedMHz, canAcceptCycles / cpuSpeedMHz, addToCodecCycles / cpuSpeedMHz, callCount);
+                ensureCodecCycles = 0;
+                canAcceptCycles = 0;
+                addToCodecCycles = 0;
+                callCount = 0;
+                lastReportMs = nowMs;
+            }
+#endif
+        }
     }
 
     // Return ok

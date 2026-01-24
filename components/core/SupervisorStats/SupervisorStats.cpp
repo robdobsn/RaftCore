@@ -131,7 +131,7 @@ String SupervisorStats::getSummaryString() const
     }
 
     // Find slowest modules
-    char slowestStr[100];
+    char slowestStr[300];
     strlcpy(slowestStr, "", sizeof(slowestStr));
 
     // Slowest loop activity
@@ -145,10 +145,20 @@ String SupervisorStats::getSummaryString() const
         uint32_t strPos = strnlen(slowestStr, sizeof(slowestStr));
         if (sizeof(slowestStr) <= strPos + 1)
             break;
+#if defined(EXEC_TIMER_INCLUDE_CPU_TIME) && defined(ESP_PLATFORM)
+        // Include both elapsed and CPU times for ESP32
+        snprintf(slowestStr + strPos, sizeof(slowestStr) - strPos,
+                 isFirst ? R"("slowUs":{"%s":{"e":%)" PRIu64 R"(,"c":%)" PRIu64 R"(})" : R"(,"%s":{"e":%)" PRIu64 R"(,"c":%)" PRIu64 R"(})",
+                 _moduleList[modIdx]._modName.c_str(),
+                 _moduleList[modIdx].execTimer.getMaxUs(),
+                 _moduleList[modIdx].execTimer.getMaxCpuUs());
+#else
+        // Only elapsed time for non-ESP32
         snprintf(slowestStr + strPos, sizeof(slowestStr) - strPos,
                  isFirst ? R"("slowUs":{"%s":%)" PRIu64 : R"(,"%s":%)" PRIu64,
                  _moduleList[modIdx]._modName.c_str(),
                  _moduleList[modIdx].execTimer.getMaxUs());
+#endif
         isFirst = false;
     }
     if (strnlen(slowestStr, sizeof(slowestStr)) > 0)
