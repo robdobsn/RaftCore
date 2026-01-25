@@ -22,7 +22,7 @@ TEST_CASE("getJSONFromRESTRequest - simple path", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(3, segments.size());
     TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("test", segments[1].c_str());
@@ -44,7 +44,7 @@ TEST_CASE("getJSONFromRESTRequest - with query parameters", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(2, segments.size());
     TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("device", segments[1].c_str());
@@ -69,7 +69,7 @@ TEST_CASE("getJSONFromRESTRequest - URL encoded", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(2, segments.size());
     TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("search", segments[1].c_str());
@@ -93,7 +93,7 @@ TEST_CASE("getJSONFromRESTRequest - multiple parameters", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(2, segments.size());
     TEST_ASSERT_EQUAL_STRING("config", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("set", segments[1].c_str());
@@ -120,7 +120,7 @@ TEST_CASE("getJSONFromRESTRequest - empty path", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    json.getArrayElems("pathSegments", segments);
+    json.getArrayElems("path", segments);
     TEST_ASSERT_TRUE(segments.size() == 0);
     
     // Check params
@@ -347,7 +347,7 @@ TEST_CASE("JSON and Params methods consistency", "[restapi]")
     // Test with getJSONFromRESTRequest
     RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(testURL);
     std::vector<String> jsonSegments;
-    json.getArrayElems("pathSegments", jsonSegments);
+    json.getArrayElems("path", jsonSegments);
     
     // Test with getParamsAndNameValues
     std::vector<String> params;

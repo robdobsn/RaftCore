@@ -471,7 +471,7 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
 /// @return RaftJson object
 /// @note The returned JSON has the form:
 /// {
-///    "pathSegments": [ "segment0", "segment1", ... ],
+///    "path": [ "segment0", "segment1", ... ],
 ///    "params": { "name0": "value0", "name1": "value1", ... }
 /// }
 /// for a URL of the form:
@@ -482,7 +482,7 @@ RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
     String result;
     result.reserve(strlen(reqStr) * 2 + 100);  // Pre-allocate to avoid reallocations
     
-    result = "{\"pathSegments\":[";
+    result = "{\"path\":[";
     
     const char* pCh = reqStr;
     const char* segmentStart = pCh;
