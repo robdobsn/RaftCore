@@ -864,6 +864,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             " devman/typeinfo?bus=<busName>&type=<typeName> - Get type info,"
                             " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
+                            " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
                             " devman/setpollms?bus=<busNameOrNumber>&device=<deviceIdOrAddress>&intervalMs=<milliseconds> - Set device polling interval (bus devices only),"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device");
@@ -1054,6 +1055,32 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
 
         // Set result
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, rslt);    
+    }
+
+    // Check for JSON command routing
+    if (cmdName.equalsIgnoreCase("cmdjson"))
+    {
+        // Get the JSON command from the body parameter
+        String cmdJSON = jsonParams.getString("body", "");
+        if (cmdJSON.length() == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failMissingBody");
+
+        // Call receiveCmdJSON to route the command to the appropriate device
+        RaftRetCode retc = receiveCmdJSON(cmdJSON.c_str());
+
+#ifdef DEBUG_DEVMAN_API
+        LOG_I(MODULE_PREFIX, "apiDevMan cmdjson retc %d cmdJSON %s", retc, cmdJSON.c_str());
+#endif
+
+        // Return result
+        if (retc == RAFT_OK)
+            return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+        else if (retc == RAFT_INVALID_OBJECT)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotFound");
+        else if (retc == RAFT_INVALID_OPERATION)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNoDeviceSpecified");
+        else
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failCmdFailed");
     }
 
 #ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE

@@ -466,27 +466,97 @@ bool RestAPIEndpointManager::getParamsAndNameValues(const char* reqStr, std::vec
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get query parameters string from REST request
+/// @param reqStr REST request string (e.g., "motors?cmd=motion&mode=abs")
+/// @return Query parameters string (e.g., "cmd=motion&mode=abs") or empty string if no query params
+String RestAPIEndpointManager::getQueryParamsStr(const char* reqStr)
+{
+    // Find the '?' character
+    const char* pCh = reqStr;
+    while (*pCh && *pCh != '?')
+    {
+        pCh++;
+    }
+    
+    // If no query params found, return empty string
+    if (*pCh != '?')
+    {
+        return String();
+    }
+    
+    // Skip the '?' and return everything after it
+    pCh++;
+    return String(pCh);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if a string represents a valid JSON number
+/// @param str String to check
+/// @return true if the string is a valid number format
+static bool isValidNumber(const String& str)
+{
+    if (str.length() == 0)
+        return false;
+    
+    const char* pCh = str.c_str();
+    bool hasDot = false;
+    bool hasDigit = false;
+    
+    // First character can be '-' or a digit
+    if (*pCh == '-')
+    {
+        pCh++;
+        if (*pCh == '\0')
+            return false;  // Just a '-' is not valid
+    }
+    
+    // Check remaining characters
+    while (*pCh)
+    {
+        if (*pCh >= '0' && *pCh <= '9')
+        {
+            hasDigit = true;
+        }
+        else if (*pCh == '.')
+        {
+            if (hasDot)
+                return false;  // Multiple dots not allowed
+            hasDot = true;
+        }
+        else
+        {
+            return false;  // Invalid character
+        }
+        pCh++;
+    }
+    
+    return hasDigit;  // Must have at least one digit
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get JSON from REST request
 /// @param reqStr REST request string
+/// @param elements Which elements to include in the result
 /// @return RaftJson object
-/// @note The returned JSON has the form:
+/// @note For PATH_AND_PARAMS, the returned JSON has the form:
 /// {
 ///    "path": [ "segment0", "segment1", ... ],
 ///    "params": { "name0": "value0", "name1": "value1", ... }
 /// }
+/// For PATH_ONLY, the returned JSON is an array:
+/// [ "segment0", "segment1", ... ]
+/// For PARAMS_ONLY, the returned JSON is an object:
+/// { "name0": "value0", "name1": "value1", ... }
 /// for a URL of the form:
 /// /segment0/segment1/.../segmentN?name0=value0&name1=value1&...
-RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
+RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr, RESTRequestJSONElements elements)
 {
     // Single-pass optimized parsing
     String result;
     result.reserve(strlen(reqStr) * 2 + 100);  // Pre-allocate to avoid reallocations
     
-    result = "{\"path\":[";
-    
     const char* pCh = reqStr;
     const char* segmentStart = pCh;
-    bool firstSegment = true;
     bool insideInvCommas = false;
     
     // Skip leading slash if present
@@ -496,52 +566,73 @@ RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
         segmentStart = pCh;
     }
     
-    // Parse path segments until we hit '?' or end
-    while (*pCh && *pCh != '?')
+    // Build path segments if needed
+    if (elements == PATH_ONLY || elements == PATH_AND_PARAMS)
     {
-        if (*pCh == '\"')
+        bool firstSegment = true;
+        
+        if (elements == PATH_AND_PARAMS)
+            result = "{\"path\":[";
+        else
+            result = "[";
+        
+        // Parse path segments until we hit '?' or end
+        while (*pCh && *pCh != '?')
         {
-            insideInvCommas = !insideInvCommas;
-        }
-        else if (*pCh == '/' && !insideInvCommas)
-        {
-            // Found a segment separator
-            if (pCh > segmentStart)
+            if (*pCh == '\"')
             {
-                if (!firstSegment)
-                    result += ",";
-                result += "\"";
-                
-                // Copy and unencode segment if needed
-                String segment = String(segmentStart, pCh - segmentStart);
-                if (segment.indexOf('%') >= 0)
-                    segment = unencodeHTTPChars(segment);
-                result += segment;
-                result += "\"";
-                firstSegment = false;
+                insideInvCommas = !insideInvCommas;
             }
-            segmentStart = pCh + 1;
+            else if (*pCh == '/' && !insideInvCommas)
+            {
+                // Found a segment separator
+                if (pCh > segmentStart)
+                {
+                    if (!firstSegment)
+                        result += ",";
+                    result += "\"";
+                    
+                    // Copy and unencode segment if needed
+                    String segment = String(segmentStart, pCh - segmentStart);
+                    if (segment.indexOf('%') >= 0)
+                        segment = unencodeHTTPChars(segment);
+                    result += segment;
+                    result += "\"";
+                    firstSegment = false;
+                }
+                segmentStart = pCh + 1;
+            }
+            pCh++;
         }
-        pCh++;
+        
+        // Handle last segment before '?' or end
+        if (pCh > segmentStart && *segmentStart != '?')
+        {
+            if (!firstSegment)
+                result += ",";
+            result += "\"";
+            String segment = String(segmentStart, pCh - segmentStart);
+            if (segment.indexOf('%') >= 0)
+                segment = unencodeHTTPChars(segment);
+            result += segment;
+            result += "\"";
+        }
+        
+        result += "]";
+        
+        if (elements == PATH_AND_PARAMS)
+            result += ",\"params\":{";
     }
-    
-    // Handle last segment before '?' or end
-    if (pCh > segmentStart && *segmentStart != '?')
+    else
     {
-        if (!firstSegment)
-            result += ",";
-        result += "\"";
-        String segment = String(segmentStart, pCh - segmentStart);
-        if (segment.indexOf('%') >= 0)
-            segment = unencodeHTTPChars(segment);
-        result += segment;
-        result += "\"";
+        // PARAMS_ONLY - skip to query parameters
+        while (*pCh && *pCh != '?')
+            pCh++;
+        result = "{";
     }
     
-    result += "],\"params\":{";
-    
-    // Parse parameters if present
-    if (*pCh == '?')
+    // Parse parameters if present and needed
+    if ((elements == PARAMS_ONLY || elements == PATH_AND_PARAMS) && *pCh == '?')
     {
         pCh++;  // Skip '?'
         
@@ -563,7 +654,7 @@ RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
                 if (name.indexOf('%') >= 0)
                     name = unencodeHTTPChars(name);
                 result += name;
-                result += "\":\"";
+                result += "\":";
                 
                 valueStart = pCh + 1;
                 firstParam = false;
@@ -575,8 +666,25 @@ RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
                 value.trim();
                 if (value.indexOf('%') >= 0)
                     value = unencodeHTTPChars(value);
-                result += value;
-                result += "\"";
+                
+                // Smart type detection: check if value is a number, array, or object
+                if (value.length() > 0 && (value.charAt(0) == '[' || value.charAt(0) == '{'))
+                {
+                    // Array or object - add without quotes
+                    result += value;
+                }
+                else if (isValidNumber(value))
+                {
+                    // Number - add without quotes
+                    result += value;
+                }
+                else
+                {
+                    // String - add with quotes
+                    result += "\"";
+                    result += value;
+                    result += "\"";
+                }
                 
                 nameStart = pCh + 1;
                 valueStart = nullptr;
@@ -591,12 +699,41 @@ RaftJson RestAPIEndpointManager::getJSONFromRESTRequest(const char* reqStr)
             value.trim();
             if (value.indexOf('%') >= 0)
                 value = unencodeHTTPChars(value);
-            result += value;
-            result += "\"";
+            
+            // Smart type detection: check if value is a number, array, or object
+            if (value.length() > 0 && (value.charAt(0) == '[' || value.charAt(0) == '{'))
+            {
+                // Array or object - add without quotes
+                result += value;
+            }
+            else if (isValidNumber(value))
+            {
+                // Number - add without quotes
+                result += value;
+            }
+            else
+            {
+                // String - add with quotes
+                result += "\"";
+                result += value;
+                result += "\"";
+            }
         }
     }
     
-    result += "}}";
+    // Close the result based on element type
+    if (elements == PATH_ONLY)
+    {
+        // Already closed with "]"
+    }
+    else if (elements == PARAMS_ONLY)
+    {
+        result += "}";
+    }
+    else // PATH_AND_PARAMS
+    {
+        result += "}}";
+    }
     
     return RaftJson(result.c_str());
 }

@@ -118,10 +118,18 @@ public:
     /// @return Method string
     static const char *getEndpointMethodStr(RestAPIEndpoint::EndpointMethod endpointMethod);
 
+    /// @brief Elements of REST request to get JSON from
+    enum RESTRequestJSONElements
+    {
+        PATH_AND_PARAMS,
+        PATH_ONLY,
+        PARAMS_ONLY
+    };
+
     /// @brief Get JSON from REST request
     /// @param reqStr REST request string
     /// @return RaftJson object
-    static RaftJson getJSONFromRESTRequest(const char* reqStr);
+    static RaftJson getJSONFromRESTRequest(const char* reqStr, RESTRequestJSONElements elements = PATH_AND_PARAMS);
 
     /// @brief Get parameters and name/value pairs from REST request
     /// @param reqStr REST request string
@@ -129,6 +137,11 @@ public:
     /// @param nameValuePairs Vector to receive name/value pairs
     /// @return true if successful
     static bool getParamsAndNameValues(const char* reqStr, std::vector<String>& params, std::vector<RaftJson::NameValuePair>& nameValuePairs);
+
+    /// @brief Get query parameters string from REST request
+    /// @param reqStr REST request string (e.g., "motors?cmd=motion&mode=abs")
+    /// @return Query parameters string (e.g., "cmd=motion&mode=abs") or empty string if no query params
+    static String getQueryParamsStr(const char* reqStr);
 
     /// @brief Channel IDs for various REST API sources
     static const uint32_t CHANNEL_ID_EVENT_DETECTOR = 20000;
