@@ -761,13 +761,13 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
     {
         // Check device status
         RaftDevice* pDevice = pDeviceListCopy[devIdx];
-        uint32_t identPollLastMs = pDevice->getDeviceInfoTimestampMs(true, true);
-        stateHash[0] ^= (identPollLastMs & 0xff);
-        stateHash[1] ^= ((identPollLastMs >> 8) & 0xff);
+        uint32_t deviceStateHash = pDevice->getDeviceStateHash();
+        stateHash[0] ^= (deviceStateHash & 0xff);
+        stateHash[1] ^= ((deviceStateHash >> 8) & 0xff);
 
 #ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
-        LOG_I(MODULE_PREFIX, "getDevicesHash %s ms %d %02x%02x", 
-                pDevice->getDeviceName().c_str(), (int)identPollLastMs, stateHash[0], stateHash[1]);
+        LOG_I(MODULE_PREFIX, "getDevicesHash %s hash %08x %02x%02x", 
+                pDevice->getDeviceName().c_str(), deviceStateHash, stateHash[0], stateHash[1]);
 #endif
     }
 

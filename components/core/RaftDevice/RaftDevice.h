@@ -103,6 +103,15 @@ public:
     /// @return Time of last device status update in milliseconds
     virtual uint32_t getDeviceInfoTimestampMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const;
 
+    /// @brief Get a hash value representing the current device state for change detection
+    /// @return Hash value (only lower 16 bits are used by DeviceManager)
+    /// @note Default implementation returns getDeviceInfoTimestampMs(true, true)
+    ///       Override this to provide custom state change detection based on device-specific data
+    virtual uint32_t getDeviceStateHash() const
+    {
+        return getDeviceInfoTimestampMs(true, true);
+    }
+
     /// @brief Get the device status as JSON
     /// @return JSON string
     virtual String getStatusJSON() const;
