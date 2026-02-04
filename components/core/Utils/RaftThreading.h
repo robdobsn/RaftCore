@@ -174,8 +174,14 @@ bool RaftAtomicBool_get(const RaftAtomicBool &atomic);
 
 // Atomic uint32 functions
 void RaftAtomicUint32_init(RaftAtomicUint32 &atomic, uint32_t initialValue);
+
+#if defined(FREERTOS_CONFIG_H) || defined(FREERTOS_H) || defined(ESP_PLATFORM)
 void IRAM_ATTR RaftAtomicUint32_store(RaftAtomicUint32 &atomic, uint32_t value, RaftAtomicOrdering ordering);
 uint32_t IRAM_ATTR RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrdering ordering);
+#else
+void RaftAtomicUint32_store(RaftAtomicUint32 &atomic, uint32_t value, RaftAtomicOrdering ordering);
+uint32_t RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrdering ordering);
+#endif
 
 #ifdef __cplusplus
 }
