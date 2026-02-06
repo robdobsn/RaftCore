@@ -30,7 +30,7 @@ typedef uint16_t DeviceTypeIndexType;
 static const DeviceTypeIndexType DEVICE_TYPE_INDEX_INVALID = USHRT_MAX;
 
 /// @brief Devide identification type
-class DeviceIDType
+class RaftDeviceID
 {
 public:
 
@@ -47,7 +47,7 @@ public:
     static const uint32_t BUS_NUM_INVALID = UINT32_MAX - 1;
 
     /// @brief Constructor
-    DeviceIDType(BusNumType busNum = BUS_NUM_INVALID, BusElemAddrType address = 0) : 
+    RaftDeviceID(BusNumType busNum = BUS_NUM_INVALID, BusElemAddrType address = 0) : 
         busNum(busNum), address(address)
     {
     }
@@ -69,7 +69,7 @@ public:
     /// @brief Equality operator
     /// @param other Other DeviceIDType to compare against
     /// @return true if equal
-    bool operator==(const DeviceIDType& other) const
+    bool operator==(const RaftDeviceID& other) const
     {
         return (busNum == other.busNum) && (address == other.address);
     }
@@ -77,7 +77,7 @@ public:
     /// @brief Inequality operator
     /// @param other Other DeviceIDType to compare against
     /// @return true if not equal
-    bool operator!=(const DeviceIDType& other) const
+    bool operator!=(const RaftDeviceID& other) const
     {
         return !(*this == other);
     }
@@ -97,11 +97,11 @@ public:
     /// @brief Convert from string
     /// @param str String representation of the DeviceIDType
     /// @return DeviceIDType object
-    static DeviceIDType fromString(const String& str)
+    static RaftDeviceID fromString(const String& str)
     {
         if (str.equalsIgnoreCase("ANY"))
         {
-            return DeviceIDType(BUS_NUM_ALL_DEVICES_ANY_BUS, 0);
+            return RaftDeviceID(BUS_NUM_ALL_DEVICES_ANY_BUS, 0);
         }
         else
         {
@@ -121,11 +121,11 @@ public:
                 addressStr = addressStr.substring(2);
             }   
             BusElemAddrType address = strtoul(addressStr.c_str(), nullptr, 16);
-            return DeviceIDType(busNum, address);
+            return RaftDeviceID(busNum, address);
 
         }
         // If we can't parse, return an "invalid" ID
-        return DeviceIDType(BUS_NUM_INVALID, 0);
+        return RaftDeviceID(BUS_NUM_INVALID, 0);
     }
 
     /// @brief Get bus number

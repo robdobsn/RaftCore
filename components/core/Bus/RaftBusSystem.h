@@ -67,7 +67,7 @@ public:
     RaftBus* getBusByName(const String& busName);
 
     /// @brief Get a bus by number
-    /// @param busNum Number of the bus (starting from DeviceIDType::BUS_NUM_FIRST_BUS)
+    /// @param busNum Number of the bus (starting from RaftDeviceID::BUS_NUM_FIRST_BUS)
     /// @return Pointer to the bus or nullptr if not found
     RaftBus* getBusByNumber(BusNumType busNum); 
 

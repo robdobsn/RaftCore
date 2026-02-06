@@ -26,14 +26,14 @@ class RaftDevice
 public:
     /// @brief Construct a new Raft Device object
     /// @param pDevConfigJson JSON configuration for the device
-    RaftDevice(const char* pClassName, const char* pDevConfigJson, DeviceIDType deviceID = DeviceIDType());
+    RaftDevice(const char* pClassName, const char* pDevConfigJson, RaftDeviceID deviceID = RaftDeviceID());
     
     /// @brief Destroy the Raft Device object
     virtual ~RaftDevice();
 
     /// @brief Set device ID
     /// @param deviceID Device ID to set
-    void setDeviceID(DeviceIDType deviceID)
+    void setDeviceID(RaftDeviceID deviceID)
     {
         _deviceID = deviceID;
     }
@@ -41,7 +41,7 @@ public:
     /// @brief Check if ID matches that passed in
     /// @param deviceID ID to check
     /// @return true if the device ID matches
-    virtual bool idMatches(DeviceIDType deviceID) const
+    virtual bool idMatches(RaftDeviceID deviceID) const
     {
         return _deviceID == deviceID;
     }
@@ -60,6 +60,13 @@ public:
     virtual String getConfiguredDeviceType() const
     {
         return configuredDeviceType;
+    }
+
+    /// @brief Get the configured device name
+    /// @return Configured device name as a string
+    virtual String getConfiguredDeviceName() const
+    {
+        return configuredDeviceName;
     }
 
     /// @brief Get the device type record for this device so that it can be added to the device type records
@@ -242,7 +249,7 @@ public:
 
     /// @brief Get the ID of the device
     /// @return Device ID
-    DeviceIDType getDeviceID() const
+    RaftDeviceID getDeviceID() const
     {
         return _deviceID;
     }
@@ -259,11 +266,14 @@ protected:
     // Configured device type
     String configuredDeviceType;
 
+    // Configured device name
+    String configuredDeviceName;
+
     // Device type record index
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
     // Device ID
-    DeviceIDType _deviceID;
+    RaftDeviceID _deviceID;
 
     // Debug
     static constexpr const char *MODULE_PREFIX = "RaftDevice";

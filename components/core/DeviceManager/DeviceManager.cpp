@@ -115,7 +115,7 @@ void DeviceManager::postSetup()
 #ifdef DEBUG_DEVICE_SETUP
     uint32_t numDevCBsRegistered = 
 #endif
-    registerForDeviceDataChangeCBs(DeviceIDType::BUS_NUM_ALL_DEVICES_ANY_BUS);
+    registerForDeviceDataChangeCBs(RaftDeviceID::BUS_NUM_ALL_DEVICES_ANY_BUS);
 
     // Register for device events
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
@@ -219,7 +219,7 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
     {
         // Find the device
         // String deviceId = bus.formUniqueId(el.address);
-        DeviceIDType deviceID(bus.getBusNum(), el.address);
+        RaftDeviceID deviceID(bus.getBusNum(), el.address);
         RaftDevice* pDevice = getDevice(deviceID);
         if (!pDevice)
         {
@@ -356,7 +356,7 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
         }
 
         // Set deviceID and add to the list of instantiated devices
-        pDevice->setDeviceID(DeviceIDType(DeviceIDType::BUS_NUM_DIRECT_CONN, _deviceList.size()));
+        pDevice->setDeviceID(RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _deviceList.size()));
         _deviceList.push_back({pDevice, true});
 
         // Debug
@@ -458,7 +458,7 @@ RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& dev
     if (RaftMutex_lock(_accessMutex, 5))
     {
         // Add to the list of instantiated devices
-        pDevice->setDeviceID(DeviceIDType(DeviceIDType::BUS_NUM_DIRECT_CONN, _deviceList.size()));
+        pDevice->setDeviceID(RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _deviceList.size()));
         _deviceList.push_back({pDevice, true});
         RaftMutex_unlock(_accessMutex);
         // Setup device
@@ -744,7 +744,7 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByIDString(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice) 
         {
             double val = pDevice->getNamedValue(paramName.c_str(), isValid);
@@ -778,7 +778,7 @@ bool DeviceManager::setNamedValue(const char* pValueName, double value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByIDString(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             pDevice->setNamedValue(paramName.c_str(), value);
@@ -802,7 +802,7 @@ String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByIDString(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->getNamedString(paramName.c_str(), isValid);
@@ -826,7 +826,7 @@ bool DeviceManager::setNamedString(const char* pValueName, const char* value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByIDString(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->setNamedString(paramName.c_str(), value);
@@ -849,7 +849,7 @@ RaftRetCode DeviceManager::receiveCmdJSON(const char* cmdJSON)
 #endif
     if (deviceName.length() > 0)
     {
-        RaftDevice* pDevice = getDeviceByIDString(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice) {
 #ifdef DEBUG_SYSMOD_RECV_CMD_JSON
             RaftRetCode ret = pDevice->sendCmdJSON(cmdJSON);
@@ -979,7 +979,7 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
 
         // Get device ID
-        DeviceIDType deviceID = DeviceIDType::fromString(addrStr.c_str());
+        RaftDeviceID deviceID = RaftDeviceID::fromString(addrStr.c_str());
 
         // Get bytes to write
         uint32_t numBytesToWrite = hexWriteData.length() / 2;
@@ -1124,7 +1124,7 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidInterval");
         
         // Get device ID
-        DeviceIDType deviceID = DeviceIDType::fromString(deviceName.c_str());
+        RaftDeviceID deviceID = RaftDeviceID::fromString(deviceName.c_str());
 
         // Check if valid device ID
         if (!deviceID.isValid())
@@ -1156,11 +1156,11 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
     {
         // Get bus number
         int busNum = jsonParams.getLong("busnum", -1);
-        if (busNum < DeviceIDType::BUS_NUM_FIRST_BUS)
+        if (busNum < RaftDeviceID::BUS_NUM_FIRST_BUS)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidBusNum");
         
         // Get bus name
-        RaftBus* pBus = getBusByNumber(busNum);
+        RaftBus* pBus = raftBusSystem.getBusByNumber(busNum);
         if (!pBus)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
         String busName = pBus->getBusName();
@@ -1197,7 +1197,7 @@ void DeviceManager::cmdResultReportCallback(BusRequestResult &reqResult)
 /// @param dataChangeCB Callback for data change
 /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
 /// @param pCallbackInfo Callback info (passed to the callback)
-void DeviceManager::registerForDeviceData(DeviceIDType deviceID, RaftDeviceDataChangeCB dataChangeCB, 
+void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
         uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
 {
     // Add to requests for device data changes
@@ -1255,7 +1255,7 @@ uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxD
 /// @brief Find device in device list
 /// @param pDeviceID ID of the device
 /// @return pointer to device if found
-RaftDevice* DeviceManager::getDevice(DeviceIDType deviceID) const
+RaftDevice* DeviceManager::getDevice(RaftDeviceID deviceID) const
 {
     if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
@@ -1272,22 +1272,34 @@ RaftDevice* DeviceManager::getDevice(DeviceIDType deviceID) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get bus by by bus number
-/// @param busNum Bus number (starting from DEVICE_CONN_MODE_FIRST_BUS)
-/// @return pointer to bus if found, nullptr otherwise
-RaftBus* DeviceManager::getBusByNumber(uint16_t busNum) const
+/// @brief Get device by lookup the device ID as string or configured device name
+/// @param deviceStr Device string (device ID as string or configured device name)
+/// @return pointer to device if found, nullptr otherwise
+RaftDevice* DeviceManager::getDeviceByStringLookup(const String& deviceStr) const
 {
-    for (RaftBus* pBus : raftBusSystem.getBusList())
+    // Convert the device string to a RaftDeviceID and find the device
+    RaftDeviceID deviceID = RaftDeviceID::fromString(deviceStr);
+    if (deviceID.isValid())
     {
-        if (!pBus)
-            continue;
-        
-        // Check if this is the requested bus number
-        if (pBus->getBusNum() == busNum)
+        RaftDevice* pDevice = getDevice(deviceID);
+        if (pDevice)
+            return pDevice;
+    }
+
+    // Try to match the device string to a configured device name
+    if (!RaftMutex_lock(_accessMutex, 5))
+        return nullptr;
+    for (auto& devPtrAndOnline : _deviceList)
+    {
+        if (devPtrAndOnline.pDevice && devPtrAndOnline.pDevice->getConfiguredDeviceName().equalsIgnoreCase(deviceStr))
         {
-            return pBus;
+            RaftMutex_unlock(_accessMutex);
+            return devPtrAndOnline.pDevice;
         }
     }
+    RaftMutex_unlock(_accessMutex);
+
+    // Not found
     return nullptr;
 }
 
@@ -1314,7 +1326,7 @@ void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddr
 /// @brief Register for device data change callbacks
 /// @param deviceID ID of device (isAnyDevice() true for all devices)
 /// @return number of devices registered for data change callbacks
-uint32_t DeviceManager::registerForDeviceDataChangeCBs(DeviceIDType deviceID)
+uint32_t DeviceManager::registerForDeviceDataChangeCBs(RaftDeviceID deviceID)
 {
     // Get mutex
     if (!RaftMutex_lock(_accessMutex, 5))
@@ -1400,24 +1412,6 @@ RaftBus* DeviceManager::getBusByNameOrNumberString(const String& busStr) const
             if (bus && bus->getBusNum() == busNum)
                 return bus;
         }
-    }
-
-    // Not found
-    return nullptr;
-}
-
-/// @brief Get device by string lookup where string is the device ID as string
-/// @param deviceStr Device ID string (ID as string)
-/// @return pointer to device if found, nullptr otherwise
-RaftDevice* DeviceManager::getDeviceByIDString(const String& deviceStr) const
-{
-    // Convert the device string to a DeviceIDType and find the device
-    DeviceIDType deviceID = DeviceIDType::fromString(deviceStr);
-    if (deviceID.isValid())
-    {
-        RaftDevice* pDevice = getDevice(deviceID);
-        if (pDevice)
-            return pDevice;
     }
 
     // Not found

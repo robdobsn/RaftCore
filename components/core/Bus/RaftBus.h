@@ -346,7 +346,7 @@ public:
     }
 
 protected:
-    BusNumType _busNum = DeviceIDType::BUS_NUM_FIRST_BUS;
+    BusNumType _busNum = RaftDeviceID::BUS_NUM_FIRST_BUS;
     RaftBusStats _busStats;
     BusElemStatusCB _busElemStatusCB;
     BusOperationStatusCB _busOperationStatusCB;

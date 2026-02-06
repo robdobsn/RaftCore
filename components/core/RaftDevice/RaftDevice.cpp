@@ -16,15 +16,15 @@
 /// @param pClassName Class name of the device
 /// @param pDevConfigJson JSON configuration for the device
 /// @param deviceID Device ID of the device
-RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson, DeviceIDType deviceID) :
+RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson, RaftDeviceID deviceID) :
         deviceConfig(pDevConfigJson), 
 #ifdef DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
         deviceClassName(pClassName), 
 #endif
         _deviceID(deviceID)
 {
-    // Device name
-    // deviceName = deviceConfig.getString("name", "UNKNOWN");
+    // Configured device name 
+    configuredDeviceName = deviceConfig.getString("name", "");
 
     // Init publish device type (default to class name)
     configuredDeviceType = deviceConfig.getString("type", pClassName);

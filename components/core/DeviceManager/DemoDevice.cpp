@@ -88,7 +88,7 @@ std::vector<uint8_t> DemoDevice::getStatusBinary() const
     std::vector<uint8_t> binBuf;
 
     // Generate binary device message
-    RaftDevice::genBinaryDataMsg(binBuf, DeviceIDType::BUS_NUM_DIRECT_CONN, 0, getDeviceTypeIndex(), true, data);
+    RaftDevice::genBinaryDataMsg(binBuf, RaftDeviceID::BUS_NUM_DIRECT_CONN, 0, getDeviceTypeIndex(), true, data);
 
     // Return binary data
     return binBuf;

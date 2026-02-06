@@ -18,7 +18,7 @@ class RaftBusDevice : public RaftDevice
 {
 public:
    /// @brief Constructor
-    RaftBusDevice(const char* pClassName, const char* pDevConfigJson, DeviceIDType deviceID) :
+    RaftBusDevice(const char* pClassName, const char* pDevConfigJson, RaftDeviceID deviceID) :
         RaftDevice(pClassName, pDevConfigJson, deviceID)
     {
     }
@@ -31,7 +31,7 @@ public:
     /// @brief Check if ID matches that passed in
     /// @param deviceID ID to check
     /// @return true if the device ID matches
-    virtual bool idMatches(DeviceIDType deviceID) const override final
+    virtual bool idMatches(RaftDeviceID deviceID) const override final
     {
         bool isMatch = (_deviceID == deviceID);
 #ifdef DEBUG_BUS_DEVICE_ID_MATCH

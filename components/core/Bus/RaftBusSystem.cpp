@@ -81,7 +81,7 @@ void RaftBusSystem::setup(const char* busConfigName, const RaftJsonIF& config,
         // Setup if valid
         if (pNewBus)
         {
-            if (pNewBus->setup(DeviceIDType::BUS_NUM_FIRST_BUS + _busList.size(), busConfig))
+            if (pNewBus->setup(RaftDeviceID::BUS_NUM_FIRST_BUS + _busList.size(), busConfig))
             {
                 // Add to bus list
                 _busList.push_back(pNewBus);
@@ -211,7 +211,7 @@ RaftBus* RaftBusSystem::getBusByName(const String& busName)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get a bus by number
-/// @param busNum Number of the bus (starting from DeviceIDType::BUS_NUM_FIRST_BUS)
+/// @param busNum Number of the bus (starting from RaftDeviceID::BUS_NUM_FIRST_BUS)
 /// @return Pointer to the bus or nullptr if not found
 RaftBus* RaftBusSystem::getBusByNumber(BusNumType busNum)
 {

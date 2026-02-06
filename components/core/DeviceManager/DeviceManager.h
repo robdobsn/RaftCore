@@ -34,14 +34,19 @@ public:
     /// @brief Find device in device list by ID
     /// @param deviceID Device identifier
     /// @return pointer to device if found
-    RaftDevice* getDevice(DeviceIDType deviceID) const;
+    RaftDevice* getDevice(RaftDeviceID deviceID) const;
+
+    /// @brief Get device by string lookup using device ID as string
+    /// @param deviceStr Device ID string (ID as string)
+    /// @return pointer to device if found, nullptr otherwise
+    RaftDevice* getDeviceByStringLookup(const String& deviceStr) const;
 
     /// @brief Register for device data notifications
     /// @param deviceID Device identifier
     /// @param dataChangeCB Callback for data change
     /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
     /// @param pCallbackInfo Callback info (passed to the callback)
-    void registerForDeviceData(DeviceIDType deviceID, RaftDeviceDataChangeCB dataChangeCB, 
+    void registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
             uint32_t minTimeBetweenReportsMs = DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS,
             const void* pCallbackInfo = nullptr);
 
@@ -97,7 +102,7 @@ private:
     class DeviceDataChangeRec
     {
     public:
-        DeviceDataChangeRec(DeviceIDType deviceID, RaftDeviceDataChangeCB dataChangeCB, 
+        DeviceDataChangeRec(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
                 uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo) :
             deviceID(deviceID),
             dataChangeCB(dataChangeCB),
@@ -105,7 +110,7 @@ private:
             pCallbackInfo(pCallbackInfo)
         {
         }
-        DeviceIDType deviceID;
+        RaftDeviceID deviceID;
         RaftDeviceDataChangeCB dataChangeCB = nullptr;
         uint32_t minTimeBetweenReportsMs = 1000;
         uint32_t lastReportTime = 0;
@@ -170,11 +175,6 @@ private:
     /// @return Number of devices
     uint32_t getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, bool *pDeviceOnlineArray = nullptr) const;
 
-    /// @brief Get bus by by bus number
-    /// @param busNum Bus number (starting from DEVICE_CONN_MODE_FIRST_BUS)
-    /// @return pointer to bus if found, nullptr otherwise
-    RaftBus* getBusByNumber(uint16_t busNum) const;
-
     /// @brief Call device status change callbacks
     /// @param pDevice Pointer to the device
     /// @param addrStatus Bus element address and status
@@ -196,7 +196,7 @@ private:
     /// @brief Register for device data change callbacks
     /// @param deviceID ID of device (isAnyDevice() true for all devices)
     /// @return number of devices registered for data change callbacks
-    uint32_t registerForDeviceDataChangeCBs(DeviceIDType deviceID);
+    uint32_t registerForDeviceDataChangeCBs(RaftDeviceID deviceID);
 
     /// @brief Device event callback
     /// @param device Device
@@ -208,11 +208,6 @@ private:
     /// @param busStr Bus string (name or number)
     /// @return pointer to bus if found, nullptr otherwise
     RaftBus* getBusByNameOrNumberString(const String& busStr) const;
-
-    /// @brief Get device by string lookup using device ID as string
-    /// @param deviceStr Device ID string (ID as string)
-    /// @return pointer to device if found, nullptr otherwise
-    RaftDevice* getDeviceByIDString(const String& deviceStr) const;
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;
