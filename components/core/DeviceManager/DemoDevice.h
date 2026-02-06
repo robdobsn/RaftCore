@@ -33,7 +33,7 @@ public:
     virtual bool getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const override;
     
     // Device type for publishing
-    virtual String getPublishDeviceType() const override { return "ACCDEMO"; }
+    virtual String getConfiguredDeviceType() const override { return "ACCDEMO"; }
 
 private:
     // Demo configuration

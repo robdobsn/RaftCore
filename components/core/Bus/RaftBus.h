@@ -20,7 +20,7 @@ class BusRequestInfo;
 class RaftBus;
 class RaftJsonIF;
 
-typedef std::function<void(RaftBus& bus, const std::vector<BusElemAddrAndStatus>& statusChanges)> BusElemStatusCB;
+typedef std::function<void(RaftBus& bus, const std::vector<BusAddrStatus>& statusChanges)> BusElemStatusCB;
 typedef std::function<void(RaftBus& bus, BusOperationStatus busOperationStatus)> BusOperationStatusCB;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,10 +46,12 @@ public:
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Setup
+    /// @param busNum - bus number
     /// @param config - configuration
     /// @return true if successful
-    virtual bool setup(const RaftJsonIF& config)
+    virtual bool setup(BusNumType busNum, const RaftJsonIF& config)
     {
+        _busNum = busNum;
         return false;
     }
 
@@ -209,33 +211,6 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Convert bus address to string
-    /// @param addr - address
-    /// @return address as a string
-    virtual String addrToString(BusElemAddrType addr) const
-    {
-        return "0x" + String(addr, 16);
-    }
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Create unique id for a bus element
-    /// @param addr - address
-    /// @return unique id
-    virtual String formUniqueId(BusElemAddrType addr) const
-    {
-        return getBusName() + "_" + addrToString(addr);
-    }
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Convert string to bus address
-    /// @param addrStr - address as a string
-    /// @return address
-    virtual BusElemAddrType stringToAddr(const String& addrStr) const
-    {
-        return strtol(addrStr.c_str(), NULL, 16);
-    }
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set device polling interval for an address
     /// @param address Composite address
     /// @param pollIntervalMs Polling interval in milliseconds
@@ -340,7 +315,7 @@ public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get bus status as a stringCall bus element status callback
     /// @param busElemStatusCB - callback for bus element status changes
-    void callBusElemStatusCB(const std::vector<BusElemAddrAndStatus>& statusChanges)
+    void callBusElemStatusCB(const std::vector<BusAddrStatus>& statusChanges)
     {
         if (_busElemStatusCB)
             _busElemStatusCB(*this, statusChanges);
@@ -362,7 +337,16 @@ public:
         return _busStats;
     }
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get bus number
+    /// @return bus number
+    BusNumType getBusNum() const
+    {        
+        return _busNum;
+    }
+
 protected:
+    BusNumType _busNum = DeviceIDType::BUS_NUM_FIRST_BUS;
     RaftBusStats _busStats;
     BusElemStatusCB _busElemStatusCB;
     BusOperationStatusCB _busOperationStatusCB;

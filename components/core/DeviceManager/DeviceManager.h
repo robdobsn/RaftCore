@@ -31,17 +31,17 @@ public:
         return new DeviceManager(pModuleName, sysConfig);
     }
 
-    /// @brief Get a device by name
-    /// @param pDeviceName Name of the device
-    /// @return RaftDevice* Pointer to the device or nullptr if not found
-    RaftDevice* getDevice(const char* pDeviceName) const;
+    /// @brief Find device in device list by ID
+    /// @param deviceID Device identifier
+    /// @return pointer to device if found
+    RaftDevice* getDevice(DeviceIDType deviceID) const;
 
     /// @brief Register for device data notifications
-    /// @param pDeviceName Name of the device
+    /// @param deviceID Device identifier
     /// @param dataChangeCB Callback for data change
     /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
     /// @param pCallbackInfo Callback info (passed to the callback)
-    void registerForDeviceData(const char* pDeviceName, RaftDeviceDataChangeCB dataChangeCB, 
+    void registerForDeviceData(DeviceIDType deviceID, RaftDeviceDataChangeCB dataChangeCB, 
             uint32_t minTimeBetweenReportsMs = DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS,
             const void* pCallbackInfo = nullptr);
 
@@ -54,10 +54,6 @@ public:
 
     // Get JSON debug string
     virtual String getDebugJSON() const override final;
-
-    // Get code for device connection mode
-    static const uint8_t DEVICE_CONN_MODE_DIRECT = 0;
-    static const uint8_t DEVICE_CONN_MODE_FIRST_BUS = 1;
 
     // Named value access (routes to devices using "DeviceName.paramName" syntax)
     virtual double getNamedValue(const char* pValueName, bool& isValid) override;
@@ -101,15 +97,15 @@ private:
     class DeviceDataChangeRec
     {
     public:
-        DeviceDataChangeRec(const char* pDeviceName, RaftDeviceDataChangeCB dataChangeCB, 
+        DeviceDataChangeRec(DeviceIDType deviceID, RaftDeviceDataChangeCB dataChangeCB, 
                 uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo) :
-            deviceName(pDeviceName),
+            deviceID(deviceID),
             dataChangeCB(dataChangeCB),
             minTimeBetweenReportsMs(minTimeBetweenReportsMs),
             pCallbackInfo(pCallbackInfo)
         {
         }
-        String deviceName;
+        DeviceIDType deviceID;
         RaftDeviceDataChangeCB dataChangeCB = nullptr;
         uint32_t minTimeBetweenReportsMs = 1000;
         uint32_t lastReportTime = 0;
@@ -136,7 +132,7 @@ private:
     /// @brief Bus element status callback
     /// @param bus a reference to the bus which has elements with changed status
     /// @param statusChanges - list of status changes
-    void busElemStatusCB(RaftBus& bus, const std::vector<BusElemAddrAndStatus>& statusChanges);
+    void busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatus>& statusChanges);
 
     /// @brief Bus operation status callback
     /// @param bus a reference to the bus which has changed status
@@ -174,22 +170,15 @@ private:
     /// @return Number of devices
     uint32_t getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, bool *pDeviceOnlineArray = nullptr) const;
 
-    /// @brief Find device in device list by ID
-    /// @param pDeviceID ID of the device
-    /// @return pointer to device if found
-    RaftDevice* getDeviceByID(const char* pDeviceName) const;
-
-    /// @brief Get bus name by bus number
+    /// @brief Get bus by by bus number
     /// @param busNum Bus number (starting from DEVICE_CONN_MODE_FIRST_BUS)
-    /// @param busName (out) Bus name if found
-    /// @return true if bus found
-    bool getBusNameByNumber(uint16_t busNum, String& busName) const;
+    /// @return pointer to bus if found, nullptr otherwise
+    RaftBus* getBusByNumber(uint16_t busNum) const;
 
     /// @brief Call device status change callbacks
     /// @param pDevice Pointer to the device
-    /// @param el Bus element address and status
-    /// @param newlyCreated True if the device was newly created
-    void callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusElemAddrAndStatus& el, bool newlyCreated);
+    /// @param addrStatus Bus element address and status
+    void callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddrStatus& addrStatus);
 
     // Device data change record temporary
     struct DeviceDataChangeRecTmp
@@ -205,15 +194,25 @@ private:
     void getDeviceDataChangeRecTmp(std::list<DeviceDataChangeRecTmp>& recList);
 
     /// @brief Register for device data change callbacks
-    /// @param pDeviceName Name of the device (nullptr for all devices)
-    /// @return number of devices registered
-    uint32_t registerForDeviceDataChangeCBs(const char* pDeviceName = nullptr);
+    /// @param deviceID ID of device (isAnyDevice() true for all devices)
+    /// @return number of devices registered for data change callbacks
+    uint32_t registerForDeviceDataChangeCBs(DeviceIDType deviceID);
 
     /// @brief Device event callback
     /// @param device Device
     /// @param eventName Name of the event
     /// @param eventData Data associated with the event
     void deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData);
+
+    /// @brief Get bus by string lookup where string is either bus name or bus number as string
+    /// @param busStr Bus string (name or number)
+    /// @return pointer to bus if found, nullptr otherwise
+    RaftBus* getBusByNameOrNumberString(const String& busStr) const;
+
+    /// @brief Get device by string lookup using device ID as string
+    /// @param deviceStr Device ID string (ID as string)
+    /// @return pointer to device if found, nullptr otherwise
+    RaftDevice* getDeviceByIDString(const String& deviceStr) const;
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;

@@ -19,43 +19,47 @@ class RestAPIEndpointManager;
 class CommsCoreIF;
 class DeviceTypeRecordDynamic;
 
+#define DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
+
 class RaftDevice
 {
 public:
     /// @brief Construct a new Raft Device object
     /// @param pDevConfigJson JSON configuration for the device
-    RaftDevice(const char* pClassName, const char* pDevConfigJson, BusElemAddrType address = 0);
+    RaftDevice(const char* pClassName, const char* pDevConfigJson, DeviceIDType deviceID = DeviceIDType());
     
     /// @brief Destroy the Raft Device object
     virtual ~RaftDevice();
 
+    /// @brief Set device ID
+    /// @param deviceID Device ID to set
+    void setDeviceID(DeviceIDType deviceID)
+    {
+        _deviceID = deviceID;
+    }
+
     /// @brief Check if ID matches that passed in
-    /// @param pDeviceId Device ID to check
+    /// @param deviceID ID to check
     /// @return true if the device ID matches
-    virtual bool idMatches(const char* pDeviceId) const
+    virtual bool idMatches(DeviceIDType deviceID) const
     {
-        return deviceName.equals(pDeviceId);
+        return _deviceID == deviceID;
     }
 
-    /// @brief Get the name of the device instance
-    /// @return Device name as a string
-    virtual String getDeviceName() const
-    {
-        return deviceName;
-    }
-
+#ifdef DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
     /// @brief Get the class name of the device
     /// @return Device class name as a string
     virtual String getDeviceClassName() const
     {
         return deviceClassName;
     }
+#endif
 
-    /// @brief Get the publish device type
-    /// @return Publish device type as a string
-    virtual String getPublishDeviceType() const
+    /// @brief Get the configured device type
+    /// @return Configured device type as a string
+    virtual String getConfiguredDeviceType() const
     {
-        return publishDeviceType;
+        return configuredDeviceType;
     }
 
     /// @brief Get the device type record for this device so that it can be added to the device type records
@@ -122,14 +126,14 @@ public:
 
     /// @brief Generate a binary data message
     /// @param binData (out) Binary data
-    /// @param connMode Connection mode (inc bus number / id)
+    /// @param busNumber Bus number
     /// @param address Address of the device
     /// @param deviceTypeIndex Index of the device type
     /// @param isOnline true if the device is online
     /// @param deviceMsgData Device msg data
     /// @return true if created ok
     static bool genBinaryDataMsg(std::vector<uint8_t>& binData, 
-        uint8_t connMode, 
+        uint8_t busNumber, 
         BusElemAddrType address, 
         uint16_t deviceTypeIndex, 
         bool isOnline, 
@@ -217,11 +221,8 @@ public:
     }
 
     /// @brief Handle device status change
-    /// @param isChangeToOnline true if the device has changed to online
-    /// @param isChangeToOffline true if the device has changed to offline
-    /// @param isNewlyIdentified true if the device is newly identified
-    /// @param deviceTypeIndex index of the device type
-    virtual void handleStatusChange(bool isChangeToOnline, bool isChangeToOffline, bool isNewlyIdentified, uint32_t deviceTypeIndex)
+    /// @param addrStatus Address and status of the bus element that changed
+    virtual void handleStatusChange(const BusAddrStatus& addrStatus)
     {
     }
 
@@ -239,31 +240,30 @@ public:
     {
     }
 
-    /// @brief Get the address of the device on a bus (if applicable)
-    /// @return Bus address (0 if not applicable)
-    BusElemAddrType getDeviceAddress() const
+    /// @brief Get the ID of the device
+    /// @return Device ID
+    DeviceIDType getDeviceID() const
     {
-        return _address;
+        return _deviceID;
     }
 
 protected:
     // Device configuration
     RaftJson deviceConfig;
 
-    // Device name
-    String deviceName;
-
+#ifdef DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
     // Device class
     String deviceClassName;
+#endif
 
-    // Publish device type
-    String publishDeviceType;
+    // Configured device type
+    String configuredDeviceType;
 
     // Device type record index
-    uint32_t deviceTypeIndex = 0;
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
-    // Bus address (if applicable - otherwise 0)
-    BusElemAddrType _address = 0;
+    // Device ID
+    DeviceIDType _deviceID;
 
     // Debug
     static constexpr const char *MODULE_PREFIX = "RaftDevice";

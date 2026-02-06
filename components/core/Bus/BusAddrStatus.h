@@ -10,6 +10,7 @@
 
 #include "RaftDeviceConsts.h"
 #include "DeviceStatus.h"
+#include "RaftBusConsts.h"
 
 // Device online state
 enum class DeviceOnlineState : uint8_t
@@ -19,10 +20,23 @@ enum class DeviceOnlineState : uint8_t
     OFFLINE = 2     // Was online before, now offline
 };
 
-// Bus address status
+/// @brief Status of a bus address
+/// This is used to track the status of a bus address and to determine when to report changes in status
+/// Contains address, online state, isChange, isNewlyIdentified, and device status
 class BusAddrStatus
 {
 public:
+    /// @brief Constructor
+    /// @param address 
+    /// @param onlineState (ONLINE, OFFLINE, INITIAL) 
+    /// @param isChange 
+    /// @param isNewlyIdentified 
+    BusAddrStatus(BusElemAddrType address, DeviceOnlineState onlineState, bool isChange, bool isNewlyIdentified, DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID) : 
+        address(address), onlineState(onlineState), isChange(isChange), isNewlyIdentified(isNewlyIdentified)
+    {
+        deviceStatus.deviceTypeIndex = deviceTypeIndex;
+    }
+
     // Address and slot
     BusElemAddrType address = 0;
 
@@ -36,8 +50,8 @@ public:
     int8_t count = 0;
 
     // State
-    bool isChange : 1 = false;
     DeviceOnlineState onlineState : 2 = DeviceOnlineState::INITIAL;
+    bool isChange : 1 = false;
     bool slotResolved : 1 = false;
     bool isNewlyIdentified : 1 = false;
 
@@ -83,4 +97,23 @@ public:
 
     // Get JSON for device status
     String getJson() const;
+
+    // Get string for online state
+    static const char* getOnlineStateStr(DeviceOnlineState onlineState)
+    {
+        switch (onlineState)
+        {            
+            case DeviceOnlineState::INITIAL:
+                return "initial";
+            case DeviceOnlineState::ONLINE:
+                return "online";
+            case DeviceOnlineState::OFFLINE:
+                return "offline";
+            default:
+                return "unknown";
+        }
+    }
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "BusAddrStatus";
 };

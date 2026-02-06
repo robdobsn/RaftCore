@@ -50,20 +50,20 @@ DeviceTypeRecords::~DeviceTypeRecords()
 /// @brief get device types (strings) for an address
 /// @param addr address
 /// @returns device type indexes (into generated baseDevTypeRecords array) that match the address
-std::vector<uint16_t> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrType addr) const
+std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrType addr) const
 {
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
     uint64_t startTimeUs = micros();
 #endif
 
     // Return value
-    std::vector<uint16_t> devTypeIdxsForAddr;
+    std::vector<DeviceTypeIndexType> devTypeIdxsForAddr;
 
     // Check if any of the extended device type records match
     if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         // Ext devType indices continue on from the base devType indices
-        uint16_t devTypeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
+        DeviceTypeIndexType devTypeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
             std::vector<int> addressList;
@@ -114,7 +114,7 @@ std::vector<uint16_t> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrTyp
 /// @param deviceTypeIdx device type index
 /// @param devTypeRec (out) device type record
 /// @return true if device type found
-bool DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& devTypeRec) const
+bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceTypeRecord& devTypeRec) const
 {
     // Check if in range
     bool isValid = false;
@@ -148,7 +148,7 @@ bool DeviceTypeRecords::getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& 
 /// @param devTypeRec (out) device type record
 /// @param deviceTypeIdx (out) device type index
 /// @return true if device type found
-bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, uint32_t& deviceTypeIdx) const
+bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const
 {
     // Iterate the extended device types first - so that device type names can be overridden
     bool isValid = false;
@@ -554,15 +554,9 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 /// @param isOnline true if device is online
 /// @param deviceTypeIndex device type index
 /// @param devicePollResponseData device poll response data
-String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline,  uint16_t deviceTypeIndex, 
+String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline,  DeviceTypeIndexType deviceTypeIndex, 
         const std::vector<uint8_t>& devicePollResponseData) const
 {
-    if (devicePollResponseData.size() == 0)
-    {
-        // No data to report
-        return "";
-    }
-    
     // Form a hex buffer
     String hexOut;
     hexOut.reserve(hexOut.length() + 50);
@@ -575,7 +569,7 @@ String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline
 /// @param deviceTypeIdx device type index
 /// @param includePlugAndPlayInfo include plug and play info
 /// @return JSON string
-String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(uint16_t deviceTypeIdx, bool includePlugAndPlayInfo) const
+String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIdx, bool includePlugAndPlayInfo) const
 {
     // Get device type record
     DeviceTypeRecord devTypeRec;
@@ -590,7 +584,7 @@ String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(uint16_t deviceTypeIdx, bo
 /// @param includePlugAndPlayInfo include plug and play info
 /// @param deviceTypeIdx (out) device type index
 /// @return JSON string
-String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeName, bool includePlugAndPlayInfo, uint32_t& deviceTypeIdx) const
+String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeName, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIdx) const
 {
     // Get the device type info
     DeviceTypeRecord devTypeRec;
@@ -640,7 +634,7 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
 /// @param devTypeRec device type record
 /// @param deviceTypeIndex (out) device type index
 /// @return true if added
-bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, uint16_t& deviceTypeIndex)
+bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, DeviceTypeIndexType& deviceTypeIndex)
 {
     // Lock
     if (!RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
@@ -694,7 +688,7 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 /// @brief Get device poll decode function
 /// @param deviceTypeIdx device type index
 /// @return poll decode function
-DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(uint16_t deviceTypeIdx) const
+DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(DeviceTypeIndexType deviceTypeIdx) const
 {
 
     // TODO - see if copying can be avoided

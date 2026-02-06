@@ -248,6 +248,47 @@
                 }
             }
         },
+        "VEML7700": {
+            "_notes": "ALS sensor with range 0-120 klx. I2C address fixed at 0x10. Device ID register at 0x07. Returns 0x81c4 or 0x81d4 (0xc481/0xd481 as 16-bit LE). Config: gain x1, 100ms integration time, power on.",
+            "addresses": "0x10",
+            "deviceType": "VEML7700",
+            "detectionValues": "0x07=0x81c4,0x81d4",
+            "initValues": "0x000000=",
+            "pollInfo": {
+                "c": "0x04=r2&0x05=r2",
+                "i": 200,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "VEML7700",
+                "desc": "ALS",
+                "manu": "Vishay",
+                "type": "VEML7700",
+                "clas": ["LGHT"],
+                "resp": {
+                    "b": 4,
+                    "a": [
+                        {
+                            "n": "als",
+                            "t": "<H",
+                            "u": "lux",
+                            "r": [0,65535],
+                            "f": "5d",
+                            "o": "uint16"
+                        },
+                        {
+                            "n": "white",
+                            "t": "<H",
+                            "u": "lux",
+                            "r": [0,65535],
+                            "f": "5d",
+                            "o": "uint16"
+                        }
+                    ]
+                }
+            }
+        },
         "VL6180": {
             "_notes": "Interleaved mode ALS & Range (0x2a3=>0x01)\nRange settings defined in https://www.st.com/resource/en/application_note/an4545-vl6180x-basic-ranging-application-note-stmicroelectronics.pdf\nALS integration period 100ms (0x0040=>0x0063)\nALS gain 20 (0x003f=>0x40)\n",
             "addresses": "0x29",

@@ -48,7 +48,7 @@ void DemoDevice::setup()
     // Generate initial data
     generateDemoData();
         
-    LOG_I(MODULE_PREFIX, "setup device %s rate=%dms", getDeviceName().c_str(), _sampleRateMs);
+    LOG_I(MODULE_PREFIX, "setup device %s rate=%dms", getDeviceID().toString().c_str(), _sampleRateMs);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +88,7 @@ std::vector<uint8_t> DemoDevice::getStatusBinary() const
     std::vector<uint8_t> binBuf;
 
     // Generate binary device message
-    RaftDevice::genBinaryDataMsg(binBuf, DeviceManager::DEVICE_CONN_MODE_DIRECT, 0, getDeviceTypeIndex(), true, data);
+    RaftDevice::genBinaryDataMsg(binBuf, DeviceIDType::BUS_NUM_DIRECT_CONN, 0, getDeviceTypeIndex(), true, data);
 
     // Return binary data
     return binBuf;
@@ -99,8 +99,8 @@ std::vector<uint8_t> DemoDevice::getStatusBinary() const
 String DemoDevice::getDebugJSON(bool includePlugAndPlayInfo) const
 {
     String debugStr = "{";
-    debugStr += "\"name\":\"" + getDeviceName() + "\",";
-    debugStr += "\"type\":\"" + getPublishDeviceType() + "\",";
+    debugStr += "\"name\":\"" + getDeviceID().toString() + "\",";
+    debugStr += "\"type\":\"" + getConfiguredDeviceType() + "\",";
     debugStr += "\"sampleRate\":" + String(_sampleRateMs);
     debugStr += "}";
     return debugStr;
@@ -226,7 +226,7 @@ bool DemoDevice::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
 
     // Set the device type record
     devTypeRec = DeviceTypeRecordDynamic(
-        getPublishDeviceType().c_str(),
+        getConfiguredDeviceType().c_str(),
         "",
         "",
         "",

@@ -187,11 +187,6 @@ public:
     /// @return Pointer to SupervisorStats
     SupervisorStats* getSysManagerStats();
 
-    /// @brief Get device by name
-    /// @param pDeviceName Name of device
-    /// @return Pointer to RaftDevice or nullptr if not found
-    virtual RaftDevice* getDeviceByName(const char* pDeviceName) const;
-
     /// @brief Log silently (no output) - ensure no Log calls are made while logging!
     /// @param pLogStr Log string
     virtual void logSilently(const char* pLogStr)

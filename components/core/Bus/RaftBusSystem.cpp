@@ -10,6 +10,7 @@
 #include "RaftJsonPrefixed.h"
 #include "RaftJson.h"
 #include "VirtualPinResult.h"
+#include "RaftBusConsts.h"
 
 // Warn
 #define WARN_ON_NO_BUSES_DEFINED
@@ -80,7 +81,7 @@ void RaftBusSystem::setup(const char* busConfigName, const RaftJsonIF& config,
         // Setup if valid
         if (pNewBus)
         {
-            if (pNewBus->setup(busConfig))
+            if (pNewBus->setup(DeviceIDType::BUS_NUM_FIRST_BUS + _busList.size(), busConfig))
             {
                 // Add to bus list
                 _busList.push_back(pNewBus);
@@ -166,6 +167,7 @@ RaftBus* RaftBusSystem::busFactoryCreate(const char* busConstrName, BusElemStatu
         if (el.nameMatch(busConstrName))
         {
             RaftBus* pBus = el._createFn(busElemStatusCB, busOperationStatusCB);
+
 #ifdef DEBUG_BUS_FACTORY_CREATE
             LOG_I(MODULE_PREFIX, "creating bus %s %s", busConstrName, pBus ? "OK" : "FAILED");
 #endif
@@ -179,9 +181,9 @@ RaftBus* RaftBusSystem::busFactoryCreate(const char* busConstrName, BusElemStatu
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get bus by name
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get a bus by name
+/// @param busName Name of the bus
+/// @return Pointer to the bus or nullptr if not found
 RaftBus* RaftBusSystem::getBusByName(const String& busName)
 {
 #ifdef DEBUG_GET_BUS_BY_NAME_DETAIL
@@ -203,6 +205,35 @@ RaftBus* RaftBusSystem::getBusByName(const String& busName)
     }
 #ifdef DEBUG_GET_BUS_BY_NAME
     LOG_I(MODULE_PREFIX, "getBusByName %s not found", busName.c_str());
+#endif
+    return nullptr;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a bus by number
+/// @param busNum Number of the bus (starting from DeviceIDType::BUS_NUM_FIRST_BUS)
+/// @return Pointer to the bus or nullptr if not found
+RaftBus* RaftBusSystem::getBusByNumber(BusNumType busNum)
+{
+#ifdef DEBUG_GET_BUS_BY_NAME_DETAIL
+    LOG_I(MODULE_PREFIX, "getBusByNumber %d numBuses %d (raftBusSystem %p)", 
+                busNum, _busList.size(), this);
+#endif
+    for (RaftBus* pBus : _busList)
+    {
+#ifdef DEBUG_GET_BUS_BY_NAME_DETAIL
+        LOG_I(MODULE_PREFIX, "getBusByNumber %d checking %s", busNum, pBus->getBusName().c_str());
+#endif
+        if (pBus && pBus->getBusNum() == busNum)
+        {
+#ifdef DEBUG_GET_BUS_BY_NAME
+            LOG_I(MODULE_PREFIX, "getBusByNumber %d found", busNum);
+#endif
+            return pBus;
+        }
+    }
+#ifdef DEBUG_GET_BUS_BY_NAME
+    LOG_I(MODULE_PREFIX, "getBusByNumber %d not found", busNum);
 #endif
     return nullptr;
 }

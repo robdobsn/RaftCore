@@ -12,12 +12,11 @@
 #include "RaftUtils.h"
 #include "DevicePollingInfo.h"
 #include "PollDataAggregator.h"
+#include "RaftDeviceConsts.h"
 
 class DeviceStatus
 {
 public:
-    static const uint16_t DEVICE_TYPE_INDEX_INVALID = USHRT_MAX;
-
     DeviceStatus()
     {
     }
@@ -51,7 +50,7 @@ public:
         const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs);
 
     // Get device type index
-    uint16_t getDeviceTypeIndex() const
+    DeviceTypeIndexType getDeviceTypeIndex() const
     {
         return deviceTypeIndex;
     }
@@ -63,7 +62,7 @@ public:
     }
 
     // Device type index
-    uint16_t deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
     // Device ident polling - polling related to the device type
     DevicePollingInfo deviceIdentPolling;
