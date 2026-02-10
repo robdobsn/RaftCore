@@ -309,6 +309,13 @@ public:
     /// @return Named value
     double sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid) const;
 
+    /// @brief Get named string from another SysMod
+    /// @param pSysModName Name of the SysMod
+    /// @param valueName String name
+    /// @param isValid (out) true if value is valid
+    /// @return string
+    virtual String sysModGetNamedString(const char* pSysModName, const char* valueName, bool& isValid) const;
+
     /// @brief Set status change callback for this SysMod
     /// @param statusChangeCB Status change callback
     void setStatusChangeCB(SysMod_statusChangeCB statusChangeCB)

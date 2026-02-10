@@ -204,6 +204,20 @@ double RaftSysMod::sysModGetNamedValue(const char* sysModName, const char* value
     return 0;
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get named string from another SysMod
+/// @param pSysModName Name of the SysMod
+/// @param valueName String name
+/// @param isValid (out) true if value is valid
+/// @return string
+String RaftSysMod::sysModGetNamedString(const char* pSysModName, const char* valueName, bool& isValid) const
+{
+    if (_pSysManager)
+        return _pSysManager->getNamedString(pSysModName, valueName, isValid);
+    isValid = false;
+    return "";
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set the status change callback for a SysMod
 /// @param sysModName Name of SysMod
