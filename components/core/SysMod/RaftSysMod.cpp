@@ -196,7 +196,7 @@ RaftRetCode RaftSysMod::sysModSendCmdJSON(const char* sysModName, const char* js
 /// @param valueName Name of value
 /// @param isValid (out) true if value is valid
 /// @return Named value
-double RaftSysMod::sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid)
+double RaftSysMod::sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid) const
 {
     if (_pSysManager)
         return _pSysManager->getNamedValue(sysModName, valueName, isValid);

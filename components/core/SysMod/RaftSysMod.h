@@ -28,7 +28,7 @@ class SysManagerIF;
 typedef std::function<void(const String& sourceName, bool changeToOnline)> SysMod_statusChangeCB;
 
 // Message generator callback function type
-typedef std::function<bool(const char* messageName, CommsChannelMsg& msg)> SysMod_publishMsgGenFn;
+typedef std::function<bool(const char* topicName, CommsChannelMsg& msg)> SysMod_publishMsgGenFn;
 
 // State change detector callback function type
 typedef std::function<void(const char* stateName, std::vector<uint8_t>& stateHash)> SysMod_stateDetectCB;
@@ -307,7 +307,7 @@ public:
     /// @param valueName Name of the value
     /// @param isValid (out) true if value is valid
     /// @return Named value
-    double sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid);
+    double sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid) const;
 
     /// @brief Set status change callback for this SysMod
     /// @param statusChangeCB Status change callback

@@ -145,12 +145,14 @@ private:
     void busOperationStatusCB(RaftBus& bus, BusOperationStatus busOperationStatus);
 
     /// @brief Access to devices' data in JSON format
+    /// @param pTopicName topic name to include in the JSON
     /// @return JSON string
-    String getDevicesDataJSON() const;
+    String getDevicesDataJSON(const char* pTopicName) const;
 
     /// @brief Access to devices' data in binary format
-    /// @return Binary data vector
-    std::vector<uint8_t> getDevicesDataBinary() const;
+    /// @param pTopicName topic name to include in the data
+     /// @return Binary data vector
+    std::vector<uint8_t> getDevicesDataBinary(const char* pTopicName) const;
 
     /// @brief Get devices' status hash
     /// @param stateHash hash of the currently available data

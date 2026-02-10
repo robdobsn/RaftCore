@@ -79,24 +79,24 @@ void DeviceManager::postSetup()
 {
     // Register JSON data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
-        [this](const char* messageName, CommsChannelMsg& msg) {
-            String statusStr = getDevicesDataJSON();
+        [this](const char* pTopicName, CommsChannelMsg& msg) {
+            String statusStr = getDevicesDataJSON(pTopicName);
             msg.setFromBuffer((uint8_t*)statusStr.c_str(), statusStr.length());
             return true;
         },
-        [this](const char* messageName, std::vector<uint8_t>& stateHash) {
+        [this](const char* pTopicName, std::vector<uint8_t>& stateHash) {
             return getDevicesHash(stateHash);
         }
     );    
 
     // Register binary data source (new)
     getSysManager()->registerDataSource("Publish", "devbin", 
-        [this](const char* messageName, CommsChannelMsg& msg) {
-            std::vector<uint8_t> binaryData = getDevicesDataBinary();
+        [this](const char* pTopicName, CommsChannelMsg& msg) {
+            std::vector<uint8_t> binaryData = getDevicesDataBinary(pTopicName);
             msg.setFromBuffer(binaryData.data(), binaryData.size());
             return true;
         },
-        [this](const char* messageName, std::vector<uint8_t>& stateHash) {
+        [this](const char* pTopicName, std::vector<uint8_t>& stateHash) {
             return getDevicesHash(stateHash);
         }
     );
@@ -514,8 +514,9 @@ RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& dev
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get devices' data as JSON
+/// @param pTopicName topic name to include in the JSON
 /// @return JSON string
-String DeviceManager::getDevicesDataJSON() const
+String DeviceManager::getDevicesDataJSON(const char* pTopicName) const
 {
     // Pre-allocate string capacity to avoid multiple reallocations
     // Estimate: ~200 bytes per device/bus element
@@ -523,8 +524,17 @@ String DeviceManager::getDevicesDataJSON() const
     jsonStr.reserve(1024);
     
     // Start JSON object
-    jsonStr += "{";
-    bool needsComma = false;
+    if (pTopicName)
+    {
+        jsonStr += "{\"topic\":\"";
+        jsonStr += pTopicName;
+        jsonStr += "\"";
+    }
+    else
+    {
+        jsonStr += "{";
+    }
+    bool needsComma = true;
 
     // Check all buses for data
     for (RaftBus* pBus : raftBusSystem.getBusList())
@@ -589,8 +599,9 @@ String DeviceManager::getDevicesDataJSON() const
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get devices' data as binary
+/// @param pTopicName topic name to include in the binary data (not used in this implementation but added to published data)
 /// @return Binary data vector
-std::vector<uint8_t> DeviceManager::getDevicesDataBinary() const
+std::vector<uint8_t> DeviceManager::getDevicesDataBinary(const char* pTopicName) const
 {
     std::vector<uint8_t> binaryData;
     binaryData.reserve(500);
