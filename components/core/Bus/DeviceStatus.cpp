@@ -60,6 +60,10 @@ bool DeviceStatus::getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo
 /// @return true if result stored
 bool DeviceStatus::storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs)
 {
+    // Check we have a data aggregator to store the results
+    if (!pDataAggregator)
+        return false;
+
     // Check if this is a full or partial poll
     if (nextReqIdx != 0)
     {
@@ -76,11 +80,11 @@ bool DeviceStatus::storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, con
             partialPollResult.insert(partialPollResult.end(), pollResult.begin(), pollResult.end());
 
             // Add complete poll result to aggregator
-            return dataAggregator.put(timeNowUs, partialPollResult);
+            return pDataAggregator->put(timeNowUs, partialPollResult);
         }
 
         // Poll complete without partial poll - add result to aggregator
-        return dataAggregator.put(timeNowUs, pollResult);
+        return pDataAggregator->put(timeNowUs, pollResult);
     }
     return true;
 }

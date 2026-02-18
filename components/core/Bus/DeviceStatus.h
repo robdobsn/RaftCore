@@ -11,8 +11,9 @@
 #include "limits.h"
 #include "RaftUtils.h"
 #include "DevicePollingInfo.h"
-#include "PollDataAggregator.h"
+#include "PollDataAggregatorIF.h"
 #include "RaftDeviceConsts.h"
+#include <memory>
 
 class DeviceStatus
 {
@@ -21,11 +22,14 @@ public:
     {
     }
 
+    ~DeviceStatus() = default;
+
     void clear()
     {
         deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
         deviceIdentPolling.clear();
-        dataAggregator.clear();
+        if (pDataAggregator)
+            pDataAggregator->clear();
     }
 
     bool isValid() const
@@ -61,6 +65,33 @@ public:
         return deviceIdentPolling.pollReqs.size();
     }
 
+    /// @brief Get number of available poll responses
+    uint32_t getPollRespCount() const
+    {
+        if (pDataAggregator)
+            return pDataAggregator->count();
+        return 0;
+    }
+
+    /// @brief Get poll responses
+    /// @param devicePollResponseData (output) vector to store the device poll response data
+    /// @param responseSize (output) size of the response data
+    /// @param maxResponsesToReturn maximum number of responses to return (0 for no limit)
+    /// @return number of responses returned
+    uint32_t getPollResponses(std::vector<uint8_t>& devicePollResponseData, uint32_t& responseSize, uint32_t maxResponsesToReturn) const
+    {
+        if (pDataAggregator)            
+            return pDataAggregator->get(devicePollResponseData, responseSize, maxResponsesToReturn);
+        return 0;
+    }
+
+    /// @brief Set the data aggregator (shared ownership to allow safe copies of DeviceStatus)
+    /// @param pAggregator 
+    void setAndOwnPollDataAggregator(std::shared_ptr<PollDataAggregatorIF> pAggregator)
+    {
+        pDataAggregator = pAggregator;
+    }
+
     // Device type index
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
@@ -68,7 +99,7 @@ public:
     DevicePollingInfo deviceIdentPolling;
 
     // Data aggregator
-    PollDataAggregator dataAggregator;
+    std::shared_ptr<PollDataAggregatorIF> pDataAggregator;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";    
