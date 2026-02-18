@@ -13,6 +13,9 @@ INCLUDES = -I../unit_tests/main \
   -I../components/core/SupervisorStats \
   -I../components/core/DebugGlobals \
   -I../components/core/SysMod \
+  -I../components/core/RaftDevice \
+  -I../components/core/Bus \
+  -I../components/core/DeviceManager \
   -I../components/core/APICommon \
   -I../components/core/FileSystem \
   -I../components/core/RestAPIEndpoints \
