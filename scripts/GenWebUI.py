@@ -20,7 +20,9 @@ def dir_path(string):
     if os.path.isdir(string):
         return string
     else:
-        raise NotADirectoryError(string)
+        _log.error(f"GenWebUI ERROR: directory '{string}' does not exist. "
+                   f"Check your systype's WebUI path configuration.")
+        raise NotADirectoryError(f"Directory not found: {string}")
 
 def parseArgs():
     parser = argparse.ArgumentParser(description="Generate Web UI")
@@ -101,10 +103,15 @@ def generateWebUI(sourceFolder, destFolder, gzipContent, distFolder, npmInstall,
 
 def main():
     args = parseArgs()
-    # Check the source folder contains a package.json file
+    # Validate source folder exists and contains a package.json
+    if args.source is None or not os.path.isdir(args.source):
+        _log.error(f"GenWebUI ERROR: source folder '{args.source}' does not exist or was not specified. "
+                   f"Ensure the WebUI source path is configured correctly in your systype.")
+        return 1
     if not os.path.isfile(os.path.join(args.source, "package.json")):
-        _log.error(f"GenWebUI source folder {args.source} does not contain a package.json file")
-        return 0
+        _log.error(f"GenWebUI ERROR: source folder '{args.source}' does not contain a package.json file. "
+                   f"Expected a WebUI project with package.json at this location.")
+        return 1
     return generateWebUI(args.source, args.dest, args.gzipContent, args.distFolder, 
                             args.npmInstall, args.includemapfiles)
 

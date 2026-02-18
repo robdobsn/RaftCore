@@ -255,6 +255,30 @@ endforeach()
 if(DEFINED UI_SOURCE_PATH)
     # Process WebUI files into a temporary folder
     set(_full_web_ui_source_path "${BUILD_CONFIG_DIR}/${UI_SOURCE_PATH}")
+
+    # Validate the WebUI source directory exists
+    if(NOT EXISTS "${_full_web_ui_source_path}")
+        message(FATAL_ERROR
+            "\n==================== WebUI Build Error ====================\n"
+            "UI_SOURCE_PATH is set to '${UI_SOURCE_PATH}' but the resolved\n"
+            "directory does not exist:\n"
+            "  ${_full_web_ui_source_path}\n\n"
+            "Either create this directory with a WebUI project, or comment\n"
+            "out the set(UI_SOURCE_PATH ...) line in your features.cmake.\n"
+            "============================================================\n"
+        )
+    endif()
+    if(NOT EXISTS "${_full_web_ui_source_path}/package.json")
+        message(FATAL_ERROR
+            "\n==================== WebUI Build Error ====================\n"
+            "UI_SOURCE_PATH resolves to:\n"
+            "  ${_full_web_ui_source_path}\n"
+            "but this directory does not contain a package.json file.\n"
+            "Expected a WebUI project (with npm/package.json) at this path.\n"
+            "============================================================\n"
+        )
+    endif()
+
     set(_web_ui_build_folder_path "${RAFT_BUILD_ARTIFACTS_FOLDER}/BuildWebUI")
     # Ensure the WebUI build folder exists and is clean
     file(MAKE_DIRECTORY ${_web_ui_build_folder_path})
