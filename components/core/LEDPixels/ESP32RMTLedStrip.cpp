@@ -12,7 +12,7 @@
 #include "esp_idf_version.h"
 #include "driver/gpio.h"
 
-#define DEBUG_ESP32RMTLEDSTRIP_SETUP
+// #define DEBUG_ESP32RMTLEDSTRIP_SETUP
 // #define DEBUG_ESP32RMTLEDSTRIP_SEND
 // #define DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
 // #define DEBUG_ESP32RMTLEDSTRIP_INIT_RMT

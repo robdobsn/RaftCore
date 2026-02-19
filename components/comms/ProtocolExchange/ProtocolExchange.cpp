@@ -441,6 +441,13 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
             break;
         case FileStreamBase::FILE_STREAM_MSG_TYPE_UPLOAD_END:
             pSession = getFileStreamExistingSession(fileStreamName.c_str(), channelID, streamID);
+            // If session already cleaned up (e.g. after final block), respond OK
+            // so the client's numbered message gets acknowledged (avoiding timeout)
+            if (!pSession)
+            {
+                Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+                return RAFT_OK;
+            }
             break;
         case FileStreamBase::FILE_STREAM_MSG_TYPE_DOWNLOAD_START:
             pSession = getFileStreamNewSession(fileStreamName.c_str(), channelID, fileStreamContentType, 

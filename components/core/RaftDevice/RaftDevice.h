@@ -197,7 +197,7 @@ public:
     /// @param pParam Parameter name
     /// @param isValid (out) true if value is valid
     /// @return Named string
-    virtual String getNamedString(const char* pParam, bool& isValid)
+    virtual String getNamedString(const char* pParam, bool& isValid) const
     {
         isValid = false;
         return "";

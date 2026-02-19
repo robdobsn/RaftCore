@@ -12,7 +12,7 @@
 #include "RaftBus.h"
 #include "RaftBusSystem.h"
 
-#define DEBUG_BUS_DEVICE_ID_MATCH
+// #define DEBUG_BUS_DEVICE_ID_MATCH
 
 class RaftBusDevice : public RaftDevice
 {
