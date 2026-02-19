@@ -42,22 +42,24 @@ public:
     /// @brief Get device type information by address
     /// @param address address of device to get information for
     /// @param includePlugAndPlayInfo true to include plug and play information
+    /// @param deviceTypeIndex (out) device type index
     /// @return JSON string
-    virtual String getDevTypeInfoJsonByAddr(BusElemAddrType address, bool includePlugAndPlayInfo) const = 0;
+    virtual String getDevTypeInfoJsonByAddr(BusElemAddrType address, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type information by device type name
     /// @param deviceType - device type name
     /// @param includePlugAndPlayInfo - true to include plug and play information
+    /// @param deviceTypeIndex (out) device type index
     /// @return JSON string
-    virtual String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo) const = 0;
+    virtual String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const = 0;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type info JSON by device type index
     /// @param deviceTypeIdx device type index
     /// @param includePlugAndPlayInfo include plug and play info
     /// @return JSON string
-    virtual String getDevTypeInfoJsonByTypeIdx(uint16_t deviceTypeIdx, bool includePlugAndPlayInfo) const = 0;
+    virtual String getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIdx, bool includePlugAndPlayInfo) const = 0;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get queued device data in JSON format

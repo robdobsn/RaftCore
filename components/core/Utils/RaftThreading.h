@@ -139,11 +139,29 @@ static const uint32_t RAFT_MUTEX_WAIT_FOREVER = 0xFFFFFFFF;
 }
 #endif
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Platform-independent atomics
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Memory ordering for atomic operations
+typedef enum {
+    RAFT_ATOMIC_RELAXED,  // No synchronization or ordering constraints
+    RAFT_ATOMIC_ACQUIRE,  // Prevents memory reordering of subsequent reads/writes before this load
+    RAFT_ATOMIC_RELEASE,  // Prevents memory reordering of prior reads/writes after this store
+    RAFT_ATOMIC_SEQ_CST   // Full sequential consistency (acquire + release + total order)
+} RaftAtomicOrdering;
+
 // Platform-independent atomic bool
 // Simple wrapper that provides atomic bool operations across platforms
 typedef struct {
     volatile uint32_t value;
 } RaftAtomicBool;
+
+// Platform-independent atomic uint32
+// Provides lock-free atomic operations for SPSC ring buffers
+typedef struct {
+    volatile uint32_t value;
+} RaftAtomicUint32;
 
 #ifdef __cplusplus
 extern "C" {
@@ -153,6 +171,17 @@ extern "C" {
 void RaftAtomicBool_init(RaftAtomicBool &atomic, bool initialValue);
 void RaftAtomicBool_set(RaftAtomicBool &atomic, bool value);
 bool RaftAtomicBool_get(const RaftAtomicBool &atomic);
+
+// Atomic uint32 functions
+void RaftAtomicUint32_init(RaftAtomicUint32 &atomic, uint32_t initialValue);
+
+#if defined(FREERTOS_CONFIG_H) || defined(FREERTOS_H) || defined(ESP_PLATFORM)
+void IRAM_ATTR RaftAtomicUint32_store(RaftAtomicUint32 &atomic, uint32_t value, RaftAtomicOrdering ordering);
+uint32_t IRAM_ATTR RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrdering ordering);
+#else
+void RaftAtomicUint32_store(RaftAtomicUint32 &atomic, uint32_t value, RaftAtomicOrdering ordering);
+uint32_t RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrdering ordering);
+#endif
 
 #ifdef __cplusplus
 }

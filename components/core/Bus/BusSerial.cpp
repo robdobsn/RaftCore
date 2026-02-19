@@ -45,14 +45,16 @@ BusSerial::~BusSerial()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool BusSerial::setup(const RaftJsonIF& config)
+/// @brief Setup
+/// @param busNum - bus number
+/// @param config - configuration
+/// @return true if setup was successful
+bool BusSerial::setup(BusNumType busNum, const RaftJsonIF& config)
 {
     // Check if already configured
     if (_isInitialised)
         return false;
+    _busNum = busNum;
 
     // Get bus details
     _uartNum = config.getLong("uartNum", 0);

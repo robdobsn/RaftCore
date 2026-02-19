@@ -13,7 +13,7 @@
 #include "RaftRetCode.h"
 #include "RaftArduino.h"
 #include "HWElemReq.h"
-#include "RaftBusConsts.h"
+#include "RaftDeviceConsts.h"
 
 class BusRequestResult;
 class BusRequestInfo;

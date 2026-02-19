@@ -8,6 +8,8 @@
 
 #include "BusAddrStatus.h"
 
+// #define DEBUG_BUS_ADDR_STATUS_FOR_ADDRESS 0x310
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Handle device responding information
 /// @param isResponding true if device is responding
@@ -21,25 +23,33 @@ bool BusAddrStatus::handleResponding(bool isResponding, bool &flagSpuriousRecord
     if (isResponding)
     {
         // If not already online then count upwards
-        if (!isOnline)
+        if (onlineState != DeviceOnlineState::ONLINE)
         {
             // Check if we've reached the threshold for online
             count = (count < okMax) ? count + 1 : count;
             if (count >= okMax)
             {
                 // Now online
-                isChange = !isChange;
+                isChange = true;
                 count = 0;
-                isOnline = true;
-                wasOnceOnline = true;
+                onlineState = DeviceOnlineState::ONLINE;
+
+#ifdef DEBUG_BUS_ADDR_STATUS_FOR_ADDRESS
+                if (address == DEBUG_BUS_ADDR_STATUS_FOR_ADDRESS)
+                {
+                    LOG_I("BusAddrStatus", "handleResponding CHANGE TO ONLINE address %04x isResponding %d onlineState %s count %d recordIsChange %d return TRUE", 
+                            address, isResponding, BusAddrStatus::getOnlineStateStr(onlineState), count, isChange);
+                }
+#endif
                 return true;
             }
         }
     }
     else
     {
-        // Not responding - check for change to offline
-        if (isOnline || !wasOnceOnline)
+        // Not responding - check for change to offline/spurious
+        // Only count if we're online or still in initial state (not already offline)
+        if (onlineState != DeviceOnlineState::OFFLINE)
         {
             // Count down to offline/spurious threshold
             count = (count < -failMax) ? count : count - 1;
@@ -47,15 +57,32 @@ bool BusAddrStatus::handleResponding(bool isResponding, bool &flagSpuriousRecord
             {
                 // Now offline/spurious
                 count = 0;
-                if (!wasOnceOnline)
+                if (onlineState == DeviceOnlineState::INITIAL)
                     flagSpuriousRecord = true;
                 else
-                    isChange = !isChange;
-                isOnline = false;
+                    isChange = true;
+                onlineState = DeviceOnlineState::OFFLINE;
+
+#ifdef DEBUG_BUS_ADDR_STATUS_FOR_ADDRESS
+                if (address == DEBUG_BUS_ADDR_STATUS_FOR_ADDRESS)
+                { 
+                    LOG_I("BusAddrStatus", "handleResponding CHANGE TO OFFLINE address %04x isResponding %d onlineState %s count %d recordIsChange %d return TRUE", 
+                            address, isResponding, BusAddrStatus::getOnlineStateStr(onlineState), count, isChange);
+                }
+#endif
+
                 return true;
             }
         }
     }
+
+#ifdef DEBUG_BUS_ADDR_STATUS_FOR_ADDRESS
+    if (address == DEBUG_BUS_ADDR_STATUS_FOR_ADDRESS)
+    {
+        LOG_I("BusAddrStatus", "handleResponding NO CHANGE address %04x isResponding %d onlineState %s count %d recordIsChange %d return FALSE", 
+                address, isResponding, BusAddrStatus::getOnlineStateStr(onlineState), count, isChange);
+    }
+#endif
     return false;
 }
 
@@ -67,10 +94,10 @@ String BusAddrStatus::getJson() const
     // Create JSON
     char jsonStr[128];
     snprintf(jsonStr, sizeof(jsonStr), 
-        "{\"a\":\"0x%04X\",\"s\":\"%c%c%c\"}", 
+        "{\"a\":\"%s%x\",\"s\":\"%c%c\"}", 
+        RAFT_BUS_ADDR_PREFIX,
         (int)address, 
-        isOnline ? 'O' : 'X', 
-        wasOnceOnline ? 'W' : 'X', 
+        BusAddrStatus::getOnlineStateStr(onlineState)[0],
         isNewlyIdentified ? 'N' : 'X'
     );
     return jsonStr;

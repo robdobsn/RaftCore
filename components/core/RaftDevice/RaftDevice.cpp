@@ -13,19 +13,25 @@
 // #define DEBUG_BINARY_DEVICE_DATA 
 
 /// @brief Construct a new Raft Device object
+/// @param pClassName Class name of the device
 /// @param pDevConfigJson JSON configuration for the device
-RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson) :
-        deviceConfig(pDevConfigJson), deviceClassName(pClassName)
+/// @param deviceID Device ID of the device
+RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson, RaftDeviceID deviceID) :
+        deviceConfig(pDevConfigJson), 
+#ifdef DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
+        deviceClassName(pClassName), 
+#endif
+        _deviceID(deviceID)
 {
-    // Device name
-    deviceName = deviceConfig.getString("name", "UNKNOWN");
+    // Configured device name 
+    configuredDeviceName = deviceConfig.getString("name", "");
 
     // Init publish device type (default to class name)
-    publishDeviceType = deviceConfig.getString("type", pClassName);
-    
+    configuredDeviceType = deviceConfig.getString("type", pClassName);
+
 #ifdef DEBUG_RAFT_DEVICE_CONSTRUCTOR
-    LOG_I(MODULE_PREFIX, "RaftDevice class %s publishDeviceType %s devConfig %s", 
-            pClassName, publishDeviceType.c_str(), pDevConfigJson);
+    LOG_I(MODULE_PREFIX, "RaftDevice class %s configuredDeviceType %s devConfig %s", 
+            pClassName, configuredDeviceType.c_str(), pDevConfigJson);
 #endif
 }
 
@@ -173,16 +179,6 @@ RaftRetCode RaftDevice::getDataBinary(uint32_t formatCode, std::vector<uint8_t>&
 String RaftDevice::getDataJSON(RaftDeviceJSONLevel level) const
 {
     return "{}";
-}
-
-/// @brief Get named value from the device
-/// @param pParam Parameter name
-/// @param isFresh (out) true if the value is fresh
-/// @return double value
-double RaftDevice::getNamedValue(const char* pParam, bool& isFresh) const
-{
-    isFresh = false;
-    return 0.0;
 }
 
 /// @brief Check if device has capability

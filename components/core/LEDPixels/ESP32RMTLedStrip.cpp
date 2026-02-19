@@ -12,7 +12,7 @@
 #include "esp_idf_version.h"
 #include "driver/gpio.h"
 
-#define DEBUG_ESP32RMTLEDSTRIP_SETUP
+// #define DEBUG_ESP32RMTLEDSTRIP_SETUP
 // #define DEBUG_ESP32RMTLEDSTRIP_SEND
 // #define DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
 // #define DEBUG_ESP32RMTLEDSTRIP_INIT_RMT
@@ -86,11 +86,14 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
             .io_loop_back = false,                          // No loop
             .io_od_mode = false,                            // Not open drain
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-            .allow_pd = config.allowPowerDown,                                  // Allow power down (save context to RAM)
+            .allow_pd = config.allowPowerDown,              // Allow power down (save context to RAM)
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+            .init_level = false,                            // Initial level 
 #endif
         },
 #else
-        .intr_priority = 0,                                  // Interrupt priority
+        .intr_priority = 0,                                 // Interrupt priority
         .flags = {
             .invert_out = false,                            // Invert output
             .with_dma = false,                              // No DMA

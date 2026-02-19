@@ -534,8 +534,8 @@ public:
         // Check for null
         if (RaftJson::isNullIm(pJsonDocPos))
             return RAFT_JSON_NULL;
-        // Check if it's a number
-        if ((*pJsonDocPos >= '0') && (*pJsonDocPos <= '9'))
+        // Check if it's a number (including negative numbers)
+        if (((*pJsonDocPos >= '0') && (*pJsonDocPos <= '9')) || (*pJsonDocPos == '-'))
             return RAFT_JSON_NUMBER;
         // Must be undefined
         return RAFT_JSON_UNDEFINED;

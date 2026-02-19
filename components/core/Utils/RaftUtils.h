@@ -576,7 +576,7 @@ struct NameValuePairDouble
 
 // ABS macro
 #define UTILS_ABS(N) ((N<0)?(-N):(N))
-#define UTILS_MAX(A,B) (A > B ? A : B)
-#define UTILS_MIN(A,B) (A < B ? A : B)
+#define UTILS_MAX(A,B) ((A) > (B) ? (A) : (B))
+#define UTILS_MIN(A,B) ((A) < (B) ? (A) : (B))
 
 

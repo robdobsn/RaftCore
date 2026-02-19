@@ -26,14 +26,14 @@ public:
     /// @brief Get device type for address
     /// @param addr device address
     /// @returns device type indexes that match the address
-    std::vector<uint16_t> getDeviceTypeIdxsForAddr(BusElemAddrType addr) const;
+    std::vector<DeviceTypeIndexType> getDeviceTypeIdxsForAddr(BusElemAddrType addr) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type record for a device type index
     /// @param deviceTypeIdx device type index
     /// @param devTypeRec (out) device type record
     /// @return true if device type found
-    bool getDeviceInfo(uint16_t deviceTypeIdx, DeviceTypeRecord& devTypeRec) const;
+    bool getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceTypeRecord& devTypeRec) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type record for a device type name
@@ -41,7 +41,7 @@ public:
     /// @param devTypeRec (out) device type record
     /// @param deviceTypeIdx (out) device type index
     /// @return true if device type found
-    bool getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, uint32_t& deviceTypeIdx) const;
+    bool getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device polling info
@@ -55,14 +55,15 @@ public:
     /// @param deviceTypeIdx device type index
     /// @param includePlugAndPlayInfo include plug and play info
     /// @return JSON string
-    String getDevTypeInfoJsonByTypeIdx(uint16_t deviceTypeIdx, bool includePlugAndPlayInfo) const;
+    String getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIdx, bool includePlugAndPlayInfo) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type info JSON by device type name
     /// @param deviceType device type name
     /// @param includePlugAndPlayInfo include plug and play info
+    /// @param deviceTypeIndex (out) device type index
     /// @return JSON string
-    String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo) const;
+    String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const;
 
     // Device detection record
     class DeviceDetectionRec
@@ -92,9 +93,9 @@ public:
     /// @brief Convert poll response to JSON
     /// @param addr address
     /// @param isOnline true if device is online
-    /// @param pDevTypeRec pointer to device type record
+    /// @param deviceTypeIndex device type index
     /// @param devicePollResponseData device poll response data
-    String deviceStatusToJson(BusElemAddrType addr, bool isOnline, const DeviceTypeRecord* pDevTypeRec, 
+    String deviceStatusToJson(BusElemAddrType addr, bool isOnline, uint16_t deviceTypeIndex, 
             const std::vector<uint8_t>& devicePollResponseData) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +123,7 @@ private:
     // Flag indicating if any extended records have been added - since this is set only once and
     // never cleared it is used to avoid taking the mutex in the common case where no extended records
     // have been added
-    bool _extendedRecordsAdded = false;
+    RaftAtomicBool _extendedRecordsAdded;
 
     // Maximum number of added device type records (see note below about absolute pointers since this space will be reserved)
     static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 20;

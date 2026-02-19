@@ -31,9 +31,9 @@ public:
     virtual String getDebugJSON(bool includePlugAndPlayInfo) const override;
     virtual uint32_t getDeviceInfoTimestampMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const override;
     virtual bool getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const override;
-
+    
     // Device type for publishing
-    virtual String getPublishDeviceType() const override { return "ACCDEMO"; }
+    virtual String getConfiguredDeviceType() const override { return "ACCDEMO"; }
 
 private:
     // Demo configuration

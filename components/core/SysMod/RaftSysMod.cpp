@@ -113,23 +113,6 @@ CommsCoreIF* RaftSysMod::getCommsCore()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief get a device by name
-RaftDevice* RaftSysMod::getDeviceByName(const char* pDeviceName) const
-{
-    // Check parent
-    if (!_pSysManager || !pDeviceName)
-        return nullptr;
-
-    // Get device manager
-    DeviceManager* pDeviceManager = _pSysManager->getDeviceManager();
-    if (!pDeviceManager)
-        return nullptr;
-
-    // Get device
-    return pDeviceManager->getDevice(pDeviceName);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Configuration access methods
 int RaftSysMod::configGetInt(const char *dataPath, int defaultValue)
 {
@@ -213,12 +196,26 @@ RaftRetCode RaftSysMod::sysModSendCmdJSON(const char* sysModName, const char* js
 /// @param valueName Name of value
 /// @param isValid (out) true if value is valid
 /// @return Named value
-double RaftSysMod::sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid)
+double RaftSysMod::sysModGetNamedValue(const char* sysModName, const char* valueName, bool& isValid) const
 {
     if (_pSysManager)
         return _pSysManager->getNamedValue(sysModName, valueName, isValid);
     isValid = false;
     return 0;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get named string from another SysMod
+/// @param pSysModName Name of the SysMod
+/// @param valueName String name
+/// @param isValid (out) true if value is valid
+/// @return string
+String RaftSysMod::sysModGetNamedString(const char* pSysModName, const char* valueName, bool& isValid) const
+{
+    if (_pSysManager)
+        return _pSysManager->getNamedString(pSysModName, valueName, isValid);
+    isValid = false;
+    return "";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

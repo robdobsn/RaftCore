@@ -138,11 +138,11 @@ public:
     // https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf
     static constexpr const double rmtResolutionMHz = 10.0;
     static constexpr const double rmtTicksPerUs = rmtResolutionMHz;
-    static constexpr const uint32_t T0H_US_DEFAULT = 0.4;
-    static constexpr const uint32_t T1H_US_DEFAULT = 0.8;
-    static constexpr const uint32_t T0L_US_DEFAULT = 0.85; 
-    static constexpr const uint32_t T1L_US_DEFAULT = 0.45;
-    static constexpr const uint32_t RESET_US_DEFAULT = 100;
+    static constexpr const double T0H_US_DEFAULT = 0.4;
+    static constexpr const double T1H_US_DEFAULT = 0.8;
+    static constexpr const double T0L_US_DEFAULT = 0.85; 
+    static constexpr const double T1L_US_DEFAULT = 0.45;
+    static constexpr const double RESET_US_DEFAULT = 100;
     uint32_t rmtResolutionHz = rmtResolutionMHz * 1000000;
     uint16_t T0H_ticks = T0H_US_DEFAULT * rmtTicksPerUs;
     uint16_t T1H_ticks = T1H_US_DEFAULT * rmtTicksPerUs;

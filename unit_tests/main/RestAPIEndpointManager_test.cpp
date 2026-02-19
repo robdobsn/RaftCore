@@ -22,7 +22,7 @@ TEST_CASE("getJSONFromRESTRequest - simple path", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(3, segments.size());
     TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("test", segments[1].c_str());
@@ -44,7 +44,7 @@ TEST_CASE("getJSONFromRESTRequest - with query parameters", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(2, segments.size());
     TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("device", segments[1].c_str());
@@ -69,7 +69,7 @@ TEST_CASE("getJSONFromRESTRequest - URL encoded", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(2, segments.size());
     TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("search", segments[1].c_str());
@@ -93,7 +93,7 @@ TEST_CASE("getJSONFromRESTRequest - multiple parameters", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    TEST_ASSERT_TRUE(json.getArrayElems("pathSegments", segments));
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
     TEST_ASSERT_EQUAL(2, segments.size());
     TEST_ASSERT_EQUAL_STRING("config", segments[0].c_str());
     TEST_ASSERT_EQUAL_STRING("set", segments[1].c_str());
@@ -120,7 +120,7 @@ TEST_CASE("getJSONFromRESTRequest - empty path", "[restapi]")
     
     // Check path segments
     std::vector<String> segments;
-    json.getArrayElems("pathSegments", segments);
+    json.getArrayElems("path", segments);
     TEST_ASSERT_TRUE(segments.size() == 0);
     
     // Check params
@@ -347,7 +347,7 @@ TEST_CASE("JSON and Params methods consistency", "[restapi]")
     // Test with getJSONFromRESTRequest
     RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(testURL);
     std::vector<String> jsonSegments;
-    json.getArrayElems("pathSegments", jsonSegments);
+    json.getArrayElems("path", jsonSegments);
     
     // Test with getParamsAndNameValues
     std::vector<String> params;
@@ -409,4 +409,131 @@ TEST_CASE("Edge case - single path segment", "[restapi]")
     TEST_ASSERT_EQUAL(1, params.size());
     TEST_ASSERT_EQUAL_STRING("endpoint", params[0].c_str());
     TEST_ASSERT_EQUAL(1, nameValues.size());
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Test getJSONFromRESTRequest with PATH_ONLY
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("getJSONFromRESTRequest - PATH_ONLY", "[restapi]")
+{
+    const char* testURL = "/api/device/control?id=42&action=start";
+    
+    RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(
+        testURL, RestAPIEndpointManager::PATH_ONLY);
+    
+    // Result should be a JSON array of path segments only
+    std::vector<String> segments;
+    TEST_ASSERT_TRUE(json.getArrayElems("", segments));
+    TEST_ASSERT_EQUAL(3, segments.size());
+    TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("device", segments[1].c_str());
+    TEST_ASSERT_EQUAL_STRING("control", segments[2].c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Test getJSONFromRESTRequest with PARAMS_ONLY
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("getJSONFromRESTRequest - PARAMS_ONLY", "[restapi]")
+{
+    const char* testURL = "/api/device/control?id=42&action=start&mode=auto";
+    
+    RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(
+        testURL, RestAPIEndpointManager::PARAMS_ONLY);
+    
+    // Result should be a JSON object with params only (no "params" wrapper)
+    String id = json.getString("id", "");
+    String action = json.getString("action", "");
+    String mode = json.getString("mode", "");
+    
+    TEST_ASSERT_EQUAL_STRING("42", id.c_str());
+    TEST_ASSERT_EQUAL_STRING("start", action.c_str());
+    TEST_ASSERT_EQUAL_STRING("auto", mode.c_str());
+    
+    // Should not have path key
+    std::vector<String> pathSegments;
+    TEST_ASSERT_FALSE(json.getArrayElems("path", pathSegments));
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Test getJSONFromRESTRequest with PATH_AND_PARAMS (default behavior)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("getJSONFromRESTRequest - PATH_AND_PARAMS explicit", "[restapi]")
+{
+    const char* testURL = "/config/set?delay=100&enabled=true";
+    
+    RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(
+        testURL, RestAPIEndpointManager::PATH_AND_PARAMS);
+    
+    // Result should have both path and params
+    std::vector<String> segments;
+    TEST_ASSERT_TRUE(json.getArrayElems("path", segments));
+    TEST_ASSERT_EQUAL(2, segments.size());
+    TEST_ASSERT_EQUAL_STRING("config", segments[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("set", segments[1].c_str());
+    
+    String delay = json.getString("params/delay", "");
+    String enabled = json.getString("params/enabled", "");
+    
+    TEST_ASSERT_EQUAL_STRING("100", delay.c_str());
+    TEST_ASSERT_EQUAL_STRING("true", enabled.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Test getJSONFromRESTRequest PATH_ONLY without query params
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("getJSONFromRESTRequest - PATH_ONLY no params", "[restapi]")
+{
+    const char* testURL = "/api/status/check";
+    
+    RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(
+        testURL, RestAPIEndpointManager::PATH_ONLY);
+    
+    // Result should be a JSON array of path segments
+    std::vector<String> segments;
+    TEST_ASSERT_TRUE(json.getArrayElems("", segments));
+    TEST_ASSERT_EQUAL(3, segments.size());
+    TEST_ASSERT_EQUAL_STRING("api", segments[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("status", segments[1].c_str());
+    TEST_ASSERT_EQUAL_STRING("check", segments[2].c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Test getJSONFromRESTRequest PARAMS_ONLY without path
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("getJSONFromRESTRequest - PARAMS_ONLY no path", "[restapi]")
+{
+    const char* testURL = "?cmd=motion&speed=100";
+    
+    RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(
+        testURL, RestAPIEndpointManager::PARAMS_ONLY);
+    
+    // Result should be a JSON object with params only
+    String cmd = json.getString("cmd", "");
+    String speed = json.getString("speed", "");
+    
+    TEST_ASSERT_EQUAL_STRING("motion", cmd.c_str());
+    TEST_ASSERT_EQUAL_STRING("100", speed.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Test getJSONFromRESTRequest PARAMS_ONLY with URL encoding
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("getJSONFromRESTRequest - PARAMS_ONLY with encoding", "[restapi]")
+{
+    const char* testURL = "/ignored/path?query=hello%20world&value=test%2Bdata";
+    
+    RaftJson json = RestAPIEndpointManager::getJSONFromRESTRequest(
+        testURL, RestAPIEndpointManager::PARAMS_ONLY);
+    
+    // Result should have decoded params
+    String query = json.getString("query", "");
+    String value = json.getString("value", "");
+    
+    TEST_ASSERT_EQUAL_STRING("hello world", query.c_str());
+    TEST_ASSERT_EQUAL_STRING("test+data", value.c_str());
 }

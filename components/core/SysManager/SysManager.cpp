@@ -41,7 +41,7 @@
 // #define DEBUG_FRIENDLY_NAME_SET
 // #define DEBUG_STATUS_CHANGE_CALLBACK
 // #define DEBUG_GET_FRIENDLY_NAME
-#define DEBUG_SEND_REPORT_MESSAGE
+// #define DEBUG_SEND_REPORT_MESSAGE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor

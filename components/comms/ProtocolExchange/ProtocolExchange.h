@@ -91,7 +91,7 @@ private:
     FileStreamSession* getFileStreamExistingSession(const char* fileStreamName, uint32_t channelID, uint32_t streamID);
 
     // File stream activity hook fn
-    FileStreamActivityHookFnType _fileStreamActivityHookFn;
+    FileStreamActivityHookFnType _fileStreamActivityHookFn = nullptr;
 
     // Debug
     void debugEndpointMessage(const CommsChannelMsg& msg);

@@ -192,7 +192,7 @@ bool FileSystem::getFileInfo(const String& fileSystemStr, const String& filename
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Check file exists
@@ -272,7 +272,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     String rootFilename = getFilePath(nameOfFS, filename);
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return nullptr;
 
     // Get file info - to check length
@@ -367,7 +367,7 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT16_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Open file for writing
@@ -411,7 +411,7 @@ bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
     }
     
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Remove file
@@ -601,7 +601,7 @@ bool FileSystem::exists(const char* path) const
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st1 = micros();
 #endif
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st2 = micros();
@@ -626,7 +626,7 @@ bool FileSystem::exists(const char* path) const
 FileSystem::FileSystemStatType FileSystem::pathType(const char* filename)
 {
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return FILE_SYSTEM_STAT_NO_EXIST;
     struct stat buffer;
     bool rslt = stat(filename, &buffer);
@@ -654,7 +654,7 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Open file
@@ -696,7 +696,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return SpiramAwareUint8Vector();
 
     // Open file
@@ -743,7 +743,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Open file for text reading
@@ -793,7 +793,7 @@ String FileSystem::getFileLine(const String& fileSystemStr, const String& filena
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return "";
 
     // Open file for text reading
@@ -843,7 +843,7 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return nullptr;
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
@@ -916,7 +916,7 @@ bool FileSystem::fileClose(FILE* pFile, const String& fileSystemStr, const Strin
     checkFileSystem(fileSystemStr, nameOfFS);
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Check if file modified
@@ -949,7 +949,7 @@ uint32_t FileSystem::fileRead(FILE* pFile, uint8_t* pBuf, uint32_t readLen)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
     // Read
@@ -974,7 +974,7 @@ SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return SpiramAwareUint8Vector();
 
     // Read
@@ -1007,7 +1007,7 @@ uint32_t FileSystem::fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeL
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
     // Read
@@ -1041,7 +1041,7 @@ uint32_t FileSystem::filePos(FILE* pFile)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
     // Read
@@ -1066,7 +1066,7 @@ bool FileSystem::fileSeek(FILE* pFile, uint32_t seekPos)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Seek
@@ -1751,7 +1751,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         uint32_t debugStartMs = millis();
 
         // Take mutex
-        if (!RaftMutex_lock(_fileSysMutex, UINT32_MAX))
+        if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
             return;
 
         // Clear file list

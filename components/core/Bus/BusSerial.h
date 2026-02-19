@@ -18,52 +18,69 @@
 class BusSerial : public RaftBus
 {
 public:
-    // Constructor
+    /// @brief Constructor
+    /// @param busElemStatusCB - callback for bus element status changes
+    /// @param busOperationStatusCB - callback for bus operation status changes
     BusSerial(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB);
     virtual ~BusSerial();
 
-    // Setup
-    virtual bool setup(const RaftJsonIF& config) override final;
+    /// @brief Setup
+    /// @param busNum - bus number
+    /// @param config - configuration
+    /// @return true if setup was successful
+    virtual bool setup(BusNumType busNum, const RaftJsonIF& config) override final;
 
-    // Service
+    /// @brief Loop
     virtual void loop() override final;
 
-    // Clear
+    /// @brief Clear
+    /// @param incPolling - true to clear polling data (if relevant to this bus type)
     virtual void clear(bool incPolling) override final;
 
-    // Pause
+    /// @brief Pause
+    /// @param pause - true to pause, false to resume
     virtual void pause(bool pause) override final
     {
     }
 
-    // IsPaused
+    /// @brief Check if paused
+    /// @return true if paused
     virtual bool isPaused() const override final
     {
         return false;
     }
 
-    // Get bus name
+    /// @brief Get bus name
     virtual String getBusName() const override final
     {
         return _busName;
     }
 
-    // isReady (for new requests)
+    /// @brief Check if ready (for new requests)
     virtual bool isReady() const override final;
 
-    // Request bus action
+    /// @brief Request bus action
+    /// @param busReqInfo - bus request information
+    /// @return true if the request was added successfully
     virtual bool addRequest(BusRequestInfo& busReqInfo) override final;
 
-    // Clear receive buffer
+    /// @brief Clear receive buffer
     virtual void rxDataClear() override final;
 
-    // Received data bytes available
+    /// @brief Received data bytes available
+    /// @return number of bytes available to read
     virtual uint32_t rxDataBytesAvailable() const override final;
 
-    // Get rx data - returns number of bytes placed in pData buffer
+    /// @brief Get rx data
+    /// @param pData - buffer to store the data (should be at least as big as maxLen)
+    /// @param maxLen - maximum number of bytes to read
+    /// @return number of bytes read
     virtual uint32_t rxDataGet(uint8_t* pData, uint32_t maxLen) override final;
 
-    // Creator fn
+    /// @brief Create function to create a new instance of this class
+    /// @param busElemStatusCB - callback for bus element status changes
+    /// @param busOperationStatusCB - callback for bus operation status changes
+    /// @return pointer to new instance of this class
     static RaftBus* createFn(BusElemStatusCB busElemStatusCB, BusOperationStatusCB busOperationStatusCB)
     {
         return new BusSerial(busElemStatusCB, busOperationStatusCB);
