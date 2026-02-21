@@ -100,8 +100,8 @@ foreach(_raft_component ${RAFT_COMPONENTS})
     # Create lowercase version for FetchContent variable names
     string(TOLOWER ${_raft_component_name} _raft_component_lower)
 
-    # Check if a local copy of this library exists in ./libs/<ComponentName>
-    set(_local_lib_path "${CMAKE_SOURCE_DIR}/libs/${_raft_component_name}")
+    # Check if a local copy of this library exists in ./raftdevlibs/<ComponentName>
+    set(_local_lib_path "${CMAKE_SOURCE_DIR}/raftdevlibs/${_raft_component_name}")
     if(EXISTS "${_local_lib_path}" AND IS_DIRECTORY "${_local_lib_path}")
 
         # Use the local library instead of fetching from remote
