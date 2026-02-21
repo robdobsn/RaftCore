@@ -80,24 +80,24 @@ void DeviceManager::postSetup()
 {
     // Register JSON data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
-        [this](const char* pTopicName, CommsChannelMsg& msg) {
-            String statusStr = getDevicesDataJSON(pTopicName);
+        [this](uint16_t topicIndex, CommsChannelMsg& msg) {
+            String statusStr = getDevicesDataJSON(topicIndex);
             msg.setFromBuffer((uint8_t*)statusStr.c_str(), statusStr.length());
             return true;
         },
-        [this](const char* pTopicName, std::vector<uint8_t>& stateHash) {
+        [this](uint16_t topicIndex, std::vector<uint8_t>& stateHash) {
             return getDevicesHash(stateHash);
         }
     );    
 
-    // Register binary data source (new)
+    // Register binary data source
     getSysManager()->registerDataSource("Publish", "devbin", 
-        [this](const char* pTopicName, CommsChannelMsg& msg) {
-            std::vector<uint8_t> binaryData = getDevicesDataBinary(pTopicName);
+        [this](uint16_t topicIndex, CommsChannelMsg& msg) {
+            std::vector<uint8_t> binaryData = getDevicesDataBinary(topicIndex);
             msg.setFromBuffer(binaryData.data(), binaryData.size());
             return true;
         },
-        [this](const char* pTopicName, std::vector<uint8_t>& stateHash) {
+        [this](uint16_t topicIndex, std::vector<uint8_t>& stateHash) {
             return getDevicesHash(stateHash);
         }
     );
@@ -308,7 +308,7 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
 
         // Debug
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
-        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s addr 0x%x typeIdx %d status %s",
+        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s typeIdx %d status %s",
                         deviceID.toString().c_str(),
                         el.deviceStatus.deviceTypeIndex,
                         el.getJson(),
@@ -515,26 +515,19 @@ RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& dev
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get devices' data as JSON
-/// @param pTopicName topic name to include in the JSON
+/// @param topicIndex Topic index (embedded as integer _t field)
 /// @return JSON string
-String DeviceManager::getDevicesDataJSON(const char* pTopicName) const
+String DeviceManager::getDevicesDataJSON(uint16_t topicIndex) const
 {
     // Pre-allocate string capacity to avoid multiple reallocations
     // Estimate: ~200 bytes per device/bus element
     String jsonStr;
     jsonStr.reserve(1024);
     
-    // Start JSON object
-    if (pTopicName)
-    {
-        jsonStr += "{\"_t\":\"";
-        jsonStr += pTopicName;
-        jsonStr += "\"";
-    }
-    else
-    {
-        jsonStr += "{";
-    }
+    // Start JSON object with topic index and version
+    jsonStr += "{\"_t\":";
+    jsonStr += String(topicIndex);
+    jsonStr += ",\"_v\":1";
     bool needsComma = true;
 
     // Check all buses for data
@@ -600,12 +593,16 @@ String DeviceManager::getDevicesDataJSON(const char* pTopicName) const
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get devices' data as binary
-/// @param pTopicName topic name to include in the binary data (not used in this implementation but added to published data)
+/// @param topicIndex Topic index (embedded in envelope header)
 /// @return Binary data vector
-std::vector<uint8_t> DeviceManager::getDevicesDataBinary(const char* pTopicName) const
+std::vector<uint8_t> DeviceManager::getDevicesDataBinary(uint16_t topicIndex) const
 {
     std::vector<uint8_t> binaryData;
-    binaryData.reserve(500);
+    binaryData.reserve(502);
+
+    // Envelope header: magic+version byte (0xDB = devbin v1) followed by topic index
+    binaryData.push_back(0xDB);
+    binaryData.push_back(topicIndex <= 0xFE ? (uint8_t)topicIndex : 0xFF);
 
     // Add bus data
     for (RaftBus* pBus : raftBusSystem.getBusList())
@@ -970,29 +967,61 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief REST API endpoint for sending raw command to device
-/// @param reqStr request string containing the command and parameters
-/// @param respStr (out) response string to be filled with the result
-/// @param jsonParams JSON object containing the parameters for the command, expected to have "bus", "addr", "hexWr", and "numToRd" fields
-/// @return RaftRetCode indicating success or failure of the operation, with the response containing the result of the command if successful
-RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+/// @brief Resolve a RaftDeviceID and RaftBus pointer from API params ("deviceid" OR "bus"+"addr")
+RaftRetCode DeviceManager::resolveDeviceIDAndBus(const String& reqStr, String& respStr, const RaftJson& jsonParams,
+                                                  RaftDeviceID& deviceID, RaftBus*& pBus)
 {
-    String busName = jsonParams.getString("bus", "");
-    if (busName.length() == 0)
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusMissing");
+    String deviceIdStr = jsonParams.getString("deviceid", "");
+    if (deviceIdStr.length() != 0)
+    {
+        deviceID = RaftDeviceID::fromString(deviceIdStr.c_str());
+    }
+    else
+    {
+        String addrStr = jsonParams.getString("addr", "");
+        if (addrStr.length() == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failAddrMissing");
 
-    String addrStr = jsonParams.getString("addr", "");
-    String hexWriteData = jsonParams.getString("hexWr", "");
-    int numBytesToRead = jsonParams.getLong("numToRd", 0);
+        String busName = jsonParams.getString("bus", "");
+        if (busName.length() == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusMissing");
 
-    if (addrStr.length() == 0)
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failMissingAddr");
+        RaftBus* pBusForName = raftBusSystem.getBusByName(busName, true);
+        if (!pBusForName)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
 
-    RaftBus* pBus = raftBusSystem.getBusByName(busName, true);
+        deviceID = RaftDeviceID(pBusForName->getBusNum(), RaftDeviceID::fromString(addrStr.c_str()).getAddress());
+    }
+
+    if (!deviceID.isValid())
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidDeviceID");
+
+    pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
     if (!pBus)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
 
-    RaftDeviceID deviceID = RaftDeviceID::fromString(addrStr.c_str());
+    return RAFT_OK;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief REST API endpoint for sending raw command to device
+/// @param reqStr request string containing the command and parameters
+/// @param respStr (out) response string to be filled with the result
+/// @param jsonParams JSON object containing the parameters for the command, expected to have ("bus" and "addr") or "deviceid", "hexWr", and "numToRd" fields
+/// @return RaftRetCode indicating success or failure of the operation, with the response containing the result of the command if successful
+RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    // Resolve deviceID and bus from params
+    RaftDeviceID deviceID;
+    RaftBus* pBus = nullptr;
+    RaftRetCode retc = resolveDeviceIDAndBus(reqStr, respStr, jsonParams, deviceID, pBus);
+    if (retc != RAFT_OK)
+        return retc;
+
+    // Data to write and number of bytes to read
+    String hexWriteData = jsonParams.getString("hexWr", "");
+    int numBytesToRead = jsonParams.getLong("numToRd", 0);
+
 
     uint32_t numBytesToWrite = hexWriteData.length() / 2;
     std::vector<uint8_t> writeVec;
@@ -1017,8 +1046,8 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     Raft::getHexStrFromBytes(hwElemReq._writeData.data(),
                 hwElemReq._writeData.size() > 16 ? 16 : hwElemReq._writeData.size(),
                 outStr);
-    LOG_I(MODULE_PREFIX, "apiHWDevice addr %s len %d data %s ...",
-                    addrStr.c_str(),
+    LOG_I(MODULE_PREFIX, "apiHWDevice deviceId %s len %d data %s ...",
+                    deviceID.toString().c_str(),
                     hwElemReq._writeData.size(),
                     outStr.c_str());
 #endif
@@ -1120,23 +1149,12 @@ RaftRetCode DeviceManager::apiDevManDemo(const String &reqStr, String &respStr, 
 /// @return RaftRetCode indicating success or failure of the operation
 RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
-    // Get bus name
-    String busName = jsonParams.getString("bus", "");
-    if (busName.length() == 0)
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusMissing");
-
-    // Resolve bus (name or numeric index)
-    RaftBus* pBus = raftBusSystem.getBusByName(busName, true);
-    if (!pBus)
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
-
-    // Get address
-    String addrStr = jsonParams.getString("addr", "");
-    if (addrStr.length() == 0)
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failMissingAddr");
-
-    // Convert address from hex string to numeric value
-    RaftDeviceID deviceID = RaftDeviceID::fromString(addrStr.c_str()).getAddress();
+    // Resolve deviceID and bus from params
+    RaftDeviceID deviceID;
+    RaftBus* pBus = nullptr;
+    RaftRetCode retc = resolveDeviceIDAndBus(reqStr, respStr, jsonParams, deviceID, pBus);
+    if (retc != RAFT_OK)
+        return retc;
     BusElemAddrType addr = deviceID.getAddress();
 
     // Check if poll interval is provided
@@ -1148,9 +1166,8 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidInterval");
 
 #ifdef DEBUG_DEVICE_CONFIG_API
-        LOG_I(MODULE_PREFIX, "pollrate set req bus %s addr 0x%04lx intervalUs %llu (rateHz %.3f)",
-                pBus->getBusName().c_str(),
-                (unsigned long)addr,
+        LOG_I(MODULE_PREFIX, "pollrate set req deviceID %s intervalUs %llu (rateHz %.3f)",
+                deviceID.toString().c_str(),
                 (unsigned long long)intervalUs,
                 intervalUs == 0 ? 0 : 1000000.0 / intervalUs);
 #endif
@@ -1167,9 +1184,8 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
 
 #ifdef DEBUG_DEVICE_CONFIG_API
         uint64_t appliedIntervalUs = pBus->getDevicePollIntervalUs(addr);
-        LOG_I(MODULE_PREFIX, "pollrate set applied bus %s addr 0x%04lx intervalUs %llu (rateHz %.3f)",
-                pBus->getBusName().c_str(),
-                (unsigned long)addr,
+        LOG_I(MODULE_PREFIX, "pollrate set applied deviceID %s intervalUs %llu (rateHz %.3f)",
+                deviceID.toString().c_str(),
                 (unsigned long long)appliedIntervalUs,
                 appliedIntervalUs == 0 ? 0 : 1000000.0 / appliedIntervalUs);
 #endif

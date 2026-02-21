@@ -884,23 +884,24 @@ bool SysManager::setNamedString(const char* pSysModName, const char* valueName, 
 /// @param pubTopic
 /// @param msgGenCB
 /// @param stateDetectCB
-/// @return true if registered
-bool SysManager::registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+/// @return Allocated topic index, or UINT16_MAX on failure
+uint16_t SysManager::registerDataSource(const char* sysModName, const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
 {
     // Get SysMod
     RaftSysMod* pSysMod = getSysMod(sysModName);
     if (pSysMod)
     {
-        bool rslt = pSysMod->registerDataSource(pubTopic, msgGenCB, stateDetectCB);
+        uint16_t topicIndex = pSysMod->registerDataSource(pubTopic, msgGenCB, stateDetectCB);
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
-        LOG_I(MODULE_PREFIX, "registerDataSource %s topic %s with the %s sysmod", rslt ? "OK" : "FAILED", pubTopic, sysModName);
+        LOG_I(MODULE_PREFIX, "registerDataSource %s topic %s with the %s sysmod topicIdx %d", 
+              topicIndex != UINT16_MAX ? "OK" : "FAILED", pubTopic, sysModName, (int)topicIndex);
 #endif
-        return rslt;
+        return topicIndex;
     }
 #ifdef DEBUG_REGISTER_MSG_GEN_CB
     LOG_W(MODULE_PREFIX, "registerDataSource NOT FOUND %s topic %s", sysModName, pubTopic);
 #endif
-    return false;
+    return UINT16_MAX;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

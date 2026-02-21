@@ -110,11 +110,11 @@ public:
 
     /// @brief Register data source (message generator functions)
     /// @param pSysModName Name of the SysMod
-    /// @param pubTopic Publish topic
-    /// @param msgGenCB Message generator callback
-    /// @param stateDetectCB State detect callback
-    /// @return True if registration was successful
-    virtual bool registerDataSource(const char* pSysModName, const char* pubTopic, 
+    /// @param pubTopic Publish topic name
+    /// @param msgGenCB Message generator callback (receives allocated topicIndex)
+    /// @param stateDetectCB State detect callback (receives allocated topicIndex)
+    /// @return Allocated topic index (0-based), or UINT16_MAX on failure
+    virtual uint16_t registerDataSource(const char* pSysModName, const char* pubTopic, 
             SysMod_publishMsgGenFn msgGenCB, 
             SysMod_stateDetectCB stateDetectCB) override final;
     

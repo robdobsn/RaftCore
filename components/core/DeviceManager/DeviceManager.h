@@ -145,14 +145,14 @@ private:
     void busOperationStatusCB(RaftBus& bus, BusOperationStatus busOperationStatus);
 
     /// @brief Access to devices' data in JSON format
-    /// @param pTopicName topic name to include in the JSON
+    /// @param topicIndex Topic index (embedded as _t field in output)
     /// @return JSON string
-    String getDevicesDataJSON(const char* pTopicName) const;
+    String getDevicesDataJSON(uint16_t topicIndex) const;
 
     /// @brief Access to devices' data in binary format
-    /// @param pTopicName topic name to include in the data
-     /// @return Binary data vector
-    std::vector<uint8_t> getDevicesDataBinary(const char* pTopicName) const;
+    /// @param topicIndex Topic index (embedded in envelope header)
+    /// @return Binary data vector
+    std::vector<uint8_t> getDevicesDataBinary(uint16_t topicIndex) const;
 
     /// @brief Get devices' status hash
     /// @param stateHash hash of the currently available data
@@ -184,6 +184,19 @@ private:
 
     /// @brief Handle devman/busname
     RaftRetCode apiDevManBusName(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Resolve a RaftDeviceID and RaftBus pointer from API params.
+    /// Accepts either a "deviceid" field (canonical busNum_hexaddr string) or
+    /// both a "bus" field (bus name or number) and an "addr" field (hex address).
+    /// On failure, sets respStr to a JSON error and returns a non-OK RaftRetCode.
+    /// @param reqStr Original request string (used for error responses)
+    /// @param respStr (out) Response string filled on error
+    /// @param jsonParams Parsed JSON parameters from the API call
+    /// @param deviceID (out) Resolved RaftDeviceID
+    /// @param pBus (out) Resolved RaftBus pointer
+    /// @return RAFT_OK on success, error code on failure
+    RaftRetCode resolveDeviceIDAndBus(const String& reqStr, String& respStr, const RaftJson& jsonParams,
+                                      RaftDeviceID& deviceID, RaftBus*& pBus);
 
     /// @brief Callback for command results
     /// @param reqResult Result of the command

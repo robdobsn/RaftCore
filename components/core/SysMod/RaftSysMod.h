@@ -28,10 +28,10 @@ class SysManagerIF;
 typedef std::function<void(const String& sourceName, bool changeToOnline)> SysMod_statusChangeCB;
 
 // Message generator callback function type
-typedef std::function<bool(const char* topicName, CommsChannelMsg& msg)> SysMod_publishMsgGenFn;
+typedef std::function<bool(uint16_t topicIndex, CommsChannelMsg& msg)> SysMod_publishMsgGenFn;
 
 // State change detector callback function type
-typedef std::function<void(const char* stateName, std::vector<uint8_t>& stateHash)> SysMod_stateDetectCB;
+typedef std::function<void(uint16_t topicIndex, std::vector<uint8_t>& stateHash)> SysMod_stateDetectCB;
 
 class RaftSysMod
 {
@@ -170,16 +170,16 @@ public:
     }
 
     /// @brief Register a data source (msg generator callback functions) for publishing
-    /// @param pubTopic Publish topic
-    /// @param msgGenCB Message generator callback
-    /// @param stateDetectCB State detect callback
-    /// @return true if successful, false otherwise
+    /// @param pubTopic Publish topic name
+    /// @param msgGenCB Message generator callback (receives allocated topicIndex)
+    /// @param stateDetectCB State detect callback (receives allocated topicIndex)
+    /// @return Allocated topic index (0-based), or UINT16_MAX on failure
     /// @note This will be called by the SysManager when a data source is registered for this SysMod. It should be implemented by derived
     ///       classes to register the data source and its associated callbacks. It should not be called directly by user code.
     ///       This mechanism allows the SysMod to provide data for publishing on a topic, and to provide state change detection for that topic.
-    virtual bool registerDataSource(const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
+    virtual uint16_t registerDataSource(const char* pubTopic, SysMod_publishMsgGenFn msgGenCB, SysMod_stateDetectCB stateDetectCB)
     {
-        return false;
+        return UINT16_MAX;
     }
 
     /// @brief Set the SysManager for this SysMod
