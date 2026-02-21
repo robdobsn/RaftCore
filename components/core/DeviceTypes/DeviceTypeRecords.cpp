@@ -555,7 +555,7 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 /// @param deviceTypeIndex device type index
 /// @param devicePollResponseData device poll response data
 String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline,  DeviceTypeIndexType deviceTypeIndex, 
-        const std::vector<uint8_t>& devicePollResponseData) const
+        const std::vector<uint8_t>& devicePollResponseData)
 {
     // Form a hex buffer
     String hexOut;

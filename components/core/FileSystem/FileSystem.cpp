@@ -722,7 +722,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     // Return data
     if (readLen <= 0)
         return SpiramAwareUint8Vector();
-    else if (readLen < fileData.size())
+    else if (readLen < (int)fileData.size())
         fileData.resize(readLen);
     return fileData;
 }

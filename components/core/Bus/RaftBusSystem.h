@@ -63,13 +63,14 @@ public:
 
     /// @brief Get a bus by name
     /// @param busName Name of the bus
+    /// @param allowBusNumberInsteadOfName If true, if bus not found by name, will try to parse busName as a number and find by number
     /// @return Pointer to the bus or nullptr if not found
-    RaftBus* getBusByName(const String& busName);
+    RaftBus* getBusByName(const String& busName, bool allowBusNumberInsteadOfName) const;
 
     /// @brief Get a bus by number
     /// @param busNum Number of the bus (starting from RaftDeviceID::BUS_NUM_FIRST_BUS)
     /// @return Pointer to the bus or nullptr if not found
-    RaftBus* getBusByNumber(BusNumType busNum); 
+    RaftBus* getBusByNumber(BusNumType busNum) const;
 
     /// @brief Get the list of buses
     /// @return List of buses

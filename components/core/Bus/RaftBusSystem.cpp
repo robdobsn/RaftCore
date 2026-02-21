@@ -183,9 +183,11 @@ RaftBus* RaftBusSystem::busFactoryCreate(const char* busConstrName, BusElemStatu
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get a bus by name
 /// @param busName Name of the bus
+/// @param allowBusNumberInsteadOfName If true, if bus not found by name, will try to parse busName as a number and find by number
 /// @return Pointer to the bus or nullptr if not found
-RaftBus* RaftBusSystem::getBusByName(const String& busName)
+RaftBus* RaftBusSystem::getBusByName(const String& busName, bool allowBusNumberInsteadOfName) const
 {
+    // First try to find by name
 #ifdef DEBUG_GET_BUS_BY_NAME_DETAIL
     LOG_I(MODULE_PREFIX, "getBusByName %s numBuses %d (raftBusSystem %p)", 
                 busName.c_str(), _busList.size(), this);
@@ -206,6 +208,19 @@ RaftBus* RaftBusSystem::getBusByName(const String& busName)
 #ifdef DEBUG_GET_BUS_BY_NAME
     LOG_I(MODULE_PREFIX, "getBusByName %s not found", busName.c_str());
 #endif
+
+    // If not found and allowed, try to find by number
+    if (allowBusNumberInsteadOfName)
+    {
+        char* endPtr = nullptr;
+        long busNum = strtol(busName.c_str(), &endPtr, 10);
+        if (endPtr != busName.c_str() && *endPtr == '\0')
+        {
+            return getBusByNumber(busNum);
+        }
+    }
+
+    // Not found
     return nullptr;
 }
 
@@ -213,7 +228,7 @@ RaftBus* RaftBusSystem::getBusByName(const String& busName)
 /// @brief Get a bus by number
 /// @param busNum Number of the bus (starting from RaftDeviceID::BUS_NUM_FIRST_BUS)
 /// @return Pointer to the bus or nullptr if not found
-RaftBus* RaftBusSystem::getBusByNumber(BusNumType busNum)
+RaftBus* RaftBusSystem::getBusByNumber(BusNumType busNum) const
 {
 #ifdef DEBUG_GET_BUS_BY_NAME_DETAIL
     LOG_I(MODULE_PREFIX, "getBusByNumber %d numBuses %d (raftBusSystem %p)", 
@@ -315,7 +330,7 @@ RaftRetCode RaftBusSystem::virtualPinRead(int pinNum, VirtualPinReadCallbackType
 RaftRetCode RaftBusSystem::enableSlot(const char* pBusName, uint32_t slotNum, bool enablePower, bool enableData)
 {
     // Get the bus
-    RaftBus* pBus = getBusByName(pBusName);
+    RaftBus* pBus = getBusByName(pBusName, true);
     if (!pBus)
         return RAFT_BUS_INVALID;
 

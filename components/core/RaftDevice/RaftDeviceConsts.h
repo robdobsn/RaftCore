@@ -103,29 +103,23 @@ public:
         {
             return RaftDeviceID(BUS_NUM_ALL_DEVICES_ANY_BUS, 0);
         }
-        else
-        {
-            String addressStr = str;
-            BusNumType busNum = BUS_NUM_DIRECT_CONN;
-            int underscoreIndex = str.indexOf('_');
-            if (underscoreIndex > 0)
-            {                
-                String busNumStr = str.substring(0, underscoreIndex);
-                addressStr = str.substring(underscoreIndex + 1);
-                busNum = busNumStr.toInt();
-            }
-
-            // Check for leading "0x" in address and remove it if present
-            if (addressStr.startsWith("0x") || addressStr.startsWith("0X"))
-            {
-                addressStr = addressStr.substring(2);
-            }   
-            BusElemAddrType address = strtoul(addressStr.c_str(), nullptr, 16);
-            return RaftDeviceID(busNum, address);
-
+        String addressStr = str;
+        BusNumType busNum = BUS_NUM_DIRECT_CONN;
+        int underscoreIndex = str.indexOf('_');
+        if (underscoreIndex > 0)
+        {                
+            String busNumStr = str.substring(0, underscoreIndex);
+            addressStr = str.substring(underscoreIndex + 1);
+            busNum = busNumStr.toInt();
         }
-        // If we can't parse, return an "invalid" ID
-        return RaftDeviceID(BUS_NUM_INVALID, 0);
+
+        // Check for leading "0x" in address and remove it if present
+        if (addressStr.startsWith("0x") || addressStr.startsWith("0X"))
+        {
+            addressStr = addressStr.substring(2);
+        }   
+        BusElemAddrType address = strtoul(addressStr.c_str(), nullptr, 16);
+        return RaftDeviceID(busNum, address);
     }
 
     /// @brief Get bus number

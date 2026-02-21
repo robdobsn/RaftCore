@@ -95,8 +95,8 @@ public:
     /// @param isOnline true if device is online
     /// @param deviceTypeIndex device type index
     /// @param devicePollResponseData device poll response data
-    String deviceStatusToJson(BusElemAddrType addr, bool isOnline, uint16_t deviceTypeIndex, 
-            const std::vector<uint8_t>& devicePollResponseData) const;
+    static String deviceStatusToJson(BusElemAddrType addr, bool isOnline, uint16_t deviceTypeIndex,
+            const std::vector<uint8_t>& devicePollResponseData);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get scan priority lists

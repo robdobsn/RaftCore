@@ -213,11 +213,20 @@ public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set device polling interval for an address
     /// @param address Composite address
-    /// @param pollIntervalMs Polling interval in milliseconds
+    /// @param pollIntervalUs Polling interval in microseconds
     /// @return true if applied
-    virtual bool setDevicePollInterval(BusElemAddrType address, uint32_t pollIntervalMs)
+    virtual bool setDevicePollIntervalUs(BusElemAddrType address, uint64_t pollIntervalUs)
     {
         return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get device polling interval for an address
+    /// @param address Composite address
+    /// @return Polling interval in microseconds (0 if not supported)
+    virtual uint64_t getDevicePollIntervalUs(BusElemAddrType address) const
+    {
+        return 0;
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////

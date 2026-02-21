@@ -165,6 +165,26 @@ private:
     /// @return RaftRetCode Return code
     RaftRetCode apiDevMan(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
 
+    /// @brief Handle devman/typeinfo
+    RaftRetCode apiDevManTypeInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devman/cmdraw
+    RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devman/cmdjson
+    RaftRetCode apiDevManCmdJson(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+#ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
+    /// @brief Handle devman/demo
+    RaftRetCode apiDevManDemo(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+#endif
+
+    /// @brief Handle devman/devconfig
+    RaftRetCode apiDevManDevConfig(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devman/busname
+    RaftRetCode apiDevManBusName(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
     /// @brief Callback for command results
     /// @param reqResult Result of the command
     void cmdResultReportCallback(BusRequestResult& reqResult);
@@ -205,11 +225,6 @@ private:
     /// @param eventName Name of the event
     /// @param eventData Data associated with the event
     void deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData);
-
-    /// @brief Get bus by string lookup where string is either bus name or bus number as string
-    /// @param busStr Bus string (name or number)
-    /// @return pointer to bus if found, nullptr otherwise
-    RaftBus* getBusByNameOrNumberString(const String& busStr) const;
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;

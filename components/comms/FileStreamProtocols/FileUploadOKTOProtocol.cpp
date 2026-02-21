@@ -243,8 +243,8 @@ RaftRetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqM
     String fileName = cmdFrame.getString("fileName", "");
     String fileType = cmdFrame.getString("fileType", "");
     String crc16Str = cmdFrame.getString("CRC16", "");
-    uint32_t blockSizeFromHost = cmdFrame.getLong("batchMsgSize", -1);
-    uint32_t batchAckSizeFromHost = cmdFrame.getLong("batchAckSize", -1);
+    int blockSizeFromHost = cmdFrame.getLong("batchMsgSize", -1);
+    int batchAckSizeFromHost = cmdFrame.getLong("batchAckSize", -1);
     // CRC handling
     uint32_t crc16 = 0;
     bool crc16Valid = false;
