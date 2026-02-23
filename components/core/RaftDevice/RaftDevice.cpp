@@ -99,7 +99,7 @@ std::vector<uint8_t> RaftDevice::getStatusBinary() const
 /// @param deviceMsgData Device msg data
 /// @return true if created ok
 bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData, 
-    uint8_t connMode, 
+    uint8_t busNumber, 
     BusElemAddrType address, 
     uint16_t deviceTypeIndex, 
     bool isOnline, 
@@ -114,8 +114,8 @@ bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData,
         binData.push_back((msgLen >> 8) & 0xff);
         binData.push_back(msgLen & 0xff);
 
-        // Start with connection mode byte (MSB indicates online/offline)
-        binData.push_back(connMode | (isOnline ? 0x80 : 0));
+        // Bus number byte (MSB indicates online/offline; lower 7 bits = bus number, 0 = directly connected)
+        binData.push_back(busNumber | (isOnline ? 0x80 : 0));
 
         // The address (32 bits)
         binData.push_back((address >> 24) & 0xff);

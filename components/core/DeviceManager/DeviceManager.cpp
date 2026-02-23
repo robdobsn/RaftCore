@@ -173,17 +173,17 @@ void DeviceManager::loop()
             }
 
 #ifdef DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
-            LOG_I(MODULE_PREFIX, "  Device %d: ID %s class %s typeIdx %d status %s", 
+            LOG_I(MODULE_PREFIX, "  Device %d: ID %s class %s typeIdx %s status %s", 
                             devIdx, 
                             pDevice->getDeviceID().toString().c_str(),
                             pDevice->getDeviceClassName().c_str(),
-                            pDevice->getDeviceTypeIndex(),
+                            pDevice->getDeviceTypeIndex() == DEVICE_TYPE_INDEX_INVALID ? "INVALID" : String(pDevice->getDeviceTypeIndex()).c_str(),
                             isOnline ? "online" : "offline");
 #else
-            LOG_I(MODULE_PREFIX, "  Device %d: ID %s typeIdx %d status %s", 
+            LOG_I(MODULE_PREFIX, "  Device %d: ID %s typeIdx %s status %s", 
                             devIdx, 
                             pDevice->getDeviceID().toString().c_str(),
-                            pDevice->getDeviceTypeIndex(),
+                            pDevice->getDeviceTypeIndex() == DEVICE_TYPE_INDEX_INVALID ? "INVALID" : String(pDevice->getDeviceTypeIndex()).c_str(),
                             isOnline ? "online" : "offline");
 #endif
         }
@@ -308,11 +308,11 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
 
         // Debug
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
-        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s typeIdx %d status %s",
+        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s typeIdx %s status %s pointerValid %s",
                         deviceID.toString().c_str(),
-                        el.deviceStatus.deviceTypeIndex,
-                        el.getJson(),
-                        pDevice ? "" : " NOT IDENTIFIED YET");
+                        el.deviceStatus.deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID ? "INVALID" : String(el.deviceStatus.deviceTypeIndex).c_str(),
+                        el.getJson().c_str(),
+                        pDevice ? "YES" : "NO");
 #endif
     }
 }
@@ -889,11 +889,13 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             " devman/typeinfo?type=<typeName> - Get type info,"
-                            " devman/cmdraw?bus=<busName>&addr=<addr>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
+                            " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
-                            " devman/devconfig?bus=<busNameOrNumber>&device=<deviceIdOrAddress>&intervalUs=<microseconds> - device configuration,"
+                            " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
-                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device");
+                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device"
+                            " Note: typeName can be either a device type name or a device type index"
+                            " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
 

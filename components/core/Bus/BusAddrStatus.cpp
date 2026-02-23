@@ -96,7 +96,7 @@ String BusAddrStatus::getJson() const
     snprintf(jsonStr, sizeof(jsonStr), 
         "{\"a\":\"%s%x\",\"s\":\"%c%c\"}", 
         RAFT_BUS_ADDR_PREFIX,
-        (int)address, 
+        (unsigned int)address, 
         BusAddrStatus::getOnlineStateStr(onlineState)[0],
         isNewlyIdentified ? 'N' : 'X'
     );
