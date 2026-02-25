@@ -34,12 +34,12 @@ public:
     /// @brief Find device in device list by ID
     /// @param deviceID Device identifier
     /// @return pointer to device if found
-    RaftDevice* getDevice(RaftDeviceID deviceID) const;
+    RaftDevice* getStaticDevice(RaftDeviceID deviceID) const;
 
     /// @brief Get device by string lookup using device ID as string
     /// @param deviceStr Device ID string (ID as string)
     /// @return pointer to device if found, nullptr otherwise
-    RaftDevice* getDeviceByStringLookup(const String& deviceStr) const;
+    RaftDevice* getStaticDeviceByStringLookup(const String& deviceStr) const;
 
     /// @brief Register for device data notifications
     /// @param deviceID Device identifier
@@ -85,14 +85,19 @@ protected:
 
 private:
 
-    // List of instantiated devices
-    struct DevicePtrAndOnline
+    // List of instantiated devices (static devices only - bus devices tracked by BusStatusMgr)
+    struct DeviceListRecord
     {
         RaftDevice* pDevice = nullptr;
         bool isOnline = false;
+
+        // Constructor
+        DeviceListRecord(RaftDevice* pDev, bool online) :
+            pDevice(pDev), isOnline(online) {}
     };
     
-    std::list<DevicePtrAndOnline> _deviceList;
+    // Device list is mutable to allow operations in const methods
+    mutable std::list<DeviceListRecord> _staticDeviceList;
     static const uint32_t DEVICE_LIST_MAX_SIZE = 100;
 
     // Access mutex (mutable to allow locking in const methods)
@@ -118,21 +123,27 @@ private:
     };
 
     // Device data change callbacks
+
+    // TODO does this contain callbacks for bus devices too?
+
     std::list<DeviceDataChangeRec> _deviceDataChangeCBList;
 
     // Device status change callbacks
+
+    // TODO does this contain callbacks for bus devices too?
+
     std::list<RaftDeviceStatusChangeCB> _deviceStatusChangeCBList;
 
     /// @brief Setup device instances
     /// @param pConfigPrefix Prefix for configuration
     /// @param devManConfig Device manager configuration
-    void setupDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
+    void setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
 
-    /// @brief Setup a single device
-    /// @param pDeviceClass class of the device to setup
-    /// @param devConfig configuration for the device
-    /// @return RaftDevice* pointer to the created device or nullptr if failed
-    RaftDevice* setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig);
+    // /// @brief Setup a single device
+    // /// @param pDeviceClass class of the device to setup
+    // /// @param devConfig configuration for the device
+    // /// @return RaftDevice* pointer to the created device or nullptr if failed
+    // RaftDevice* setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig);
     
     /// @brief Bus element status callback
     /// @param bus a reference to the bus which has elements with changed status
@@ -208,7 +219,8 @@ private:
     /// @param onlyOnline true to only return online devices
     /// @param pDeviceOnlineArray pointer to array of device online flags (may be nullptr) - must be maxNumDevices long
     /// @return Number of devices
-    uint32_t getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, bool *pDeviceOnlineArray = nullptr) const;
+    uint32_t getStaticDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, 
+            bool *pDeviceOnlineArray = nullptr) const;
 
     /// @brief Call device status change callbacks
     /// @param pDevice Pointer to the device

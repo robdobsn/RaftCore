@@ -10,7 +10,6 @@
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeRecords.h"
 #include "RaftBusSystem.h"
-#include "RaftBusDevice.h"
 #include "DeviceFactory.h"
 #include "SysManager.h"
 #include "RestAPIEndpointManager.h"
@@ -23,9 +22,8 @@
 #define WARN_ON_SETUP_DEVICE_FAILED
 
 // Debug
-// #define DEBUG_BUS_OPERATION_STATUS_OK_CB
-// #define DEBUG_BUS_ELEMENT_STATUS_CHANGES
-// #define DEBUG_NEW_DEVICE_FOUND_CB
+#define DEBUG_BUS_OPERATION_STATUS_OK_CB
+#define DEBUG_BUS_ELEMENT_STATUS_CHANGES
 // #define DEBUG_DEVICE_SETUP
 // #define DEBUG_DEVICE_FACTORY
 // #define DEBUG_LIST_DEVICES
@@ -39,7 +37,7 @@
 // #define DEBUG_API_CMDRAW
 // #define DEBUG_SYSMOD_GET_NAMED_VALUE
 // #define DEBUG_SYSMOD_RECV_CMD_JSON
-// #define DEBUG_LOOP_SHOW_DEVICES_INTERVAL_MS 1000
+#define DEBUG_LOOP_SHOW_DEVICES_INTERVAL_MS 1000
 #define DEBUG_DEVICE_CONFIG_API
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +68,7 @@ void DeviceManager::setup()
     );
 
     // Setup device classes (these are the keys into the device factory)
-    setupDevices("Devices", modConfig());
+    setupStaticDevices("Devices", modConfig());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -102,14 +100,14 @@ void DeviceManager::postSetup()
         }
     );
 
-    // Get a frozen copy of the device list (null-pointers excluded)
-    RaftDevice* pDeviceListCopy[DEVICE_LIST_MAX_SIZE];
-    uint32_t numDevices = getDeviceListFrozen(pDeviceListCopy, DEVICE_LIST_MAX_SIZE, false);
+    // Get a frozen copy of the static device list (null-pointers excluded)
+    RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
+    uint32_t numDevices = getStaticDeviceListFrozen(pStaticDeviceListFrozen, DEVICE_LIST_MAX_SIZE, false);
 
-    // Loop through the devices
+    // Call postSetup for each device
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
     {
-        pDeviceListCopy[devIdx]->postSetup();
+        pStaticDeviceListFrozen[devIdx]->postSetup();
     }
 
     // Register for device data change callbacks
@@ -121,7 +119,7 @@ void DeviceManager::postSetup()
     // Register for device events
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
     {
-        pDeviceListCopy[devIdx]->registerForDeviceStatusChange(
+        pStaticDeviceListFrozen[devIdx]->registerForDeviceStatusChange(
             std::bind(&DeviceManager::deviceEventCB, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
         );
     }
@@ -136,18 +134,18 @@ void DeviceManager::postSetup()
 /// @brief Loop (called frequently to handle device and bus servicing)
 void DeviceManager::loop()
 {
-    // Service the buses
+    // Service the buses (which will handle device status changes and data updates via callbacks)
     raftBusSystem.loop();
 
-    // Get a frozen copy of the device list for online devices
-    RaftDevice* pDeviceListCopy[DEVICE_LIST_MAX_SIZE];
-    uint32_t numDevices = getDeviceListFrozen(pDeviceListCopy, DEVICE_LIST_MAX_SIZE, true);
+    // Get a frozen copy of the static device list for online devices
+    RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
+    uint32_t numDevices = getStaticDeviceListFrozen(pStaticDeviceListFrozen, DEVICE_LIST_MAX_SIZE, true);
 
     // Loop through the devices
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
     {
         // Handle device loop
-        pDeviceListCopy[devIdx]->loop();
+        pStaticDeviceListFrozen[devIdx]->loop();
     }
 
 #if defined(DEBUG_LOOP_SHOW_DEVICES_INTERVAL_MS)
@@ -155,22 +153,12 @@ void DeviceManager::loop()
     {
         // Get device list again this time including offline devices for debug reporting
         RaftDevice* pDeviceListAnyStatus[DEVICE_LIST_MAX_SIZE];
-        uint32_t numDevicesAnyStatus = getDeviceListFrozen(pDeviceListAnyStatus, DEVICE_LIST_MAX_SIZE, false);
+        bool deviceOnlineArray[DEVICE_LIST_MAX_SIZE];
+        uint32_t numDevicesAnyStatus = getStaticDeviceListFrozen(pDeviceListAnyStatus, DEVICE_LIST_MAX_SIZE, false, deviceOnlineArray);
         LOG_I(MODULE_PREFIX, "Loop device list:");
         for (uint32_t devIdx = 0; devIdx < numDevicesAnyStatus; devIdx++)
         {
             RaftDevice* pDevice = pDeviceListAnyStatus[devIdx];
-
-            // Check if device pointer is in the online list (to determine online status for debug reporting)
-            bool isOnline = false;
-            for (uint32_t onlineIdx = 0; onlineIdx < numDevices; onlineIdx++)
-            {
-                if (pDeviceListCopy[onlineIdx] == pDevice)
-                {
-                    isOnline = true;
-                    break;
-                }
-            }
 
 #ifdef DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
             LOG_I(MODULE_PREFIX, "  Device %d: ID %s class %s typeIdx %s status %s", 
@@ -178,13 +166,13 @@ void DeviceManager::loop()
                             pDevice->getDeviceID().toString().c_str(),
                             pDevice->getDeviceClassName().c_str(),
                             pDevice->getDeviceTypeIndex() == DEVICE_TYPE_INDEX_INVALID ? "INVALID" : String(pDevice->getDeviceTypeIndex()).c_str(),
-                            isOnline ? "online" : "offline");
+                            deviceOnlineArray[devIdx] ? "online" : "offline");
 #else
             LOG_I(MODULE_PREFIX, "  Device %d: ID %s typeIdx %s status %s", 
                             devIdx, 
                             pDevice->getDeviceID().toString().c_str(),
                             pDevice->getDeviceTypeIndex() == DEVICE_TYPE_INDEX_INVALID ? "INVALID" : String(pDevice->getDeviceTypeIndex()).c_str(),
-                            isOnline ? "online" : "offline");
+                            deviceOnlineArray[devIdx] ? "online" : "offline");
 #endif
         }
         _debugLastReportTimeMs = millis();
@@ -214,114 +202,13 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
     LOG_I(MODULE_PREFIX, "busElemStatusCB bus %s numChanges %d", bus.getBusName().c_str(), statusChanges.size());
 #endif
-
-    // Handle the status changes
-    for (const auto& el : statusChanges)
-    {
-        // Find the device
-        // String deviceId = bus.formUniqueId(el.address);
-        RaftDeviceID deviceID(bus.getBusNum(), el.address);
-        RaftDevice* pDevice = getDevice(deviceID);
-        if (!pDevice)
-        {
-            // Check if device newly created and successfully identified
-            // Only create bus devices when they have a valid device type
-            if (el.isNewlyIdentified && el.deviceStatus.isValid())
-            {
-                // Generate config JSON for the device
-                String devConfig = "{\"name\":" + deviceID.toString() + "}";
-
-                // Create the device
-                pDevice = new RaftBusDevice("RaftBusDevice", devConfig.c_str(), deviceID);
-                pDevice->setDeviceTypeIndex(el.deviceStatus.deviceTypeIndex);
-
-                // Add to the list of instantiated devices & setup
-                if (RaftMutex_lock(_accessMutex, 5))
-                {
-                    // Add to the list of instantiated devices
-                    _deviceList.push_back({pDevice, el.onlineState == DeviceOnlineState::ONLINE});
-                    RaftMutex_unlock(_accessMutex);
-
-                    // Setup device
-                    pDevice->setup();
-                    pDevice->postSetup();
-
-                    // Debug
-#ifdef DEBUG_NEW_DEVICE_FOUND_CB
-#ifdef DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
-                    LOG_I(MODULE_PREFIX, "busElemStatusCB new device %s class %s deviceTypeIndex %d", 
-                                    deviceID.toString().c_str(), 
-                                    pDevice->getDeviceClassName().c_str(),
-                                    pDevice->getDeviceTypeIndex());
-#else
-                    LOG_I(MODULE_PREFIX, "busElemStatusCB new device %s deviceTypeIndex %d", 
-                                    deviceID.toString().c_str(),
-                                    pDevice->getDeviceTypeIndex());
-#endif
-#endif
-                }
-                else
-                {
-                    // Delete the device to avoid memory leak
-                    delete pDevice;
-                    pDevice = nullptr;
-
-                    // Debug
-                    LOG_E(MODULE_PREFIX, "busElemStatusCB failed to add device %s", deviceID.toString().c_str());
-                }
-            }
-        }
-
-        // Handle status update
-        if (pDevice)
-        {
-            // Handle device status change
-            pDevice->handleStatusChange(el);
-
-            // Handle device status change callbacks
-            callDeviceStatusChangeCBs(pDevice, el);
-
-            // If newly created, register for device data notifications for this specific device
-            if (el.isNewlyIdentified)
-            {
-                registerForDeviceDataChangeCBs(pDevice->getDeviceID());
-            }
-
-            // Update online status in device list
-            if (el.isChange)
-            {
-                // Find device in list and set status
-                if (RaftMutex_lock(_accessMutex, 5))
-                {
-                    for (auto& devPtrAndOnline : _deviceList)
-                    {
-                        if (devPtrAndOnline.pDevice == pDevice)
-                        {
-                            devPtrAndOnline.isOnline = el.onlineState == DeviceOnlineState::ONLINE;
-                            break;
-                        }
-                    }
-                    RaftMutex_unlock(_accessMutex);
-                }
-            }
-        }
-
-        // Debug
-#ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
-        LOG_I(MODULE_PREFIX, "busElemStatusInfo ID %s typeIdx %s status %s pointerValid %s",
-                        deviceID.toString().c_str(),
-                        el.deviceStatus.deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID ? "INVALID" : String(el.deviceStatus.deviceTypeIndex).c_str(),
-                        el.getJson().c_str(),
-                        pDevice ? "YES" : "NO");
-#endif
-    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Setup devices that are defined in the SysType configuration
+/// @brief Setup static devices that are defined in the SysType configuration
 /// @param pConfigPrefix prefix for the device configuration
 /// @param devManConfig configuration for the device manager
-void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig)
+void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig)
 {
     // Get devices config
     std::vector<String> deviceConfigs;
@@ -340,7 +227,7 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
         if (!pDeviceClassDef)
         {
 #ifdef WARN_ON_DEVICE_CLASS_NOT_FOUND
-            LOG_W(MODULE_PREFIX, "setupDevices %s class %s not found", pConfigPrefix, devClass.c_str());
+            LOG_W(MODULE_PREFIX, "setupStaticDevices %s class %s not found", pConfigPrefix, devClass.c_str());
 #endif
             continue;
         }
@@ -350,15 +237,15 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
         if (!pDevice)
         {
 #ifdef WARN_ON_DEVICE_INSTANTIATION_FAILED
-            LOG_E(MODULE_PREFIX, "setupDevices %s class %s create failed devConf %s", 
+            LOG_E(MODULE_PREFIX, "setupStaticDevices %s class %s create failed devConf %s", 
                         pConfigPrefix, devClass.c_str(), devConf.c_str());
 #endif
             continue;
         }
 
-        // Set deviceID and add to the list of instantiated devices
-        pDevice->setDeviceID(RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _deviceList.size()));
-        _deviceList.push_back({pDevice, true});
+        // Set deviceID and add to the list of instantiated devices (static creation from config)
+        pDevice->setDeviceID(RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _staticDeviceList.size()));
+        _staticDeviceList.push_back({pDevice, true});
 
         // Debug
 #ifdef DEBUG_DEVICE_FACTORY
@@ -371,146 +258,52 @@ void DeviceManager::setupDevices(const char* pConfigPrefix, RaftJsonIF& devManCo
     }
 
     // Now call setup on instantiated devices
-    for (auto& devPtrAndOnline : _deviceList)
+    for (auto& devRec : _staticDeviceList)
     {
-        if (devPtrAndOnline.pDevice)
+        if (devRec.pDevice)
         {
 #ifdef DEBUG_DEVICE_SETUP            
-            LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", devPtrAndOnline.pDevice, devPtrAndOnline.pDevice->getDeviceName());
+            LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", devRec.pDevice, devRec.pDevice->getDeviceName());
 #endif
             // Setup device
-            devPtrAndOnline.pDevice->setup();
+            devRec.pDevice->setup();
 
             // See if the device has a device type record
             DeviceTypeRecordDynamic devTypeRec;
-            if (devPtrAndOnline.pDevice->getDeviceTypeRecord(devTypeRec))
+            if (devRec.pDevice->getDeviceTypeRecord(devTypeRec))
             {
                 // Add the device type record to the device type records
                 uint16_t deviceTypeIndex = 0;
                 deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec, deviceTypeIndex);
-                devPtrAndOnline.pDevice->setDeviceTypeIndex(deviceTypeIndex);
+                devRec.pDevice->setDeviceTypeIndex(deviceTypeIndex);
             }
         }
     }
 
     // Give each SysMod the opportunity to add endpoints and comms channels and to keep a
     // pointer to the CommsCoreIF that can be used to send messages
-    for (auto& devPtrAndOnline : _deviceList)
+    for (auto& devRec : _staticDeviceList)
     {
-        if (devPtrAndOnline.pDevice)
+        if (devRec.pDevice)
         {
             if (getRestAPIEndpointManager())
-                devPtrAndOnline.pDevice->addRestAPIEndpoints(*getRestAPIEndpointManager());
+                devRec.pDevice->addRestAPIEndpoints(*getRestAPIEndpointManager());
             if (getCommsCore())
-                devPtrAndOnline.pDevice->addCommsChannels(*getCommsCore());
+                devRec.pDevice->addCommsChannels(*getCommsCore());
         }            
     }
 
 #ifdef DEBUG_LIST_DEVICES
     uint32_t deviceIdx = 0;
-    for (auto& devPtrAndOnline : _deviceList)
+    for (auto& devRec : _staticDeviceList)
     {
         LOG_I(MODULE_PREFIX, "Device %d: %s", deviceIdx++, 
-                devPtrAndOnline.pDevice ? devPtrAndOnline.pDevice->getDeviceName() : "UNKNOWN");
+                devRec.pDevice ? devRec.pDevice->getDeviceName() : "UNKNOWN");
             
     }
-    if (_deviceList.size() == 0)
+    if (_staticDeviceList.size() == 0)
         LOG_I(MODULE_PREFIX, "No devices found");
 #endif
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Setup a single device
-/// @param pDeviceClass class of the device to setup
-/// @param devConfig configuration for the device
-/// @return RaftDevice* pointer to the created device or nullptr if failed
-RaftDevice* DeviceManager::setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig)
-{
-    // Check valid
-    if (!pDeviceClass)
-    {
-#ifdef WARN_ON_SETUP_DEVICE_FAILED
-        LOG_E(MODULE_PREFIX, "setupDevice invalid parameters pDeviceClass %s", 
-                pDeviceClass ? pDeviceClass : "NULL");
-#endif
-        return nullptr;
-    }
-
-    // Find the device class in the factory
-    const DeviceFactory::RaftDeviceClassDef* pDeviceClassDef = deviceFactory.findDeviceClass(pDeviceClass);
-    if (!pDeviceClassDef)
-    {
-#ifdef WARN_ON_SETUP_DEVICE_FAILED
-        LOG_W(MODULE_PREFIX, "setupDevice class %s not found", pDeviceClass);
-#endif
-        return nullptr;
-    }
-    // Create the device
-    auto pDevice = pDeviceClassDef->pCreateFn(pDeviceClass, devConfig.c_str());
-    if (!pDevice)
-    {
-#ifdef WARN_ON_SETUP_DEVICE_FAILED
-        LOG_E(MODULE_PREFIX, "setupDevice class %s create failed devConf %s", 
-                pDeviceClass, devConfig.c_str());
-#endif
-        return nullptr;
-    }
-    // Add to the list of instantiated devices
-    if (RaftMutex_lock(_accessMutex, 5))
-    {
-        // Add to the list of instantiated devices
-        pDevice->setDeviceID(RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _deviceList.size()));
-        _deviceList.push_back({pDevice, true});
-        RaftMutex_unlock(_accessMutex);
-        // Setup device
-        pDevice->setup();
-        pDevice->postSetup();
-#ifdef DEBUG_DEVICE_SETUP
-        LOG_I(MODULE_PREFIX, "setupDevice %s devConf %s", 
-                pDeviceClass, devConfig.c_str());
-#endif
-    }
-    else
-    {
-#ifdef WARN_ON_SETUP_DEVICE_FAILED
-        LOG_E(MODULE_PREFIX, "setupDevice failed to add device %s", pDeviceClass);
-#endif
-        // Delete the device to avoid memory leak
-        delete pDevice;
-        pDevice = nullptr;
-    }
-
-    // If the device has a device type record, add it to the device type records
-    DeviceTypeRecordDynamic devTypeRec;
-    if (pDevice && pDevice->getDeviceTypeRecord(devTypeRec))
-    {
-        // Add the device type record to the device type records
-        uint16_t deviceTypeIndex = 0;
-        deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec, deviceTypeIndex);
-        pDevice->setDeviceTypeIndex(deviceTypeIndex);
-    }
-
-    // If the device was successfully created, register for device data notifications
-    if (pDevice)
-    {
-        // Register for device data notifications
-        registerForDeviceDataChangeCBs(pDevice->getDeviceID());
-    }
-
-    // Debug
-#ifdef DEBUG_DEVICE_SETUP
-    if (pDevice)
-    {
-        LOG_I(MODULE_PREFIX, "setupDevice %s name %s class %s devTypeIdx %d", 
-                        pDeviceClass, 
-                        pDevice->getDeviceName().c_str(),
-                        pDevice->getDeviceClassName().c_str(),
-                        pDevice->getDeviceTypeIndex());
-    }
-#endif
-
-    // Return success
-    return pDevice;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -528,7 +321,7 @@ String DeviceManager::getDevicesDataJSON(uint16_t topicIndex) const
     jsonStr += "{\"_t\":";
     jsonStr += String(topicIndex);
     jsonStr += ",\"_v\":1";
-    bool needsComma = true;
+    bool hasDeviceData = false;
 
     // Check all buses for data
     for (RaftBus* pBus : raftBusSystem.getBusList())
@@ -545,34 +338,32 @@ String DeviceManager::getDevicesDataJSON(uint16_t topicIndex) const
         if (jsonRespStr.length() > 2)
         {
             char prefix[256];
-            snprintf(prefix, sizeof(prefix), "%s\"%d\":", 
-                needsComma ? "," : "", (int)pBus->getBusNum());
+            snprintf(prefix, sizeof(prefix), ",\"%d\":", (int)pBus->getBusNum());
             jsonStr += prefix;
             jsonStr += jsonRespStr;
-            needsComma = true;
+            hasDeviceData = true;
         }
     }
 
-    // Get a frozen copy of the device list (null-pointers excluded)
-    RaftDevice* pDeviceListCopy[DEVICE_LIST_MAX_SIZE];
-    uint32_t numDevices = getDeviceListFrozen(pDeviceListCopy, DEVICE_LIST_MAX_SIZE, true);
+    // Get a frozen copy of the static device list (null-pointers excluded)
+    RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
+    uint32_t numDevices = getStaticDeviceListFrozen(pStaticDeviceListFrozen, DEVICE_LIST_MAX_SIZE, true);
 
-    // Loop through the all devices - bus devices will not return any JSON data here as 
-    // they are handled via the bus loop above
+    // Loop through the all devices
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
     {
-        RaftDevice* pDevice = pDeviceListCopy[devIdx];
+        RaftDevice* pDevice = pStaticDeviceListFrozen[devIdx];
         String jsonRespStr = pDevice->getStatusJSON();
 
         // Check for empty string or empty JSON object
         if (jsonRespStr.length() > 2)
         {
-            char prefix[256];
-            snprintf(prefix, sizeof(prefix), "%s\"0\":", 
-                needsComma ? "," : "");
+            // Add the response under the key for BUS_NUM_DIRECT_CONN and the device index (e.g. "0", "1", etc.)
+            char prefix[50];
+            snprintf(prefix, sizeof(prefix), ",\"%d\":", (int)RaftDeviceID::BUS_NUM_DIRECT_CONN);
             jsonStr += prefix;
             jsonStr += jsonRespStr;
-            needsComma = true;
+            hasDeviceData = true;
         }
     }
 
@@ -580,12 +371,9 @@ String DeviceManager::getDevicesDataJSON(uint16_t topicIndex) const
     LOG_I(MODULE_PREFIX, "getDevicesDataJSON %s", jsonStr.c_str());
 #endif
 
-    // Close JSON object only if we added data
-    if (!needsComma)
-    {
-        // No data available
+    // Return empty string if no device data
+    if (!hasDeviceData)
         return "";
-    }
 
     jsonStr += "}";
     return jsonStr;
@@ -619,13 +407,13 @@ std::vector<uint8_t> DeviceManager::getDevicesDataBinary(uint16_t topicIndex) co
     }
 
     // Get a frozen copy of the device list (null-pointers excluded)
-    RaftDevice* pDeviceListCopy[DEVICE_LIST_MAX_SIZE];
-    uint32_t numDevices = getDeviceListFrozen(pDeviceListCopy, DEVICE_LIST_MAX_SIZE, true);
+    RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
+    uint32_t numDevices = getStaticDeviceListFrozen(pStaticDeviceListFrozen, DEVICE_LIST_MAX_SIZE, true);
 
     // Loop through the devices
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
     {
-        RaftDevice* pDevice = pDeviceListCopy[devIdx];
+        RaftDevice* pDevice = pStaticDeviceListFrozen[devIdx];
         std::vector<uint8_t> deviceBinaryData = pDevice->getStatusBinary();
         binaryData.insert(binaryData.end(), deviceBinaryData.begin(), deviceBinaryData.end());
 
@@ -665,14 +453,14 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
     }
 
     // Get a frozen copy of the device list (null-pointers excluded)
-    RaftDevice* pDeviceListCopy[DEVICE_LIST_MAX_SIZE];
-    uint32_t numDevices = getDeviceListFrozen(pDeviceListCopy, DEVICE_LIST_MAX_SIZE, true);
+    RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
+    uint32_t numDevices = getStaticDeviceListFrozen(pStaticDeviceListFrozen, DEVICE_LIST_MAX_SIZE, true);
 
     // Loop through the devices
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
     {
         // Check device status
-        RaftDevice* pDevice = pDeviceListCopy[devIdx];
+        RaftDevice* pDevice = pStaticDeviceListFrozen[devIdx];
         uint32_t deviceStateHash = pDevice->getDeviceStateHash();
         stateHash[0] ^= (deviceStateHash & 0xff);
         stateHash[1] ^= ((deviceStateHash >> 8) & 0xff);
@@ -716,15 +504,15 @@ String DeviceManager::getDebugJSON() const
     }
 
     // Get a frozen copy of the device list (null-pointers excluded)
-    RaftDevice* pDeviceListCopy[DEVICE_LIST_MAX_SIZE];
+    RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
     bool deviceOnlineArray[DEVICE_LIST_MAX_SIZE];
-    uint32_t numDevices = getDeviceListFrozen(pDeviceListCopy, DEVICE_LIST_MAX_SIZE, false, deviceOnlineArray);
+    uint32_t numDevices = getStaticDeviceListFrozen(pStaticDeviceListFrozen, DEVICE_LIST_MAX_SIZE, false, deviceOnlineArray);
 
     // Loop through the devices
     String jsonStrDev;
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
     {
-        RaftDevice* pDevice = pDeviceListCopy[devIdx];
+        RaftDevice* pDevice = pStaticDeviceListFrozen[devIdx];
         String jsonRespStr = pDevice->getDebugJSON(false);
 
         // Check for empty string or empty JSON object
@@ -744,6 +532,8 @@ String DeviceManager::getDebugJSON() const
 /// @return double value
 double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
 {
+    // TODO - this only supports static devices ...
+
     if (!pValueName)
         return 0.0;
     // Parse valueName as "deviceName.paramName"
@@ -753,7 +543,7 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
         if (pDevice) 
         {
             double val = pDevice->getNamedValue(paramName.c_str(), isValid);
@@ -778,6 +568,8 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
 /// @return true if set successfully
 bool DeviceManager::setNamedValue(const char* pValueName, double value)
 {
+    // TODO - this only supports static devices ...
+
     if (!pValueName)
          return false;
     // Parse valueName as "deviceName.paramName"
@@ -787,7 +579,7 @@ bool DeviceManager::setNamedValue(const char* pValueName, double value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             pDevice->setNamedValue(paramName.c_str(), value);
@@ -804,6 +596,9 @@ bool DeviceManager::setNamedValue(const char* pValueName, double value)
 /// @return String value
 String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
 {
+    // TODO - this only supports static devices ...
+    if (!pValueName)
+        return "";
     // Parse valueName as "deviceName.paramName"
     String valueNameStr(pValueName);
     int dotPos = valueNameStr.indexOf('.');
@@ -811,7 +606,7 @@ String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->getNamedString(paramName.c_str(), isValid);
@@ -828,6 +623,10 @@ String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
 /// @return true if set successfully
 bool DeviceManager::setNamedString(const char* pValueName, const char* value)
 {
+    // TODO - this only supports static devices ...
+    if(!pValueName || !value)
+        return false;
+
     // Parse valueName as "deviceName.paramName"
     String valueNameStr(pValueName);
     int dotPos = valueNameStr.indexOf('.');
@@ -835,7 +634,7 @@ bool DeviceManager::setNamedString(const char* pValueName, const char* value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->setNamedString(paramName.c_str(), value);
@@ -850,6 +649,8 @@ bool DeviceManager::setNamedString(const char* pValueName, const char* value)
 /// @return RaftRetCode
 RaftRetCode DeviceManager::receiveCmdJSON(const char* cmdJSON)
 {
+    // TODO - maybe need to handle bus devices in here?
+
     // Parse cmdJSON to extract device name
     RaftJson json(cmdJSON);
     String deviceName = json.getString("device", "");
@@ -858,7 +659,7 @@ RaftRetCode DeviceManager::receiveCmdJSON(const char* cmdJSON)
 #endif
     if (deviceName.length() > 0)
     {
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
         if (pDevice) {
 #ifdef DEBUG_SYSMOD_RECV_CMD_JSON
             RaftRetCode ret = pDevice->sendCmdJSON(cmdJSON);
@@ -1013,6 +814,9 @@ RaftRetCode DeviceManager::resolveDeviceIDAndBus(const String& reqStr, String& r
 /// @return RaftRetCode indicating success or failure of the operation, with the response containing the result of the command if successful
 RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
+    // Maybe need to handle non-bus devices in here?
+
+
     // Resolve deviceID and bus from params
     RaftDeviceID deviceID;
     RaftBus* pBus = nullptr;
@@ -1151,6 +955,8 @@ RaftRetCode DeviceManager::apiDevManDemo(const String &reqStr, String &respStr, 
 /// @return RaftRetCode indicating success or failure of the operation
 RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
+    // Handle non-bus devices in here?
+
     // Resolve deviceID and bus from params
     RaftDeviceID deviceID;
     RaftBus* pBus = nullptr;
@@ -1274,19 +1080,23 @@ void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statu
 /// @param onlyOnline true to only return online devices
 /// @param deviceOnlineArray pointer to array of device online flags (may be nullptr) - must be maxNumDevices long
 /// @return number of devices
-uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, bool* pDeviceOnlineArray) const
+uint32_t DeviceManager::getStaticDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, 
+        bool* pDeviceOnlineArray) const
 {
     if (!RaftMutex_lock(_accessMutex, 5))
         return 0;
+    
     uint32_t numDevices = 0;
-    for (auto& devPtrAndOnline : _deviceList)
+    for (auto& devRec : _staticDeviceList)
     {
         if (numDevices >= maxDevices)
             break;
         if (pDeviceOnlineArray)
-            pDeviceOnlineArray[numDevices] = devPtrAndOnline.isOnline;
-        if (devPtrAndOnline.pDevice && (!onlyOnline || devPtrAndOnline.isOnline))
-            pDevices[numDevices++] = devPtrAndOnline.pDevice;
+            pDeviceOnlineArray[numDevices] = devRec.isOnline;
+        if (devRec.pDevice && (!onlyOnline || devRec.isOnline))
+        {
+            pDevices[numDevices++] = devRec.pDevice;
+        }
     }
     RaftMutex_unlock(_accessMutex);
     return numDevices;
@@ -1296,16 +1106,16 @@ uint32_t DeviceManager::getDeviceListFrozen(RaftDevice** pDevices, uint32_t maxD
 /// @brief Find device in device list
 /// @param pDeviceID ID of the device
 /// @return pointer to device if found
-RaftDevice* DeviceManager::getDevice(RaftDeviceID deviceID) const
+RaftDevice* DeviceManager::getStaticDevice(RaftDeviceID deviceID) const
 {
     if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
-    for (auto& devPtrAndOnline : _deviceList)
+    for (auto& devRec : _staticDeviceList)
     {
-        if (devPtrAndOnline.pDevice && (devPtrAndOnline.pDevice->idMatches(deviceID)))
+        if (devRec.pDevice && (devRec.pDevice->idMatches(deviceID)))
         {
             RaftMutex_unlock(_accessMutex);
-            return devPtrAndOnline.pDevice;
+            return devRec.pDevice;
         }
     }
     RaftMutex_unlock(_accessMutex);
@@ -1316,26 +1126,26 @@ RaftDevice* DeviceManager::getDevice(RaftDeviceID deviceID) const
 /// @brief Get device by lookup the device ID as string or configured device name
 /// @param deviceStr Device string (device ID as string or configured device name)
 /// @return pointer to device if found, nullptr otherwise
-RaftDevice* DeviceManager::getDeviceByStringLookup(const String& deviceStr) const
+RaftDevice* DeviceManager::getStaticDeviceByStringLookup(const String& deviceStr) const
 {
     // Convert the device string to a RaftDeviceID and find the device
     RaftDeviceID deviceID = RaftDeviceID::fromString(deviceStr);
     if (deviceID.isValid())
     {
-        RaftDevice* pDevice = getDevice(deviceID);
+        RaftDevice* pDevice = getStaticDevice(deviceID);
         if (pDevice)
             return pDevice;
     }
-
+    
     // Try to match the device string to a configured device name
     if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
-    for (auto& devPtrAndOnline : _deviceList)
+    for (auto& devRec : _staticDeviceList)
     {
-        if (devPtrAndOnline.pDevice && devPtrAndOnline.pDevice->getConfiguredDeviceName().equalsIgnoreCase(deviceStr))
+        if (devRec.pDevice && devRec.pDevice->getConfiguredDeviceName().equalsIgnoreCase(deviceStr))
         {
             RaftMutex_unlock(_accessMutex);
-            return devPtrAndOnline.pDevice;
+            return devRec.pDevice;
         }
     }
     RaftMutex_unlock(_accessMutex);
@@ -1383,13 +1193,13 @@ uint32_t DeviceManager::registerForDeviceDataChangeCBs(RaftDeviceID deviceID)
             
         // Find device
         RaftDevice* pDevice = nullptr;
-        for (auto& devPtrAndOnline : _deviceList)
+        for (auto& devRec : _staticDeviceList)
         {
-            if (!devPtrAndOnline.pDevice)
+            if (!devRec.pDevice)
                 continue;
-            if (rec.deviceID != devPtrAndOnline.pDevice->getDeviceID())
+            if (rec.deviceID != devRec.pDevice->getDeviceID())
             {
-                pDevice = devPtrAndOnline.pDevice;
+                pDevice = devRec.pDevice;
                 break;
             }
         }

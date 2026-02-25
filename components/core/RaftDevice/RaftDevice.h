@@ -14,6 +14,7 @@
 #include "RaftDeviceJSONLevel.h"
 #include "RaftDeviceConsts.h"
 #include "RaftBusConsts.h"
+#include "BusAddrStatus.h"
 
 class RestAPIEndpointManager;
 class CommsCoreIF;
@@ -133,17 +134,17 @@ public:
 
     /// @brief Generate a binary data message
     /// @param binData (out) Binary data
-    /// @param busNumber Bus number
+    /// @param busNumber Bus number (0-63)
     /// @param address Address of the device
     /// @param deviceTypeIndex Index of the device type
-    /// @param isOnline true if the device is online
+    /// @param onlineState Device online state
     /// @param deviceMsgData Device msg data
     /// @return true if created ok
     static bool genBinaryDataMsg(std::vector<uint8_t>& binData, 
         uint8_t busNumber, 
         BusElemAddrType address, 
         uint16_t deviceTypeIndex, 
-        bool isOnline, 
+        DeviceOnlineState onlineState, 
         std::vector<uint8_t> deviceMsgData);
 
     /// @brief Get device debug info JSON
@@ -237,10 +238,8 @@ public:
     /// @param dataChangeCB Callback for data change
     /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
     /// @param pCallbackInfo Callback info (passed to the callback)
-    virtual void registerForDeviceData(RaftDeviceDataChangeCB dataChangeCB, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
-    {
-    }
-
+    virtual void registerForDeviceData(RaftDeviceDataChangeCB dataChangeCB, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo);
+        
     /// @brief Register for device events
     /// @param eventCB Callback for device events
     virtual void registerForDeviceStatusChange(RaftDeviceEventCB eventCB)
@@ -254,6 +253,13 @@ public:
         return _deviceID;
     }
 
+    /// @brief Get the bus name
+    /// @return Bus name
+    BusNumType getBusNum() const
+    {
+        return _deviceID.getBusNum();
+    }
+    
 protected:
     // Device configuration
     RaftJson deviceConfig;

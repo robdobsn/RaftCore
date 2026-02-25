@@ -65,6 +65,7 @@ idf_component_register(
     "components/core/ArduinoUtils/ArduinoTime.cpp"
     "components/core/ArduinoUtils/ArduinoWString.cpp"
     "components/core/ArPreferences/ArPreferences.cpp"
+    "components/core/Bus/BusAddrRecord.cpp"
     "components/core/Bus/BusAddrStatus.cpp"
     "components/core/Bus/BusSerial.cpp"
     "components/core/Bus/DeviceStatus.cpp"

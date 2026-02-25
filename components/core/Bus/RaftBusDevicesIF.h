@@ -64,13 +64,13 @@ public:
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get queued device data in JSON format
     /// @return JSON string
-    virtual String getQueuedDeviceDataJson() const = 0;
+    virtual String getQueuedDeviceDataJson() = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get queued device data in binary format
     /// @param connMode connection mode (inc bus number)
     /// @return Binary data vector
-    virtual std::vector<uint8_t> getQueuedDeviceDataBinary(uint32_t connMode) const = 0;
+    virtual std::vector<uint8_t> getQueuedDeviceDataBinary(uint32_t connMode) = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get decoded poll responses

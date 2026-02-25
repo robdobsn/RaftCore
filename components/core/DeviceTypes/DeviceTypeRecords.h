@@ -9,6 +9,7 @@
 #pragma once
 
 #include "DeviceTypeRecord.h"
+#include "BusAddrStatus.h"  // For DeviceOnlineState
 #include "DeviceTypeRecordDynamic.h"
 #include "DevicePollingInfo.h"
 #include "RaftThreading.h"
@@ -92,10 +93,10 @@ public:
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Convert poll response to JSON
     /// @param addr address
-    /// @param isOnline true if device is online
+    /// @param onlineState device online state
     /// @param deviceTypeIndex device type index
     /// @param devicePollResponseData device poll response data
-    static String deviceStatusToJson(BusElemAddrType addr, bool isOnline, uint16_t deviceTypeIndex,
+    static String deviceStatusToJson(BusElemAddrType addr, DeviceOnlineState onlineState, uint16_t deviceTypeIndex,
             const std::vector<uint8_t>& devicePollResponseData);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

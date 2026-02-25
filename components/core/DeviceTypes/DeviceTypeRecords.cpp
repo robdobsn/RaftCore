@@ -551,17 +551,18 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Convert poll response to JSON
 /// @param addr address
-/// @param isOnline true if device is online
+/// @param onlineState device online state
 /// @param deviceTypeIndex device type index
 /// @param devicePollResponseData device poll response data
-String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, bool isOnline,  DeviceTypeIndexType deviceTypeIndex, 
+String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, DeviceOnlineState onlineState,  DeviceTypeIndexType deviceTypeIndex, 
         const std::vector<uint8_t>& devicePollResponseData)
 {
     // Form a hex buffer
     String hexOut;
     hexOut.reserve(hexOut.length() + 50);
     Raft::getHexStrFromBytes(devicePollResponseData.data(), devicePollResponseData.size(), hexOut);
-    return "\"" + String(addr, 16) + "\":{\"x\":\"" + hexOut + "\",\"_o\":" + String(isOnline ? "1" : "0") + ",\"_i\":" + String(deviceTypeIndex) + "}";
+    uint32_t publishValueForOnlineState = onlineState == DeviceOnlineState::ONLINE ? 1 : (onlineState == DeviceOnlineState::PENDING_DELETION ? 2 : 0);
+    return "\"" + String(addr, 16) + "\":{\"x\":\"" + hexOut + "\",\"_o\":" + String(publishValueForOnlineState) + ",\"_i\":" + String(deviceTypeIndex) + "}";
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
