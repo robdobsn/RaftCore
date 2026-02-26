@@ -47,4 +47,10 @@ public:
     /// @param data (output) Data to get
     /// @return true if data is new
     virtual bool getLatestValue(uint64_t& dataTimeUs, std::vector<uint8_t>& data) = 0;
+
+    /// @brief Resize the aggregator to store a different number of results
+    /// @param numResultsToStore New number of results to store
+    /// @return true if resized successfully
+    /// @note This clears any existing buffered data
+    virtual bool resize(uint32_t numResultsToStore) = 0;
 };

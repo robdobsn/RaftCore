@@ -230,6 +230,25 @@ public:
         return 0;
     }
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set number of poll result samples to store for an address
+    /// @param address Composite address
+    /// @param numSamples Number of samples to store
+    /// @return true if applied
+    virtual bool setDeviceNumSamples(BusElemAddrType address, uint32_t numSamples)
+    {
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get number of poll result samples stored for an address
+    /// @param address Composite address
+    /// @return Number of samples (0 if not supported)
+    virtual uint32_t getDeviceNumSamples(BusElemAddrType address) const
+    {
+        return 0;
+    }
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Return addresses of devices attached to the bus
     /// @param addresses - vector to store the addresses of devices

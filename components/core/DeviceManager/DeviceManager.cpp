@@ -692,7 +692,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/typeinfo?type=<typeName> - Get type info,"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
-                            " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds> - device configuration,"
+                            " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device"
                             " Note: typeName can be either a device type name or a device type index"
@@ -985,20 +985,41 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
     }
 
+    // Check if numSamples is provided
+    String numSamplesStr = jsonParams.getString("numSamples", "");
+    if (numSamplesStr.length() > 0)
+    {
+        uint32_t numSamples = strtoul(numSamplesStr.c_str(), nullptr, 10);
+        if (numSamples == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidNumSamples");
+
+#ifdef DEBUG_DEVICE_CONFIG_API
+        LOG_I(MODULE_PREFIX, "numSamples set req deviceID %s numSamples %u",
+                deviceID.toString().c_str(),
+                (unsigned)numSamples);
+#endif
+
+        // Set num samples for the device on the bus
+        if (!pBus->setDeviceNumSamples(addr, numSamples))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
+    }
+
     // Read back
     uint64_t pollIntervalUs = pBus->getDevicePollIntervalUs(addr);
-    if (pollIntervalUs == 0)
+    uint32_t numSamplesResult = pBus->getDeviceNumSamples(addr);
+    if (pollIntervalUs == 0 && numSamplesResult == 0)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
 
 #ifdef DEBUG_DEVICE_CONFIG_API
-        uint64_t appliedIntervalUs = pBus->getDevicePollIntervalUs(addr);
-        LOG_I(MODULE_PREFIX, "pollrate set applied deviceID %s intervalUs %llu (rateHz %.3f)",
+        LOG_I(MODULE_PREFIX, "devconfig applied deviceID %s intervalUs %llu (rateHz %.3f) numSamples %u",
                 deviceID.toString().c_str(),
-                (unsigned long long)appliedIntervalUs,
-                appliedIntervalUs == 0 ? 0 : 1000000.0 / appliedIntervalUs);
+                (unsigned long long)pollIntervalUs,
+                pollIntervalUs == 0 ? 0 : 1000000.0 / pollIntervalUs,
+                (unsigned)numSamplesResult);
 #endif
 
-    String extra = "\"deviceID\":\"" + deviceID.toString() + "\",\"pollIntervalUs\":" + String(pollIntervalUs);
+    String extra = "\"deviceID\":\"" + deviceID.toString() + "\",\"pollIntervalUs\":" + String(pollIntervalUs) +
+                   ",\"numSamples\":" + String(numSamplesResult);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
 }
 
