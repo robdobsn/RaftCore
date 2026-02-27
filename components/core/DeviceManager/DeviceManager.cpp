@@ -543,7 +543,7 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice) 
         {
             double val = pDevice->getNamedValue(paramName.c_str(), isValid);
@@ -579,7 +579,7 @@ bool DeviceManager::setNamedValue(const char* pValueName, double value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             pDevice->setNamedValue(paramName.c_str(), value);
@@ -606,7 +606,7 @@ String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->getNamedString(paramName.c_str(), isValid);
@@ -634,7 +634,7 @@ bool DeviceManager::setNamedString(const char* pValueName, const char* value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->setNamedString(paramName.c_str(), value);
@@ -659,7 +659,7 @@ RaftRetCode DeviceManager::receiveCmdJSON(const char* cmdJSON)
 #endif
     if (deviceName.length() > 0)
     {
-        RaftDevice* pDevice = getStaticDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
         if (pDevice) {
 #ifdef DEBUG_SYSMOD_RECV_CMD_JSON
             RaftRetCode ret = pDevice->sendCmdJSON(cmdJSON);
@@ -1125,9 +1125,9 @@ uint32_t DeviceManager::getStaticDeviceListFrozen(RaftDevice** pDevices, uint32_
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Find device in device list
-/// @param pDeviceID ID of the device
+/// @param deviceID ID of the device
 /// @return pointer to device if found
-RaftDevice* DeviceManager::getStaticDevice(RaftDeviceID deviceID) const
+RaftDevice* DeviceManager::getDevice(RaftDeviceID deviceID) const
 {
     if (!RaftMutex_lock(_accessMutex, 5))
         return nullptr;
@@ -1147,13 +1147,13 @@ RaftDevice* DeviceManager::getStaticDevice(RaftDeviceID deviceID) const
 /// @brief Get device by lookup the device ID as string or configured device name
 /// @param deviceStr Device string (device ID as string or configured device name)
 /// @return pointer to device if found, nullptr otherwise
-RaftDevice* DeviceManager::getStaticDeviceByStringLookup(const String& deviceStr) const
+RaftDevice* DeviceManager::getDeviceByStringLookup(const String& deviceStr) const
 {
     // Convert the device string to a RaftDeviceID and find the device
     RaftDeviceID deviceID = RaftDeviceID::fromString(deviceStr);
     if (deviceID.isValid())
     {
-        RaftDevice* pDevice = getStaticDevice(deviceID);
+        RaftDevice* pDevice = getDevice(deviceID);
         if (pDevice)
             return pDevice;
     }

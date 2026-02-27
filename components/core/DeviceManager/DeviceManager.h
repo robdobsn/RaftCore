@@ -34,12 +34,12 @@ public:
     /// @brief Find device in device list by ID
     /// @param deviceID Device identifier
     /// @return pointer to device if found
-    RaftDevice* getStaticDevice(RaftDeviceID deviceID) const;
+    RaftDevice* getDevice(RaftDeviceID deviceID) const;
 
     /// @brief Get device by string lookup using device ID as string
     /// @param deviceStr Device ID string (ID as string)
     /// @return pointer to device if found, nullptr otherwise
-    RaftDevice* getStaticDeviceByStringLookup(const String& deviceStr) const;
+    RaftDevice* getDeviceByStringLookup(const String& deviceStr) const;
 
     /// @brief Register for device data notifications
     /// @param deviceID Device identifier
