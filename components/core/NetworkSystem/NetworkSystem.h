@@ -196,6 +196,12 @@ private:
     uint32_t _timeSyncLastMs = 0;
     static const uint32_t TIME_SYNC_INTERVAL_MS = 10*60*60*1000;
 
+    // Deferred mDNS setup (done in loop rather than event handler)
+    bool _mdnsSetupPending = false;
+    uint32_t _mdnsSetupPendingMs = 0;
+    bool _mdnsIsSetup = false;
+    static const uint32_t MDNS_SETUP_DELAY_MS = 500;
+
     // Helpers
     bool startWifi();
     void stopWifi();

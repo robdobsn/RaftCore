@@ -29,6 +29,9 @@
 #include "mdns.h"
 #endif
 
+// NetBIOS name service (for IP scanner hostname discovery)
+#include "lwip/apps/netbiosns.h"
+
 // Only for recent versions of ESP-IDF
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include "esp_netif_sntp.h"
@@ -200,6 +203,15 @@ void NetworkSystem::loop()
             }
         }
     }
+
+    // Handle deferred mDNS setup
+#ifndef NETWORK_MDNS_DISABLED
+    if (_mdnsSetupPending && Raft::isTimeout(millis(), _mdnsSetupPendingMs, MDNS_SETUP_DELAY_MS))
+    {
+        _mdnsSetupPending = false;
+        setupMDNS();
+    }
+#endif
 
     // Handle time sync
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
@@ -699,8 +711,40 @@ bool NetworkSystem::wifiScan(bool start, String& jsonResult)
 void NetworkSystem::setHostname(const char* hostname)
 {
     _hostname = hostnameMakeValid(hostname);
+
+    // Re-apply hostname to active network interfaces so DHCP hostname is updated
+    if (!_hostname.isEmpty())
+    {
+        if (_pWifiStaNetIf)
+        {
+            esp_netif_set_hostname(_pWifiStaNetIf, _hostname.c_str());
+            // Restart DHCP client to send new hostname to router
+            esp_netif_dhcpc_stop(_pWifiStaNetIf);
+            esp_netif_dhcpc_start(_pWifiStaNetIf);
+        }
+#ifdef ETHERNET_IS_ENABLED
+        // Also apply to ethernet interface if available
+        esp_netif_t* pEthNetif = esp_netif_next_unsafe(nullptr);
+        while (pEthNetif)
+        {
+            if (pEthNetif != _pWifiStaNetIf && pEthNetif != _pWifiApNetIf)
+            {
+                esp_netif_set_hostname(pEthNetif, _hostname.c_str());
+                esp_netif_dhcpc_stop(pEthNetif);
+                esp_netif_dhcpc_start(pEthNetif);
+                break;
+            }
+            pEthNetif = esp_netif_next_unsafe(pEthNetif);
+        }
+#endif
+    }
+
+    // Update NetBIOS name if it was already started
+    netbiosns_set_name(_hostname.c_str());
+
 #ifdef DEBUG_HOSTNAME_SETTING
-    LOG_I(MODULE_PREFIX, "setHostname (req %s) actual %s", hostname, _hostname.c_str());
+    LOG_I(MODULE_PREFIX, "setHostname (req %s) actual %s applied %s", hostname, _hostname.c_str(),
+                _pWifiStaNetIf ? "toNetif" : "deferredOnly");
 #endif    
 }
 
@@ -1208,9 +1252,12 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", _wifiIPV4Addr.c_str());
+        // Disable WiFi power save to ensure multicast (mDNS) packets are received
+        esp_wifi_set_ps(WIFI_PS_NONE);
 #ifndef NETWORK_MDNS_DISABLED
-        // Setup mDNS
-        setupMDNS();
+        // Defer mDNS setup to loop so network stack is fully settled
+        _mdnsSetupPending = true;
+        _mdnsSetupPendingMs = millis();
 #endif
         break;
     }
@@ -1238,8 +1285,9 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", _ethIPV4Addr.c_str());
 #ifndef NETWORK_MDNS_DISABLED
-        // Setup mDNS
-        setupMDNS();
+        // Defer mDNS setup to loop so network stack is fully settled
+        _mdnsSetupPending = true;
+        _mdnsSetupPendingMs = millis();
 #endif
         break;
     }
@@ -1254,8 +1302,9 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
 #ifndef NETWORK_MDNS_DISABLED
-        // Setup mDNS
-        setupMDNS();
+        // Defer mDNS setup to loop so network stack is fully settled
+        _mdnsSetupPending = true;
+        _mdnsSetupPendingMs = millis();
 #endif
         break;
     case IP_EVENT_PPP_LOST_IP:
@@ -1351,6 +1400,9 @@ void NetworkSystem::setupMDNS()
         return;
     }
 
+    // Set instance name (used by some discovery clients)
+    mdns_instance_name_set(_hostname.c_str());
+
     // Add service
     mdns_txt_item_t serviceTxtData[] = {
         {"board", "esp32"},
@@ -1366,4 +1418,10 @@ void NetworkSystem::setupMDNS()
     // Debug
     LOG_I(MODULE_PREFIX, "setupMDNS OK hostname %s", _hostname.c_str());
 #endif // NETWORK_MDNS_DISABLED
+
+    // Start NetBIOS name service responder so IP scanners (e.g. Advanced IP Scanner,
+    // Angry IP Scanner) can discover the device hostname via NBNS queries on UDP port 137
+    netbiosns_init();
+    netbiosns_set_name(_hostname.c_str());
+    LOG_I(MODULE_PREFIX, "NetBIOS name service started, name %s", _hostname.c_str());
 }

@@ -25,14 +25,7 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
 endif()
 
 if (NOT DEFINED NETWORK_MDNS_DISABLED)
-  set (RAFT_CORE_ADDITIONAL_SRCS 
-      "components/core/ESPMDNS/mdns.c"
-    # "components/core/ESPMDNS/mdns_networking_lwip.c"
-    "components/core/ESPMDNS/mdns_networking_socket.c"
-  )
-  set(RAFT_CORE_ADDITIONAL_INCLUDES 
-      "components/core/ESPMDNS"
-  )
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} mdns)
 else()
   add_compile_definitions(NETWORK_MDNS_DISABLED)
 endif()
@@ -160,4 +153,7 @@ idf_component_register(
   REQUIRES
     ${RAFT_CORE_REQUIRES}
 )
+
+# Enable NetBIOS name service (NBSTAT) responses so IP scanners can discover device hostnames
+idf_build_set_property(COMPILE_DEFINITIONS "LWIP_NETBIOS_RESPOND_NAME_QUERY=1" APPEND)
 
