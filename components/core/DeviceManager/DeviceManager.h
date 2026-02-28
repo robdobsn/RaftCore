@@ -36,20 +36,39 @@ public:
     /// @return pointer to device if found
     RaftDevice* getDevice(RaftDeviceID deviceID) const;
 
-    /// @brief Get device by string lookup using device ID as string
-    /// @param deviceStr Device ID string (ID as string)
+    /// @brief Get device by string lookup using device ID or config name as string
+    /// @param deviceStr Device ID as string or config device name
+    /// @param tryConfigName Whether to try config name lookup if ID lookup fails
     /// @return pointer to device if found, nullptr otherwise
-    RaftDevice* getDeviceByStringLookup(const String& deviceStr) const;
+    RaftDevice* getDevice(const String& deviceStr, bool tryConfigName = true) const;
 
-    /// @brief Register for device data notifications
+    /// @brief Register for device data notifications (note that callbacks may occur on different threads)
     /// @param deviceID Device identifier
     /// @param dataChangeCB Callback for data change
     /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
     /// @param pCallbackInfo Callback info (passed to the callback)
+    /// @param unregister true to unregister the callback instead of registering
     void registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
-            uint32_t minTimeBetweenReportsMs = DEFAULT_MIN_TIME_BETWEEN_REPORTS_MS,
-            const void* pCallbackInfo = nullptr);
+            uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);
 
+    /// @brief Register for device data notifications (note that callbacks may occur on different threads)
+    /// @param deviceTypeIndex Device type index
+    /// @param dataChangeCB Callback for data change
+    /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+    /// @param pCallbackInfo Callback info (passed to the callback)
+    /// @param unregister true to unregister the callback instead of registering
+    void registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, RaftDeviceDataChangeCB dataChangeCB,
+            uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);
+
+    /// @brief Register for device data notifications (note that callbacks may occur on different threads)
+    /// @param deviceTypeName Device type name
+    /// @param dataChangeCB Callback for data change
+    /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+    /// @param pCallbackInfo Callback info (passed to the callback)
+    /// @param unregister true to unregister the callback instead of registering
+    void registerForDeviceData(const char* deviceTypeName, RaftDeviceDataChangeCB dataChangeCB,
+            uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);            
+            
     /// @brief Register for device status changes
     /// @param statusChangeCB Callback for status change
     void registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB);
@@ -67,7 +86,7 @@ public:
     virtual bool setNamedString(const char* pValueName, const char* value) override;
 
     // JSON command routing (routes to device specified in "device" field)
-    virtual RaftRetCode receiveCmdJSON(const char* cmdJSON) override;
+    virtual RaftRetCode receiveCmdJSON(const char* cmdJSON, String* pRespStr = nullptr) override;
 
 protected:
 
@@ -107,32 +126,60 @@ private:
     class DeviceDataChangeRec
     {
     public:
+        enum class DataChangeRecType
+        {
+            DEVICE_ID,
+            DEVICE_TYPE_INDEX
+        };
+        
         DeviceDataChangeRec(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
                 uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo) :
+            recType(DataChangeRecType::DEVICE_ID),
             deviceID(deviceID),
             dataChangeCB(dataChangeCB),
             minTimeBetweenReportsMs(minTimeBetweenReportsMs),
             pCallbackInfo(pCallbackInfo)
         {
         }
+
+        DeviceDataChangeRec(DeviceTypeIndexType deviceTypeIndex, RaftDeviceDataChangeCB dataChangeCB, 
+                uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo) :
+            recType(DataChangeRecType::DEVICE_TYPE_INDEX),
+            deviceTypeIndex(deviceTypeIndex),
+            dataChangeCB(dataChangeCB),
+            minTimeBetweenReportsMs(minTimeBetweenReportsMs),
+            pCallbackInfo(pCallbackInfo)
+        {
+        }
+
+        /// @brief Check if record matches by device ID
+        bool matches(RaftDeviceID id, RaftDeviceDataChangeCB, const void* cbInfo) const
+        {
+            return recType == DataChangeRecType::DEVICE_ID &&
+                   deviceID == id && pCallbackInfo == cbInfo;
+        }
+
+        /// @brief Check if record matches by device type index
+        bool matches(DeviceTypeIndexType typeIdx, RaftDeviceDataChangeCB, const void* cbInfo) const
+        {
+            return recType == DataChangeRecType::DEVICE_TYPE_INDEX &&
+                   deviceTypeIndex == typeIdx && pCallbackInfo == cbInfo;
+        }
+
+        DataChangeRecType recType;
         RaftDeviceID deviceID;
+        DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
         RaftDeviceDataChangeCB dataChangeCB = nullptr;
         uint32_t minTimeBetweenReportsMs = 1000;
         uint32_t lastReportTime = 0;
         const void* pCallbackInfo = nullptr;
     };
 
-    // Device data change callbacks
+    // Requested device data change callbacks
+    std::list<DeviceDataChangeRec> _requestedDeviceDataChangeCBList;
 
-    // TODO does this contain callbacks for bus devices too?
-
-    std::list<DeviceDataChangeRec> _deviceDataChangeCBList;
-
-    // Device status change callbacks
-
-    // TODO does this contain callbacks for bus devices too?
-
-    std::list<RaftDeviceStatusChangeCB> _deviceStatusChangeCBList;
+    // Requested device status change callbacks
+    std::list<RaftDeviceStatusChangeCB> _requestedDeviceStatusChangeCBList;
 
     /// @brief Setup device instances
     /// @param pConfigPrefix Prefix for configuration
@@ -196,18 +243,13 @@ private:
     /// @brief Handle devman/busname
     RaftRetCode apiDevManBusName(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
-    /// @brief Resolve a RaftDeviceID and RaftBus pointer from API params.
-    /// Accepts either a "deviceid" field (canonical busNum_hexaddr string) or
-    /// both a "bus" field (bus name or number) and an "addr" field (hex address).
-    /// On failure, sets respStr to a JSON error and returns a non-OK RaftRetCode.
-    /// @param reqStr Original request string (used for error responses)
-    /// @param respStr (out) Response string filled on error
-    /// @param jsonParams Parsed JSON parameters from the API call
-    /// @param deviceID (out) Resolved RaftDeviceID
-    /// @param pBus (out) Resolved RaftBus pointer
-    /// @return RAFT_OK on success, error code on failure
-    RaftRetCode resolveDeviceIDAndBus(const String& reqStr, String& respStr, const RaftJson& jsonParams,
-                                      RaftDeviceID& deviceID, RaftBus*& pBus);
+    /// @brief Resolve a RaftDeviceID and RaftBus pointer from API params ("deviceid" OR "bus"+"addr")
+    /// @param jsonParams JSON object containing the parameters for the command, expected to have ("bus" and "addr"), "deviceid" or "device" fields
+    /// @param deviceID (out) resolved RaftDeviceID
+    /// @param pBus (out) resolved RaftBus pointer (can be null if deviceID is for a static device or if bus not found)
+    /// @param respStr (out) response string to be filled with error message if resolution fails
+    /// @return RaftRetCode indicating
+    RaftRetCode resolveDeviceIDAndBus(const RaftJson& jsonParams, RaftDeviceID& deviceID, RaftBus*& pBus, String& respStr);
 
     /// @brief Callback for command results
     /// @param reqResult Result of the command
@@ -240,10 +282,9 @@ private:
     /// @param recList List of temporary records
     void getDeviceDataChangeRecTmp(std::list<DeviceDataChangeRecTmp>& recList);
 
-    /// @brief Register for device data change callbacks
-    /// @param deviceID ID of device (isAnyDevice() true for all devices)
+    /// @brief Post setup helper - register for device data change callbacks
     /// @return number of devices registered for data change callbacks
-    uint32_t registerForDeviceDataChangeCBs(RaftDeviceID deviceID);
+    uint32_t postSetupRegisterDataCBs();
 
     /// @brief Device event callback
     /// @param device Device

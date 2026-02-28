@@ -88,7 +88,7 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
             .allow_pd = config.allowPowerDown,              // Allow power down (save context to RAM)
 #endif
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
             .init_level = false,                            // Initial level 
 #endif
         },

@@ -63,6 +63,13 @@ public:
         return configuredDeviceType;
     }
 
+    /// @brief Get the publish device type for the device (used in published messages)]
+    /// @return Configured device type as a string
+    [[deprecated("Use newMethod() instead")]] String getPublishDeviceType() const
+    {
+        return getConfiguredDeviceType();
+    }
+
     /// @brief Get the configured device name
     /// @return Configured device name as a string
     virtual String getConfiguredDeviceName() const

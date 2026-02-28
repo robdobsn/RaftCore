@@ -660,6 +660,7 @@ void SysManager::notifyOfShutdown(bool isRestart, const char* reasonOrNull)
 /// @brief Send command to one or all SysMods
 /// @param sysModName Name of SysMod to send command to or nullptr for all SysMods
 /// @param cmdJSON Command JSON string
+/// @param pResponseJSON Optional pointer to string to receive response JSON from the SysMod (if supported)
 /// @return Result code
 /// @note The command JSON string should be in the format:
 ///       {"cmd":"<command>",...other args...}
@@ -667,7 +668,7 @@ void SysManager::notifyOfShutdown(bool isRestart, const char* reasonOrNull)
 ///       to be passed to the command handler.
 ///       The command will be sent to the SysMod's command handler.
 ///       The SysMod should handle the command and return a result.
-RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
+RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON, String* pResponseJSON)
 {
     // Check if SysMod name is null or empty
     if (sysModName == nullptr || sysModName[0] == '\0')
@@ -678,7 +679,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
         {
             if (pSysMod)
             {
-                RaftRetCode tmpRslt = pSysMod->receiveCmdJSON(cmdJSON);
+                RaftRetCode tmpRslt = pSysMod->receiveCmdJSON(cmdJSON, pResponseJSON);
                 if (rslt == RAFT_OK)
                     rslt = tmpRslt;
             }
@@ -696,6 +697,8 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
     {
         // Send report
         sendReportMessage(cmdJSON);
+        if (pResponseJSON)
+            *pResponseJSON = "{\"result\":\"ok\"}";
         return RAFT_OK;
     }
     
@@ -706,7 +709,7 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 #ifdef DEBUG_SEND_CMD_JSON_PERF
         uint64_t foundSysModUs = micros();
 #endif
-        RaftRetCode rslt = pSysMod->receiveCmdJSON(cmdJSON);
+        RaftRetCode rslt = pSysMod->receiveCmdJSON(cmdJSON, pResponseJSON);
 
 #ifdef DEBUG_SEND_CMD_JSON_PERF
         LOG_I(MODULE_PREFIX, "sendCmdJSON %s rslt %s found in %dus exec time %dus", 
@@ -717,6 +720,8 @@ RaftRetCode SysManager::sendCmdJSON(const char* sysModName, const char* cmdJSON)
 #ifdef DEBUG_SEND_CMD_JSON_PERF
     LOG_I(MODULE_PREFIX, "getHWElemByName %s NOT found in %dus", sysModName, int(micros() - startUs));
 #endif
+    if (pResponseJSON)
+        *pResponseJSON = "{\"result\":\"SysMod not found\"}";
     return RAFT_INVALID_OPERATION;
 }
 

@@ -44,6 +44,7 @@ public:
     /// @brief Send command to one or all SysMods
     /// @param pSysModNameOrNullForAll Name of SysMod to send command to or nullptr for all SysMods
     /// @param cmdJSON Command JSON string
+    /// @param pResponseJSON Optional pointer to string to receive response JSON from the SysMod (if supported)
     /// @return Result code
     /// @note The command JSON string should be in the format:
     ///       {"cmd":"<command>",...other args...}
@@ -51,7 +52,7 @@ public:
     ///       to be passed to the command handler.
     ///       The command will be sent to the SysMod's command handler.
     ///       The SysMod should handle the command and return a result.
-    virtual RaftRetCode sendCmdJSON(const char* pSysModNameOrNullForAll, const char* cmdJSON) = 0;
+    virtual RaftRetCode sendCmdJSON(const char* pSysModNameOrNullForAll, const char* cmdJSON, String* pResponseJSON = nullptr) = 0;
 
     /// @brief Register data source (message generator functions)
     /// @param pSysModName Name of SysMod

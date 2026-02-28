@@ -157,6 +157,7 @@ public:
 
     /// @brief Receive JSON command to be processed by the SysMod
     /// @param cmdJSON Command JSON string
+    /// @param pRespStr Optional response string pointer (can be used to return a response message)
     /// @return Result code
     /// @note The command JSON string should be in the format:
     ///       {"cmd":"<command>",...other args...}
@@ -164,7 +165,7 @@ public:
     ///       to be passed to the command handler.
     ///       This will be called by the SysManager when a command is sent to this SysMod. It should be implemented by derived
     ///       classes to handle the command.
-    virtual RaftRetCode receiveCmdJSON(const char* cmdJSON)
+    virtual RaftRetCode receiveCmdJSON(const char* cmdJSON, String* pRespStr = nullptr)
     {
         return RaftRetCode::RAFT_INVALID_OPERATION;
     }

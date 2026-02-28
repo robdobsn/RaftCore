@@ -20,10 +20,11 @@
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND
 #define WARN_ON_DEVICE_INSTANTIATION_FAILED
 #define WARN_ON_SETUP_DEVICE_FAILED
+#define WARN_SYSMOD_RECV_CMD_JSON
 
 // Debug
-#define DEBUG_BUS_OPERATION_STATUS_OK_CB
-#define DEBUG_BUS_ELEMENT_STATUS_CHANGES
+// #define DEBUG_BUS_OPERATION_STATUS_OK_CB
+// #define DEBUG_BUS_ELEMENT_STATUS_CHANGES
 // #define DEBUG_DEVICE_SETUP
 // #define DEBUG_DEVICE_FACTORY
 // #define DEBUG_LIST_DEVICES
@@ -37,8 +38,8 @@
 // #define DEBUG_API_CMDRAW
 // #define DEBUG_SYSMOD_GET_NAMED_VALUE
 // #define DEBUG_SYSMOD_RECV_CMD_JSON
-#define DEBUG_LOOP_SHOW_DEVICES_INTERVAL_MS 1000
-#define DEBUG_DEVICE_CONFIG_API
+// #define DEBUG_LOOP_SHOW_DEVICES_INTERVAL_MS 1000
+// #define DEBUG_DEVICE_CONFIG_API
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -114,7 +115,7 @@ void DeviceManager::postSetup()
 #ifdef DEBUG_DEVICE_SETUP
     uint32_t numDevCBsRegistered = 
 #endif
-    registerForDeviceDataChangeCBs(RaftDeviceID::BUS_NUM_ALL_DEVICES_ANY_BUS);
+    postSetupRegisterDataCBs();
 
     // Register for device events
     for (uint32_t devIdx = 0; devIdx < numDevices; devIdx++)
@@ -199,6 +200,35 @@ void DeviceManager::busOperationStatusCB(RaftBus& bus, BusOperationStatus busOpe
 /// @param statusChanges - an array of status changes (online/offline) for bus elements
 void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatus>& statusChanges)
 {
+    // Check if the deviceID or deviceTypeIndex of any of the status changes matches a registered device data change callback and if so 
+    // register with the bus devices interface to receive data updates for the relevant device data change callbacks
+    for (const BusAddrStatus& addrStatus : statusChanges)
+    {
+        // Check the device is online
+        if (addrStatus.onlineState != DeviceOnlineState::ONLINE)
+            continue;
+
+        // Get the devices interface for the bus and if it exists register for device data updates for the deviceID of the bus element with the status change
+        RaftBusDevicesIF* pBusDevicesIF = bus.getBusDevicesIF();
+        if (!pBusDevicesIF)
+            continue;
+
+        // Iterate the registered device data change callbacks to see if any match the deviceID or deviceTypeIndex of the bus element with the status change
+        for (const DeviceDataChangeRec& rec : _requestedDeviceDataChangeCBList)
+        {
+            // Check if the record matches the deviceID or deviceTypeIndex of the bus element with the status change
+            bool registerForData = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID) && 
+                        (rec.deviceID.getBusNum() == bus.getBusNum()) && 
+                        (rec.deviceID.getAddress() == addrStatus.address);
+            registerForData |= (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_TYPE_INDEX) && 
+                        (rec.deviceTypeIndex == addrStatus.deviceTypeIndex);
+            if (registerForData)
+            {
+                pBusDevicesIF->registerForDeviceData(rec.deviceID.getAddress(), rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo);
+            }
+        }
+    }
+
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
     LOG_I(MODULE_PREFIX, "busElemStatusCB bus %s numChanges %d", bus.getBusName().c_str(), statusChanges.size());
 #endif
@@ -530,10 +560,9 @@ String DeviceManager::getDebugJSON() const
 /// @param pValueName Name in format "DeviceName.paramName"
 /// @param isValid (out) true if value is valid
 /// @return double value
+/// @note This only supports static devices at the moment (i.e. devices defined in config and created in setupStaticDevices)
 double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
 {
-    // TODO - this only supports static devices ...
-
     if (!pValueName)
         return 0.0;
     // Parse valueName as "deviceName.paramName"
@@ -543,7 +572,7 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice) 
         {
             double val = pDevice->getNamedValue(paramName.c_str(), isValid);
@@ -566,9 +595,9 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
 /// @param pValueName Name in format "DeviceName.paramName"
 /// @param value Value to set
 /// @return true if set successfully
+/// @note This only supports static devices (i.e. devices defined in config and created in setupStaticDevices)
 bool DeviceManager::setNamedValue(const char* pValueName, double value)
 {
-    // TODO - this only supports static devices ...
 
     if (!pValueName)
          return false;
@@ -579,11 +608,11 @@ bool DeviceManager::setNamedValue(const char* pValueName, double value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice)
         {
             pDevice->setNamedValue(paramName.c_str(), value);
-            return false;
+            return true;
         }
     }
     return false;
@@ -606,7 +635,7 @@ String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->getNamedString(paramName.c_str(), isValid);
@@ -621,9 +650,9 @@ String DeviceManager::getNamedString(const char* pValueName, bool& isValid)
 /// @param pValueName Name in format "DeviceName.paramName"
 /// @param value Value to set
 /// @return true if set successfully
+/// @note This only supports static devices (i.e. devices defined in config and created in setupStaticDevices)
 bool DeviceManager::setNamedString(const char* pValueName, const char* value)
 {
-    // TODO - this only supports static devices ...
     if(!pValueName || !value)
         return false;
 
@@ -634,7 +663,7 @@ bool DeviceManager::setNamedString(const char* pValueName, const char* value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
+        RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice)
         {
             return pDevice->setNamedString(paramName.c_str(), value);
@@ -646,38 +675,56 @@ bool DeviceManager::setNamedString(const char* pValueName, const char* value)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Receive JSON command and route to device
 /// @param cmdJSON JSON command with optional "device" field
+/// @param pRespStr (optional) pointer to string to receive response (if nullptr then response is not returned)
 /// @return RaftRetCode
-RaftRetCode DeviceManager::receiveCmdJSON(const char* cmdJSON)
+RaftRetCode DeviceManager::receiveCmdJSON(const char* cmdJson, String* pRespStr)
 {
-    // TODO - maybe need to handle bus devices in here?
-
-    // Parse cmdJSON to extract device name
-    RaftJson json(cmdJSON);
-    String deviceName = json.getString("device", "");
-#ifdef DEBUG_SYSMOD_RECV_CMD_JSON
-    LOG_I("DeviceManager", "[DEBUG] receiveCmdJSON: device=%s, json=%s", deviceName.c_str(), cmdJSON);
-#endif
-    if (deviceName.length() > 0)
+    // Get the deviceID and bus
+    RaftDeviceID deviceID;
+    RaftBus* pBus = nullptr;
+    String errorStr;
+    RaftJson cmdJsonObj(cmdJson);
+    RaftRetCode retc = resolveDeviceIDAndBus(cmdJsonObj, deviceID, pBus, errorStr);
+    if (retc != RAFT_OK)
     {
-        RaftDevice* pDevice = getDeviceByStringLookup(deviceName.c_str());
-        if (pDevice) {
-#ifdef DEBUG_SYSMOD_RECV_CMD_JSON
-            RaftRetCode ret = pDevice->sendCmdJSON(cmdJSON);
-            LOG_I("DeviceManager", "[DEBUG] sendCmdJSON result: %d", ret);
-            return ret;
-#else
-            return pDevice->sendCmdJSON(cmdJSON);
-#endif
-        }
-#ifdef DEBUG_SYSMOD_RECV_CMD_JSON
-        LOG_W("DeviceManager", "[DEBUG] receiveCmdJSON failed: device not found (%s)", deviceName.c_str());
-#endif
-        return RAFT_INVALID_OBJECT;
+        if (pRespStr)
+            *pRespStr = errorStr;
+        return retc;
     }
+
+    // Get static device if present
+    RaftDevice* pDevice = getDevice(deviceID);
+    if (pDevice) 
+    {
+        RaftRetCode ret = pDevice->sendCmdJSON(cmdJson);
 #ifdef DEBUG_SYSMOD_RECV_CMD_JSON
-    LOG_W("DeviceManager", "[DEBUG] receiveCmdJSON failed: no device specified");
+        LOG_I("DeviceManager", "receiveCmdJSON result: %d", ret);
+#else
+        return ret;
+#endif
+    }
+
+    // Send to bus if bus specified and device not found or device is on a bus
+    if (pBus)
+    {
+        RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+        if (pDevicesIF)
+        {
+            RaftRetCode ret = pDevicesIF->sendCmdToDevice(deviceID, cmdJson, pRespStr);
+
+#ifdef DEBUG_SYSMOD_RECV_CMD_JSON
+            LOG_I("DeviceManager", "receiveCmdJSON bus result: %d", ret);
+#endif
+            return ret;
+        }
+    }
+
+#ifdef WARN_SYSMOD_RECV_CMD_JSON
+    LOG_W("DeviceManager", "receiveCmdJSON failed: no device specified");
 #endif
     // No device specified, not handled
+    if (pRespStr)
+        *pRespStr = "failNoDeviceSpecified";
     return RAFT_INVALID_OPERATION;
 }
 
@@ -771,39 +818,62 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Resolve a RaftDeviceID and RaftBus pointer from API params ("deviceid" OR "bus"+"addr")
-RaftRetCode DeviceManager::resolveDeviceIDAndBus(const String& reqStr, String& respStr, const RaftJson& jsonParams,
-                                                  RaftDeviceID& deviceID, RaftBus*& pBus)
+/// @param jsonParams JSON object containing the parameters for the command, expected to have ("bus" and "addr"), "deviceid" or "device" fields
+/// @param deviceID (out) resolved RaftDeviceID
+/// @param pBus (out) resolved RaftBus pointer (can be null if deviceID is for a static device or if bus not found)
+/// @param respStr (out) response string to be filled with error message if resolution fails
+/// @return RaftRetCode indicating
+RaftRetCode DeviceManager::resolveDeviceIDAndBus(const RaftJson& jsonParams, RaftDeviceID& deviceID, RaftBus*& pBus, String& respStr)
 {
-    String deviceIdStr = jsonParams.getString("deviceid", "");
-    if (deviceIdStr.length() != 0)
+    // Check for device name for static devices
+    pBus = nullptr;
+    deviceID = RaftDeviceID::INVALID;
+    String deviceName = jsonParams.getString("device", "");
+    if (deviceName.length() != 0)
     {
-        deviceID = RaftDeviceID::fromString(deviceIdStr.c_str());
-    }
-    else
-    {
-        String addrStr = jsonParams.getString("addr", "");
-        if (addrStr.length() == 0)
-            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failAddrMissing");
-
-        String busName = jsonParams.getString("bus", "");
-        if (busName.length() == 0)
-            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusMissing");
-
-        RaftBus* pBusForName = raftBusSystem.getBusByName(busName, true);
-        if (!pBusForName)
-            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
-
-        deviceID = RaftDeviceID(pBusForName->getBusNum(), RaftDeviceID::fromString(addrStr.c_str()).getAddress());
+        RaftDevice* pDevice = getDevice(deviceName.c_str());
+        if (pDevice)
+            deviceID = pDevice->getDeviceID();
     }
 
+    // Check for deviceid param
     if (!deviceID.isValid())
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidDeviceID");
+    {
+        String deviceIdStr = jsonParams.getString("deviceid", deviceName.c_str());
+        if (deviceIdStr.length() != 0)
+        {
+            deviceID = RaftDeviceID::fromString(deviceIdStr.c_str());
+        }
+        else
+        {
+            // Get address
+            String addrStr = jsonParams.getString("addr", "");
+            if (addrStr.length() == 0)
+                respStr = "failAddrMissing";
 
-    pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
-    if (!pBus)
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+            // Get bus name
+            String busName = jsonParams.getString("bus", "");
+            if (busName.length() == 0)
+                respStr = "failBusMissing";
 
-    return RAFT_OK;
+            // Get bus
+            if (respStr.length() == 0)
+            {
+                RaftBus* pBusForName = raftBusSystem.getBusByName(busName, true);
+                if (!pBusForName)
+                    respStr = "failBusNotFound";
+                else
+                    deviceID = RaftDeviceID(pBusForName->getBusNum(), RaftDeviceID::fromString(addrStr.c_str()).getAddress());
+            }
+        }
+   }
+
+    // Check deviceID is valid
+    if (!deviceID.isValid())
+        respStr = "failInvalidDeviceID";
+    else 
+        pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+    return respStr.length() == 0 ? RAFT_OK : RAFT_INVALID_OPERATION;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -820,24 +890,27 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     // Resolve deviceID and bus from params
     RaftDeviceID deviceID;
     RaftBus* pBus = nullptr;
-    RaftRetCode retc = resolveDeviceIDAndBus(reqStr, respStr, jsonParams, deviceID, pBus);
+    String errorStr;
+    RaftRetCode retc = resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr);
     if (retc != RAFT_OK)
-        return retc;
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
 
     // Data to write and number of bytes to read
     String hexWriteData = jsonParams.getString("hexWr", "");
     int numBytesToRead = jsonParams.getLong("numToRd", 0);
 
-
+    // Convert hex string to byte vector
     uint32_t numBytesToWrite = hexWriteData.length() / 2;
     std::vector<uint8_t> writeVec;
     writeVec.resize(numBytesToWrite);
     uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeVec.data(), numBytesToWrite);
     writeVec.resize(writeBytesLen);
 
+    // Create hardware element request
     static const uint32_t CMDID_CMDRAW = 100;
     HWElemReq hwElemReq = {writeVec, numBytesToRead, CMDID_CMDRAW, "cmdraw", 0};
 
+    // Create bus request info with callback to receive response
     BusRequestInfo busReqInfo("", deviceID.getAddress());
     busReqInfo.set(BUS_REQ_TYPE_STD, hwElemReq, 0,
             [](void* pCallbackData, BusRequestResult& reqResult)
@@ -858,6 +931,7 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
                     outStr.c_str());
 #endif
 
+    // Send request to bus
     bool rslt = pBus->addRequest(busReqInfo);
     if (!rslt)
         LOG_W(MODULE_PREFIX, "apiHWDevice failed send raw command");
@@ -960,9 +1034,10 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
     // Resolve deviceID and bus from params
     RaftDeviceID deviceID;
     RaftBus* pBus = nullptr;
-    RaftRetCode retc = resolveDeviceIDAndBus(reqStr, respStr, jsonParams, deviceID, pBus);
+    String errorStr;
+    RaftRetCode retc = resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr);
     if (retc != RAFT_OK)
-        return retc;
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
     BusElemAddrType addr = deviceID.getAddress();
 
     // Check if poll interval is provided
@@ -1049,40 +1124,71 @@ RaftRetCode DeviceManager::apiDevManBusName(const String &reqStr, String &respSt
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Callback for command result reports
-/// @param reqResult Result of the bus request
-void DeviceManager::cmdResultReportCallback(BusRequestResult &reqResult)
-{
-#ifdef DEBUG_CMD_RESULT
-    LOG_I(MODULE_PREFIX, "cmdResultReportCallback len %d", reqResult.getReadDataLen());
-    Raft::logHexBuf(reqResult.getReadData(), reqResult.getReadDataLen(), MODULE_PREFIX, "cmdResultReportCallback");
-#endif
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Register for device data notifications (note that callbacks may occur on different threads)
 /// @param deviceID Device identifier
 /// @param dataChangeCB Callback for data change
 /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
-/// @param pCallbackInfo Callback info (passed to the callback)
+/// @param pCallbackInfo Optional callback info (passed to the callback)
+/// @param unregister true to unregister the callback instead of registering
 void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
-        uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
+        uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo, bool unregister)
 {
     // Add to requests for device data changes
-    _deviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
-
-    // Debug
-    bool found = false;
-    for (auto& rec : _deviceDataChangeCBList)
+    if (unregister)
     {
-        if (rec.deviceID == deviceID)
-        {
-            found = true;
-            break;
-        }
+        // Remove matching record from the list
+        _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
+            return rec.matches(deviceID, dataChangeCB, pCallbackInfo);
+        });
+        return;
     }
-    LOG_I(MODULE_PREFIX, "registerForDeviceData %s %s minTime %dms", 
-        deviceID.toString().c_str(), found ? "OK" : "DEVICE_NOT_PRESENT", minTimeBetweenReportsMs);
+    _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Register for device data notifications (note that callbacks may occur on different threads)
+/// @param deviceTypeIndex Device type index
+/// @param dataChangeCB Callback for data change
+/// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+/// @param pCallbackInfo Optional callback info (passed to the callback)
+/// @param unregister true to unregister the callback instead of registering
+void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, RaftDeviceDataChangeCB dataChangeCB,
+        uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo, bool unregister)
+{
+    if (unregister)
+    {
+        // Remove matching record from the list
+        _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
+            return rec.matches(deviceTypeIndex, dataChangeCB, pCallbackInfo);
+        });
+        return;
+    }
+    // Add to requests for device data changes
+    _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Register for device data notifications (note that callbacks may occur on different threads)
+/// @param deviceTypeName Device type name
+/// @param dataChangeCB Callback for data change
+/// @param minTimeBetweenReportsMs Minimum time between reports (ms)
+/// @param pCallbackInfo Optional callback info (passed to the callback)
+/// @param unregister true to unregister the callback instead of registering
+void DeviceManager::registerForDeviceData(const char* deviceTypeName, RaftDeviceDataChangeCB dataChangeCB,
+        uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo, bool unregister)
+{
+    // Get device type index for the device type name
+    DeviceTypeRecord devTypeRec;
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    deviceTypeRecords.getDeviceInfo(String(deviceTypeName), devTypeRec, deviceTypeIndex);
+    if (deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID)
+    {
+        LOG_W(MODULE_PREFIX, "registerForDeviceData failed: invalid device type name %s", deviceTypeName);
+        return;
+    }
+
+    // Add to requests for device data changes
+    registerForDeviceData(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo, unregister);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1091,7 +1197,7 @@ void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataC
 void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB)
 {
     // Add to requests for device status changes
-    _deviceStatusChangeCBList.push_back(statusChangeCB);
+    _requestedDeviceStatusChangeCBList.push_back(statusChangeCB);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1146,8 +1252,9 @@ RaftDevice* DeviceManager::getDevice(RaftDeviceID deviceID) const
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device by lookup the device ID as string or configured device name
 /// @param deviceStr Device string (device ID as string or configured device name)
+/// @param tryConfigName Whether to try config name lookup if ID lookup fails
 /// @return pointer to device if found, nullptr otherwise
-RaftDevice* DeviceManager::getDeviceByStringLookup(const String& deviceStr) const
+RaftDevice* DeviceManager::getDevice(const String& deviceStr, bool tryConfigName) const
 {
     // Convert the device string to a RaftDeviceID and find the device
     RaftDeviceID deviceID = RaftDeviceID::fromString(deviceStr);
@@ -1184,7 +1291,7 @@ void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddr
     // Obtain a lock & make a copy of the device status change callbacks
     if (!RaftMutex_lock(_accessMutex, 5))
         return;
-    std::vector<RaftDeviceStatusChangeCB> statusChangeCallbacks(_deviceStatusChangeCBList.begin(), _deviceStatusChangeCBList.end());
+    std::vector<RaftDeviceStatusChangeCB> statusChangeCallbacks(_requestedDeviceStatusChangeCBList.begin(), _requestedDeviceStatusChangeCBList.end());
     RaftMutex_unlock(_accessMutex);
 
     // Call the device status change callbacks
@@ -1195,30 +1302,30 @@ void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddr
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Register for device data change callbacks
-/// @param deviceID ID of device (isAnyDevice() true for all devices)
+/// @brief Post setup helper - register for device data change callbacks
 /// @return number of devices registered for data change callbacks
-uint32_t DeviceManager::registerForDeviceDataChangeCBs(RaftDeviceID deviceID)
+uint32_t DeviceManager::postSetupRegisterDataCBs()
 {
     // Get mutex
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
     // Create a vector of devices for the device data change callbacks
     std::vector<DeviceDataChangeRecTmp> deviceListForDataChangeCB;
-    for (auto& rec : _deviceDataChangeCBList)
+    for (auto& rec : _requestedDeviceDataChangeCBList)
     {
-        // Check if the device name matches (if specified)
-        if (!deviceID.isAnyDevice() && (rec.deviceID != deviceID))
-            continue;
-            
-        // Find device
+        // Check if the record matches a deviceID or deviceTypeIndex in the static device list
         RaftDevice* pDevice = nullptr;
         for (auto& devRec : _staticDeviceList)
         {
             if (!devRec.pDevice)
                 continue;
-            if (rec.deviceID != devRec.pDevice->getDeviceID())
+            if ((rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID) && (rec.deviceID == devRec.pDevice->getDeviceID()))
+            {
+                pDevice = devRec.pDevice;
+                break;
+            }
+            else if ((rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_TYPE_INDEX) && (rec.deviceTypeIndex == devRec.pDevice->getDeviceTypeIndex()))
             {
                 pDevice = devRec.pDevice;
                 break;
@@ -1230,7 +1337,7 @@ uint32_t DeviceManager::registerForDeviceDataChangeCBs(RaftDeviceID deviceID)
     }
     RaftMutex_unlock(_accessMutex);
 
-    // Check for any device data change callbacks
+    // Handle the found devices - register for device data notifications
     for (auto& cbRec : deviceListForDataChangeCB)
     {
         // Register for device data notification from the device
@@ -1262,4 +1369,15 @@ void DeviceManager::deviceEventCB(RaftDevice& device, const char* eventName, con
         "SysMan",
         cmdStr.c_str()
     );
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Callback for command results
+/// @param reqResult Result of the command
+void DeviceManager::cmdResultReportCallback(BusRequestResult& reqResult)
+{
+#ifdef DEBUG_CMD_RESULT_CALLBACK
+    LOG_I(MODULE_PREFIX, "cmdResultReportCallback len %d", reqResult.getReadDataLen());
+    Raft::logHexBuf(reqResult.getReadData(), reqResult.getReadDataLen(), MODULE_PREFIX, "cmdResultReportCallback");
+#endif
 }

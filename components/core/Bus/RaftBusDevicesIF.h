@@ -110,6 +110,18 @@ public:
     {
     }
 
+    /// @brief Send command to device on bus
+    /// @param cmdJSON Command JSON string
+    /// @param respMsg (out) response message from the device
+    /// @return Result code
+    /// @note The JSON string should include:
+    ///       - "hexWr": hex string of data to write to the device
+    ///       - "numToRd": number of bytes to read from the device (optional)
+    virtual RaftRetCode sendCmdToDevice(RaftDeviceID deviceID, const char* cmdJSON, String* respMsg)
+    {
+        return RaftRetCode::RAFT_NOT_IMPLEMENTED;
+    }
+
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get debug JSON
     /// @return JSON string

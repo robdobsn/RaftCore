@@ -40,14 +40,14 @@ public:
     // Starting number for regular buses (for devices on a bus)
     static const uint32_t BUS_NUM_FIRST_BUS = 1;
 
-    // Special value for bus number (for devices on any bus)
-    static const uint32_t BUS_NUM_ALL_DEVICES_ANY_BUS = UINT32_MAX;
+    // All devices on any bus (used for callbacks that apply to all devices)
+    static const uint32_t ALL_DEVICES_ANY_BUS = UINT32_MAX;
 
-    // Special value for an "invalid" bus number (used for invalid IDs)
-    static const uint32_t BUS_NUM_INVALID = UINT32_MAX - 1;
+    // Special value for an "invalid ID" (e.g. for uninitialized devices)
+    static const uint32_t INVALID = UINT32_MAX - 1;
 
     /// @brief Constructor
-    RaftDeviceID(BusNumType busNum = BUS_NUM_INVALID, BusElemAddrType address = 0) : 
+    RaftDeviceID(BusNumType busNum = RaftDeviceID::INVALID, BusElemAddrType address = 0) : 
         busNum(busNum), address(address)
     {
     }
@@ -56,14 +56,14 @@ public:
     /// @return true if valid    
     bool isValid() const
     {
-        return busNum != BUS_NUM_INVALID;
+        return busNum != RaftDeviceID::INVALID;
     }
 
     /// @brief Check if this is an "any device" ID
     /// @return true if so
     bool isAnyDevice() const
     {
-        return (busNum == BUS_NUM_ALL_DEVICES_ANY_BUS);
+        return (busNum == RaftDeviceID::ALL_DEVICES_ANY_BUS);
     }
 
     /// @brief Equality operator
@@ -101,10 +101,10 @@ public:
     {
         if (str.equalsIgnoreCase("ANY"))
         {
-            return RaftDeviceID(BUS_NUM_ALL_DEVICES_ANY_BUS, 0);
+            return RaftDeviceID(RaftDeviceID::ALL_DEVICES_ANY_BUS, 0);
         }
         String addressStr = str;
-        BusNumType busNum = BUS_NUM_DIRECT_CONN;
+        BusNumType busNum = RaftDeviceID::BUS_NUM_DIRECT_CONN;
         int underscoreIndex = str.indexOf('_');
         if (underscoreIndex > 0)
         {                
@@ -137,7 +137,7 @@ public:
     }
 
 private:
-    BusNumType busNum = BUS_NUM_INVALID;
+    BusNumType busNum = RaftDeviceID::INVALID;
     BusElemAddrType address = 0;
 };
 
