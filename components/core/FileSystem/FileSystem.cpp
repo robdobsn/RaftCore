@@ -16,12 +16,18 @@
 #include <dirent.h>
 
 #if !defined(__linux__)
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
 #include "esp_spiffs.h"
+#endif
+#ifndef RAFT_FILESYSTEM_FATSD_DISABLED
 #include "esp_vfs_fat.h"
+#endif
 #include "esp_err.h"
+#ifndef RAFT_FILESYSTEM_FATSD_DISABLED
 #include "driver/sdmmc_host.h"
 #include "driver/sdmmc_defs.h"
 #include "driver/sdspi_host.h"
+#endif
 #include "esp_idf_version.h"
 #include "ConfigPinMap.h"
 #include "SpiramAwareAllocator.h"
@@ -144,9 +150,13 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
     if (_localFsType == LOCAL_FS_LITTLEFS)
         ret = esp_littlefs_format(_fsPartitionName.c_str());
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
     else
 #endif
+#endif
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
         ret = esp_spiffs_format(NULL);
+#endif
     // enableCore0WDT();
     Raft::setJsonBoolResult("reformat", respStr, ret == ESP_OK);
     LOG_W(MODULE_PREFIX, "Reformat result %s", (ret == ESP_OK ? "OK" : "FAIL"));
@@ -1100,12 +1110,14 @@ void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
     }
 #endif
 
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
     // Try SPIFFS next (with format if corrupt false)
     if (localFileSystemSetupSPIFFS(false))
     {
         LOG_I(MODULE_PREFIX, "localFileSystemSetup SPIFFS initialised ok");
         return;
     }
+#endif
 
     // If format if corrupt is false then we are done and FS can't be mounted
     if (!formatIfCorrupt)
@@ -1116,6 +1128,7 @@ void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
     }
 
     // Now try default FS with format if corrupt true
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
     if (_localFsType == LOCAL_FS_SPIFFS)
     {
         if (localFileSystemSetupSPIFFS(true))
@@ -1125,15 +1138,16 @@ void FileSystem::localFileSystemSetup(bool formatIfCorrupt)
         }
     }
     else
+#endif
     {
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
         if (localFileSystemSetupLittleFS(true))
         {
             LOG_I(MODULE_PREFIX, "localFileSystemSetup LittleFS formmatted ok");
             return;
-    }
-    }
+        }
 #endif
+    }
 
     // Failed
     _localFsType = LOCAL_FS_DISABLE;
@@ -1230,6 +1244,8 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
 // Setup local file system - SPIFFS
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
+
 #if defined(__linux__)
 
 bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
@@ -1316,9 +1332,13 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
 
 #endif  // __linux__ / ESP32 SPIFFS setup
 
+#endif  // RAFT_FILESYSTEM_SPIFFS_DISABLED
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup SD file system
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifndef RAFT_FILESYSTEM_FATSD_DISABLED
 
 #if defined(__linux__)
 
@@ -1466,6 +1486,15 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
 }
 
 #endif  // __linux__ / ESP32 SD setup
+
+#else  // RAFT_FILESYSTEM_FATSD_DISABLED
+
+bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin)
+{
+    return false;
+}
+
+#endif  // RAFT_FILESYSTEM_FATSD_DISABLED
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Convert cached file system info to JSON
@@ -1635,9 +1664,13 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
         if (_localFsType == LOCAL_FS_LITTLEFS)
             ret = esp_littlefs_info(_fsPartitionName.c_str(), &sizeBytes, &usedBytes);
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
         else
 #endif
+#endif
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
             ret = esp_spiffs_info(_fsPartitionName.c_str(), &sizeBytes, &usedBytes);
+#endif
         if (ret != ESP_OK)
         {
             RaftMutex_unlock(_fileSysMutex);
@@ -1650,6 +1683,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
         cachedFs.fsUsedBytes = usedBytes;
         cachedFs.isSizeInfoValid = true;
     }
+#ifndef RAFT_FILESYSTEM_FATSD_DISABLED
     else if (fsName == SD_FILE_SYSTEM_NAME)
     {
         // Get size info
@@ -1671,6 +1705,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
             cachedFs.isSizeInfoValid = true;
         }
     }
+#endif
     RaftMutex_unlock(_fileSysMutex);
     uint32_t debugGetFsInfoMs = millis() - debugStartMs;
     LOG_I(MODULE_PREFIX, "fileSysInfoUpdateCache timing fsInfo %dms", debugGetFsInfoMs);

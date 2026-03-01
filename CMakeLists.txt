@@ -10,14 +10,28 @@ set(RAFT_CORE_REQUIRES
   nvs_flash
   driver
   vfs
-  spiffs
-  fatfs
-  sdmmc
   esp_wifi
-  esp_eth
   esp_timer
   esp_app_format
 )
+
+if (NOT DEFINED RAFT_FILESYSTEM_SPIFFS_DISABLED)
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} spiffs)
+else()
+  add_compile_definitions(RAFT_FILESYSTEM_SPIFFS_DISABLED)
+endif()
+
+if (NOT DEFINED RAFT_FILESYSTEM_FATSD_DISABLED)
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} fatfs sdmmc)
+else()
+  add_compile_definitions(RAFT_FILESYSTEM_FATSD_DISABLED)
+endif()
+
+if (NOT DEFINED RAFT_ETHERNET_DISABLED)
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_eth)
+else()
+  add_compile_definitions(RAFT_ETHERNET_DISABLED)
+endif()
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)

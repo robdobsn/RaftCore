@@ -191,7 +191,9 @@ private:
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
     bool localFileSystemSetupLittleFS(bool formatIfCorrupt);
 #endif
+#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
     bool localFileSystemSetupSPIFFS(bool formatIfCorrupt);
+#endif
     bool sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin);
     bool fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr);
     bool fileInfoGenImmediate(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr);

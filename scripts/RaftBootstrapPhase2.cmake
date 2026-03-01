@@ -19,52 +19,142 @@ else()
 endif()
 
 ################################################
-# SDKConfig
+# Common config directory (base layer for chaining)
 ################################################
 
-# Use sdkconfig for the selected build configuration
-set(SDKCONFIG_DEFAULTS "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
+set(_common_config_dir "${CMAKE_SOURCE_DIR}/systypes/Common")
+
+################################################
+# SDKConfig (Common + SysType-specific chaining)
+################################################
+
+# Merge sdkconfig.defaults: Common as base, systype-specific overrides on top
+# ESP-IDF natively supports SDKCONFIG_DEFAULTS as a semicolon-separated list
+# where later files override earlier ones
+set(_common_sdkconfig "${_common_config_dir}/sdkconfig.defaults")
+set(_systype_sdkconfig "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
+set(_merged_sdkconfig "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig.defaults.merged")
+
+# Build the SDKCONFIG_DEFAULTS list for ESP-IDF (Common first, systype second)
+set(SDKCONFIG_DEFAULTS "")
+if(EXISTS "${_common_sdkconfig}")
+    list(APPEND SDKCONFIG_DEFAULTS "${_common_sdkconfig}")
+    message(STATUS "SDKConfig: Using Common base from ${_common_sdkconfig}")
+endif()
+if(EXISTS "${_systype_sdkconfig}")
+    list(APPEND SDKCONFIG_DEFAULTS "${_systype_sdkconfig}")
+    message(STATUS "SDKConfig: Applying SysType overrides from ${_systype_sdkconfig}")
+endif()
+
+# Also generate a merged sdkconfig.defaults for reference and for the sdkconfig seed
+set(_merge_sdkconfig_common_arg "")
+if(EXISTS "${_common_sdkconfig}")
+    set(_merge_sdkconfig_common_arg "--common" "${_common_sdkconfig}")
+endif()
+set(_merge_sdkconfig_systype_arg "")
+if(EXISTS "${_systype_sdkconfig}")
+    set(_merge_sdkconfig_systype_arg "--systype" "${_systype_sdkconfig}")
+endif()
+
+# Generate merged sdkconfig.defaults at configure time
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
+            --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_systype_arg}
+            --output "${_merged_sdkconfig}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 set(SDKCONFIG "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig")
 
-# Custom command to change the sdkconfig file based on the sdkconfig.defaults file dependency
+# Collect dependency files for the sdkconfig custom command
+set(_sdkconfig_depends "")
+if(EXISTS "${_common_sdkconfig}")
+    list(APPEND _sdkconfig_depends "${_common_sdkconfig}")
+endif()
+if(EXISTS "${_systype_sdkconfig}")
+    list(APPEND _sdkconfig_depends "${_systype_sdkconfig}")
+endif()
+
+# Custom command to regenerate merged sdkconfig when sources change
 add_custom_command(
     OUTPUT ${SDKCONFIG}
-    COMMAND ${CMAKE_COMMAND} -E copy ${SDKCONFIG_DEFAULTS} ${SDKCONFIG}
-    DEPENDS ${SDKCONFIG_DEFAULTS}
-    COMMENT "Copying sdkconfig.defaults to sdkconfig"
+    COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
+            --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_systype_arg}
+            --output "${_merged_sdkconfig}"
+    COMMAND ${CMAKE_COMMAND} -E copy "${_merged_sdkconfig}" ${SDKCONFIG}
+    DEPENDS ${_sdkconfig_depends}
+    COMMENT "Merging sdkconfig.defaults (Common + SysType) -> sdkconfig"
 )
 
 # Custom target to ensure the sdkconfig file is generated before the main project is built
 add_custom_target(
     sdkconfig ALL
     DEPENDS ${SDKCONFIG}
-    COMMENT "Copying sdkconfig.defaults to sdkconfig"
+    COMMENT "Ensuring merged sdkconfig is up to date"
 )
 
 # Add project dependencies
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} sdkconfig)
 
 ################################################
-# SysTypes Header
+# SysTypes Header (Common + SysType-specific merging)
 ################################################
+
+# Merge SysTypes.json: Common as base, systype-specific top-level keys override
+set(_common_systypes_json "${_common_config_dir}/SysTypes.json")
+set(_systype_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
+set(_merged_systypes_json "${RAFT_BUILD_ARTIFACTS_FOLDER}/SysTypes.json.merged")
+
+# Build merge arguments
+set(_merge_systypes_common_arg "")
+if(EXISTS "${_common_systypes_json}")
+    set(_merge_systypes_common_arg "--common" "${_common_systypes_json}")
+    message(STATUS "SysTypes: Using Common base from ${_common_systypes_json}")
+endif()
+set(_merge_systypes_systype_arg "")
+if(EXISTS "${_systype_systypes_json}")
+    set(_merge_systypes_systype_arg "--systype" "${_systype_systypes_json}")
+    message(STATUS "SysTypes: Applying SysType overrides from ${_systype_systypes_json}")
+endif()
+
+# Generate merged SysTypes.json at configure time
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
+            --mode systypes ${_merge_systypes_common_arg} ${_merge_systypes_systype_arg}
+            --output "${_merged_systypes_json}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
 # Make sure the SysTypes header is generated before compiling this component (main) if needed
 set(_systypes_out "${RAFT_BUILD_ARTIFACTS_FOLDER}/SysTypeInfoRecs.h")
-set(_systypes_json "${BUILD_CONFIG_DIR}/SysTypes.json")
+set(_systypes_json "${_merged_systypes_json}")
 set(_systypes_template "${raftcore_SOURCE_DIR}/components/core/SysTypes/SysTypeInfoRecs.cpp.template")
 message(STATUS "\n------------------ Generating SysTypeInfoRecs.h")
-message(STATUS "Generating ${_systypes_out} from file ${_systypes_json}")
+message(STATUS "Generating ${_systypes_out} from merged SysTypes.json")
+
+# Collect dependency files for the SysTypes merge
+set(_systypes_depends "")
+if(EXISTS "${_common_systypes_json}")
+    list(APPEND _systypes_depends "${_common_systypes_json}")
+endif()
+if(EXISTS "${_systype_systypes_json}")
+    list(APPEND _systypes_depends "${_systype_systypes_json}")
+endif()
+
 add_custom_command(
     OUTPUT ${_systypes_out}
+    COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
+            --mode systypes ${_merge_systypes_common_arg} ${_merge_systypes_systype_arg}
+            --output "${_merged_systypes_json}"
     COMMAND python3 ${raftcore_SOURCE_DIR}/scripts/GenerateSysTypes.py ${_systypes_json} ${_systypes_out} --cpp_template ${_systypes_template}
-    DEPENDS ${_systypes_json} ${_systypes_template}
+    DEPENDS ${_systypes_depends} ${_systypes_template}
     WORKING_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}
-    COMMENT "Generating SysTypeInfoRecs.h"
+    COMMENT "Merging SysTypes.json (Common + SysType) and generating SysTypeInfoRecs.h"
 )
 add_custom_target(
     SysTypeInfoRecs ALL
     DEPENDS ${_systypes_out}
-    COMMENT "Generating SysTypeInfoRecs.h")
+    COMMENT "Generating SysTypeInfoRecs.h from merged SysTypes.json")
 
 # Dependency on SysTypes header
 set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
@@ -159,7 +249,7 @@ message(STATUS "------------------ Firmware image ${FW_IMAGE_NAME} -------------
 set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${OPTIONAL_COMPONENTS})
 
 ################################################
-# Partition table
+# Partition table (SysType-specific with Common fallback)
 ################################################
 
 # Copy the partitions.csv file to a fixed location so all sdkconfig.defaults files can reference the same path
@@ -170,16 +260,30 @@ set(_partitions_csv_dir "${CMAKE_SOURCE_DIR}/build/raft")
 # Ensure the directory exists
 file(MAKE_DIRECTORY ${_partitions_csv_dir})
 
+# Determine which partitions.csv to use: systype-specific first, then Common fallback
+set(_systype_partitions "${BUILD_CONFIG_DIR}/partitions.csv")
+set(_common_partitions "${_common_config_dir}/partitions.csv")
+
+if(EXISTS "${_systype_partitions}")
+    set(_partitions_source "${_systype_partitions}")
+    message(STATUS "Partitions: Using SysType-specific ${_systype_partitions}")
+elseif(EXISTS "${_common_partitions}")
+    set(_partitions_source "${_common_partitions}")
+    message(STATUS "Partitions: Using Common fallback ${_common_partitions}")
+else()
+    message(FATAL_ERROR "No partitions.csv found in ${BUILD_CONFIG_DIR} or ${_common_config_dir}")
+endif()
+
 # Copy the partitions.csv file during configuration
 execute_process(
-    COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_CONFIG_DIR}/partitions.csv" ${_partitions_csv_file}
+    COMMAND ${CMAKE_COMMAND} -E copy "${_partitions_source}" ${_partitions_csv_file}
 )
 
 # Custom command to copy the partitions.csv file when it changes
 add_custom_command(
     OUTPUT ${_partitions_csv_file}
-    COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_CONFIG_DIR}/partitions.csv" ${_partitions_csv_file}
-    DEPENDS "${BUILD_CONFIG_DIR}/partitions.csv"
+    COMMAND ${CMAKE_COMMAND} -E copy "${_partitions_source}" ${_partitions_csv_file}
+    DEPENDS "${_partitions_source}"
     COMMENT "Copying partitions.csv to fixed build location"
 )
 

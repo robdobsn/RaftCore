@@ -40,6 +40,7 @@
 // #define DEBUG_SYSMOD_RECV_CMD_JSON
 // #define DEBUG_LOOP_SHOW_DEVICES_INTERVAL_MS 1000
 // #define DEBUG_DEVICE_CONFIG_API
+// #define DEBUG_REGISTER_FOR_DEVICE_DATA
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -222,6 +223,14 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
                         (rec.deviceID.getAddress() == addrStatus.address);
             registerForData |= (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_TYPE_INDEX) && 
                         (rec.deviceTypeIndex == addrStatus.deviceTypeIndex);
+
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+            LOG_I(MODULE_PREFIX, "busElemStatusCB check deviceID %s deviceTypeIndex %u against busElem deviceID %s deviceTypeIndex %u registerForData %d", 
+                    rec.deviceID.toString().c_str(), rec.deviceTypeIndex,
+                    RaftDeviceID(bus.getBusNum(), addrStatus.address).toString().c_str(), addrStatus.deviceTypeIndex,
+                    registerForData);
+#endif
+
             if (registerForData)
             {
                 pBusDevicesIF->registerForDeviceData(rec.deviceID.getAddress(), rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo);
@@ -1140,8 +1149,19 @@ void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataC
         _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
             return rec.matches(deviceID, dataChangeCB, pCallbackInfo);
         });
+        
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+        LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceID %s cb callbackInfo %p", 
+                deviceID.toString().c_str(), pCallbackInfo);
+#endif
         return;
     }
+
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+    LOG_I(MODULE_PREFIX, "registerForDeviceData register deviceID %s callbackInfo %p minTimeBetweenReportsMs %u", 
+            deviceID.toString().c_str(), pCallbackInfo, minTimeBetweenReportsMs);
+#endif
+
     _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
 }
 
@@ -1161,8 +1181,18 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
         _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
             return rec.matches(deviceTypeIndex, dataChangeCB, pCallbackInfo);
         });
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+        LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceTypeIndex %u callbackInfo %p", 
+                deviceTypeIndex, pCallbackInfo);
+#endif
         return;
     }
+
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+    LOG_I(MODULE_PREFIX, "registerForDeviceData register deviceTypeIndex %u callbackInfo %p minTimeBetweenReportsMs %u", 
+            deviceTypeIndex, pCallbackInfo, minTimeBetweenReportsMs);
+#endif    
+    
     // Add to requests for device data changes
     _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
 }
@@ -1186,6 +1216,10 @@ void DeviceManager::registerForDeviceData(const char* deviceTypeName, RaftDevice
         LOG_W(MODULE_PREFIX, "registerForDeviceData failed: invalid device type name %s", deviceTypeName);
         return;
     }
+
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+    LOG_I(MODULE_PREFIX, "registerForDeviceData deviceTypeName %s deviceTypeIndex %u", deviceTypeName, deviceTypeIndex);
+#endif
 
     // Add to requests for device data changes
     registerForDeviceData(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo, unregister);
