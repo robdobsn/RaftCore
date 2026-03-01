@@ -267,16 +267,24 @@ bool ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     }
 
     // Copy the buffer
-    uint32_t numBytesToCopy = numPixelsToCopy * sizeof(LEDPixel);
+    uint32_t bytesPerPixel = _ledStripConfig.bytesPerPixel;
+    uint32_t numBytesToCopy = numPixelsToCopy * bytesPerPixel;
     if (_pixelBuffer.size() != numBytesToCopy)
         _pixelBuffer.resize(numBytesToCopy);
-    memcpy(_pixelBuffer.data(), pixels.data() + _pixelIdxStartOffset, numBytesToCopy);
+
+    // Copy pixel data respecting bytes per pixel (LEDPixel struct may be larger than bytesPerPixel)
+    const LEDPixel* srcPixels = pixels.data() + _pixelIdxStartOffset;
+    for (uint32_t i = 0; i < numPixelsToCopy; i++)
+    {
+        memcpy(_pixelBuffer.data() + (i * bytesPerPixel), srcPixels[i].raw, bytesPerPixel);
+    }
 
     // Check for power off if all power controlled pixels are blank
     if (_ledStripConfig.powerOffIfPowerControlledAllBlank && (_pixelBuffer.size() > 0))
     {
         _powerOffAfterTxAsAllBlank = true;
-        for (uint32_t i = _ledStripConfig.powerOffBlankExcludeFirstN; i < _pixelBuffer.size(); i++)
+        uint32_t blankStartByte = _ledStripConfig.powerOffBlankExcludeFirstN * bytesPerPixel;
+        for (uint32_t i = blankStartByte; i < _pixelBuffer.size(); i++)
         {
             if (_pixelBuffer[i] != 0)
             {
@@ -358,18 +366,23 @@ bool ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     }
     String outStr;
     static const int MAX_PIXELS_TO_SHOW = 10;
-    for (uint32_t i = 0; i < _pixelBuffer.size(); i+=3)
+    uint32_t bpp = _ledStripConfig.bytesPerPixel;
+    for (uint32_t i = 0; i < _pixelBuffer.size(); i += bpp)
     {
-        outStr += String(_pixelBuffer[i]) + "," + String(_pixelBuffer[i+1]) + "," + String(_pixelBuffer[i+2]) + " | ";
-        if (i >= MAX_PIXELS_TO_SHOW * 3)
+        outStr += String(_pixelBuffer[i]) + "," + String(_pixelBuffer[i+1]) + "," + String(_pixelBuffer[i+2]);
+        if (bpp >= 5)
+            outStr += "," + String(_pixelBuffer[i+3]) + "," + String(_pixelBuffer[i+4]);
+        outStr += " | ";
+        if (i >= MAX_PIXELS_TO_SHOW * bpp)
         {
             outStr += "...";
             break;
         }
     }
-    LOG_I(MODULE_PREFIX, "showPixels offset %d numPix %d numBytes %d rslt %s allBlank %s RMTHdl %p blocking %s powerOffAllBlank %s stopAfterTx %s vals %s", 
+    LOG_I(MODULE_PREFIX, "showPixels offset %d numPix %d bpp %d numBytes %d rslt %s allBlank %s RMTHdl %p blocking %s powerOffAllBlank %s stopAfterTx %s vals %s", 
             _pixelIdxStartOffset,
             numPixelsToCopy,
+            bytesPerPixel,
             numBytesToCopy,
             err == ESP_OK ? "OK" : "FAILED", 
             allZeroes ? "YES" : "NO",

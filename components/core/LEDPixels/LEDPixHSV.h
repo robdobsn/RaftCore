@@ -249,6 +249,50 @@ public:
         return String(h) + "," + String(s) + "," + String(v);
     }
 
+    /// @brief Convert HSV to RGBWW by extracting white component
+    /// @param warmFactor 0.0 = all cold white, 1.0 = all warm white, 0.5 = equal split
+    /// @param r output red
+    /// @param g output green
+    /// @param b output blue
+    /// @param cw output cold white
+    /// @param ww output warm white
+    void toRGBWW(float warmFactor, uint8_t& r, uint8_t& g, uint8_t& b, uint8_t& cw, uint8_t& ww) const
+    {
+        toRGBWW(h, s, v, warmFactor, r, g, b, cw, ww);
+    }
+
+    /// @brief Convert HSV to RGBWW by extracting white component
+    /// @param h hue (0..359)
+    /// @param s saturation (0..100)
+    /// @param v value (0..100)
+    /// @param warmFactor 0.0 = all cold white, 1.0 = all warm white, 0.5 = equal split
+    /// @param r output red
+    /// @param g output green
+    /// @param b output blue
+    /// @param cw output cold white
+    /// @param ww output warm white
+    static void toRGBWW(uint32_t h, uint32_t s, uint32_t v, float warmFactor,
+                        uint8_t& r, uint8_t& g, uint8_t& b, uint8_t& cw, uint8_t& ww)
+    {
+        // First get RGB
+        uint32_t rgb = toRGB(h, s, v);
+        r = (rgb >> 16) & 0xFF;
+        g = (rgb >> 8) & 0xFF;
+        b = rgb & 0xFF;
+
+        // Extract white component as min(r,g,b)
+        uint8_t w = std::min({r, g, b});
+        r -= w;
+        g -= w;
+        b -= w;
+
+        // Split white between cold and warm based on warmFactor
+        if (warmFactor < 0.0f) warmFactor = 0.0f;
+        if (warmFactor > 1.0f) warmFactor = 1.0f;
+        ww = (uint8_t)(w * warmFactor);
+        cw = w - ww;
+    }
+
     /// @brief Get interpolated value between two HSV values based on a factor
     /// @param hsv1 First HSV value
     /// @param hsv2 Second HSV value

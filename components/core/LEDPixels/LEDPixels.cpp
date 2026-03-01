@@ -215,9 +215,12 @@ bool LEDPixels::show()
 
 #ifdef DEBUG_LED_PIXEL_VALUES
     String outStr;
+    outStr.reserve(_pixels.size() * 15);
     for (auto& pix : _pixels)
     {
-        outStr += String(pix.c1) + "," + String(pix.c2) + "," + String(pix.c3) + " | ";
+        outStr += String(pix.c1) + "," + String(pix.c2) + "," + String(pix.c3);
+        outStr += "," + String(pix.c4) + "," + String(pix.c5);
+        outStr += " | ";
     }
     LOG_I(MODULE_PREFIX, "show %d pixels %s", (int)_pixels.size(), outStr.c_str());
 #endif

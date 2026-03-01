@@ -175,6 +175,22 @@ public:
         _segments[segmentIdx].setHSV(ledIdx, h, s, v);
     }
 
+    /// @brief Set RGBWW value for a pixel (5-channel: red, green, blue, cold white, warm white)
+    /// @param segmentIdx Index of segment
+    /// @param ledIdx in the segment
+    /// @param r red
+    /// @param g green
+    /// @param b blue
+    /// @param cw cold white
+    /// @param ww warm white
+    /// @param applyBrightness scale values by brightness factor if true
+    void setRGBWW(uint32_t segmentIdx, uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, uint32_t cw, uint32_t ww, bool applyBrightness=true)
+    {
+        if (segmentIdx >= _segments.size())
+            return;
+        _segments[segmentIdx].setRGBWW(ledIdx, r, g, b, cw, ww, applyBrightness);
+    }
+
     /// @brief Clear all pixels
     /// @param showAfterClear Show after clear
     void clear(bool showAfterClear);

@@ -280,6 +280,24 @@ public:
         setRGB(ledIdx, LEDPixHSV::toRGB(h, s, v));
     }
 
+    /// @brief Set RGBWW value for a pixel (5-channel: red, green, blue, cold white, warm white)
+    /// @param ledIdx in the segment
+    /// @param r red
+    /// @param g green
+    /// @param b blue
+    /// @param cw cold white
+    /// @param ww warm white
+    /// @param applyBrightness scale values by brightness factor if true
+    virtual void setRGBWW(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, uint32_t cw, uint32_t ww, bool applyBrightness=true) override final
+    {
+        // Get LED index
+        uint32_t pixelIdx = getLEDIdx(ledIdx);
+
+        // Set pixel
+        if (_pLedPixels && (pixelIdx < _pLedPixels->size()))
+            (*_pLedPixels)[pixelIdx].fromRGBWW(r, g, b, cw, ww, _ledSegmentConfig.colourOrder, applyBrightness ? _ledSegmentConfig.pixelBrightnessFactor : 1.0f);
+    }
+
     /// @brief Clear all pixels in the segment
     virtual void clear() override final
     {

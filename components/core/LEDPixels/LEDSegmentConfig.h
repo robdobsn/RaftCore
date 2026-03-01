@@ -50,6 +50,9 @@ public:
         String colourOrderStr = config.getString("colorOrder", config.getString("colourOrder", "GRB").c_str());
         colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
 
+        // Derive bytes per pixel from colour order
+        bytesPerPixel = LEDPixel::getBytesPerPixel(colourOrder);
+
         return true;
     }
 
@@ -75,5 +78,8 @@ public:
 
     // Colour order - all strips covered by this segment must use the same colour order
     LEDPixel::ColourOrder colourOrder = LEDPixel::BGR;
+
+    // Bytes per pixel derived from colour order (3 for RGB/GRB/BGR, 5 for RGBWW/GRBWW)
+    uint32_t bytesPerPixel = LEDPixel::getBytesPerPixel(LEDPixel::BGR);
 
 };

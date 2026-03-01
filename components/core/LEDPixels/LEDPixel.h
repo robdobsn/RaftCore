@@ -18,11 +18,16 @@ class LEDPixel {
 
 public:
 
+    // Maximum number of channels per pixel (e.g. RGBWW = 5)
+    static const uint32_t MAX_CHANNELS = 5;
+
     enum ColourOrder
     {
         RGB,
         GRB,
         BGR,
+        RGBWW,  // WS2805: R, G, B, Cold White, Warm White
+        GRBWW,  // GRB variant with dual white channels
     };
 
     // Colour value (meaning depends on LED type)
@@ -31,14 +36,16 @@ public:
             uint8_t c1;
             uint8_t c2;
             uint8_t c3;
+            uint8_t c4;
+            uint8_t c5;
         };
-		uint8_t raw[3];
+		uint8_t raw[MAX_CHANNELS];
 	};
 
     // Constructor (default)
     inline LEDPixel() ALWAYS_INLINE
     {
-        c1 = c2 = c3 = 0;
+        c1 = c2 = c3 = c4 = c5 = 0;
     }
 
     // Constructor (copy)
@@ -53,54 +60,59 @@ public:
         return (c1 << 16) | (c2 << 8) | c3;
     }
 
-    // Set from RGB
+    // Set from RGB (white channels are zeroed for multi-channel colour orders)
     inline void fromRGB(uint8_t r_in, uint8_t g_in, uint8_t b_in, ColourOrder order, float brightnessFactor=1.0f) ALWAYS_INLINE
     {
-        if (brightnessFactor == 1.0f)
+        uint8_t r = (brightnessFactor == 1.0f) ? r_in : (uint8_t)(r_in * brightnessFactor);
+        uint8_t g = (brightnessFactor == 1.0f) ? g_in : (uint8_t)(g_in * brightnessFactor);
+        uint8_t b = (brightnessFactor == 1.0f) ? b_in : (uint8_t)(b_in * brightnessFactor);
+        switch(order)
         {
-            switch(order)
-            {
-                case RGB:
-                    c1 = r_in;
-                    c2 = g_in;
-                    c3 = b_in;
-                    break;
-                case GRB:
-                    c1 = g_in;
-                    c2 = r_in;
-                    c3 = b_in;
-                    break;
-                case BGR:
-                    c1 = b_in;
-                    c2 = g_in;
-                    c3 = r_in;
-                    break;
-            }
+            case RGB:
+                c1 = r; c2 = g; c3 = b;
+                break;
+            case GRB:
+                c1 = g; c2 = r; c3 = b;
+                break;
+            case BGR:
+                c1 = b; c2 = g; c3 = r;
+                break;
+            case RGBWW:
+                c1 = r; c2 = g; c3 = b; c4 = 0; c5 = 0;
+                break;
+            case GRBWW:
+                c1 = g; c2 = r; c3 = b; c4 = 0; c5 = 0;
+                break;
         }
-        else
+    }
+
+    // Set from RGBWW (5-channel: red, green, blue, cold white, warm white)
+    inline void fromRGBWW(uint8_t r_in, uint8_t g_in, uint8_t b_in, uint8_t cw_in, uint8_t ww_in,
+                          ColourOrder order, float brightnessFactor=1.0f) ALWAYS_INLINE
+    {
+        uint8_t r = (brightnessFactor == 1.0f) ? r_in : (uint8_t)(r_in * brightnessFactor);
+        uint8_t g = (brightnessFactor == 1.0f) ? g_in : (uint8_t)(g_in * brightnessFactor);
+        uint8_t b = (brightnessFactor == 1.0f) ? b_in : (uint8_t)(b_in * brightnessFactor);
+        uint8_t cw = (brightnessFactor == 1.0f) ? cw_in : (uint8_t)(cw_in * brightnessFactor);
+        uint8_t ww = (brightnessFactor == 1.0f) ? ww_in : (uint8_t)(ww_in * brightnessFactor);
+        switch(order)
         {
-            // Apply brightness factor
-            uint8_t r = r_in * brightnessFactor;
-            uint8_t g = g_in * brightnessFactor;
-            uint8_t b = b_in * brightnessFactor;
-            switch(order)
-            {
-                case RGB:
-                    c1 = r;
-                    c2 = g;
-                    c3 = b;
-                    break;
-                case GRB:
-                    c1 = g;
-                    c2 = r;
-                    c3 = b;
-                    break;
-                case BGR:
-                    c1 = b;
-                    c2 = g;
-                    c3 = r;
-                    break;
-            }
+            case RGBWW:
+                c1 = r; c2 = g; c3 = b; c4 = cw; c5 = ww;
+                break;
+            case GRBWW:
+                c1 = g; c2 = r; c3 = b; c4 = cw; c5 = ww;
+                break;
+            // For 3-channel orders, white channels are discarded
+            case RGB:
+                c1 = r; c2 = g; c3 = b;
+                break;
+            case GRB:
+                c1 = g; c2 = r; c3 = b;
+                break;
+            case BGR:
+                c1 = b; c2 = g; c3 = r;
+                break;
         }
     }
 
@@ -129,12 +141,14 @@ public:
         c1 = rhs.c1;
         c2 = rhs.c2;
         c3 = rhs.c3;
+        c4 = rhs.c4;
+        c5 = rhs.c5;
         return *this;
     }
 
     void clear()
     {
-        c1 = c2 = c3 = 0;
+        c1 = c2 = c3 = c4 = c5 = 0;
     }
 
     static ColourOrder getColourOrderCode(const char* pColourOrder)
@@ -147,6 +161,10 @@ public:
             return GRB;
         if (strcasecmp(pColourOrder, "BGR") == 0)
             return BGR;
+        if (strcasecmp(pColourOrder, "RGBWW") == 0)
+            return RGBWW;
+        if (strcasecmp(pColourOrder, "GRBWW") == 0)
+            return GRBWW;
         return RGB;
     }
 
@@ -157,7 +175,24 @@ public:
             case RGB: return "RGB";
             case GRB: return "GRB";
             case BGR: return "BGR";
+            case RGBWW: return "RGBWW";
+            case GRBWW: return "GRBWW";
         }
         return "RGB";
+    }
+
+    /// @brief Get number of bytes per pixel for a given colour order
+    /// @param colourOrder Colour order
+    /// @return Number of bytes per pixel (3 for RGB/GRB/BGR, 5 for RGBWW/GRBWW)
+    static uint32_t getBytesPerPixel(ColourOrder colourOrder)
+    {
+        switch(colourOrder)
+        {
+            case RGBWW:
+            case GRBWW:
+                return 5;
+            default:
+                return 3;
+        }
     }
 };

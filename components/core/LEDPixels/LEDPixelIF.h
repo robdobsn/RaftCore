@@ -10,6 +10,9 @@
 
 #include "stdint.h"
 
+class LEDPixel;
+class LEDPixHSV;
+
 class LEDPixelIF
 {
 public:
@@ -50,6 +53,16 @@ public:
     /// @param s saturation
     /// @param v value
     virtual void setHSV(uint32_t ledIdx, uint32_t h, uint32_t s, uint32_t v) = 0;
+
+    /// @brief Set RGBWW value for a pixel (5-channel: red, green, blue, cold white, warm white)
+    /// @param ledIdx in the segment
+    /// @param r red
+    /// @param g green
+    /// @param b blue
+    /// @param cw cold white
+    /// @param ww warm white
+    /// @param applyBrightness scale values by brightness factor if true
+    virtual void setRGBWW(uint32_t ledIdx, uint32_t r, uint32_t g, uint32_t b, uint32_t cw, uint32_t ww, bool applyBrightness=true) = 0;
 
     /// @brief Clear all pixels in the segment
     virtual void clear() = 0;
