@@ -215,27 +215,61 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
             continue;
 
         // Iterate the registered device data change callbacks to see if any match the deviceID or deviceTypeIndex of the bus element with the status change
+#ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
+        bool recordFound = false;
+#endif
         for (const DeviceDataChangeRec& rec : _requestedDeviceDataChangeCBList)
         {
-            // Check if the record matches the deviceID or deviceTypeIndex of the bus element with the status change
+            // Check if the record matches the deviceID
             bool registerForData = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID) && 
                         (rec.deviceID.getBusNum() == bus.getBusNum()) && 
                         (rec.deviceID.getAddress() == addrStatus.address);
-            registerForData |= (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_TYPE_INDEX) && 
-                        (rec.deviceTypeIndex == addrStatus.deviceTypeIndex);
-
-#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
-            LOG_I(MODULE_PREFIX, "busElemStatusCB check deviceID %s deviceTypeIndex %u against busElem deviceID %s deviceTypeIndex %u registerForData %d", 
-                    rec.deviceID.toString().c_str(), rec.deviceTypeIndex,
-                    RaftDeviceID(bus.getBusNum(), addrStatus.address).toString().c_str(), addrStatus.deviceTypeIndex,
-                    registerForData);
-#endif
-
             if (registerForData)
             {
+                // Debug
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+                LOG_I(MODULE_PREFIX, "busElemStatusCB MATCH reg deviceID %s against busElem deviceID %s deviceTypeIndex %u", 
+                    rec.deviceID.toString().c_str(),
+                    RaftDeviceID(bus.getBusNum(), addrStatus.address).toString().c_str(), addrStatus.deviceTypeIndex);
+                recordFound = true;
+#endif
                 pBusDevicesIF->registerForDeviceData(rec.deviceID.getAddress(), rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo);
+                break;
             }
+
+            // Check if the device is newly identified and if the record matches the deviceTypeIndex
+            bool registerForDataByType = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_TYPE_INDEX) && 
+                        (rec.deviceTypeIndex == addrStatus.deviceTypeIndex) && 
+                        (addrStatus.deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID);
+
+            if (registerForDataByType)
+            {
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+                LOG_I(MODULE_PREFIX, "busElemStatusCB MATCH reg deviceTypeIndex %u against busElem deviceTypeIndex %u", 
+                        rec.deviceTypeIndex, addrStatus.deviceTypeIndex);
+                recordFound = true;
+#endif
+                pBusDevicesIF->registerForDeviceData(addrStatus.address, rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo);
+                break;
+            }
+
+#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
+            String regTypeInfoStr = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID ? String("DEVICE_ID") + " " + rec.deviceID.toString() : String("DEVICE_TYPE_INDEX") + " " + String(rec.deviceTypeIndex));
+            String busElemTypeInfoStr = String("DEVICE_ID") + " " + RaftDeviceID(bus.getBusNum(), addrStatus.address).toString() + " DEVICE_TYPE_INDEX " + String(addrStatus.deviceTypeIndex);
+            LOG_I(MODULE_PREFIX, "busElemStatusCB NO MATCH reg %s busElem %s", regTypeInfoStr.c_str(), busElemTypeInfoStr.c_str());
+#endif
         }
+
+        // Debug
+#ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
+        LOG_I(MODULE_PREFIX, "busElemStatusCB bus %s address %x onlineState %s isNewlyIdentified %s deviceTypeIndex %u numDataChangeCBReqs %d dataChangeCBRequested %s", 
+                    bus.getBusName().c_str(), addrStatus.address,
+                    BusAddrStatus::getOnlineStateStr(addrStatus.onlineState), 
+                    addrStatus.isNewlyIdentified ? "Y" : "N", 
+                    addrStatus.deviceTypeIndex, 
+                    _requestedDeviceDataChangeCBList.size(),
+                    recordFound ? "Y" : "N");
+#endif
     }
 
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES

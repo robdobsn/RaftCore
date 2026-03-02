@@ -228,6 +228,11 @@ void NetworkSystem::loop()
                 esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(_networkSettings.ntpServer.c_str());
 
                 // Sync callback
+                // IMPORTANT: This callback runs in the lwIP tcpip thread context.
+                // Do NOT use LOG_I here - it may dispatch to other loggers which may call
+                // sendto(), and sendto() posts to the tcpip thread mailbox and waits for
+                // processing - causing a deadlock since we ARE the tcpip thread.
+                // Use ESP_LOGI (console only) instead.
                 config.sync_cb = [](timeval *pTV) {
                     // Debug
                     time_t now = pTV->tv_sec;
@@ -235,7 +240,7 @@ void NetworkSystem::loop()
                     localtime_r(&now, &timeinfo);
                     char strftime_buf[64];
                     strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
-                    LOG_I(MODULE_PREFIX, "time sync %s.%03d", strftime_buf, pTV->tv_usec / 1000);
+                    ESP_LOGI(MODULE_PREFIX, "time sync %s.%03d", strftime_buf, (int)(pTV->tv_usec / 1000));
                 };
 
                 // Sync time
