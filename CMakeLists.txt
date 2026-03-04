@@ -15,17 +15,19 @@ set(RAFT_CORE_REQUIRES
   esp_app_format
 )
 
+set(RAFT_CORE_COMPILE_DEFINITIONS "")
+
 if (DEFINED FS_TYPE AND FS_TYPE STREQUAL "littlefs")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} littlefs)
-  add_compile_definitions(FILE_SYSTEM_SUPPORTS_LITTLEFS)
+  list(APPEND RAFT_CORE_COMPILE_DEFINITIONS FILE_SYSTEM_SUPPORTS_LITTLEFS)
 else()
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} spiffs)
-  add_compile_definitions(RAFT_FILESYSTEM_HAS_SPIFFS)
+  list(APPEND RAFT_CORE_COMPILE_DEFINITIONS RAFT_FILESYSTEM_HAS_SPIFFS)
 endif()
 
 if (DEFINED RAFT_ENABLE_SD AND RAFT_ENABLE_SD)
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} fatfs sdmmc)
-  add_compile_definitions(RAFT_FILESYSTEM_HAS_FATSD)
+  list(APPEND RAFT_CORE_COMPILE_DEFINITIONS RAFT_FILESYSTEM_HAS_FATSD)
 endif()
 
 if (CONFIG_ETH_ENABLED)
@@ -40,7 +42,7 @@ endif()
 if (NOT DEFINED NETWORK_MDNS_DISABLED)
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} mdns)
 else()
-  add_compile_definitions(NETWORK_MDNS_DISABLED)
+  list(APPEND RAFT_CORE_COMPILE_DEFINITIONS NETWORK_MDNS_DISABLED)
 endif()
 
 # ESP-IDF-specific configurations
@@ -92,6 +94,7 @@ idf_component_register(
     "components/core/LEDPixels/ESP32RMTLedStrip.cpp"
     "components/core/LEDPixels/LEDPixels.cpp"
     "components/core/LEDPixels/LEDStripEncoder.c"
+    "components/core/LEDPixels/LEDPixelsDevice.cpp"
     "components/core/libb64/cencode.cpp"
     "components/core/Logger/LoggerCore.cpp"
     "components/core/MiniHDLC/MiniHDLC.cpp"
@@ -166,6 +169,10 @@ idf_component_register(
   REQUIRES
     ${RAFT_CORE_REQUIRES}
 )
+
+if(NOT CMAKE_SCRIPT_MODE_FILE)
+  target_compile_definitions(${COMPONENT_LIB} PRIVATE ${RAFT_CORE_COMPILE_DEFINITIONS})
+endif()
 
 # Enable NetBIOS name service (NBSTAT) responses so IP scanners can discover device hostnames
 idf_build_set_property(COMPILE_DEFINITIONS "LWIP_NETBIOS_RESPOND_NAME_QUERY=1" APPEND)
