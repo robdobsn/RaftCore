@@ -10,12 +10,16 @@
 #if !defined(__linux__)
 #include "sdkconfig.h"
 #include "esp_log.h"
+#include "esp_err.h"
+#include "esp_flash.h"
+#include "esp_attr.h"
 #endif
 #include "RaftCoreApp.h"
 #include "RaftJsonNVS.h"
 #include "SysTypeInfoRec.h"
 #include "RaftThreading.h"
 #include "Logger.h"
+#include "FlashCriticalFlag.h"
 
 #if __has_include("SysTypeInfoRecs.h")
 #include "SysTypeInfoRecs.h"
@@ -33,6 +37,46 @@ static constexpr const SysTypeInfoRec sysTypeInfoRecs[] = {};
 
 #ifndef PROJECT_BASENAME
 #define PROJECT_BASENAME "Unknown"
+#endif
+
+#if defined(ESP_PLATFORM)
+extern "C" {
+    extern esp_flash_t *esp_flash_default_chip;
+}
+
+static const esp_flash_os_functions_t* s_prevFlashOsFuncs = nullptr;
+static esp_flash_os_functions_t s_flashOsFuncsWrapped = {};
+
+static IRAM_ATTR esp_err_t flashOpStartHook(void* arg, uint32_t flags)
+{
+    g_flashCriticalActive = true;
+    if (s_prevFlashOsFuncs && s_prevFlashOsFuncs->start)
+        return s_prevFlashOsFuncs->start(arg, flags);
+    return ESP_OK;
+}
+
+static IRAM_ATTR esp_err_t flashOpEndHook(void* arg)
+{
+    esp_err_t rc = ESP_OK;
+    if (s_prevFlashOsFuncs && s_prevFlashOsFuncs->end)
+        rc = s_prevFlashOsFuncs->end(arg);
+    g_flashCriticalActive = false;
+    return rc;
+}
+
+static void installFlashOpHooks()
+{
+    if (!esp_flash_default_chip || !esp_flash_default_chip->os_func)
+        return;
+    if (s_prevFlashOsFuncs)
+        return;
+
+    s_prevFlashOsFuncs = esp_flash_default_chip->os_func;
+    s_flashOsFuncsWrapped = *s_prevFlashOsFuncs;
+    s_flashOsFuncsWrapped.start = flashOpStartHook;
+    s_flashOsFuncsWrapped.end = flashOpEndHook;
+    esp_flash_default_chip->os_func = &s_flashOsFuncsWrapped;
+}
 #endif
 
 // NOTE:
@@ -70,6 +114,10 @@ RaftCoreApp::RaftCoreApp() :
     _protocolExchange("ProtExchg", _systemConfig),
     _deviceManager("DevMan", _systemConfig)
 {
+#if defined(ESP_PLATFORM)
+    installFlashOpHooks();
+#endif
+
     // Chain the default config to the SysType so that it is used as a fallback
     // if no SysTypes are specified
     _sysTypeConfig.setChainedRaftJson(&_defaultSystemConfig);

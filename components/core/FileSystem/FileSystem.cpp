@@ -10,6 +10,7 @@
 #include "FileSystem.h"
 #include "RaftUtils.h"
 #include "Logger.h"
+#include "FlashCriticalGuard.h"
 
 #include <sys/stat.h>
 #include <sys/unistd.h>
@@ -137,6 +138,8 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     }
 
 #if !defined(__linux__)
+
+    FlashCriticalGuard flashGuard("fs-format");
 
     // TODO - check WDT maybe enabled
     // Reformat - need to disable Watchdog timer while formatting
@@ -376,6 +379,8 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
         return false;
     }
 
+    FlashCriticalGuard flashGuard("fs-write");
+
     // Take mutex
     if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
@@ -419,6 +424,8 @@ bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
     {
         return false;
     }
+
+    FlashCriticalGuard flashGuard("fs-delete");
     
     // Take mutex
     if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
@@ -1015,6 +1022,8 @@ uint32_t FileSystem::fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeL
         LOG_W(MODULE_PREFIX, "fileWrite filePtr null");
         return 0;
     }
+
+    FlashCriticalGuard flashGuard("fs-write");
 
     // Take mutex
     if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
