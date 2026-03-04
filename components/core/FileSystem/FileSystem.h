@@ -16,8 +16,6 @@
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
 
-#define FILE_SYSTEM_SUPPORTS_LITTLEFS
-
 class FileSystem
 {
 public:
@@ -191,7 +189,7 @@ private:
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
     bool localFileSystemSetupLittleFS(bool formatIfCorrupt);
 #endif
-#ifndef RAFT_FILESYSTEM_SPIFFS_DISABLED
+#ifdef RAFT_FILESYSTEM_HAS_SPIFFS
     bool localFileSystemSetupSPIFFS(bool formatIfCorrupt);
 #endif
     bool sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin);
