@@ -46,9 +46,18 @@ public:
         String startupFirstPixelStr = config.getString("startupFirstPixel", "000000");
         startupFirstPixelColour = Raft::getRGBFromHex(startupFirstPixelStr);
 
-        // Colour order
-        String colourOrderStr = config.getString("colorOrder", config.getString("colourOrder", "GRB").c_str());
-        colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
+        // Colour order (logical transform - may be overridden by strip config)
+        bool hasColourOrder = config.contains("colorOrder") || config.contains("colourOrder");
+        if (hasColourOrder)
+        {
+            String colourOrderStr = config.getString("colorOrder", config.getString("colourOrder", "GRB").c_str());
+            colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
+            colourOrderSpecified = true;
+        }
+        else
+        {
+            colourOrder = LEDPixel::GRB;
+        }
 
         // Derive bytes per pixel from colour order
         bytesPerPixel = LEDPixel::getBytesPerPixel(colourOrder);
@@ -77,7 +86,8 @@ public:
     Raft::RGBValue startupFirstPixelColour;
 
     // Colour order - all strips covered by this segment must use the same colour order
-    LEDPixel::ColourOrder colourOrder = LEDPixel::BGR;
+    LEDPixel::ColourOrder colourOrder = LEDPixel::GRB;
+    bool colourOrderSpecified = false;
 
     // Bytes per pixel derived from colour order (3 for RGB/GRB/BGR, 5 for RGBWW/GRBWW)
     uint32_t bytesPerPixel = LEDPixel::getBytesPerPixel(LEDPixel::BGR);

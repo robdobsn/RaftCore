@@ -19,6 +19,7 @@
 
 // #define DEBUG_LED_SEGMENT_PATTERN_DURATION
 // #define DEBUG_LED_SEGMENT_PATTERN_START_STOP
+// #define DEBUG_LED_SEGMENT_PATTERN_TRACE
 
 class RaftJsonIF;
 class BusRequestResult;
@@ -143,6 +144,11 @@ public:
         // Stop existing pattern 
         stopPattern(true);
 
+#ifdef DEBUG_LED_SEGMENT_PATTERN_TRACE
+        LOG_I(MODULE_PREFIX, "setPattern request name %s params %s", patternName.c_str(),
+                pParamsJson ? pParamsJson : "NONE");
+#endif
+
         // Find pattern
         if (_pLedPatterns)
         {
@@ -176,6 +182,9 @@ public:
                                 patternName.c_str(), pParamsJson ? pParamsJson : "NONE", 
                                 _patternDurationMs == 0 ? "FOREVER" : (String(_patternDurationMs) + "ms").c_str());
 #endif
+#ifdef DEBUG_LED_SEGMENT_PATTERN_TRACE
+                        LOG_I(MODULE_PREFIX, "setPattern active %s numPixels %d", patternName.c_str(), (int)getNumPixels());
+#endif
                     }
                     return;
                 }
@@ -185,6 +194,26 @@ public:
         // Debug
 #ifdef DEBUG_LED_SEGMENT_PATTERN_START_STOP
         LOG_I(MODULE_PREFIX, "setPattern %s", patternName.length() > 0 ? "PATTERN NOT FOUND" : ("cleared " + curPatternName).c_str());
+#endif
+#ifdef DEBUG_LED_SEGMENT_PATTERN_TRACE
+        if (patternName.length() > 0)
+        {
+            String patternList;
+            if (_pLedPatterns)
+            {
+                for (auto& pattern : *_pLedPatterns)
+                {
+                    if (patternList.length() > 0)
+                        patternList += ",";
+                    patternList += pattern.name;
+                }
+            }
+            LOG_I(MODULE_PREFIX, "setPattern not found name %s patterns [%s]", patternName.c_str(), patternList.c_str());
+        }
+        else
+        {
+            LOG_I(MODULE_PREFIX, "setPattern cleared %s", curPatternName.c_str());
+        }
 #endif
     }
 

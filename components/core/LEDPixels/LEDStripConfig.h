@@ -13,6 +13,7 @@
 #include "RaftUtils.h"
 #include "RaftJsonPrefixed.h"
 #include "RaftJson.h"
+#include "LEDPixel.h"
 
 class LEDStripConfig
 {
@@ -69,8 +70,30 @@ public:
         transQueueDepth = config.getLong("transQueueDepth", 1);
         minChunkSize = config.getLong("minChunkSize", 64);
 
-        // Bytes per pixel (default 3 for RGB, 5 for RGBWW/WS2805)
-        bytesPerPixel = config.getLong("bpp", bytesPerPixel);
+        // Colour order - used to derive bytes per pixel when specified
+        bool hasColourOrder = config.contains("colorOrder") || config.contains("colourOrder");
+        if (hasColourOrder)
+        {
+            String colourOrderStr = config.getString("colorOrder", config.getString("colourOrder", "GRB").c_str());
+            colourOrder = LEDPixel::getColourOrderCode(colourOrderStr.c_str());
+            colourOrderSpecified = true;
+            bytesPerPixel = LEDPixel::getBytesPerPixel(colourOrder);
+
+            if (config.contains("bpp"))
+            {
+                uint32_t bppOverride = config.getLong("bpp", bytesPerPixel);
+                if (bppOverride != bytesPerPixel)
+                {
+                    LOG_W("LEDStripConfig", "setup bpp %d ignored (colorOrder %s -> %d)",
+                            (int)bppOverride, LEDPixel::getColourOrderStr(colourOrder), (int)bytesPerPixel);
+                }
+            }
+        }
+        else
+        {
+            // Bytes per pixel (default 3 for RGB, 5 for RGBWW/WS2805)
+            bytesPerPixel = config.getLong("bpp", bytesPerPixel);
+        }
 
         return true;
     }
@@ -90,6 +113,7 @@ public:
                     " T0Hticks:" + String(T0H_ticks) + " T0Lticks:" + String(T0L_ticks) +
                     " T1Hticks:" + String(T1H_ticks) + " T1Lticks:" + String(T1L_ticks) +
                     " rst_tks:" + String(reset_ticks) + " msb1st:" + String(msbFirst) +
+                    " colOrd:" + String(LEDPixel::getColourOrderStr(colourOrder)) +
                     " bpp:" + String(bytesPerPixel) +
                     " memBlkSym:" + String(memBlockSymbols) +
                     " transQDepth:" + String(transQueueDepth) +
@@ -140,6 +164,10 @@ public:
 
     // Bytes per pixel (3 for RGB/GRB/BGR, 5 for RGBWW/WS2805)
     uint8_t bytesPerPixel = 3;
+
+    // Colour order for this strip (default GRB)
+    LEDPixel::ColourOrder colourOrder = LEDPixel::GRB;
+    bool colourOrderSpecified = false;
 
     // Pixel comms - defaults are from WS2812B datasheet
     // https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf

@@ -6,8 +6,8 @@
 
 #include "LEDPixelsDevice.h"
 
-#define DEBUG_LED_PIXELS_SETUP
-// #define DEBUG_BUS_PIXELS_SET
+// #define DEBUG_LED_PIXELS_SETUP
+// #define DEBUG_BUS_PIXELS_API
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -98,8 +98,10 @@ RaftRetCode LEDPixelsDevice::apiLED(const String &reqStr, String &respStr, const
     String data = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 3);
 
     // Debug
+#ifdef DEBUG_BUS_PIXELS_API
     LOG_I(MODULE_PREFIX, "apiLEDs req %s numParams %d elemNameOrIdx %s segmentIdx %d cmd %s data %s args %s",
           reqStr.c_str(), params.size(), elemNameOrIdx.c_str(), segmentIdx, cmd.c_str(), data.c_str(), nameValuesJson.c_str());
+#endif
 
     // Handle commands
     bool rslt = false;
@@ -178,13 +180,17 @@ RaftRetCode LEDPixelsDevice::apiLED(const String &reqStr, String &respStr, const
             uint64_t val = strtoull(rgbStr.c_str(), nullptr, 16);
             uint8_t r = (val >> 32) & 0xff, g = (val >> 24) & 0xff, b = (val >> 16) & 0xff;
             uint8_t cw = (val >> 8) & 0xff, ww = val & 0xff;
+#ifdef DEBUG_BUS_PIXELS_API
             LOG_I(MODULE_PREFIX, "setled %d %s r %d g %d b %d cw %d ww %d", ledID, rgbStr.c_str(), r, g, b, cw, ww);
+#endif
             _ledPixels.setRGBWW(segmentIdx, ledID, r, g, b, cw, ww, true);
         }
         else
         {
             auto rgb = Raft::getRGBFromHex(rgbStr);
+#ifdef DEBUG_BUS_PIXELS_API
             LOG_I(MODULE_PREFIX, "setled %d %s r %d g %d b %d", ledID, rgbStr.c_str(), rgb.r, rgb.g, rgb.b);
+#endif
             _ledPixels.setRGB(segmentIdx, ledID, rgb.r, rgb.g, rgb.b, true);
         }
         _ledPixels.show();
@@ -200,6 +206,18 @@ RaftRetCode LEDPixelsDevice::apiLED(const String &reqStr, String &respStr, const
     else if (cmd.equalsIgnoreCase("pattern"))
     {
         // Set a named pattern
+#ifdef DEBUG_BUS_PIXELS_API
+        std::vector<String> patternNames;
+        _ledPixels.getPatternNames(patternNames);
+        String patternList;
+        for (auto& name : patternNames)
+        {
+            if (patternList.length() > 0)
+                patternList += ",";
+            patternList += name;
+        }
+        LOG_I(MODULE_PREFIX, "pattern request %s segmentIdx %d patterns [%s]", data.c_str(), segmentIdx, patternList.c_str());
+#endif
         _ledPixels.clear(false);
         _ledPixels.show();
         _ledPixels.setPattern(segmentIdx, data, nameValuesJson.c_str());
