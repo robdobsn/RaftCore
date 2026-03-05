@@ -29,7 +29,10 @@ LEDPixelsDevice::~LEDPixelsDevice()
 void LEDPixelsDevice::setup()
 {
     // Setup LED Pixels
-    bool rslt = _ledPixels.setup(deviceConfig);
+#ifdef DEBUG_LED_PIXELS_SETUP
+    bool rslt = 
+#endif
+    _ledPixels.setup(deviceConfig);
 
     // Log
 #ifdef DEBUG_LED_PIXELS_SETUP
