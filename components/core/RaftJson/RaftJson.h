@@ -374,11 +374,15 @@ public:
             // Check for end of array
             if (*pJsonDocPos == ']')
                 return true;
+            // Unexpected closing brace inside array = malformed JSON
+            if (*pJsonDocPos == '}')
+                return false;
             // Locate element
             const char* pElemStart = nullptr;
             const char* pElemEnd = nullptr;
+            const char* prevPos = pJsonDocPos;
             pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd);
-            if (!pJsonDocPos)
+            if (!pJsonDocPos || pJsonDocPos == prevPos)
                 return false;
             // Add to list
             strList.push_back(getStringWithoutQuotes(pElemStart, pElemEnd, true));
