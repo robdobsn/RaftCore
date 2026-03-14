@@ -29,7 +29,7 @@
 
 #ifdef ETHERNET_IS_ENABLED
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-typedef struct esp_eth_driver_s* esp_eth_handle_t;
+#include "esp_eth_driver.h"
 #endif
 #endif
 

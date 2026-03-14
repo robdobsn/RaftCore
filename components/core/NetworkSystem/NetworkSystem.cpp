@@ -29,12 +29,6 @@
 #include "mdns.h"
 #endif
 
-#ifdef ETHERNET_IS_ENABLED
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#include "esp_eth_driver.h"
-#endif
-#endif
-
 // NetBIOS name service (for IP scanner hostname discovery)
 #include "lwip/apps/netbiosns.h"
 
