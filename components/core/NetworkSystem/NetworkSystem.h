@@ -22,14 +22,14 @@
 #include "NetworkSettings.h"
 #include "sdkconfig.h"
 
-// Check if any ethernet phy type is enabled
-#if defined(CONFIG_ETH_USE_ESP32_EMAC) || defined(CONFIG_ETH_USE_SPI_ETHERNET)
+// Check if ethernet is enabled
+#if defined(CONFIG_ETH_ENABLED) && CONFIG_ETH_ENABLED
 #define ETHERNET_IS_ENABLED
 #endif
 
 #ifdef ETHERNET_IS_ENABLED
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#include "esp_eth_driver.h"
+typedef struct esp_eth_driver_s* esp_eth_handle_t;
 #endif
 #endif
 
