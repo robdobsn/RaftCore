@@ -30,9 +30,11 @@ if (DEFINED RAFT_ENABLE_SD AND RAFT_ENABLE_SD)
   list(APPEND RAFT_CORE_COMPILE_DEFINITIONS RAFT_FILESYSTEM_HAS_FATSD)
 endif()
 
-if (CONFIG_ETH_ENABLED)
-  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_eth)
-endif()
+# esp_eth is unconditionally required because ESP-IDF resolves component
+# requirements before sdkconfig is generated (CONFIG_* vars are unavailable
+# during the early expansion phase). Source-level #ifdef guards in
+# NetworkSystem.h handle compile-time conditionality.
+set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_eth)
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)

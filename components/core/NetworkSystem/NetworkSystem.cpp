@@ -952,8 +952,7 @@ bool NetworkSystem::startEthernet()
 #if CONFIG_ETH_RMII_CLK_INPUT // IDF-9724
     #define DEFAULT_RMII_CLK_MODE EMAC_CLK_EXT_IN
 #if CONFIG_ETH_RMII_CLK_IN_GPIO == 0
-    constexpr emac_rmii_clock_gpio_t rmii_clk_gpio =
-            (emac_rmii_clock_gpio_t)CONFIG_ETH_RMII_CLK_IN_GPIO;
+    #define DEFAULT_RMII_CLK_GPIO ((emac_rmii_clock_gpio_t)CONFIG_ETH_RMII_CLK_IN_GPIO)
 #else
     #error "ESP32 EMAC only support input RMII clock to GPIO0"
 #endif // CONFIG_ETH_RMII_CLK_IN_GPIO == 0
@@ -981,7 +980,7 @@ bool NetworkSystem::startEthernet()
             .rmii =
             {
                 .clock_mode = DEFAULT_RMII_CLK_MODE,
-                .clock_gpio = rmii_clk_gpio
+                .clock_gpio = DEFAULT_RMII_CLK_GPIO
             }
         },
         .dma_burst_len = ETH_DMA_BURST_LEN_32,
