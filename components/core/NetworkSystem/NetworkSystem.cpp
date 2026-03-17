@@ -25,9 +25,7 @@
 #include "RaftArduino.h"
 #include "esp_idf_version.h"
 
-#ifndef NETWORK_MDNS_DISABLED
 #include "mdns.h"
-#endif
 
 // NetBIOS name service (for IP scanner hostname discovery)
 #include "lwip/apps/netbiosns.h"
@@ -205,13 +203,11 @@ void NetworkSystem::loop()
     }
 
     // Handle deferred mDNS setup
-#ifndef NETWORK_MDNS_DISABLED
     if (_mdnsSetupPending && Raft::isTimeout(millis(), _mdnsSetupPendingMs, MDNS_SETUP_DELAY_MS))
     {
         _mdnsSetupPending = false;
         setupMDNS();
     }
-#endif
 
     // Handle time sync
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
@@ -1259,11 +1255,9 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", _wifiIPV4Addr.c_str());
         // Disable WiFi power save to ensure multicast (mDNS) packets are received
         esp_wifi_set_ps(WIFI_PS_NONE);
-#ifndef NETWORK_MDNS_DISABLED
         // Defer mDNS setup to loop so network stack is fully settled
         _mdnsSetupPending = true;
         _mdnsSetupPendingMs = millis();
-#endif
         break;
     }
     case IP_EVENT_STA_LOST_IP:
@@ -1289,11 +1283,9 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", _ethIPV4Addr.c_str());
-#ifndef NETWORK_MDNS_DISABLED
         // Defer mDNS setup to loop so network stack is fully settled
         _mdnsSetupPending = true;
         _mdnsSetupPendingMs = millis();
-#endif
         break;
     }
     case IP_EVENT_ETH_LOST_IP:
@@ -1306,11 +1298,9 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
 #endif
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
-#ifndef NETWORK_MDNS_DISABLED
         // Defer mDNS setup to loop so network stack is fully settled
         _mdnsSetupPending = true;
         _mdnsSetupPendingMs = millis();
-#endif
         break;
     case IP_EVENT_PPP_LOST_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP lost IP");
@@ -1371,8 +1361,6 @@ void NetworkSystem::warnOnWiFiDisconnectIfEthNotConnected()
 
 void NetworkSystem::setupMDNS()
 {
-#ifndef NETWORK_MDNS_DISABLED
-
 // Check valid
     if (!_isSetup)
         return;
@@ -1422,7 +1410,6 @@ void NetworkSystem::setupMDNS()
 
     // Debug
     LOG_I(MODULE_PREFIX, "setupMDNS OK hostname %s", _hostname.c_str());
-#endif // NETWORK_MDNS_DISABLED
 
     // Start NetBIOS name service responder so IP scanners (e.g. Advanced IP Scanner,
     // Angry IP Scanner) can discover the device hostname via NBNS queries on UDP port 137
