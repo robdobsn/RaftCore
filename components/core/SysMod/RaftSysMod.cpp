@@ -112,6 +112,26 @@ CommsCoreIF* RaftSysMod::getCommsCore()
     return _pSysManager->getCommsCore();
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief get a device by name
+/// @param pDeviceName Name of device
+/// @return Pointer to RaftDevice or nullptr if not found
+RaftDevice* RaftSysMod::getDeviceByName(const char* pDeviceName) const
+{
+    // Check parent
+    if (!_pSysManager || !pDeviceName)
+        return nullptr;
+
+    // Get device manager
+    DeviceManager* pDeviceManager = _pSysManager->getDeviceManager();
+    if (!pDeviceManager)
+        return nullptr;
+
+    // Get device
+    return pDeviceManager->getDevice(pDeviceName);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Configuration access methods
 int RaftSysMod::configGetInt(const char *dataPath, int defaultValue)

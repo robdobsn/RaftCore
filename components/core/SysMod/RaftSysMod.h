@@ -308,33 +308,38 @@ public:
         return true;
     }
 
-public:
+    public:
     // Non-virtual methods
-
+    
     /// @brief Check if system main firmware update is in progress
     /// @return true if main firmware update is in progress, false otherwise
     /// @note Helper function to check if the system is currently performing a main firmware update.
     bool isSystemMainFWUpdate();
-
+    
     /// @brief Check if system file transfer is in progress
     /// @return true if file transfer in progress, false otherwise
     /// @note Helper function to check if the system is currently performing a file transfer.
     bool isSystemFileTransferring();
-
+    
     /// @brief Check if system streaming is in progress
     /// @return true if streaming in progress, false otherwise
     /// @note Helper function to check if the system is currently performing streaming activity.
     bool isSystemStreaming();
-
+    
     /// @brief Get RestAPIEndpointManager
     /// @return Pointer to RestAPIEndpointManager
     /// @note This allows access to the RestAPIEndpointManager.
     RestAPIEndpointManager* getRestAPIEndpointManager();
-
+    
     /// @brief Get communications core interface
     /// @return Pointer to CommsCoreIF
     /// @note This allows access to the communications core interface.
     CommsCoreIF* getCommsCore();
+    
+    /// @brief Get device by name
+    /// @param pDeviceName Name of device
+    /// @return Pointer to RaftDevice or nullptr if not found
+    RaftDevice* getDeviceByName(const char* pDeviceName) const;
 
     /// @brief Add status change callback on another SysMod
     /// @param sysModName Name of the SysMod
@@ -343,13 +348,13 @@ public:
     ///       of the specified SysMod changes (e.g. goes online or offline). This can be used to monitor the status of other
     ///       SysMods and react accordingly.
     void sysModSetStatusChangeCB(const char* sysModName, SysMod_statusChangeCB statusChangeCB);
-
+    
     /// @brief Get JSON status of another SysMod
     /// @param sysModName Name of the SysMod
     /// @return JSON status string
     /// @note This allows getting the JSON status string of another SysMod. This can be used to query the status of other SysMods.
     String sysModGetStatusJSON(const char* sysModName) const;
-
+    
     /// @brief Send JSON command to another SysMod
     /// @param sysModName Name of the SysMod
     /// @param jsonCmd JSON command string
