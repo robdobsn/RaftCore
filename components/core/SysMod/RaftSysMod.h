@@ -183,6 +183,32 @@ public:
         return UINT16_MAX;
     }
 
+    /// @brief Trigger type for publications
+    enum TriggerType_t
+    {
+        TRIGGER_NONE,
+        TRIGGER_ON_TIME_INTERVALS,
+        TRIGGER_ON_STATE_CHANGE,
+        TRIGGER_ON_TIME_OR_CHANGE
+    };
+
+    // Default minimum time between messages (ms)
+    static const uint32_t DEFAULT_MIN_TIME_BETWEEN_MSGS_MS = 100;
+
+    /// @brief Create a subscription programmatically
+    /// @param pubTopic Publication topic name (must match a registered data source)
+    /// @param channelID Comms channel ID to publish to
+    /// @param rateHz Publishing rate in Hz
+    /// @param trigger type for the subscription, or TRIGGER_NONE on failure
+    /// @param minTimeBetweenMsgsMs Minimum time between messages in milliseconds (to prevent flooding when trigger is state change)
+    /// @return true if subscription created/updated successfully
+    virtual bool createSubscription(const String& pubTopic, uint32_t channelID, double rateHz, 
+            TriggerType_t trigger = TRIGGER_ON_TIME_OR_CHANGE, 
+            uint32_t minTimeBetweenMsgsMs = DEFAULT_MIN_TIME_BETWEEN_MSGS_MS)
+    {
+        return false;
+    }
+
     /// @brief Set the SysManager for this SysMod
     /// @param pSysManager Pointer to the system manager interface
     /// @note This is called by the SysManager during system setup. It should not be called directly by user code.
@@ -335,6 +361,11 @@ public:
     /// @return Pointer to CommsCoreIF
     /// @note This allows access to the communications core interface.
     CommsCoreIF* getCommsCore();
+    
+    /// @brief Get device by name
+    /// @param pDeviceName Name of device
+    /// @return Pointer to RaftDevice or nullptr if not found
+    RaftDevice* getDeviceByName(const char* pDeviceName) const;
 
     /// @brief Add status change callback on another SysMod
     /// @param sysModName Name of the SysMod
