@@ -618,6 +618,131 @@
                 }
             }
         },
+        "LSM6DS_FIFO": {
+            "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. Poll reads FIFO status (word count) then burst-reads FIFO data. Decode divides word count by 6 (3 gyro + 3 accel words per sample). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
+            "addresses": "0x6a",
+            "deviceType": "LSM6DS_FIFO",
+            "detectionValues": "0x0f=0x69,0x6a",
+            "initValues": "0x0a00&0x1248&0x1048&0x114c&0x1640&0x0809&0x0a26",
+            "pollInfo": {
+                "c": "0x3a=r2&0x3e=r192",
+                "i": 50,
+                "s": 16
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "LSM6DS FIFO",
+                "desc": "6-Axis IMU (FIFO)",
+                "manu": "ST",
+                "type": "LSM6DS_FIFO",
+                "clas": ["ACC", "GYRO"],
+                "resp": {
+                    "b": 194,
+                    "a": [
+                        {
+                            "n": "gx",
+                            "t": "<h",
+                            "u": "dps",
+                            "r": [-2000, 2000],
+                            "d": 16.384,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "gy",
+                            "t": "<h",
+                            "u": "dps",
+                            "r": [-2000, 2000],
+                            "d": 16.384,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "gz",
+                            "t": "<h",
+                            "u": "dps",
+                            "r": [-2000, 2000],
+                            "d": 16.384,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "ax",
+                            "t": "<h",
+                            "u": "g",
+                            "r": [-4.0, 4.0],
+                            "d": 8192,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "ay",
+                            "t": "<h",
+                            "u": "g",
+                            "r": [-4.0, 4.0],
+                            "d": 8192,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "az",
+                            "t": "<h",
+                            "u": "g",
+                            "r": [-4.0, 4.0],
+                            "d": 8192,
+                            "f": ".2f",
+                            "o": "float"
+                        }
+                    ],
+                    "c": {
+                        "n": "lsm6ds_fifo",
+                        "c": "int W=((buf[1]&0x0F)<<8)|buf[0];int N=W/6;if(N>16){N=16;}int k=2;int i=0;while(i<N){out.gx=(buf[k+1]<<8)|buf[k];out.gy=(buf[k+3]<<8)|buf[k+2];out.gz=(buf[k+5]<<8)|buf[k+4];out.ax=(buf[k+7]<<8)|buf[k+6];out.ay=(buf[k+9]<<8)|buf[k+8];out.az=(buf[k+11]<<8)|buf[k+10];k+=12;i++;next;}"
+                    },
+                    "us": 9615
+                },
+                "actions": [
+                    {
+                        "n": "_sampleConfig.accel",
+                        "t": "B",
+                        "w": "10",
+                        "r": [12.5, 6660],
+                        "d": 104,
+                        "desc": "Accelerometer ODR",
+                        "map": {
+                            "12.5": "18", "26": "28", "52": "38", "104": "48",
+                            "208": "58", "416": "68", "833": "78", "1660": "88",
+                            "3330": "98", "6660": "A8"
+                        }
+                    },
+                    {
+                        "n": "_sampleConfig.gyro",
+                        "t": "B",
+                        "w": "11",
+                        "r": [12.5, 6660],
+                        "d": 104,
+                        "desc": "Gyroscope ODR",
+                        "map": {
+                            "12.5": "1C", "26": "2C", "52": "3C", "104": "4C",
+                            "208": "5C", "416": "6C", "833": "7C", "1660": "8C",
+                            "3330": "9C", "6660": "AC"
+                        }
+                    },
+                    {
+                        "n": "_sampleConfig.fifo",
+                        "t": "B",
+                        "w": "0a",
+                        "r": [12.5, 6660],
+                        "d": 104,
+                        "desc": "FIFO ODR (match sensor ODR)",
+                        "map": {
+                            "12.5": "0E", "26": "16", "52": "1E", "104": "26",
+                            "208": "2E", "416": "36", "833": "3E", "1660": "46",
+                            "3330": "4E", "6660": "56"
+                        }
+                    }
+                ]
+            }
+        },
         "AHT20": {
             "addresses": "0x38",
             "deviceType": "AHT20",
