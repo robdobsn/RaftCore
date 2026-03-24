@@ -183,14 +183,14 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             polling_config_json_str = json.dumps(dev_type.get("pollInfo",{}), separators=(',', ':'))
             dev_info_json_str = json.dumps(dev_type.get("devInfoJson",{}), separators=(',', ':'))
             header_file.write('    {\n')
-            header_file.write(f'        R"({dev_type.get("deviceType","")})",\n')
-            header_file.write(f'        R"({dev_type.get("addresses","")})",\n')
-            header_file.write(f'        R"({dev_type.get("detectionValues","")})",\n')
-            header_file.write(f'        R"({dev_type.get("initValues","")})",\n')
-            header_file.write(f'        R"({polling_config_json_str})",\n')
+            header_file.write(f'        R"JSON({dev_type.get("deviceType","")})JSON",\n')
+            header_file.write(f'        R"JSON({dev_type.get("addresses","")})JSON",\n')
+            header_file.write(f'        R"JSON({dev_type.get("detectionValues","")})JSON",\n')
+            header_file.write(f'        R"JSON({dev_type.get("initValues","")})JSON",\n')
+            header_file.write(f'        R"JSON({polling_config_json_str})JSON",\n')
             header_file.write(f'        {str(poll_data_size_bytes)},\n')
             if gen_options.get("inc_dev_info_json", False):
-                header_file.write(f'        R"({dev_info_json_str})"')
+                header_file.write(f'        R"JSON({dev_info_json_str})JSON"')
             else:
                 header_file.write(f'        nullptr')
 
