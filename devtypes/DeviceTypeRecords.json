@@ -632,7 +632,7 @@
             "scanPriority": "high",
             "devInfoJson": {
                 "name": "LSM6DS FIFO",
-                "desc": "6-Axis IMU (FIFO)",
+                "desc": "6-Axis IMU FIFO",
                 "manu": "ST",
                 "type": "LSM6DS_FIFO",
                 "clas": ["ACC", "GYRO"],
@@ -733,7 +733,7 @@
                         "w": "0a",
                         "r": [12.5, 6660],
                         "d": 104,
-                        "desc": "FIFO ODR (match sensor ODR)",
+                        "desc": "FIFO ODR - match sensor ODR",
                         "map": {
                             "12.5": "0E", "26": "16", "52": "1E", "104": "26",
                             "208": "2E", "416": "36", "833": "3E", "1660": "46",
