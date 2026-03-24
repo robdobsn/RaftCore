@@ -538,91 +538,12 @@
                     ]
                 }
             }
-        },  
-        "LSM6DS": {
-            "_notes": "0x0a00 (FIFO disable), 0x1048 (Accel ODR 104Hz, FS 4g), 0x114c (Gyro ODR 104Hz, FS 2000dps), 0x22=r12 (read samples). Detection: 0x0f (WHOAMI) = 0x69 (LSM6DS3 & LSM6DS33), 0x6a (LSM6DSM) 0x6c (LSM6DSOX).",
-            "addresses": "0x6a",
-            "deviceType": "LSM6DS",
-            "detectionValues": "0x0f=0x69,0x6a,0x6c",
-            "initValues": "0x0a00&0x1048&0x114c&0x1640",
-            "pollInfo": {
-                "c": "0x22=r12",
-                "i": 100,
-                "s": 3
-            },
-            "scanPriority": "high",
-            "devInfoJson": {
-                "name": "LSM6DS",
-                "desc": "6-Axis IMU",
-                "manu": "ST",
-                "type": "LSM6DS",
-                "clas": ["ACC","GYRO"],
-                "resp": {
-                    "b": 12,
-                    "a": [
-                        {
-                            "n": "gx",
-                            "t": "<h",
-                            "u": "dps",
-                            "r": [-2000, 2000],
-                            "d": 16.384,
-                            "f": ".2f",
-                            "o": "float"
-                        },
-                        {
-                            "n": "gy",
-                            "t": "<h",
-                            "u": "dps",
-                            "r": [-2000, 2000],
-                            "d": 16.384,
-                            "f": ".2f",
-                            "o": "float"
-                        },
-                        {
-                            "n": "gz",
-                            "t": "<h",
-                            "u": "dps",
-                            "r": [-2000, 2000],
-                            "d": 16.384,
-                            "f": ".2f",
-                            "o": "float"
-                        },
-                        {
-                            "n": "ax",
-                            "t": "<h",
-                            "u": "g",
-                            "r": [-4.0, 4.0],
-                            "d": 8192,
-                            "f": ".2f",
-                            "o": "float"
-                        },
-                        {
-                            "n": "ay",
-                            "t": "<h",
-                            "u": "g",
-                            "r": [-4.0,4.0],
-                            "d": 8192,
-                            "f": ".2f",
-                            "o": "float"
-                        },
-                        {
-                            "n": "az",
-                            "t": "<h",
-                            "u": "g",
-                            "r": [-4.0,4.0],
-                            "d": 8192,
-                            "f": ".2f",
-                            "o": "float"
-                        }
-                    ]
-                }
-            }
         },
-        "LSM6DS_FIFO": {
+        "LSM6DS": {
             "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. Poll reads FIFO status (word count) then burst-reads FIFO data. Decode divides word count by 6 (3 gyro + 3 accel words per sample). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
             "addresses": "0x6a",
             "deviceType": "LSM6DS_FIFO",
-            "detectionValues": "0x0f=0x69,0x6a",
+            "detectionValues": "0x0f=0x69,0x6a,0x6c",
             "initValues": "0x0a00&0x1248&0x1048&0x114c&0x1640&0x0809&0x0a26",
             "pollInfo": {
                 "c": "0x3a=r2&0x3e=r192",
@@ -632,7 +553,7 @@
             "scanPriority": "high",
             "devInfoJson": {
                 "name": "LSM6DS FIFO",
-                "desc": "6-Axis IMU FIFO",
+                "desc": "6-Axis IMU (FIFO)",
                 "manu": "ST",
                 "type": "LSM6DS_FIFO",
                 "clas": ["ACC", "GYRO"],
@@ -733,7 +654,7 @@
                         "w": "0a",
                         "r": [12.5, 6660],
                         "d": 104,
-                        "desc": "FIFO ODR - match sensor ODR",
+                        "desc": "FIFO ODR (match sensor ODR)",
                         "map": {
                             "12.5": "0E", "26": "16", "52": "1E", "104": "26",
                             "208": "2E", "416": "36", "833": "3E", "1660": "46",

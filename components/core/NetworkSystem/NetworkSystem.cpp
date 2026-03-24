@@ -347,9 +347,9 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
     {
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
-        jsonStr += R"("wifiAP":{"SSID":")" + _wifiAPSSID;
+        jsonStr += R"("wifiAP":{"SSID":")" + _wifiAPSSID + R"(")";
         if (_wifiAPClientCount > 0)
-            jsonStr += R"(","clients":)" + String(_wifiAPClientCount);
+            jsonStr += R"(,"clients":)" + String(_wifiAPClientCount);
         jsonStr += R"(})";
     }
 #ifdef ETHERNET_IS_ENABLED

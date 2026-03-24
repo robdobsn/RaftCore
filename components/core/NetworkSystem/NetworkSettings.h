@@ -36,7 +36,7 @@ public:
                          configPrefixed.getBool("EthEnabled", false);
 
         // Wifi STA
-        wifiSTAScanThreshold = getAuthModeFromStr(configPrefixed.getString("wifiSTAScanThreshold", "OPEN").c_str());
+        wifiSTAScanThreshold = getAuthModeFromStr(configPrefixed.getString("wifiSTAScanThreshold", "WPA2_PSK").c_str());
 
         // Wifi AP
         wifiAPAuthMode = getAuthModeFromStr(configPrefixed.getString("wifiAPAuthMode", "WPA2_PSK").c_str());
