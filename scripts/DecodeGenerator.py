@@ -187,7 +187,7 @@ class DecodeGenerator:
     def is_attr_type_signed(self, attrType: str) -> bool:
         if len(attrType) == 0:
             return False
-        attrStr = attrType[1] if attrType[0] == ">" or attrType[0] == "<" and len(attrType) > 1 else attrType[0]
+        attrStr = attrType[1] if (attrType[0] == ">" or attrType[0] == "<") and len(attrType) > 1 else attrType[0]
         return attrStr == "b" or attrStr == "h" or attrStr == "i" or attrStr == "l" or attrStr == "q"
 
     def gen_timestamp_extract_code(self, extract_code, line_prefix):

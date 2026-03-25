@@ -13,8 +13,9 @@ class PseudocodeHandler:
             ('NEXT',      r'next\b'),       # Next keyword - works like a pointer increment to move to next output struct
             ('ID',        r'[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*'),  # Identifier
             # ('ID',        r'[a-zA-Z_][a-zA-Z0-9_]*'),  # Identifier
+            ('HEX_NUM',  r'0x[0-9A-Fa-f]+'), # Hex number — must precede NUM_INT
+            ('NUM_FLOAT', r'\d+\.\d*'),     # Float number — must precede NUM_INT
             ('NUM_INT',   r'\d+'),          # Integer number
-            ('NUM_FLOAT', r'\d+\.\d*'),     # Float number
             ('LOGICAL_AND', r'\&\&'),       # Logical AND
             ('LOGICAL_OR', r'\|\|'),        # Logical OR
             ('LOGICAL_NOT', r'\!'),         # Logical NOT
@@ -52,6 +53,8 @@ class PseudocodeHandler:
             value = mo.group()
             if kind == 'WHITESPACE' or kind == 'NEWLINE':
                 continue
+            elif kind == 'HEX_NUM':
+                pass  # Keep original hex string (e.g. '0x0F') for code generation
             elif kind in ('NUM_INT', 'NUM_FLOAT'):
                 value = float(value) if '.' in value else int(value)
             yield kind, value
@@ -128,8 +131,7 @@ class PseudocodeHandler:
             elif token_type == "DEC_OP":
                 # Decrement operator, convert to Python style
                 code += " -= 1"
-            elif token_type == "ID" and tokens[i + 1][0] == "ASSIGN":
-                # print(f"ID {token_value} i {i} tokens[i] {tokens[i]}")
+            elif token_type == "ID" and i + 1 < len(tokens) and tokens[i + 1][0] == "ASSIGN":
                 # Variable assignment, check for a declaration and skip
                 if (i > 0 and (tokens[i - 1][0] == "INT" or tokens[i - 1][0] == "FLOAT")):
                     # Output the variable name and assignment
@@ -239,7 +241,7 @@ if __name__ == "__main__":
                 "pOut->timeMs = timestampUs / 1000;"
             ]
             # Add default substitutions for C++ code
-            substitutions["^out."] = "pOut->",
+            substitutions["^out."] = "pOut->"
             substitutions["next"] = "\n    ".join(loop_end_lines)
         elif args.lang == "typescript":
             loop_end_lines = [
