@@ -53,4 +53,8 @@ public:
     /// @return true if resized successfully
     /// @note This clears any existing buffered data
     virtual bool resize(uint32_t numResultsToStore) = 0;
+
+    /// @brief Get and clear the overflow count (number of overwrites due to full buffer)
+    /// @return number of overwrites since last call
+    virtual uint32_t debugGetAndClearOverflowCount() { return 0; }
 };
