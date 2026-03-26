@@ -8,7 +8,7 @@
 
 #include "BusAddrRecord.h"
 
-// #define DEBUG_BUS_ADDR_RECORD_FOR_ADDRESS 0x310
+// #define DEBUG_BUS_ADDR_RECORD_FOR_ADDRESS 0x76a
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Handle device responding information
@@ -22,6 +22,10 @@ bool BusAddrRecord::handleResponding(bool isResponding, bool &flagSpuriousRecord
     // Handle is responding or not
     if (isResponding)
     {
+        // Reset failure count on successful response
+        if (count < 0)
+            count = 0;
+
         // If not already online then count upwards
         if (onlineState != DeviceOnlineState::ONLINE)
         {
@@ -52,8 +56,9 @@ bool BusAddrRecord::handleResponding(bool isResponding, bool &flagSpuriousRecord
         if (onlineState != DeviceOnlineState::OFFLINE)
         {
             // Count down to offline/spurious threshold
-            count = (count < -failMax) ? count : count - 1;
-            if (count <= -failMax)
+            // Cast failMax to int before negation to avoid unsigned wrap (uint32_t negation wraps to ~4 billion)
+            count = (count < -(int)failMax) ? count : count - 1;
+            if (count <= -(int)failMax)
             {
                 // Now offline/spurious
                 count = 0;
