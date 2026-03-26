@@ -73,6 +73,7 @@ idf_component_register(
     "components/core/ArPreferences/ArPreferences.cpp"
     "components/core/Bus/BusAddrRecord.cpp"
     "components/core/Bus/BusAddrStatus.cpp"
+    "components/core/Bus/BusRequestInfo.cpp"
     "components/core/Bus/BusSerial.cpp"
     "components/core/Bus/DeviceStatus.cpp"
     "components/core/Bus/RaftBusSystem.cpp"

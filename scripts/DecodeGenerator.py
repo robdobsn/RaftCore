@@ -100,7 +100,19 @@ class DecodeGenerator:
                 pc_len += len(pc_read_def) // 2
             # Check if the value is a read byte count
             elif pc_read_def.find("r") >= 0:
-                pc_len += int(pc_read_def[pc_read_def.find("r") + 1:])
+                r_idx = pc_read_def.find("r")
+                r_rest = pc_read_def[r_idx + 1:]
+                # Check for dynamic read expression r{expr}
+                if r_rest.startswith("{") and "}" in r_rest:
+                    # Extract :max value from expression
+                    import re
+                    max_match = re.search(r':max(\d+)', r_rest)
+                    if max_match:
+                        pc_len += int(max_match.group(1))
+                    else:
+                        raise ValueError("Dynamic read expr without :max in: " + pc_read_def)
+                else:
+                    pc_len += int(r_rest)
             elif len(pc_read_def) == 0 or pc_read_def.find("p") >= 0:
                 pass
             else:

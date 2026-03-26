@@ -1,0 +1,17 @@
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Bus Request Info
+//
+// Rob Dobson 2024
+//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#include "BusRequestInfo.h"
+#include "PollReadLenExpr.h"
+
+uint16_t BusRequestInfo::getReadReqLen(const std::vector<std::vector<uint8_t>>& priorResults) const
+{
+    if (_readLenExpr)
+        return static_cast<uint16_t>(_readLenExpr->evaluate(priorResults));
+    return _readReqLen;
+}

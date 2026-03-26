@@ -10,10 +10,13 @@
 
 #include <vector>
 #include <functional>
+#include <memory>
 #include "RaftRetCode.h"
 #include "RaftArduino.h"
 #include "HWElemReq.h"
 #include "RaftDeviceConsts.h"
+
+class PollReadLenExpr;
 
 class BusRequestResult;
 class BusRequestInfo;
@@ -150,6 +153,29 @@ public:
         return _readReqLen;
     }
 
+    /// @brief Get read request length, evaluating dynamic expression if present
+    /// @param priorResults results from prior poll operations in this cycle
+    /// @return read length in bytes
+    uint16_t getReadReqLen(const std::vector<std::vector<uint8_t>>& priorResults) const;
+
+    /// @brief Check if this request has a dynamic read length expression
+    bool hasDynamicReadLen() const
+    {
+        return _readLenExpr != nullptr;
+    }
+
+    /// @brief Set dynamic read length expression
+    void setReadLenExpr(std::shared_ptr<PollReadLenExpr> expr)
+    {
+        _readLenExpr = expr;
+    }
+
+    /// @brief Temporarily override the read request length (for dynamic evaluation)
+    void setReadReqLen(uint16_t len)
+    {
+        _readReqLen = len;
+    }
+
     BusElemAddrType getAddress() const
     {
         return _address;
@@ -196,6 +222,9 @@ private:
 
     // Read data
     uint16_t _readReqLen = 0;
+
+    // Dynamic read length expression (nullptr if static)
+    std::shared_ptr<PollReadLenExpr> _readLenExpr;
 
     // Elem name
     String _elemName;

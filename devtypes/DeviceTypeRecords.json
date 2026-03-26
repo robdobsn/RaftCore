@@ -540,30 +540,30 @@
             }
         },
         "LSM6DS": {
-            "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. Poll reads FIFO status (word count) then burst-reads FIFO data. Decode divides word count by 6 (3 gyro + 3 accel words per sample). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
+            "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. Two-phase I2C read: first reads FIFO_STATUS1-4 (word count), then reads only the required FIFO data bytes from 0x3E. FIFO_PATTERN (STATUS3/4) used to skip to next aligned group boundary before decoding. Each sample = 6 words (gx,gy,gz,ax,ay,az). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
             "addresses": "0x6a",
-            "deviceType": "LSM6DS_FIFO",
+            "deviceType": "LSM6DS",
             "detectionValues": "0x0f=0x69,0x6a,0x6c",
-            "initValues": "0x0a00&0x1248&0x1048&0x114c&0x1640&0x0809&0x0a26",
+            "initValues": "0x0a00&0x1244&0x1048&0x114c&0x1640&0x0809&0x0a26",
             "pollInfo": {
-                "c": "0x3a=r2&0x3e=r192",
+                "c": "0x3a=r4&0x3e=r{$0.w12:mask0FFF*2:max96}",
                 "i": 50,
-                "s": 16
+                "s": 20
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "LSM6DS FIFO",
-                "desc": "6-Axis IMU (FIFO)",
+                "name": "LSM6DS",
+                "desc": "6-Axis IMU",
                 "manu": "ST",
-                "type": "LSM6DS_FIFO",
+                "type": "LSM6DS",
                 "clas": ["ACC", "GYRO"],
                 "resp": {
-                    "b": 194,
+                    "b": 100,
                     "a": [
                         {
                             "n": "gx",
                             "t": "<h",
-                            "u": "dps",
+                            "u": "&deg;/s",
                             "r": [-2000, 2000],
                             "d": 16.384,
                             "f": ".2f",
@@ -572,7 +572,7 @@
                         {
                             "n": "gy",
                             "t": "<h",
-                            "u": "dps",
+                            "u": "&deg;/s",
                             "r": [-2000, 2000],
                             "d": 16.384,
                             "f": ".2f",
@@ -581,7 +581,7 @@
                         {
                             "n": "gz",
                             "t": "<h",
-                            "u": "dps",
+                            "u": "&deg;/s",
                             "r": [-2000, 2000],
                             "d": 16.384,
                             "f": ".2f",
@@ -617,7 +617,7 @@
                     ],
                     "c": {
                         "n": "lsm6ds_fifo",
-                        "c": "int W=((buf[1]&0x0F)<<8)|buf[0];int N=W/6;if(N>16){N=16;}int k=2;int i=0;while(i<N){out.gx=(buf[k+1]<<8)|buf[k];out.gy=(buf[k+3]<<8)|buf[k+2];out.gz=(buf[k+5]<<8)|buf[k+4];out.ax=(buf[k+7]<<8)|buf[k+6];out.ay=(buf[k+9]<<8)|buf[k+8];out.az=(buf[k+11]<<8)|buf[k+10];k+=12;i++;next;}"
+                        "c": "int W=((buf[1]&0x0F)<<8)|buf[0];int P=((buf[3]&0x03)<<8)|buf[2];int skip=(6-P%6)%6;int N=(W-skip)/6;int maxN=(96-skip*2)/12;if(N>maxN){N=maxN;}if(N>8){N=8;}if(N<1){N=0;}int k=4+skip*2;int i=0;while(i<N){out.gx=(buf[k+1]<<8)|buf[k];out.gy=(buf[k+3]<<8)|buf[k+2];out.gz=(buf[k+5]<<8)|buf[k+4];out.ax=(buf[k+7]<<8)|buf[k+6];out.ay=(buf[k+9]<<8)|buf[k+8];out.az=(buf[k+11]<<8)|buf[k+10];k+=12;i++;next;}"
                     },
                     "us": 9615
                 },

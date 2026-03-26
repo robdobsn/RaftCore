@@ -8,6 +8,7 @@
 
 #include "DeviceTypeRecords.h"
 #include "BusRequestInfo.h"
+#include "PollReadLenExpr.h"
 #include "RaftJson.h"
 
 // #define DEBUG_DEVICE_INFO_RECORDS
@@ -228,6 +229,66 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
 #endif
             continue;
         }
+
+        // Check for dynamic read length expression r{...}
+        String valueStr = pollWriteReadPair.value;
+        int dynReadStart = valueStr.indexOf("r{");
+        if (dynReadStart >= 0)
+        {
+            int dynReadEnd = valueStr.indexOf("}", dynReadStart + 2);
+            if (dynReadEnd < 0)
+            {
+#ifdef DEBUG_POLL_REQUEST_REQS
+                LOG_I(MODULE_PREFIX, "getPollInfo FAIL unmatched r{ in %s", valueStr.c_str());
+#endif
+                continue;
+            }
+
+            // Extract the expression between r{ and }
+            String exprStr = valueStr.substring(dynReadStart + 2, dynReadEnd);
+            auto readLenExpr = std::make_shared<PollReadLenExpr>();
+            if (!readLenExpr->parse(exprStr))
+            {
+#ifdef DEBUG_POLL_REQUEST_REQS
+                LOG_I(MODULE_PREFIX, "getPollInfo FAIL parse dynamic read expr %s", exprStr.c_str());
+#endif
+                continue;
+            }
+
+            // Expression must have a :max value for buffer sizing
+            if (!readLenExpr->hasMaxValue())
+            {
+#ifdef DEBUG_POLL_REQUEST_REQS
+                LOG_I(MODULE_PREFIX, "getPollInfo FAIL dynamic read expr %s has no :max", exprStr.c_str());
+#endif
+                continue;
+            }
+
+            uint32_t maxReadLen = readLenExpr->getMaxValue();
+            uint32_t pauseAfterSendMs = extractBarAccessMs(valueStr);
+
+            // Create the poll request with the max read length
+            BusRequestInfo pollReq(BUS_REQ_TYPE_POLL,
+                    addr,
+                    DevicePollingInfo::DEV_IDENT_POLL_CMD_ID,
+                    writeData.size(),
+                    writeData.data(),
+                    maxReadLen,
+                    pauseAfterSendMs,
+                    NULL,
+                    NULL);
+            pollReq.setReadLenExpr(readLenExpr);
+            pollingInfo.pollReqs.push_back(pollReq);
+
+            // Use max read length for buffer sizing
+            pollResultDataSize += maxReadLen;
+
+#ifdef DEBUG_POLL_REQUEST_REQS
+            LOG_I(MODULE_PREFIX, "getPollInfo addr %04x dynReadExpr %s maxReadLen %d", addr, exprStr.c_str(), maxReadLen);
+#endif
+            continue;
+        }
+
         std::vector<uint8_t> readDataMask;
         std::vector<uint8_t> readData;
         uint32_t pauseAfterSendMs = 0; 
