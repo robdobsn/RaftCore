@@ -70,6 +70,35 @@ public:
         _isPaused = isPaused;
     }
 
+    /// @brief Disconnect any active connection (e.g. TCP client)
+    /// @return true if a connection was disconnected
+    virtual bool disconnect()
+    {
+        return false;
+    }
+
+    /// @brief Configure logger parameters at runtime
+    /// @param config JSON containing optional keys: level, maxcount, windowms, bufsize
+    /// @return true if any parameter was applied
+    virtual bool configure(const RaftJsonIF& config)
+    {
+        // Handle level (common to all loggers)
+        String levelStr = config.getString("level", "");
+        if (levelStr.length() > 0)
+        {
+            _level = convStrToLogLevel(levelStr.c_str());
+            return true;
+        }
+        return false;
+    }
+
+    /// @brief Get extended JSON status (type-specific details)
+    /// @return JSON string with additional status fields
+    virtual String getExtendedStatusJSON() const
+    {
+        return getLoggerJSON();
+    }
+
     /// @brief Get JSON describing the logger
     /// @return JSON string
     String getLoggerJSON() const
