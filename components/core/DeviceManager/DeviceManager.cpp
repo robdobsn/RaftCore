@@ -782,7 +782,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/typeinfo?type=<typeName> - Get type info,"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
-                            " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count> - device configuration,"
+                            " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count>&sampleRateHz=<hz> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device"
                             " Note: typeName can be either a device type name or a device type index"
@@ -1068,7 +1068,8 @@ RaftRetCode DeviceManager::apiDevManDemo(const String &reqStr, String &respStr, 
 /// @param reqStr request string containing the command and parameters
 /// @param respStr (out) response string to be filled with the result
 /// @param jsonParams JSON object containing the parameters for the command, expected to have fields "bus" (bus name), "device" (device name), and 
-///        "intervalUs" (polling interval in microseconds)
+///        "intervalUs" (polling interval in microseconds), "numSamples" (number of poll result samples to store),
+///        "sampleRateHz" (device internal sample rate in Hz - uses _conf actions from DeviceTypeRecords)
 /// @return RaftRetCode indicating success or failure of the operation
 RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
@@ -1122,22 +1123,112 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
     }
 
+    // Check if sampleRateHz is provided
+    String sampleRateHzStr = jsonParams.getString("sampleRateHz", "");
+    bool sampleRateConfigured = false;
+    if (sampleRateHzStr.length() > 0)
+    {
+        double sampleRateHz = strtod(sampleRateHzStr.c_str(), nullptr);
+        if (sampleRateHz <= 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidSampleRate");
+
+        // Get device type index for the address
+        DeviceTypeIndexType deviceTypeIndex = pBus->getDeviceTypeIndex(addr);
+        if (deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceTypeNotFound");
+
+        // Get device type record
+        DeviceTypeRecord devTypeRec;
+        if (!deviceTypeRecords.getDeviceInfo(deviceTypeIndex, devTypeRec) || !devTypeRec.devInfoJson)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNoDeviceInfo");
+
+        // Parse devInfoJson for _conf actions
+        RaftJson devInfoJsonDoc(devTypeRec.devInfoJson);
+        int actionsArrayLen = 0;
+        if (devInfoJsonDoc.getType("actions", actionsArrayLen) != RaftJsonIF::RAFT_JSON_ARRAY || actionsArrayLen == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failSampleRateNotSupported");
+
+        // Iterate actions looking for _conf.* entries
+        bool anyConfActionFound = false;
+        bool anyWriteSent = false;
+        for (int i = 0; i < actionsArrayLen; i++)
+        {
+            String idxStr = String(i);
+            String actionName = devInfoJsonDoc.getString(("actions[" + idxStr + "]/n").c_str(), "");
+            if (!actionName.startsWith("_conf."))
+                continue;
+            anyConfActionFound = true;
+
+            // Look up sampleRateHz in this action's map
+            String mapPath = "actions[" + idxStr + "]/map/" + sampleRateHzStr;
+            String mappedHexValue = devInfoJsonDoc.getString(mapPath.c_str(), "");
+            if (mappedHexValue.length() == 0)
+                continue;
+
+            // Get write prefix (may be empty for consolidated multi-write actions)
+            String writePrefix = devInfoJsonDoc.getString(("actions[" + idxStr + "]/w").c_str(), "");
+
+            // Handle &-separated multi-write map values (e.g. "1048&114C&0a26")
+            // Each segment is a self-contained register+data hex string
+            int segStart = 0;
+            while (segStart <= (int)mappedHexValue.length())
+            {
+                int segEnd = mappedHexValue.indexOf('&', segStart);
+                if (segEnd < 0)
+                    segEnd = mappedHexValue.length();
+                String segment = mappedHexValue.substring(segStart, segEnd);
+                segStart = segEnd + 1;
+
+                if (segment.length() == 0)
+                    continue;
+
+                String hexWriteData = writePrefix + segment;
+                uint32_t numBytes = hexWriteData.length() / 2;
+                std::vector<uint8_t> writeVec(numBytes);
+                uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeVec.data(), numBytes);
+                writeVec.resize(writeBytesLen);
+
+                // Create and send bus request
+                static const uint32_t CMDID_DEVCONFIG = 101;
+                HWElemReq hwElemReq = {writeVec, 0, CMDID_DEVCONFIG, "devconfig", 0};
+                BusRequestInfo busReqInfo("", addr);
+                busReqInfo.set(BUS_REQ_TYPE_STD, hwElemReq, 0, nullptr, nullptr);
+                if (pBus->addRequest(busReqInfo))
+                    anyWriteSent = true;
+
+#ifdef DEBUG_DEVICE_CONFIG_API
+                LOG_I(MODULE_PREFIX, "sampleRate action %s deviceID %s hexWr %s",
+                        actionName.c_str(), deviceID.toString().c_str(), hexWriteData.c_str());
+#endif
+            }
+        }
+
+        if (!anyConfActionFound)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failSampleRateNotSupported");
+        if (!anyWriteSent)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidSampleRate");
+        sampleRateConfigured = true;
+    }
+
     // Read back
     uint64_t pollIntervalUs = pBus->getDevicePollIntervalUs(addr);
     uint32_t numSamplesResult = pBus->getDeviceNumSamples(addr);
-    if (pollIntervalUs == 0 && numSamplesResult == 0)
+    if (pollIntervalUs == 0 && numSamplesResult == 0 && !sampleRateConfigured)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
 
 #ifdef DEBUG_DEVICE_CONFIG_API
-        LOG_I(MODULE_PREFIX, "devconfig applied deviceID %s intervalUs %llu (rateHz %.3f) numSamples %u",
+        LOG_I(MODULE_PREFIX, "devconfig applied deviceID %s intervalUs %llu (rateHz %.3f) numSamples %u sampleRateHz %s",
                 deviceID.toString().c_str(),
                 (unsigned long long)pollIntervalUs,
                 pollIntervalUs == 0 ? 0 : 1000000.0 / pollIntervalUs,
-                (unsigned)numSamplesResult);
+                (unsigned)numSamplesResult,
+                sampleRateHzStr.c_str());
 #endif
 
     String extra = "\"deviceID\":\"" + deviceID.toString() + "\",\"pollIntervalUs\":" + String(pollIntervalUs) +
                    ",\"numSamples\":" + String(numSamplesResult);
+    if (sampleRateConfigured)
+        extra += ",\"sampleRateHz\":" + sampleRateHzStr;
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
 }
 

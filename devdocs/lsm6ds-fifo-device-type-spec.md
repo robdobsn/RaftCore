@@ -185,7 +185,7 @@ For matched accel+gyro with no decimation: `FIFO_CTRL3 = 0x09` (bits [5:3]=001, 
         },
         "actions": [
             {
-                "n": "_sampleConfig",
+                "n": "_conf.rate",
                 "t": "B",
                 "w": "10",
                 "r": [12.5, 6660],
@@ -322,13 +322,13 @@ At 104 Hz ODR, the inter-sample period is 1/104 ≈ 9615 µs. This tells the fra
 - ...
 - Sample N-1: `poll_timestamp`
 
-This field should be updated when ODR changes (see `_sampleConfig` action below).
+This field should be updated when ODR changes (see `_conf.rate` action below).
 
-### `_sampleConfig` Action
+### `_conf.rate` Action
 
 ```json
 {
-    "n": "_sampleConfig",
+    "n": "_conf.rate",
     "t": "B",
     "w": "10",
     "r": [12.5, 6660],
@@ -376,7 +376,7 @@ For a complete implementation, consider separate actions for gyro ODR and FIFO O
 ```json
 "actions": [
     {
-        "n": "_sampleConfig.accel",
+        "n": "_conf.accel",
         "t": "B",
         "w": "10",
         "r": [12.5, 6660],
@@ -389,7 +389,7 @@ For a complete implementation, consider separate actions for gyro ODR and FIFO O
         }
     },
     {
-        "n": "_sampleConfig.gyro",
+        "n": "_conf.gyro",
         "t": "B",
         "w": "11",
         "r": [12.5, 6660],
@@ -402,7 +402,7 @@ For a complete implementation, consider separate actions for gyro ODR and FIFO O
         }
     },
     {
-        "n": "_sampleConfig.fifo",
+        "n": "_conf.fifo",
         "t": "B",
         "w": "0a",
         "r": [12.5, 6660],
@@ -476,7 +476,7 @@ GET /devman/devconfig?deviceid=<id>&intervalUs=25000&numSamples=32
 | Max samples/poll | 3 | 16 |
 | Custom decode | None | `lsm6ds_fifo` pseudo-code |
 | Sample timing | None (`us` absent) | `"us": 9615` (104 Hz) |
-| ODR actions | None | `_sampleConfig` for accel/gyro/FIFO ODR |
+| ODR actions | None | `_conf.rate` for accel/gyro/FIFO ODR |
 | Response size | 12 bytes | 194 bytes (2 status + 192 data) |
 
 ---
@@ -501,16 +501,16 @@ The LSM6DSOX uses a different FIFO architecture (tagged words, different registe
 
 ### 4. Coordinated ODR Changes
 
-When the user changes the ODR via `_sampleConfig`, ideally all three registers (CTRL1_XL, CTRL2_G, FIFO_CTRL5) should be updated together. The current framework processes actions individually. Two approaches:
+When the user changes the ODR via `_conf.rate`, ideally all three registers (CTRL1_XL, CTRL2_G, FIFO_CTRL5) should be updated together. The current framework processes actions individually. Two approaches:
 
-- **Multiple actions:** Define separate `_sampleConfig.accel`, `_sampleConfig.gyro`, `_sampleConfig.fifo` actions and have the client set all three.
+- **Multiple actions:** Define separate `_conf.accel`, `_conf.gyro`, `_conf.fifo` actions and have the client set all three.
 - **Compound action (future):** Extend the framework to support a single action that writes to multiple registers.
 
 ### 5. Dynamic `us` Adjustment
 
 The `us` field is static in the record. When ODR changes, the timestamp spacing between decoded samples will be incorrect unless `us` is also updated. This could be addressed by:
 
-- Having the framework automatically compute `us = 1000000 / ODR` when `_sampleConfig` is applied
+- Having the framework automatically compute `us = 1000000 / ODR` when `_conf.rate` is applied
 - Or having the client explicitly set it via `/devman/devconfig`
 
 ---
@@ -604,7 +604,7 @@ Incorporating the word-count correction:
         },
         "actions": [
             {
-                "n": "_sampleConfig.accel",
+                "n": "_conf.accel",
                 "t": "B",
                 "w": "10",
                 "r": [12.5, 6660],
@@ -617,7 +617,7 @@ Incorporating the word-count correction:
                 }
             },
             {
-                "n": "_sampleConfig.gyro",
+                "n": "_conf.gyro",
                 "t": "B",
                 "w": "11",
                 "r": [12.5, 6660],
@@ -630,7 +630,7 @@ Incorporating the word-count correction:
                 }
             },
             {
-                "n": "_sampleConfig.fifo",
+                "n": "_conf.fifo",
                 "t": "B",
                 "w": "0a",
                 "r": [12.5, 6660],

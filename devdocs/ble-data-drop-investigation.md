@@ -45,6 +45,7 @@ Idx    Gap   Dropped  TimeDelta(s)
 | `dump-dash-260328-BLEHOME.csv` | BLE | 1 | 10,000 | 8 |
 | `dump-dash-260328-noBLEHOME.csv` | BLE | 0 | 10,000 | 0 |
 | `dump-dash-260328-093000-BLEHOME.csv` | BLE | 1 | 8,763 | 0 |
+| `dump-dash-260328-105500-OBQUEUE.csv` | BLE | 1 | 65,433 | 0 | Queue fix applied (`outQResvNonPub: 10`) |
 
 ## Data Path
 
@@ -139,21 +140,26 @@ The 500ms indication timeout makes this worse: if an ACK is genuinely lost, the 
 
 ## Improvement Proposals (Keeping Indications)
 
-### 1. Allow PUBLISH to use the existing queue (highest priority)
+### 1. Allow PUBLISH to use the existing queue — IMPLEMENTED & VERIFIED
 
-Currently PUBLISH bypasses the queue entirely via the strict `isReadyToSend()` gate. Change `isReadyToSend()` to treat PUBLISH like other messages — allow it to enter the queue if not full:
+Previously PUBLISH bypassed the queue entirely via a strict `isReadyToSend()` gate that required zero in-flight indications AND an empty queue. This has been changed to allow PUBLISH into the queue with a configurable reserve for non-publish messages:
 
 ```cpp
-// Current (overly strict for PUBLISH):
+// Old (overly strict for PUBLISH):
 if (msgType == MSG_TYPE_PUBLISH)
     return (!_sendUsingIndication || (_outboundMsgsInFlight == 0)) && (_outboundQueue.count() == 0);
 
-// Proposed (use the queue):
+// New (use queue with reserved slots for non-publish):
 if (msgType == MSG_TYPE_PUBLISH)
-    return _outboundQueue.count() < _outboundQueue.maxLen();
+    return _outboundQueue.count() + _outQReserveForNonPublish < _outboundQueue.maxLen();
 ```
 
-The queue exists specifically to absorb transient backpressure. With the current approach, a 30-deep queue is allocated but never used for the most frequent message type. At 10Hz publish rate, even 2–3 queued messages represent only 200–300ms of buffering.
+New SysTypes.json parameter `outQResvNonPub` (default 10) controls how many queue slots are reserved for non-publish messages (command responses, etc). With default `outQSize: 30`, PUBLISH can use up to 20 slots.
+
+**Files changed**: `BLEConfig.h`, `BLEGattOutbound.h`, `BLEGattOutbound.cpp`
+**Wiki updated**: `RaftBLEManagerSettings.md`
+
+**Test result**: 65,433 samples over BLE with zero errors (`dump-dash-260328-105500-OBQUEUE.csv`).
 
 ### 2. Use `outMsgsInFlightMax` properly
 
@@ -217,7 +223,7 @@ Setting `sendUseInd: 0` in SysTypes.json switches to notifications (fire-and-for
 - [x] Identified root cause: strict PUBLISH gating in `isReadyToSend()` discards data when indication in flight
 - [x] Identified unused `outMsgsInFlightMax` parameter
 - [x] Analysed indication vs notification mechanism
-- [ ] Implement proposal #1 (allow PUBLISH to use queue)
+- [x] Implement proposal #1 (allow PUBLISH to use queue with reserved slots) — **65,433 samples, 0 errors**
 - [ ] Implement proposal #2 (use configurable in-flight max)
 - [ ] Test with reduced indication timeout
 - [ ] Test with notifications (`sendUseInd: 0`)

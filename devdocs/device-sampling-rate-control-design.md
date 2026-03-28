@@ -41,7 +41,7 @@ What's missing is a generic mechanism to configure the device's **internal sampl
 ### Proposed Solution
 
 1. **Static Devices**: Add `setSampleRate()` / `getSampleRate()` virtual methods to `RaftDevice` base class
-2. **Dynamic I2C Devices**: Define a reserved action name (`"_sampleConfig"`) in DeviceTypeRecords that specifies how to configure sample rate via I2C writes
+2. **Dynamic I2C Devices**: Define a reserved action name (`"_conf.rate"`) in DeviceTypeRecords that specifies how to configure sample rate via I2C writes
 3. **Unified API**: Extend or create API endpoints that abstract away the differences between static and dynamic device configuration
 
 ---
@@ -112,7 +112,7 @@ public:
 
 Dynamic devices are discovered on the I2C bus and configured via `DeviceTypeRecords.json`. They don't have custom C++ code, so configuration must be data-driven.
 
-#### Reserved Action Name: `_sampleConfig`
+#### Reserved Action Name: `_conf.rate`
 
 Add a reserved action in the `actions` array that the framework recognizes as a sample rate configuration command.
 
@@ -120,7 +120,7 @@ Add a reserved action in the `actions` array that the framework recognizes as a 
 
 ```json
 {
-    "n": "_sampleConfig",
+    "n": "_conf.rate",
     "t": "B",
     "w": "10",
     "f": "d",
@@ -139,7 +139,7 @@ Add a reserved action in the `actions` array that the framework recognizes as a 
 
 | Field | Description |
 |-------|-------------|
-| `n` | Reserved name `"_sampleConfig"` — framework recognizes this as sample rate control |
+| `n` | Reserved name `"_conf.rate"` — framework recognizes this as sample rate control |
 | `t` | Data type (e.g., `"B"` for unsigned byte) |
 | `w` | Write prefix (register address in hex) |
 | `r` | Valid range of sample rates in Hz |
@@ -152,7 +152,7 @@ For devices with continuous sample rate control:
 
 ```json
 {
-    "n": "_sampleConfig",
+    "n": "_conf.rate",
     "t": ">H",
     "w": "40",
     "f": "d",
@@ -190,7 +190,7 @@ The LSM6DS has discrete ODR settings. A complete DeviceTypeRecord might look lik
             "resp": { /* ... existing response schema ... */ },
             "actions": [
                 {
-                    "n": "_sampleConfig",
+                    "n": "_conf.rate",
                     "w": "10",
                     "t": "B",
                     "r": [12.5, 6660],
@@ -243,14 +243,14 @@ GET /devman/devconfig?deviceid=1_6a&sampleRateHz=104
 - Clients can set polling rate and sample rate together
 
 **Cons:**
-- Requires framework changes to recognize and process `_sampleConfig` actions
+- Requires framework changes to recognize and process `_conf.rate` actions
 
 #### Option B: Use Existing `/devman/cmdjson`
 
 Use the existing JSON command mechanism with a standardized command format:
 
 ```
-GET /devman/cmdjson?body={"device":"1_6a","action":"_sampleConfig","value":104}
+GET /devman/cmdjson?body={"device":"1_6a","action":"_conf.rate","value":104}
 ```
 
 **Pros:**
@@ -297,7 +297,7 @@ GET /devman/samplerate?deviceid=1_6a&hz=104
 Option A provides the best user experience by consolidating timing configuration in one place. The implementation would:
 
 1. Parse `sampleRateHz` parameter
-2. Look up the device's `_sampleConfig` action (for dynamic devices) or call `setSampleRate()` (for static devices)
+2. Look up the device's `_conf.rate` action (for dynamic devices) or call `setSampleRate()` (for static devices)
 3. Execute the configuration
 4. Return current values for all timing parameters
 
@@ -314,10 +314,10 @@ Option A provides the best user experience by consolidating timing configuration
 
 ### Phase 2: Dynamic Device Support
 
-1. Define `_sampleConfig` action schema and parsing in `DeviceTypeRecords`
+1. Define `_conf.rate` action schema and parsing in `DeviceTypeRecords`
 2. Add `DeviceTypeRecords::getSampleConfigAction()` method
 3. Implement sample rate command generation from action definition
-4. Update `DeviceManager` to process `_sampleConfig` actions via I2C writes
+4. Update `DeviceManager` to process `_conf.rate` actions via I2C writes
 
 ### Phase 3: Action Processing Infrastructure
 
@@ -330,7 +330,7 @@ Option A provides the best user experience by consolidating timing configuration
 2. Wire action processing into the command flow:
    ```
    DeviceManager::apiDevConfig()
-     └─ ActionProcessor::executeAction("_sampleConfig", value)
+     └─ ActionProcessor::executeAction("_conf.rate", value)
           └─ BusI2C::i2cSendAsync(writeCmd)
    ```
 
@@ -345,11 +345,11 @@ Option A provides the best user experience by consolidating timing configuration
 
 ## Action Field Reference
 
-Below is a comprehensive reference for action fields that would be used in `_sampleConfig` and other actions:
+Below is a comprehensive reference for action fields that would be used in `_conf.rate` and other actions:
 
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| `n` | string | Action name (use `_sampleConfig` for sample rate) | `"_sampleConfig"` |
+| `n` | string | Action name (use `_conf.rate` for sample rate) | `"_conf.rate"` |
 | `t` | string | Struct pack type code | `"B"`, `">H"`, `"<h"` |
 | `w` | string | Write prefix (hex bytes sent before value) | `"10"` |
 | `wz` | string | Write prefix when value is zero (optional) | `"0064"` |
@@ -364,7 +364,7 @@ Below is a comprehensive reference for action fields that would be used in `_sam
 
 ### Value Encoding Process
 
-For a `_sampleConfig` action with `{"n":"_sampleConfig", "w":"10", "t":"B", "mul":1, "map":{"100":"04"}}`:
+For a `_conf.rate` action with `{"n":"_conf.rate", "w":"10", "t":"B", "mul":1, "map":{"100":"04"}}`:
 
 1. **Input**: `sampleRateHz = 100`
 2. **Map lookup**: `100` → `0x04` (if `map` exists)
@@ -419,7 +419,7 @@ The Robotical Servo currently has actions for `angle` and `enable`. Adding sampl
                     "d": 1
                 },
                 {
-                    "n": "_sampleConfig",
+                    "n": "_conf.rate",
                     "t": "B",
                     "w": "30",
                     "f": "d",
@@ -491,7 +491,7 @@ Some devices (like IMUs) have separate sample rates for different subsystems (ac
 ```json
 "actions": [
     {
-        "n": "_sampleConfig.accel",
+        "n": "_conf.accel",
         "w": "10",
         "t": "B",
         "r": [12.5, 6660],
@@ -499,7 +499,7 @@ Some devices (like IMUs) have separate sample rates for different subsystems (ac
         "desc": "Accelerometer ODR"
     },
     {
-        "n": "_sampleConfig.gyro",
+        "n": "_conf.gyro",
         "w": "11",
         "t": "B",
         "r": [12.5, 6660],
@@ -595,12 +595,12 @@ GET /devman/devconfig?deviceid=1_6a
 | Device Type | Sample Rate Mechanism | Configuration Method |
 |-------------|----------------------|---------------------|
 | Static (custom class) | Override `setSampleRate()` | API calls virtual method |
-| Dynamic I2C | `_sampleConfig` action in DeviceTypeRecords | API executes action via I2C write |
+| Dynamic I2C | `_conf.rate` action in DeviceTypeRecords | API executes action via I2C write |
 | Both | `/devman/devconfig?sampleRateHz=<hz>` | Unified API endpoint |
 
 ### Key Design Decisions
 
-1. **Reserved action name** `_sampleConfig` distinguishes sample rate configuration from other device actions
+1. **Reserved action name** `_conf.rate` distinguishes sample rate configuration from other device actions
 2. **Extend `/devman/devconfig`** rather than creating a new endpoint for API consistency
 3. **Support discrete and continuous** sample rates via `map` field or linear scaling
 4. **Auto-coordination option** helps users set optimal polling parameters
@@ -608,7 +608,7 @@ GET /devman/devconfig?deviceid=1_6a
 ### Next Steps
 
 1. Review this design with stakeholders
-2. Define `_sampleConfig` schemas for priority device types
+2. Define `_conf.rate` schemas for priority device types
 3. Implement Phase 1 (static device support)
 4. Implement Phase 2–4 incrementally
 5. Update wiki documentation

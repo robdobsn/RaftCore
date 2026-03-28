@@ -231,6 +231,15 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get device type index for an address
+    /// @param address Composite address
+    /// @return Device type index (DEVICE_TYPE_INDEX_INVALID if not supported)
+    virtual DeviceTypeIndexType getDeviceTypeIndex(BusElemAddrType address) const
+    {
+        return DEVICE_TYPE_INDEX_INVALID;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set number of poll result samples to store for an address
     /// @param address Composite address
     /// @param numSamples Number of samples to store
