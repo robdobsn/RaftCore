@@ -210,7 +210,7 @@ private:
     /// @brief Access to devices' data in binary format
     /// @param topicIndex Topic index (embedded in envelope header)
     /// @return Binary data vector
-    std::vector<uint8_t> getDevicesDataBinary(uint16_t topicIndex) const;
+    std::vector<uint8_t> getDevicesDataBinary(uint16_t topicIndex);
 
     /// @brief Get devices' status hash
     /// @param stateHash hash of the currently available data
@@ -294,6 +294,9 @@ private:
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;
+
+    // Envelope sequence counter for devbin messages
+    uint8_t _devbinEnvelopeSeqCounter = 0;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "DevMan";

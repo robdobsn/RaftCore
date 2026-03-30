@@ -145,13 +145,15 @@ public:
     /// @param address Address of the device
     /// @param deviceTypeIndex Index of the device type
     /// @param onlineState Device online state
-    /// @param deviceMsgData Device msg data
+    /// @param deviceSeqNum Per-device sequence counter
+    /// @param deviceMsgData Device msg data (length-prefixed samples)
     /// @return true if created ok
     static bool genBinaryDataMsg(std::vector<uint8_t>& binData, 
         uint8_t busNumber, 
         BusElemAddrType address, 
         uint16_t deviceTypeIndex, 
-        DeviceOnlineState onlineState, 
+        DeviceOnlineState onlineState,
+        uint8_t deviceSeqNum,
         std::vector<uint8_t> deviceMsgData);
 
     /// @brief Get device debug info JSON

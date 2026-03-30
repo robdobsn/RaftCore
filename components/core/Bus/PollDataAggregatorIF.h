@@ -54,6 +54,15 @@ public:
     /// @note This clears any existing buffered data
     virtual bool resize(uint32_t numResultsToStore) = 0;
 
+    /// @brief Get poll results with per-sample actual lengths
+    /// @param data (output) Concatenated sample data (trimmed to actual lengths)
+    /// @param lengths (output) Actual length of each sample
+    /// @param maxResponsesToReturn Maximum number (0 = all available)
+    /// @return number of samples returned
+    virtual uint32_t getWithLengths(std::vector<uint8_t>& data,
+                                    std::vector<uint16_t>& lengths,
+                                    uint32_t maxResponsesToReturn) = 0;
+
     /// @brief Get and clear the overflow count (number of overwrites due to full buffer)
     /// @return number of overwrites since last call
     virtual uint32_t debugGetAndClearOverflowCount() { return 0; }

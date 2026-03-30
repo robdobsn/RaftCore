@@ -97,17 +97,19 @@ std::vector<uint8_t> RaftDevice::getStatusBinary() const
 /// @param address Address of the device
 /// @param deviceTypeIndex Index of the device type
 /// @param onlineState Device online state
+/// @param deviceSeqNum Per-device sequence counter
 /// @param deviceMsgData Device msg data
 /// @return true if created ok
 bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData, 
     uint8_t busNumber, 
     BusElemAddrType address, 
     uint16_t deviceTypeIndex, 
-    DeviceOnlineState onlineState, 
+    DeviceOnlineState onlineState,
+    uint8_t deviceSeqNum,
     std::vector<uint8_t> deviceMsgData)
     {
         // Reserve space
-        uint32_t msgLen = deviceMsgData.size() + 7;
+        uint32_t msgLen = deviceMsgData.size() + 8;
         const uint32_t origSize = binData.size();
         binData.reserve(origSize + 2 + msgLen);
 
@@ -129,6 +131,9 @@ bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData,
         // Add device type index
         binData.push_back((deviceTypeIndex >> 8) & 0xff);
         binData.push_back(deviceTypeIndex & 0xff);
+
+        // Per-device sequence counter
+        binData.push_back(deviceSeqNum);
 
         // Add binary data
         binData.insert(binData.end(), deviceMsgData.begin(), deviceMsgData.end());

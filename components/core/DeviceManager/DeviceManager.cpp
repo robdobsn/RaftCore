@@ -456,14 +456,15 @@ String DeviceManager::getDevicesDataJSON(uint16_t topicIndex) const
 /// @brief Get devices' data as binary
 /// @param topicIndex Topic index (embedded in envelope header)
 /// @return Binary data vector
-std::vector<uint8_t> DeviceManager::getDevicesDataBinary(uint16_t topicIndex) const
+std::vector<uint8_t> DeviceManager::getDevicesDataBinary(uint16_t topicIndex)
 {
     std::vector<uint8_t> binaryData;
     binaryData.reserve(502);
 
-    // Envelope header: magic+version byte (0xDB = devbin v1) followed by topic index
+    // Envelope header: magic+version byte (0xDB = devbin) followed by topic index and envelope sequence counter
     binaryData.push_back(0xDB);
     binaryData.push_back(topicIndex <= 0xFE ? (uint8_t)topicIndex : 0xFF);
+    binaryData.push_back(_devbinEnvelopeSeqCounter++);
 
     // Add bus data
     for (RaftBus* pBus : raftBusSystem.getBusList())

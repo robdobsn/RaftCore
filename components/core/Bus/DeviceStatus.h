@@ -85,6 +85,24 @@ public:
         return 0;
     }
 
+    /// @brief Get poll responses with per-sample actual lengths
+    /// @param data (output) concatenated sample data (trimmed to actual lengths)
+    /// @param lengths (output) actual length of each sample
+    /// @param maxResponsesToReturn maximum number (0 = all available)
+    /// @return number of samples returned
+    uint32_t getPollResponsesWithLengths(std::vector<uint8_t>& data,
+                                         std::vector<uint16_t>& lengths,
+                                         uint32_t maxResponsesToReturn) const
+    {
+        if (pDataAggregator)
+            return pDataAggregator->getWithLengths(data, lengths, maxResponsesToReturn);
+        return 0;
+    }
+
+    /// @brief Get and increment the per-device publish sequence counter
+    /// @return current sequence counter value (pre-increment)
+    uint8_t getAndIncrementSeqCounter() { return publishSeqCounter++; }
+
     /// @brief Set the data aggregator (shared ownership to allow safe copies of DeviceStatus)
     /// @param pAggregator 
     void setAndOwnPollDataAggregator(std::shared_ptr<PollDataAggregatorIF> pAggregator)
@@ -100,6 +118,9 @@ public:
 
     // Data aggregator
     std::shared_ptr<PollDataAggregatorIF> pDataAggregator;
+
+    // Per-device publish sequence counter (wrapping uint8)
+    uint8_t publishSeqCounter = 0;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";    
