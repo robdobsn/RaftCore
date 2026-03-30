@@ -741,7 +741,22 @@ void NetworkSystem::setHostname(const char* hostname)
     }
 
     // Update NetBIOS name if it was already started
-    netbiosns_set_name(_hostname.c_str());
+    // NetBIOS name max length is 15 characters; guard to avoid lwIP assert.
+    const size_t netbiosMaxLen = 15;
+    if (_hostname.isEmpty())
+    {
+        LOG_W(MODULE_PREFIX, "setHostname empty NetBIOS name, skipping");
+    }
+    else
+    {
+        const bool needsClamp = _hostname.length() > netbiosMaxLen;
+        String netbiosName = needsClamp ? _hostname.substring(0, netbiosMaxLen) : _hostname;
+        if (needsClamp)
+        {
+            LOG_W(MODULE_PREFIX, "setHostname NetBIOS name too long (%d > %d), clamping to %s", (int)_hostname.length(), (int)netbiosMaxLen, netbiosName.c_str());
+        }
+        netbiosns_set_name(netbiosName.c_str());
+    }
 
 #ifdef DEBUG_HOSTNAME_SETTING
     LOG_I(MODULE_PREFIX, "setHostname (req %s) actual %s applied %s", hostname, _hostname.c_str(),
