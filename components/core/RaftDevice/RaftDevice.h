@@ -139,14 +139,14 @@ public:
     /// @return Binary data
     virtual std::vector<uint8_t> getStatusBinary() const;
 
-    /// @brief Generate a binary data message
-    /// @param binData (out) Binary data
+    /// @brief Generate a binary device record with a single sample (adds 1-byte length prefix automatically)
+    /// @param binData (out) Binary data (appended to)
     /// @param busNumber Bus number (0-63)
     /// @param address Address of the device
     /// @param deviceTypeIndex Index of the device type
     /// @param onlineState Device online state
     /// @param deviceSeqNum Per-device sequence counter
-    /// @param deviceMsgData Device msg data (length-prefixed samples)
+    /// @param sampleData Raw sample data (single sample, no length prefix)
     /// @return true if created ok
     static bool genBinaryDataMsg(std::vector<uint8_t>& binData, 
         uint8_t busNumber, 
@@ -154,7 +154,24 @@ public:
         uint16_t deviceTypeIndex, 
         DeviceOnlineState onlineState,
         uint8_t deviceSeqNum,
-        std::vector<uint8_t> deviceMsgData);
+        std::vector<uint8_t> sampleData);
+
+    /// @brief Generate a binary device record from a pre-formatted payload (already length-prefixed samples)
+    /// @param binData (out) Binary data (appended to)
+    /// @param busNumber Bus number (0-63)
+    /// @param address Address of the device
+    /// @param deviceTypeIndex Index of the device type
+    /// @param onlineState Device online state
+    /// @param deviceSeqNum Per-device sequence counter
+    /// @param preformattedPayload Pre-formatted payload with per-sample length prefixes already applied
+    /// @return true if created ok
+    static bool genBinaryDeviceRecord(std::vector<uint8_t>& binData, 
+        uint8_t busNumber, 
+        BusElemAddrType address, 
+        uint16_t deviceTypeIndex, 
+        DeviceOnlineState onlineState,
+        uint8_t deviceSeqNum,
+        std::vector<uint8_t> preformattedPayload);
 
     /// @brief Get device debug info JSON
     /// @return JSON string

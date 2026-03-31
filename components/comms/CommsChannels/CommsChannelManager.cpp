@@ -564,6 +564,12 @@ CommsCoreRetCode CommsChannelManager::handleOutboundMessageOnChannel(CommsChanne
         {
             pChannel->addTxMsgToProtocolCodec(msg);
         }
+#ifdef DEBUG_OUTBOUND_PUBLISH
+        else
+        {
+            LOG_W(MODULE_PREFIX, "handleOutboundMessage PUBLISH REJECTED by outboundCanAccept noConn %d", noConn);
+        }
+#endif
     }
 
     // Return ok

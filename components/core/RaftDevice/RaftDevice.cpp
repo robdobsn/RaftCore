@@ -91,25 +91,37 @@ std::vector<uint8_t> RaftDevice::getStatusBinary() const
     return std::vector<uint8_t>();
 }
 
-/// @brief Generate a binary data message
-/// @param binData (out) Binary data
-/// @param busNumber Bus number (0-63)
-/// @param address Address of the device
-/// @param deviceTypeIndex Index of the device type
-/// @param onlineState Device online state
-/// @param deviceSeqNum Per-device sequence counter
-/// @param deviceMsgData Device msg data
-/// @return true if created ok
+/// @brief Generate a binary device record with a single sample (adds 1-byte length prefix automatically)
 bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData, 
     uint8_t busNumber, 
     BusElemAddrType address, 
     uint16_t deviceTypeIndex, 
     DeviceOnlineState onlineState,
     uint8_t deviceSeqNum,
-    std::vector<uint8_t> deviceMsgData)
+    std::vector<uint8_t> sampleData)
+{
+    // Build length-prefixed payload from the single sample
+    std::vector<uint8_t> payload;
+    uint8_t len = sampleData.size() > 255 ? 255 : static_cast<uint8_t>(sampleData.size());
+    payload.reserve(1 + len);
+    payload.push_back(len);
+    payload.insert(payload.end(), sampleData.begin(), sampleData.begin() + len);
+
+    // Delegate to the record builder
+    return genBinaryDeviceRecord(binData, busNumber, address, deviceTypeIndex, onlineState, deviceSeqNum, payload);
+}
+
+/// @brief Generate a binary device record from a pre-formatted payload (already length-prefixed samples)
+bool RaftDevice::genBinaryDeviceRecord(std::vector<uint8_t>& binData, 
+    uint8_t busNumber, 
+    BusElemAddrType address, 
+    uint16_t deviceTypeIndex, 
+    DeviceOnlineState onlineState,
+    uint8_t deviceSeqNum,
+    std::vector<uint8_t> preformattedPayload)
     {
         // Reserve space
-        uint32_t msgLen = deviceMsgData.size() + 8;
+        uint32_t msgLen = preformattedPayload.size() + 8;
         const uint32_t origSize = binData.size();
         binData.reserve(origSize + 2 + msgLen);
 
@@ -136,11 +148,11 @@ bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData,
         binData.push_back(deviceSeqNum);
 
         // Add binary data
-        binData.insert(binData.end(), deviceMsgData.begin(), deviceMsgData.end());
+        binData.insert(binData.end(), preformattedPayload.begin(), preformattedPayload.end());
 
 #ifdef DEBUG_BINARY_DEVICE_DATA
-        LOG_I(MODULE_PREFIX, "genBinaryDataMsg origLen %d deviceMsgLen %d binDataLen %d ", 
-            origSize, deviceMsgData.size(), binData.size());
+        LOG_I(MODULE_PREFIX, "genBinaryDeviceRecord origLen %d payloadLen %d binDataLen %d ", 
+            origSize, preformattedPayload.size(), binData.size());
 #endif
 
         return true;

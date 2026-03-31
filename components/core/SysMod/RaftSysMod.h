@@ -193,7 +193,7 @@ public:
     };
 
     // Default minimum time between messages (ms)
-    static const uint32_t DEFAULT_MIN_TIME_BETWEEN_MSGS_MS = 100;
+    static const uint32_t DEFAULT_MIN_TIME_BETWEEN_MSGS_MS = 50;
 
     /// @brief Create a subscription programmatically
     /// @param pubTopic Publication topic name (must match a registered data source)

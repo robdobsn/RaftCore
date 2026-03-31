@@ -1161,10 +1161,38 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
             anyConfActionFound = true;
 
             // Look up sampleRateHz in this action's map
+            // Map entries can be objects {"w":"hex", "i":intervalUs, "s":numSamples} or plain strings "hex"
             String mapPath = "actions[" + idxStr + "]/map/" + sampleRateHzStr;
-            String mappedHexValue = devInfoJsonDoc.getString(mapPath.c_str(), "");
+
+            // Try object format first: map/<rate>/w
+            String mappedHexValue = devInfoJsonDoc.getString((mapPath + "/w").c_str(), "");
+            if (mappedHexValue.length() == 0)
+            {
+                // Fall back to plain string format: map/<rate>
+                mappedHexValue = devInfoJsonDoc.getString(mapPath.c_str(), "");
+            }
             if (mappedHexValue.length() == 0)
                 continue;
+
+            // Apply map-based polling config defaults (only if not explicitly provided in API call)
+            long mapIntervalUs = devInfoJsonDoc.getLong((mapPath + "/i").c_str(), 0);
+            long mapNumSamples = devInfoJsonDoc.getLong((mapPath + "/s").c_str(), 0);
+            if (mapIntervalUs > 0 && intervalUsStr.length() == 0)
+            {
+                pBus->setDevicePollIntervalUs(addr, mapIntervalUs);
+#ifdef DEBUG_DEVICE_CONFIG_API
+                LOG_I(MODULE_PREFIX, "sampleRate map intervalUs %ld for deviceID %s",
+                        mapIntervalUs, deviceID.toString().c_str());
+#endif
+            }
+            if (mapNumSamples > 0 && numSamplesStr.length() == 0)
+            {
+                pBus->setDeviceNumSamples(addr, mapNumSamples);
+#ifdef DEBUG_DEVICE_CONFIG_API
+                LOG_I(MODULE_PREFIX, "sampleRate map numSamples %ld for deviceID %s",
+                        mapNumSamples, deviceID.toString().c_str());
+#endif
+            }
 
             // Get write prefix (may be empty for consolidated multi-write actions)
             String writePrefix = devInfoJsonDoc.getString(("actions[" + idxStr + "]/w").c_str(), "");
