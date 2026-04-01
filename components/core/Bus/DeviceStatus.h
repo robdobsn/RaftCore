@@ -110,6 +110,32 @@ public:
         pDataAggregator = pAggregator;
     }
 
+    // Debug FIFO overrun counter (per-device, cleared on read)
+    void debugIncFifoOverrunCount(uint32_t inc = 1)
+    {
+        _debugFifoOverrunCount += inc;
+    }
+
+    uint32_t debugGetAndClearFifoOverrunCount()
+    {
+        uint32_t count = _debugFifoOverrunCount;
+        _debugFifoOverrunCount = 0;
+        return count;
+    }
+
+    // Debug FIFO full counter (per-device, cleared on read)
+    void debugIncFifoFullCount(uint32_t inc = 1)
+    {
+        _debugFifoFullCount += inc;
+    }
+
+    uint32_t debugGetAndClearFifoFullCount()
+    {
+        uint32_t count = _debugFifoFullCount;
+        _debugFifoFullCount = 0;
+        return count;
+    }
+
     // Device type index
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
@@ -121,6 +147,12 @@ public:
 
     // Per-device publish sequence counter (wrapping uint8)
     uint8_t publishSeqCounter = 0;
+
+    // Debug FIFO overrun counter
+    uint32_t _debugFifoOverrunCount = 0;
+
+    // Debug FIFO full counter
+    uint32_t _debugFifoFullCount = 0;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";    
