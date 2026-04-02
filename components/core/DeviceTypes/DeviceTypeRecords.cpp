@@ -334,6 +334,31 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
     // Get polling interval
     pollingInfo.pollIntervalUs = pollInfo.getLong("i", 0) * 1000;
 
+    // Get bus frequency override for polls (0 = use bus default)
+    // Accept both compact key "h" and verbose key "busHz"
+    pollingInfo.pollBusHz = pollInfo.getLong("h", 0);
+    if (pollingInfo.pollBusHz == 0)
+        pollingInfo.pollBusHz = pollInfo.getLong("busHz", 0);
+
+    // Get slot mask for bus frequency override (0 = all slots)
+    // Accept both compact key "hSlots" and verbose key "busHzSlots"
+    // Value is a JSON array of slot numbers, e.g. [4,5,6]
+    pollingInfo.pollBusHzSlotMask = 0;
+    String slotMaskKey = "hSlots";
+    int slotsArrayLen = 0;
+    if (pollInfo.getType(slotMaskKey.c_str(), slotsArrayLen) != RaftJsonIF::RAFT_JSON_ARRAY || slotsArrayLen == 0)
+    {
+        slotMaskKey = "busHzSlots";
+        pollInfo.getType(slotMaskKey.c_str(), slotsArrayLen);
+    }
+    for (int slotIdx = 0; slotIdx < slotsArrayLen; slotIdx++)
+    {
+        String slotPath = slotMaskKey + "[" + String(slotIdx) + "]";
+        int slotNum = pollInfo.getLong(slotPath.c_str(), -1);
+        if (slotNum >= 0 && slotNum < 64)
+            pollingInfo.pollBusHzSlotMask |= (1ULL << slotNum);
+    }
+
     // Set the poll result size
     pollingInfo.pollResultSizeIncTimestamp = pollResultDataSize + DevicePollingInfo::POLL_RESULT_TIMESTAMP_SIZE;
 }

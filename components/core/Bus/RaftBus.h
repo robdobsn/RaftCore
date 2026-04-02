@@ -258,6 +258,44 @@ public:
         return 0;
     }
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set device poll bus frequency for an address
+    /// @param address Composite address
+    /// @param busHz Bus frequency in Hz (0 = use bus default)
+    /// @return true if applied
+    virtual bool setDevicePollBusHz(BusElemAddrType address, uint32_t busHz)
+    {
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get device poll bus frequency for an address
+    /// @param address Composite address
+    /// @return Bus frequency in Hz (0 = use bus default / not supported)
+    virtual uint32_t getDevicePollBusHz(BusElemAddrType address) const
+    {
+        return 0;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set device poll bus frequency slot mask for an address
+    /// @param address Composite address
+    /// @param slotMask Bitmask of slots where busHz applies (0 = all slots)
+    /// @return true if applied
+    virtual bool setDevicePollBusHzSlotMask(BusElemAddrType address, uint64_t slotMask)
+    {
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get device poll bus frequency slot mask for an address
+    /// @param address Composite address
+    /// @return Bitmask of slots where busHz applies (0 = all slots / not supported)
+    virtual uint64_t getDevicePollBusHzSlotMask(BusElemAddrType address) const
+    {
+        return 0;
+    }
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Return addresses of devices attached to the bus
     /// @param addresses - vector to store the addresses of devices

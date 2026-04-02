@@ -23,6 +23,8 @@ public:
     {
         lastPollTimeUs = 0;
         pollIntervalUs = 0;
+        pollBusHz = 0;
+        pollBusHzSlotMask = 0;
         pollResultSizeIncTimestamp = 0;
         pollReqs.clear();
     }
@@ -55,6 +57,12 @@ public:
 
     // Poll interval
     uint32_t pollIntervalUs = 0;
+
+    // Bus frequency Hz for this device's polls (0 = use bus default)
+    uint32_t pollBusHz = 0;
+
+    // Bitmask of slots where pollBusHz applies (0 = all slots)
+    uint64_t pollBusHzSlotMask = 0;
 
     // Num poll results to store
     uint32_t numPollResultsToStore = 1;

@@ -783,7 +783,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/typeinfo?type=<typeName> - Get type info,"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
-                            " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count>&sampleRateHz=<hz> - device configuration,"
+                            " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count>&sampleRateHz=<hz>&busHz=<hz>&busHzSlots=<csv> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device"
                             " Note: typeName can be either a device type name or a device type index"
@@ -1124,6 +1124,55 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
     }
 
+    // Check if busHz is provided (per-device poll bus frequency override)
+    String busHzStr = jsonParams.getString("busHz", "");
+    if (busHzStr.length() > 0)
+    {
+        uint32_t busHz = strtoul(busHzStr.c_str(), nullptr, 10);
+
+#ifdef DEBUG_DEVICE_CONFIG_API
+        LOG_I(MODULE_PREFIX, "busHz set req deviceID %s busHz %u",
+                deviceID.toString().c_str(),
+                (unsigned)busHz);
+#endif
+
+        // Set poll bus frequency for the device on the bus (0 = revert to bus default)
+        if (!pBus->setDevicePollBusHz(addr, busHz))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
+    }
+
+    // Check if busHzSlots is provided (comma-separated list of slot numbers, e.g. "4,5,6")
+    String busHzSlotsStr = jsonParams.getString("busHzSlots", "");
+    if (busHzSlotsStr.length() > 0)
+    {
+        uint64_t slotMask = 0;
+        int startPos = 0;
+        while (startPos <= (int)busHzSlotsStr.length())
+        {
+            int commaPos = busHzSlotsStr.indexOf(',', startPos);
+            if (commaPos < 0)
+                commaPos = busHzSlotsStr.length();
+            String slotStr = busHzSlotsStr.substring(startPos, commaPos);
+            slotStr.trim();
+            if (slotStr.length() > 0)
+            {
+                int slotNum = slotStr.toInt();
+                if (slotNum >= 0 && slotNum < 64)
+                    slotMask |= (1ULL << slotNum);
+            }
+            startPos = commaPos + 1;
+        }
+
+#ifdef DEBUG_DEVICE_CONFIG_API
+        LOG_I(MODULE_PREFIX, "busHzSlots set req deviceID %s slotMask 0x%llx",
+                deviceID.toString().c_str(),
+                (unsigned long long)slotMask);
+#endif
+
+        if (!pBus->setDevicePollBusHzSlotMask(addr, slotMask))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
+    }
+
     // Check if sampleRateHz is provided
     String sampleRateHzStr = jsonParams.getString("sampleRateHz", "");
     bool sampleRateConfigured = false;
@@ -1193,6 +1242,39 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
                         mapNumSamples, deviceID.toString().c_str());
 #endif
             }
+            long mapBusHz = devInfoJsonDoc.getLong((mapPath + "/h").c_str(), 0);
+            if (mapBusHz > 0 && busHzStr.length() == 0)
+            {
+                pBus->setDevicePollBusHz(addr, mapBusHz);
+#ifdef DEBUG_DEVICE_CONFIG_API
+                LOG_I(MODULE_PREFIX, "sampleRate map busHz %ld for deviceID %s",
+                        mapBusHz, deviceID.toString().c_str());
+#endif
+            }
+
+            // Apply map-based bus Hz slot mask (only if not explicitly provided in API call)
+            // The map entry can contain "hSlots" as a JSON array, e.g. "hSlots":[4,5,6]
+            if (busHzSlotsStr.length() == 0)
+            {
+                String hSlotsPath = mapPath + "/hSlots";
+                int mapSlotsArrayLen = 0;
+                if (devInfoJsonDoc.getType(hSlotsPath.c_str(), mapSlotsArrayLen) == RaftJsonIF::RAFT_JSON_ARRAY && mapSlotsArrayLen > 0)
+                {
+                    uint64_t mapSlotMask = 0;
+                    for (int slotIdx = 0; slotIdx < mapSlotsArrayLen; slotIdx++)
+                    {
+                        String slotPath = hSlotsPath + "[" + String(slotIdx) + "]";
+                        int slotNum = devInfoJsonDoc.getLong(slotPath.c_str(), -1);
+                        if (slotNum >= 0 && slotNum < 64)
+                            mapSlotMask |= (1ULL << slotNum);
+                    }
+                    pBus->setDevicePollBusHzSlotMask(addr, mapSlotMask);
+#ifdef DEBUG_DEVICE_CONFIG_API
+                    LOG_I(MODULE_PREFIX, "sampleRate map busHzSlotMask 0x%llx for deviceID %s",
+                            (unsigned long long)mapSlotMask, deviceID.toString().c_str());
+#endif
+                }
+            }
 
             // Get write prefix (may be empty for consolidated multi-write actions)
             String writePrefix = devInfoJsonDoc.getString(("actions[" + idxStr + "]/w").c_str(), "");
@@ -1242,20 +1324,41 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
     // Read back
     uint64_t pollIntervalUs = pBus->getDevicePollIntervalUs(addr);
     uint32_t numSamplesResult = pBus->getDeviceNumSamples(addr);
-    if (pollIntervalUs == 0 && numSamplesResult == 0 && !sampleRateConfigured)
+    uint32_t busHzResult = pBus->getDevicePollBusHz(addr);
+    uint64_t busHzSlotMaskResult = pBus->getDevicePollBusHzSlotMask(addr);
+    if (pollIntervalUs == 0 && numSamplesResult == 0 && busHzResult == 0 && !sampleRateConfigured)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnsupportedBus");
 
 #ifdef DEBUG_DEVICE_CONFIG_API
-        LOG_I(MODULE_PREFIX, "devconfig applied deviceID %s intervalUs %llu (rateHz %.3f) numSamples %u sampleRateHz %s",
+        LOG_I(MODULE_PREFIX, "devconfig applied deviceID %s intervalUs %llu (rateHz %.3f) numSamples %u busHz %u slotMask 0x%llx sampleRateHz %s",
                 deviceID.toString().c_str(),
                 (unsigned long long)pollIntervalUs,
                 pollIntervalUs == 0 ? 0 : 1000000.0 / pollIntervalUs,
                 (unsigned)numSamplesResult,
+                (unsigned)busHzResult,
+                (unsigned long long)busHzSlotMaskResult,
                 sampleRateHzStr.c_str());
 #endif
 
     String extra = "\"deviceID\":\"" + deviceID.toString() + "\",\"pollIntervalUs\":" + String(pollIntervalUs) +
-                   ",\"numSamples\":" + String(numSamplesResult);
+                   ",\"numSamples\":" + String(numSamplesResult) +
+                   ",\"busHz\":" + String(busHzResult);
+    // Add busHzSlots as a JSON array of slot numbers
+    if (busHzSlotMaskResult != 0)
+    {
+        extra += ",\"busHzSlots\":[";
+        bool first = true;
+        for (int i = 0; i < 64; i++)
+        {
+            if (busHzSlotMaskResult & (1ULL << i))
+            {
+                if (!first) extra += ",";
+                extra += String(i);
+                first = false;
+            }
+        }
+        extra += "]";
+    }
     if (sampleRateConfigured)
         extra += ",\"sampleRateHz\":" + sampleRateHzStr;
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
