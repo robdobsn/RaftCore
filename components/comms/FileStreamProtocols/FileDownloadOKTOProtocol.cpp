@@ -9,6 +9,7 @@
 #include "FileDownloadOKTOProtocol.h"
 #include "RICRESTMsg.h"
 #include "FileSystem.h"
+#include "esp_heap_caps.h"
 #include "CommsChannelMsg.h"
 #include "CommsCoreIF.h"
 #include "FileStreamBlockOwned.h"
@@ -23,6 +24,7 @@
 // #define DEBUG_RICREST_FILEDOWNLOAD_BLOCK_ACK_DETAIL
 // #define DEBUG_RICREST_HANDLE_CMD_FRAME
 // #define DEBUG_SEND_FILE_BLOCK
+// #define DEBUG_HEAP_THROTTLE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -422,6 +424,17 @@ void FileDownloadOKTOProtocol::transferService()
 #ifdef DEBUG_RICREST_FILEDOWNLOAD_BLOCK_ACK
         LOG_I(MODULE_PREFIX, "transferService waiting for batch ack - okto %d lastSentUpto %d blocksOutstanding %d fileSize %d", 
                     _oktoFilePos, _lastSentUptoFilePos, blocksOutstanding, _fileSize);
+#endif
+        return;
+    }
+
+    // Check if internal heap is too low to safely send - throttle to let TCP drain
+    uint32_t freeInternalHeap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (freeInternalHeap < HEAP_LOW_WATER_MARK_BYTES)
+    {
+#ifdef DEBUG_HEAP_THROTTLE
+        LOG_I(MODULE_PREFIX, "transferService heap throttle freeInternal %d threshold %d",
+                    freeInternalHeap, HEAP_LOW_WATER_MARK_BYTES);
 #endif
         return;
     }

@@ -21,6 +21,20 @@
             "CtrlEscape":"0xD7"
         }
     },
+    "BLEMan": {
+        "enable": 1,
+        "outQSize": 15,
+        "sendUseInd": 1,
+        "advIntervalMs": 200,
+        "uuidCmdRespService": "b6144230-941b-11ee-b9d1-0242ac120002",
+        "uuidCmdRespCommand": "b61443a0-941b-11ee-b9d1-0242ac120003",
+        "uuidCmdRespResponse": "b61443a0-941b-11ee-b9d1-0242ac120004",
+        "stdServices": [
+            "battery",
+            "devinfo",
+            "heartrate"
+        ]
+    },
     "NetMan": {
         "wifiSTAEn": 0,
         "wifiAPEn": 0,
@@ -98,22 +112,7 @@
     "Publish": {
         "pubList": []
     },
-    "BLEMan": {
-        "enable": 1,
-        "outQSize": 15,
-        "sendUseInd": 1,
-        "advIntervalMs": 200,
-        "uuidCmdRespService": "b6144230-941b-11ee-b9d1-0242ac120002",
-        "uuidCmdRespCommand": "b61443a0-941b-11ee-b9d1-0242ac120003",
-        "uuidCmdRespResponse": "b61443a0-941b-11ee-b9d1-0242ac120004",
-        "stdServices": [
-            "battery",
-            "devinfo",
-            "heartrate"
-        ],
-        "logLevel": "D",
-        "nimLogLev": "E"
-    },
+    
     "Jewelry": {
         "hardwareType##heart": "heart",
         "hardwareType##grid_11": "grid",

@@ -56,8 +56,8 @@ ProtocolRICSerial::ProtocolRICSerial(uint32_t channelID, RaftJsonIF& config, con
     maxTxMsgLen = (maxTxMsgLen == 0) ? (isPSRAM ? DEFAULT_TX_MAX_PSRAM : DEFAULT_TX_MAX_NO_PSRAM) : maxTxMsgLen;
 
     // Extract configuration
-    unsigned frameBoundary = configPrefixed.getLong("FrameBound", 0x7E);
-    unsigned controlEscape = configPrefixed.getLong("CtrlEscape", 0x7D);
+    unsigned frameBoundary = configPrefixed.getLong("FrameBound", 0xE7);
+    unsigned controlEscape = configPrefixed.getLong("CtrlEscape", 0xD7);
 
     // New HDLC
     _pHDLC = new MiniHDLC(NULL, 

@@ -22,6 +22,8 @@ public:
     static const uint32_t FILE_BLOCK_SIZE_DEFAULT = 5000;
     static const uint32_t BATCH_ACK_SIZE_DEFAULT = 40;
     static const uint32_t MAX_TOTAL_BYTES_IN_BATCH = 50000;
+    // Heap low-water mark - throttle file sends when internal heap drops below this
+    static const uint32_t HEAP_LOW_WATER_MARK_BYTES = 35000;
     // The overall timeout needs to be very big as BLE transfer can take over 30 minutes
     static const uint32_t DOWNLOAD_FAIL_TIMEOUT_MS = 2 * 3600 * 1000;
 
