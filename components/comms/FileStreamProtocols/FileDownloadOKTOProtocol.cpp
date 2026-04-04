@@ -283,6 +283,8 @@ RaftRetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& ricRESTReqM
         _blockCount = oktoFilePos / (_blockSize == 0 ? 1 : _blockSize);
         _bytesCount = oktoFilePos;
         _lastMsgMs = millis();
+        // Reset retry counter since we made forward progress
+        _batchBlockSendRetryCount = 0;
 
 #ifdef DEBUG_RICREST_FILEDOWNLOAD_BLOCK_ACK
         LOG_I(MODULE_PREFIX, "handleAckMsg okto %d", oktoFilePos);
