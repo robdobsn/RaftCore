@@ -1229,6 +1229,7 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
     
     // Local file system is ok
     _localFsType = LOCAL_FS_LITTLEFS;
+    _localFsCache.isUsed = true;
     _localFsCache.isFileInfoValid = false;
     _localFsCache.isSizeInfoValid = false;
     _localFsCache.isFileInfoSetup = false;

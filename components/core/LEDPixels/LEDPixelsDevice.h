@@ -40,15 +40,17 @@ public:
 
     /// @brief Add REST API endpoints
     /// @param endpointManager Manager for REST API endpoints
-    virtual void addRestAPIEndpoints(RestAPIEndpointManager& endpointManager) override final;
+    virtual void addRestAPIEndpoints(RestAPIEndpointManager& endpointManager) override;
+
+protected:
+
+    // LED pixels
+    LEDPixels _ledPixels;
 
 private:
 
     // Debug
     static constexpr const char *MODULE_PREFIX = "LEDPixelsDevice";
-
-    // LED pixels
-    LEDPixels _ledPixels;
 
     // API
     RaftRetCode apiLED(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
