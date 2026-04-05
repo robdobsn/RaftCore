@@ -168,10 +168,10 @@ private:
         std::list<CachedFileInfo, SpiramAwareAllocator<CachedFileInfo>> cachedRootFileList;
         uint32_t fsSizeBytes = 0;
         uint32_t fsUsedBytes = 0;
-        bool isSizeInfoValid = false;
-        bool isFileInfoValid = false;
-        bool isFileInfoSetup = false;
-        bool isUsed = false;
+        RaftAtomicBool isSizeInfoValid = {0};
+        RaftAtomicBool isFileInfoValid = {0};
+        RaftAtomicBool isFileInfoSetup = {0};
+        RaftAtomicBool isUsed = {0};
     };
     CachedFileSystem _sdFsCache;
     CachedFileSystem _localFsCache;

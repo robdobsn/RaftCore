@@ -11,6 +11,27 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <inttypes.h>
+#include <time.h>
+#include <sys/time.h>
+
+// Portable timegm implementation (not available in ESP-IDF newlib)
+static time_t portable_timegm(struct tm *tm)
+{
+    static const int mdays[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    int year = tm->tm_year + 1900;
+    time_t days = 0;
+    for (int y = 1970; y < year; y++)
+        days += 365 + (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
+    for (int m = 0; m < tm->tm_mon; m++)
+    {
+        days += mdays[m];
+        if (m == 1 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
+            days++;
+    }
+    days += tm->tm_mday - 1;
+    return ((days * 24 + tm->tm_hour) * 60 + tm->tm_min) * 60 + tm->tm_sec;
+}
+
 #include "Logger.h"
 #include "SysManager.h"
 #include "RaftSysMod.h"
@@ -204,6 +225,9 @@ void SysManager::postSetup()
         _pRestAPIEndpointManager->addEndpoint("sysman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                 std::bind(&SysManager::apiSysManSettings, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 "Set SysMan, e.g. sysman?interval=2&rxBuf=10240");
+        _pRestAPIEndpointManager->addEndpoint("datetime", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
+                std::bind(&SysManager::apiDateTime, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                "Get/set UTC time. Set: datetime?UTC=yyyy-mm-ddThh:mm:ssZ or datetime?epoch=<unix_secs>");
     }
 
     // Short delay here to allow logging output to complete as some hardware configurations
@@ -1217,6 +1241,70 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
     String reqStrWithoutQuotes = reqStr;
     reqStrWithoutQuotes.replace("\"","");
     return Raft::setJsonBoolResult(reqStrWithoutQuotes.c_str(), respStr, true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief DateTime API handler - get or set UTC time
+/// GET datetime — returns current time
+/// GET datetime?UTC=yyyy-mm-ddThh:mm:ssZ — set time from ISO 8601
+/// GET datetime?epoch=<unix_seconds> — set time from Unix epoch
+RaftRetCode SysManager::apiDateTime(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+{
+    // Extract parameters
+    std::vector<String> params;
+    std::vector<RaftJson::NameValuePair> nameValues;
+    RestAPIEndpointManager::getParamsAndNameValues(reqStr.c_str(), params, nameValues);
+    RaftJson nameValuesJson = RaftJson::getJSONFromNVPairs(nameValues, true);
+
+    String utcStr = nameValuesJson.getString("UTC", "");
+    String epochStr = nameValuesJson.getString("epoch", "");
+
+    if (utcStr.length() > 0)
+    {
+        // Parse ISO 8601: yyyy-mm-ddThh:mm:ssZ
+        struct tm timeinfo = {};
+        if (sscanf(utcStr.c_str(), "%d-%d-%dT%d:%d:%d",
+                   &timeinfo.tm_year, &timeinfo.tm_mon, &timeinfo.tm_mday,
+                   &timeinfo.tm_hour, &timeinfo.tm_min, &timeinfo.tm_sec) >= 6)
+        {
+            timeinfo.tm_year -= 1900;
+            timeinfo.tm_mon -= 1;
+            time_t t = portable_timegm(&timeinfo);
+            struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
+            settimeofday(&tv, nullptr);
+            LOG_I(MODULE_PREFIX, "apiDateTime set UTC=%s epoch=%ld", utcStr.c_str(), (long)t);
+        }
+        else
+        {
+            return Raft::setJsonBoolResult(reqStr.c_str(), respStr, false,
+                    "\"reason\":\"invalid UTC format, expected yyyy-mm-ddThh:mm:ssZ\"");
+        }
+    }
+    else if (epochStr.length() > 0)
+    {
+        time_t t = (time_t)strtoll(epochStr.c_str(), nullptr, 10);
+        if (t > 1704067200)  // Must be after 2024-01-01
+        {
+            struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
+            settimeofday(&tv, nullptr);
+            LOG_I(MODULE_PREFIX, "apiDateTime set epoch=%ld", (long)t);
+        }
+        else
+        {
+            return Raft::setJsonBoolResult(reqStr.c_str(), respStr, false,
+                    "\"reason\":\"epoch too small, must be after 2024-01-01\"");
+        }
+    }
+
+    // Return current time
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    struct tm timeinfo;
+    gmtime_r(&tv.tv_sec, &timeinfo);
+    char timeBuf[32];
+    strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
+    String extra = "\"UTC\":\"" + String(timeBuf) + "\",\"epoch\":" + String((long)tv.tv_sec);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

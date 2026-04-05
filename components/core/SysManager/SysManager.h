@@ -390,6 +390,9 @@ private:
     // Setup SysMan diagnostics
     RaftRetCode apiSysManSettings(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
+    // DateTime get/set
+    RaftRetCode apiDateTime(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+
     // Clear status change callbacks
     void clearAllStatusChangeCBs();
 

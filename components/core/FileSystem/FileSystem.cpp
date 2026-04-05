@@ -143,9 +143,9 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     // Watchdog is not enabled on core 1 in Arduino according to this
     // https://www.bountychannel.com/issues/44690700-watchdog-with-system-reset
     // disableCore0WDT();
-    _localFsCache.isSizeInfoValid = false;
-    _localFsCache.isFileInfoValid = false;
-    _localFsCache.isFileInfoSetup = false;
+    RaftAtomicBool_set(_localFsCache.isSizeInfoValid, false);
+    RaftAtomicBool_set(_localFsCache.isFileInfoValid, false);
+    RaftAtomicBool_set(_localFsCache.isFileInfoSetup, false);
     esp_err_t ret = ESP_FAIL;
 #ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
     if (_localFsType == LOCAL_FS_LITTLEFS)
@@ -177,7 +177,7 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
 String FileSystem::getDefaultFSRoot() const
 {
     // Default file system root path
-    if (_sdFsCache.isUsed)
+    if (RaftAtomicBool_get(_sdFsCache.isUsed))
     {
         if (_defaultToSDIfAvailable)
             return SD_FILE_SYSTEM_NAME;
@@ -249,7 +249,7 @@ bool FileSystem::getFilesJSON(const char* req, const String& fileSystemStr, cons
     // Check if cached information can be used
     CachedFileSystem& cachedFs = nameOfFS.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
 #if !defined(__linux__)
-    if (cachedFs.isUsed && _cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
+    if (RaftAtomicBool_get(cachedFs.isUsed) && _cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
     {
         LOG_I(MODULE_PREFIX, "getFilesJSON using cached info");
         return fileInfoCacheToJSON(req, cachedFs, "/", respStr);
@@ -541,7 +541,7 @@ bool FileSystem::checkFileSystem(const String& fileSystemStr, String& fsName) co
     // SD file system
     if (fsName == SD_FILE_SYSTEM_NAME)
     {
-        if (!_sdFsCache.isUsed)
+        if (!RaftAtomicBool_get(_sdFsCache.isUsed))
             return false;
         return true;
     }
@@ -1229,10 +1229,10 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
     
     // Local file system is ok
     _localFsType = LOCAL_FS_LITTLEFS;
-    _localFsCache.isUsed = true;
-    _localFsCache.isFileInfoValid = false;
-    _localFsCache.isSizeInfoValid = false;
-    _localFsCache.isFileInfoSetup = false;
+    RaftAtomicBool_set(_localFsCache.isUsed, true);
+    RaftAtomicBool_set(_localFsCache.isFileInfoValid, false);
+    RaftAtomicBool_set(_localFsCache.isSizeInfoValid, false);
+    RaftAtomicBool_set(_localFsCache.isFileInfoSetup, false);
     _localFsCache.fsName = LOCAL_FILE_SYSTEM_NAME;
     _localFsCache.fsBase = LOCAL_FILE_SYSTEM_BASE_PATH;
     return true;
@@ -1254,12 +1254,12 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     // Create directory for local file system simulation
     mkdir("/tmp/sandbot_local", 0755);
     _localFsType = LOCAL_FS_SPIFFS;
-    _localFsCache.isUsed = true;
+    RaftAtomicBool_set(_localFsCache.isUsed, true);
     _localFsCache.fsName = LOCAL_FILE_SYSTEM_NAME;
     _localFsCache.fsBase = "/tmp/sandbot_local";
     _localFsCache.fsSizeBytes = 1024 * 1024 * 100; // 100MB
     _localFsCache.fsUsedBytes = 0;
-    _localFsCache.isSizeInfoValid = true;
+    RaftAtomicBool_set(_localFsCache.isSizeInfoValid, true);
     LOG_I(MODULE_PREFIX, "localFileSystemSetup Linux directory /tmp/sandbot_local created");
     return true;
 }
@@ -1322,10 +1322,10 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
 
     // Local file system is ok
     _localFsType = LOCAL_FS_SPIFFS;
-    _localFsCache.isUsed = true;
-    _localFsCache.isFileInfoValid = false;
-    _localFsCache.isSizeInfoValid = false;
-    _localFsCache.isFileInfoSetup = false;
+    RaftAtomicBool_set(_localFsCache.isUsed, true);
+    RaftAtomicBool_set(_localFsCache.isFileInfoValid, false);
+    RaftAtomicBool_set(_localFsCache.isSizeInfoValid, false);
+    RaftAtomicBool_set(_localFsCache.isFileInfoSetup, false);
     _localFsCache.fsName = LOCAL_FILE_SYSTEM_NAME;
     _localFsCache.fsBase = LOCAL_FILE_SYSTEM_BASE_PATH;
     return true;
@@ -1353,12 +1353,12 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
 
     // Create directory for SD card simulation
     mkdir("/tmp/sandbot_sd", 0755);
-    _sdFsCache.isUsed = true;
+    RaftAtomicBool_set(_sdFsCache.isUsed, true);
     _sdFsCache.fsName = SD_FILE_SYSTEM_NAME;
     _sdFsCache.fsBase = "/tmp/sandbot_sd";
     _sdFsCache.fsSizeBytes = 1024 * 1024 * 1000; // 1GB
     _sdFsCache.fsUsedBytes = 0;
-    _sdFsCache.isSizeInfoValid = true;
+    RaftAtomicBool_set(_sdFsCache.isSizeInfoValid, true);
     LOG_I(MODULE_PREFIX, "sdFileSystemSetup Linux directory /tmp/sandbot_sd created");
     return true;
 }
@@ -1473,10 +1473,10 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
     LOG_I(MODULE_PREFIX, "sdFileSystemSetup mounted ok");
 
     // SD ok
-    _sdFsCache.isUsed = true;
-    _sdFsCache.isFileInfoValid = false;
-    _sdFsCache.isSizeInfoValid = false;
-    _sdFsCache.isFileInfoSetup = false;
+    RaftAtomicBool_set(_sdFsCache.isUsed, true);
+    RaftAtomicBool_set(_sdFsCache.isFileInfoValid, false);
+    RaftAtomicBool_set(_sdFsCache.isSizeInfoValid, false);
+    RaftAtomicBool_set(_sdFsCache.isFileInfoSetup, false);
     _sdFsCache.fsName = SD_FILE_SYSTEM_NAME;
     _sdFsCache.fsBase = SD_FILE_SYSTEM_BASE_PATH;
 
@@ -1505,32 +1505,51 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
 
 bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr)
 {
-    // Check valid
-    if (cachedFs.isSizeInfoValid && cachedFs.isFileInfoValid)
+    // Check valid (atomic reads before taking mutex)
+    if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) || !RaftAtomicBool_get(cachedFs.isFileInfoValid))
     {
-        LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info valid");
-
-        uint32_t debugStartMs = millis();
-        String fileListStr;
-        bool firstFile = true;
-        uint32_t fileCount = 0;
-        for (CachedFileInfo& cachedFileInfo : cachedFs.cachedRootFileList)
-        {
-            fileListStr += String(firstFile ? R"({"name":")" : R"(,{"name":")") + cachedFileInfo.fileName.c_str() + R"(","size":)" + String(cachedFileInfo.fileSize) + "}";
-            firstFile = false;
-            fileCount++;
-        }
-        // Format response
-        respStr = formatJSONFileInfo(req, cachedFs, fileListStr, folderStr);
-        uint32_t elapsedMs = millis() - debugStartMs;
-        LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON elapsed %dms fileCount %d", elapsedMs, fileCount);
-        return true;
+        // Info invalid - need to wait
+        LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info invalid - need to wait");
+        Raft::setJsonErrorResult(req, respStr, "fsinfodirty");
+        return false;
     }
 
-    // Info invalid - need to wait
-    LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info invalid - need to wait");
-    Raft::setJsonErrorResult(req, respStr, "fsinfodirty");
-    return false;
+    // Take mutex to protect list iteration
+    if (!RaftMutex_lock(_fileSysMutex, 0))
+    {
+        Raft::setJsonErrorResult(req, respStr, "fsbusy");
+        return false;
+    }
+
+    // Re-check validity under mutex
+    if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) || !RaftAtomicBool_get(cachedFs.isFileInfoValid))
+    {
+        RaftMutex_unlock(_fileSysMutex);
+        LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info became invalid");
+        Raft::setJsonErrorResult(req, respStr, "fsinfodirty");
+        return false;
+    }
+
+    LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info valid");
+
+    uint32_t debugStartMs = millis();
+    String fileListStr;
+    bool firstFile = true;
+    uint32_t fileCount = 0;
+    for (CachedFileInfo& cachedFileInfo : cachedFs.cachedRootFileList)
+    {
+        fileListStr += String(firstFile ? R"({"name":")" : R"(,{"name":")") + cachedFileInfo.fileName.c_str() + R"(","size":)" + String(cachedFileInfo.fileSize) + "}";
+        firstFile = false;
+        fileCount++;
+    }
+    // Format response
+    respStr = formatJSONFileInfo(req, cachedFs, fileListStr, folderStr);
+
+    RaftMutex_unlock(_fileSysMutex);
+
+    uint32_t elapsedMs = millis() - debugStartMs;
+    LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON elapsed %dms fileCount %d", elapsedMs, fileCount);
+    return true;
 }
 
 #endif  // !defined(__linux__) - ESP32-only cache function
@@ -1542,7 +1561,7 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
 bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr)
 {
     // Check if file-system info is valid
-    if (!cachedFs.isSizeInfoValid)
+    if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid))
     {
         if (!fileSysInfoUpdateCache(req, cachedFs, respStr))
             return false;
@@ -1637,7 +1656,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr)
 {
     // On Linux, size info is already set during setup
-    if (cachedFs.isSizeInfoValid)
+    if (RaftAtomicBool_get(cachedFs.isSizeInfoValid))
         return true;
 
     LOG_W(MODULE_PREFIX, "fileSysInfoUpdateCache size info not valid on Linux");
@@ -1682,7 +1701,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
         // FS settings
         cachedFs.fsSizeBytes = sizeBytes;
         cachedFs.fsUsedBytes = usedBytes;
-        cachedFs.isSizeInfoValid = true;
+        RaftAtomicBool_set(cachedFs.isSizeInfoValid, true);
     }
 #ifdef RAFT_FILESYSTEM_HAS_FATSD
     else if (fsName == SD_FILE_SYSTEM_NAME)
@@ -1703,7 +1722,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
                     *512;
             #endif
             }
-            cachedFs.isSizeInfoValid = true;
+            RaftAtomicBool_set(cachedFs.isSizeInfoValid, true);
         }
     }
 #endif
@@ -1726,16 +1745,16 @@ void FileSystem::markFileCacheDirty(const String& fsName, const String& filename
     // Get file system info
     CachedFileSystem& cachedFs = fsName.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
 
-    // Set FS info invalid
-    cachedFs.isFileInfoValid = false;
-    cachedFs.isSizeInfoValid = false;
+    // Set FS info invalid (atomic - visible to other threads immediately)
+    RaftAtomicBool_set(cachedFs.isFileInfoValid, false);
+    RaftAtomicBool_set(cachedFs.isSizeInfoValid, false);
 
     // Check caching enabled
     if (!_cacheFileSystemInfo)
         return;
 
     // Check valid
-    if (!cachedFs.isFileInfoSetup)
+    if (!RaftAtomicBool_get(cachedFs.isFileInfoSetup))
         return;
 
     // Find the file in the cached file list
@@ -1770,19 +1789,19 @@ void FileSystem::markFileCacheDirty(const String& fsName, const String& filename
 void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
 {
     // Check if file-system info is invalid
-    if (!cachedFs.isUsed)
+    if (!RaftAtomicBool_get(cachedFs.isUsed))
         return;
 
     // Update fsInfo if required        
     String respStr;
-    if (!cachedFs.isSizeInfoValid)
+    if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid))
     {
         fileSysInfoUpdateCache("", cachedFs, respStr);
         return;
     }
 
     // Update file info if required
-    if (!cachedFs.isFileInfoSetup)
+    if (!RaftAtomicBool_get(cachedFs.isFileInfoSetup))
     {
         uint32_t debugStartMs = millis();
 
@@ -1833,8 +1852,8 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
 
         // Finished with file list
         closedir(dir);
-        cachedFs.isFileInfoSetup = true;
-        cachedFs.isFileInfoValid = true;
+        RaftAtomicBool_set(cachedFs.isFileInfoSetup, true);
+        RaftAtomicBool_set(cachedFs.isFileInfoValid, true);
         RaftMutex_unlock(_fileSysMutex);
         uint32_t debugCachedFsSetupMs = millis() - debugStartMs;
         LOG_I(MODULE_PREFIX, "fileSystemCacheService fs %s files %d took %dms", 
@@ -1843,7 +1862,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
     }
 
     // Check file info
-    if (cachedFs.isFileInfoSetup && !cachedFs.isFileInfoValid)
+    if (RaftAtomicBool_get(cachedFs.isFileInfoSetup) && !RaftAtomicBool_get(cachedFs.isFileInfoValid))
     {
         // Update info for specific file(s)
         // Take mutex
@@ -1867,10 +1886,10 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
                 }
                 else
                 {
-                    // Remove from list
-                    cachedFs.cachedRootFileList.erase(it);
+                    // Log before erasing (iterator becomes invalid after erase)
                     LOG_I(MODULE_PREFIX, "fileSystemCacheService deleted %s", 
                             it->fileName.c_str());
+                    cachedFs.cachedRootFileList.erase(it);
                     allValid = false;
                     break;
                 }
@@ -1880,7 +1899,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
             }
         }
         LOG_I(MODULE_PREFIX, "fileSystemCacheService fileInfo %s", allValid ? "valid" : "invalid");
-        cachedFs.isFileInfoValid = allValid;
+        RaftAtomicBool_set(cachedFs.isFileInfoValid, allValid);
         RaftMutex_unlock(_fileSysMutex);
     }
 }
