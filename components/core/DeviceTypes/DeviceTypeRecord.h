@@ -25,6 +25,25 @@ typedef uint32_t (*DeviceTypeRecordDecodeFn)(const uint8_t* pPollBuf, uint32_t p
             uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @enum AttrType
+/// @brief Attribute field type for decoded poll structs
+enum class AttrType : uint8_t { Float, Int32, Uint32, Int16, Uint16, Int8, Uint8, Bool };
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @struct AttrFieldDesc
+/// @brief Describes one field in a generated poll struct — used for dynamic field access by name
+/// @note Uses offsetof()-based offsets computed at compile time by the code generator
+struct AttrFieldDesc
+{
+    const char* name;       // Attribute name, e.g. "ax"
+    uint16_t offset;        // offsetof(poll_XXX, field) — compiler-guaranteed
+    AttrType type;          // Field type enum
+    const char* fmtStr;     // Format string from resp.a[].f, e.g. ".2f"
+    float divisor;          // Divisor from resp.a[].d (1.0 = no division)
+    float addend;           // Addend from resp.a[].a (applied after division)
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecord
 /// @brief Device Type Record
 /// @note This must be a POD type as it is used to describe the device type records in the flash memory
@@ -39,6 +58,9 @@ public:
     uint16_t pollDataSizeBytes = 0;
     const char* devInfoJson = nullptr;
     DeviceTypeRecordDecodeFn pollResultDecodeFn = nullptr;
+    const AttrFieldDesc* pollFieldDescs = nullptr;
+    uint16_t pollFieldCount = 0;
+    uint16_t pollStructSize = 0;
 
     String getJson(bool includePlugAndPlayInfo) const
     {

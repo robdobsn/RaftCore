@@ -82,6 +82,9 @@ add_custom_command(
     OUTPUT ${_devtype_out} ${_devpoll_out}
     COMMAND python3 ${_devtype_script} ${_devtype_json} ${_devtype_out} ${_devpoll_out}
     DEPENDS ${_devtype_json}
+            ${_devtype_script}
+            "${raftcore_SOURCE_DIR}/scripts/DecodeGenerator.py"
+            "${raftcore_SOURCE_DIR}/scripts/PseudocodeHandler.py"
     WORKING_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}
     COMMENT "Generating DeviceTypeRecords_generated.h and DevicePollRecords_generated.h"
 )

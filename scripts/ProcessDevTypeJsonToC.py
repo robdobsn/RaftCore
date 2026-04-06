@@ -144,12 +144,20 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # Write header
         header_file.write('#pragma once\n')
         header_file.write('#include <stdint.h>\n')
+        header_file.write('#include <cstddef>\n')
+        header_file.write('#include "DeviceTypeRecord.h"\n\n')
 
         # Generate structs for the device type records if enabled
         if gen_options.get("gen_decode", False):
             struct_defs = decodeGenerator.get_struct_defs(dev_ident_json['devTypes'])
             for struct_def in struct_defs:
                 header_file.write(struct_def)
+                header_file.write("\n")
+
+            # Generate AttrFieldDesc tables for each struct
+            field_desc_defs = decodeGenerator.get_field_desc_defs(dev_ident_json['devTypes'])
+            for field_desc_def in field_desc_defs:
+                header_file.write(field_desc_def)
                 header_file.write("\n")
 
     # Generate dev type header file
@@ -197,6 +205,7 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             # Check if gen_decode is set
             if gen_options.get("gen_decode", False):
                 header_file.write(f',\n        {decodeGenerator.decode_fn(dev_type)}')
+                header_file.write(f',\n        {decodeGenerator.field_desc_ref(dev_type)}')
 
             header_file.write('\n    },\n')
             dev_record_index += 1

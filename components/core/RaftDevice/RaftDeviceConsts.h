@@ -129,11 +129,27 @@ public:
         return busNum;
     }
 
+    /// @brief Get bus number string
+    /// @return Bus number as a string    
+    String getBusNumStr() const
+    {
+        return String(busNum);
+    }
+
     /// @brief Get address
     /// @return Address
     BusElemAddrType getAddress() const
     {
         return address;
+    }
+
+    /// @brief Get address as string
+    /// @return Address as a string
+    String getAddressStr() const
+    {
+        char addrHex[16];
+        snprintf(addrHex, sizeof(addrHex), "%x", (unsigned int)address);
+        return String(addrHex);
     }
 
 private:

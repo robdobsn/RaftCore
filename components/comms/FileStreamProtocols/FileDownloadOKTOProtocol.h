@@ -132,6 +132,11 @@ private:
     uint32_t _lastSentUptoFilePos = 0;
     uint32_t _batchBlockSendRetryCount = 0;
 
+    // CRC at end support
+    bool _crcAtEnd = false;
+    uint32_t _incrementalCrc = 0;
+    uint32_t _crcFilePos = 0;
+
     // Debug
     uint32_t _debugLastStatsMs = millis();
     static const uint32_t DEBUG_STATS_MS = 10000;

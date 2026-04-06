@@ -231,7 +231,31 @@ class DecodeGenerator:
         
         # Get the record time increment "us" field
         record_time_increment_us = poll_resp_meta.get("us", 0)
-        loop_end_lines = [
+
+        # Build sign-extension lines for attributes with signed types stored as float.
+        # Custom pseudocode stores raw bitwise-OR results as unsigned values in float fields;
+        # attrs with signed underlying types (e.g. "<h" = signed int16) need correction.
+        sign_ext_lines = []
+        for el in poll_resp_meta.get("a", []):
+            attr_name = el.get("n", "")
+            if attr_name == "":
+                continue
+            c_var_name = self.to_valid_c_var_name(attr_name)
+            out_type = el.get("o", "")
+            raw_type = el.get("t", "")
+            if out_type == "float" and self.is_attr_type_signed(raw_type):
+                # Determine the bit width from the pystruct type
+                pystruct_rec = self.pystruct_map.get(raw_type, None)
+                if pystruct_rec:
+                    c_type = pystruct_rec[0]  # e.g. "int16_t"
+                    if c_type == "int8_t":
+                        sign_ext_lines.append(f"if (pOut->{c_var_name} >= 128.0f) pOut->{c_var_name} -= 256.0f;")
+                    elif c_type == "int16_t":
+                        sign_ext_lines.append(f"if (pOut->{c_var_name} >= 32768.0f) pOut->{c_var_name} -= 65536.0f;")
+                    elif c_type == "int32_t":
+                        sign_ext_lines.append(f"if (pOut->{c_var_name} >= 2147483648.0f) pOut->{c_var_name} -= 4294967296.0f;")
+
+        loop_end_lines = sign_ext_lines + [
             "if (++pOut >= pStruct + maxRecCount) break;",
             "timestampUs += " + str(record_time_increment_us) + ";",
             f"pOut->{self.struct_time_var_name} = timestampUs / {self.DECODE_STRUCT_TIMESTAMP_RESOLUTION_US};"
@@ -485,4 +509,95 @@ class DecodeGenerator:
             struct_defs.append(struct_def)
 
         return struct_defs
+
+    # Map output type to AttrType enum value
+    _attr_type_enum_map = {
+        'float': 'AttrType::Float',
+        'double': 'AttrType::Float',
+        'int32': 'AttrType::Int32',
+        'int32_t': 'AttrType::Int32',
+        'uint32': 'AttrType::Uint32',
+        'uint32_t': 'AttrType::Uint32',
+        'int16': 'AttrType::Int16',
+        'int16_t': 'AttrType::Int16',
+        'uint16': 'AttrType::Uint16',
+        'uint16_t': 'AttrType::Uint16',
+        'int8': 'AttrType::Int8',
+        'int8_t': 'AttrType::Int8',
+        'uint8': 'AttrType::Uint8',
+        'uint8_t': 'AttrType::Uint8',
+        'bool': 'AttrType::Bool',
+        'int64': 'AttrType::Int32',
+        'int64_t': 'AttrType::Int32',
+        'uint64': 'AttrType::Uint32',
+        'uint64_t': 'AttrType::Uint32',
+    }
+
+    def _get_attr_type_enum(self, attr_rec):
+        """Get AttrType enum string for an attribute record"""
+        # Prefer the 'o' (output type) field
+        o_type = attr_rec.get("o", "")
+        if o_type in self._attr_type_enum_map:
+            return self._attr_type_enum_map[o_type]
+        # Fall back to mapping from pystruct 't' field
+        c_type = self.get_c_eqv_type(attr_rec, True, False)
+        for key, val in self._attr_type_enum_map.items():
+            if self.c_like_types.get(key, "") == c_type:
+                return val
+        return 'AttrType::Uint8'
+
+    def get_field_desc_def(self, dev_info_json):
+        """Generate a static const AttrFieldDesc array for one device type"""
+        struct_name = self.gen_struct_name(dev_info_json)
+        if struct_name == "":
+            return ""
+        poll_resp_meta = dev_info_json.get("resp", {})
+        attrs = poll_resp_meta.get("a", [])
+        if len(attrs) == 0:
+            return ""
+
+        # Extract short struct name (e.g. "poll_LSM6DS" from "struct poll_LSM6DS")
+        short_name = struct_name.replace("struct ", "")
+        lines = []
+        lines.append(f"static const AttrFieldDesc {short_name}_fields[] = {{\n")
+        for el in attrs:
+            attr_name = el.get("n", "")
+            if attr_name == "":
+                continue
+            c_var_name = self.to_valid_c_var_name(attr_name)
+            attr_type_enum = self._get_attr_type_enum(el)
+            fmt_str = el.get("f", "")
+            divisor = el.get("d", 0)
+            addend = el.get("a", 0)
+            # divisor: 0 means no division, represent as 1.0f; otherwise use the value
+            div_val = f"{float(divisor)}f" if divisor and float(divisor) != 0 else "1.0f"
+            add_val = f"{float(addend)}f" if addend and float(addend) != 0 else "0.0f"
+            lines.append(f'    {{"{attr_name}", (uint16_t)offsetof({short_name}, {c_var_name}), {attr_type_enum}, "{fmt_str}", {div_val}, {add_val}}},\n')
+        lines.append("};\n")
+        return "".join(lines)
+
+    def get_field_desc_defs(self, dev_type_records):
+        """Generate AttrFieldDesc arrays for all device types"""
+        defs = []
+        for dev_type_record in dev_type_records.values():
+            dev_info_json = dev_type_record.get("devInfoJson", {})
+            desc_def = self.get_field_desc_def(dev_info_json)
+            if desc_def:
+                defs.append(desc_def)
+        return defs
+
+    def field_desc_ref(self, dev_type_record):
+        """Return the three initializer fields for a DeviceTypeRecord: pointer, count, sizeof"""
+        dev_info_json = dev_type_record.get("devInfoJson", {})
+        struct_name = self.gen_struct_name(dev_info_json)
+        if struct_name == "":
+            return "nullptr, 0, 0"
+        poll_resp_meta = dev_info_json.get("resp", {})
+        attrs = poll_resp_meta.get("a", [])
+        # Count valid attrs (same logic as get_field_desc_def)
+        count = sum(1 for el in attrs if el.get("n", "") != "")
+        if count == 0:
+            return "nullptr, 0, 0"
+        short_name = struct_name.replace("struct ", "")
+        return f"{short_name}_fields, {count}, sizeof({short_name})"
 

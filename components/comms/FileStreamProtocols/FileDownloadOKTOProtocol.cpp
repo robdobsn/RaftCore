@@ -13,6 +13,7 @@
 #include "CommsChannelMsg.h"
 #include "CommsCoreIF.h"
 #include "FileStreamBlockOwned.h"
+#include "MiniHDLC.h"
 
 #define WARN_ON_TRANSFER_CANCEL
 
@@ -131,6 +132,10 @@ RaftRetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTRe
     int blockSizeFromHost = cmdFrame.getLong("batchMsgSize", -1);
     int batchAckSizeFromHost = cmdFrame.getLong("batchAckSize", -1);
 
+    // Check if client wants CRC at end of transfer (non-blocking)
+    String crcAt = cmdFrame.getString("crcAt", "");
+    _crcAtEnd = crcAt.equalsIgnoreCase("end");
+
     // Validate the start message
     String errorMsg;
     uint32_t crc16 = 0;
@@ -215,19 +220,30 @@ RaftRetCode FileDownloadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqM
     if (_fileStreamCancelEnd)
         _fileStreamCancelEnd(true);
 
-    // Response
-    Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+    // Response - include CRC if it was deferred to end of transfer
+    if (_crcAtEnd)
+    {
+        char extraJson[30];
+        snprintf(extraJson, sizeof(extraJson), R"("crc16":"%04x")", (int)_incrementalCrc);
+        Raft::setJsonResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, nullptr, extraJson);
+    }
+    else
+    {
+        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+    }
 
     // Debug
 #ifdef DEBUG_RICREST_FILEDOWNLOAD
     String fileName = cmdFrame.getString("fileName", "");
     String fileType = cmdFrame.getString("fileType", "");
     uint32_t fileLen = cmdFrame.getLong("fileLen", 0);
-    LOG_I(MODULE_PREFIX, "handleEndMsg fileName %s fileType %s fileLen %d blocksSent %d", 
+    LOG_I(MODULE_PREFIX, "handleEndMsg fileName %s fileType %s fileLen %d blocksSent %d crcAtEnd %d crc %04x", 
                 fileName.c_str(), 
                 fileType.c_str(), 
                 fileLen, 
-                blocksSent);
+                blocksSent,
+                _crcAtEnd,
+                _incrementalCrc);
 #endif
 
     // End
@@ -319,7 +335,14 @@ bool FileDownloadOKTOProtocol::validateFileStreamStart(const String& fileName,
 
     // Get file CRC and length
     crc16Valid = false;
-    if (_fileStreamGetCRC)
+    if (_crcAtEnd)
+    {
+        // CRC deferred to end of transfer - use file length from constructor
+        fileSize = _fileStreamLength;
+        _incrementalCrc = MiniHDLC::crcInitCCITT();
+        _crcFilePos = 0;
+    }
+    else if (_fileStreamGetCRC)
     {
         RaftRetCode retc = _fileStreamGetCRC(crc16, fileSize);
         if (retc == RaftRetCode::RAFT_OK)
@@ -540,6 +563,13 @@ bool FileDownloadOKTOProtocol::checkFinalBlock(uint32_t filePos, uint32_t blockL
 
 void FileDownloadOKTOProtocol::sendBlock(FileStreamBlockOwned& block)
 {
+    // Update incremental CRC if computing at end (only for new positions)
+    if (_crcAtEnd && block.getFilePos() == _crcFilePos)
+    {
+        _incrementalCrc = MiniHDLC::crcUpdateCCITT(_incrementalCrc, block.getBlockData(), block.getBlockLen());
+        _crcFilePos = block.getFilePos() + block.getBlockLen();
+    }
+
     // Form block message
     CommsChannelMsg endpointMsg(_commsChannelID, MSG_PROTOCOL_RICREST, 0, MSG_TYPE_COMMAND);
     RICRESTMsg::encodeFileBlock(block.getFilePos(), 

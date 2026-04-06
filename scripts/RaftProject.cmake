@@ -150,6 +150,9 @@ add_custom_command(
     OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
     COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "[${DEV_TYPE_JSON_ARG}]" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
     DEPENDS ${DEV_TYPE_JSON_FILES}
+            "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py"
+            "${raftcore_SOURCE_DIR}/scripts/DecodeGenerator.py"
+            "${raftcore_SOURCE_DIR}/scripts/PseudocodeHandler.py"
     COMMENT "\nGenerating Device Record headers from JSON"
 )
 
