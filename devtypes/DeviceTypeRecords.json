@@ -548,9 +548,7 @@
             "pollInfo": {
                 "c": "0x3a=r4&0x3e=r{$0.w12:mask0FFF*2:max240}",
                 "i": 50,
-                "s": 20,
-                "busHz": 400000,
-                "busHzSlots": [7]
+                "s": 20
             },
             "scanPriority": "high",
             "devInfoJson": {

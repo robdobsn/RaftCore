@@ -53,6 +53,7 @@ FileSystem fileSystem;
 // #define DEBUG_FILE_SYSTEM_MOUNT
 // #define DEBUG_CACHE_FS_INFO
 // #define DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
+// #define DEBUG_FILE_INFO_JSON_TIMING
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
@@ -251,7 +252,9 @@ bool FileSystem::getFilesJSON(const char* req, const String& fileSystemStr, cons
 #if !defined(__linux__)
     if (RaftAtomicBool_get(cachedFs.isUsed) && _cacheFileSystemInfo && ((folderStr.length() == 0) || (folderStr.equalsIgnoreCase("/"))))
     {
+#ifdef DEBUG_CACHE_FS_INFO
         LOG_I(MODULE_PREFIX, "getFilesJSON using cached info");
+#endif
         return fileInfoCacheToJSON(req, cachedFs, "/", respStr);
     }
 #endif
@@ -1509,7 +1512,9 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
     if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) || !RaftAtomicBool_get(cachedFs.isFileInfoValid))
     {
         // Info invalid - need to wait
+#ifdef DEBUG_CACHE_FS_INFO
         LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info invalid - need to wait");
+#endif
         Raft::setJsonErrorResult(req, respStr, "fsinfodirty");
         return false;
     }
@@ -1525,14 +1530,18 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
     if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) || !RaftAtomicBool_get(cachedFs.isFileInfoValid))
     {
         RaftMutex_unlock(_fileSysMutex);
+#ifdef DEBUG_CACHE_FS_INFO
         LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info became invalid");
+#endif
         Raft::setJsonErrorResult(req, respStr, "fsinfodirty");
         return false;
     }
 
+#ifdef DEBUG_CACHE_FS_INFO
     LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info valid");
-
     uint32_t debugStartMs = millis();
+#endif
+
     String fileListStr;
     bool firstFile = true;
     uint32_t fileCount = 0;
@@ -1547,8 +1556,11 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
 
     RaftMutex_unlock(_fileSysMutex);
 
+#ifdef DEBUG_CACHE_FS_INFO
     uint32_t elapsedMs = millis() - debugStartMs;
     LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON elapsed %dms fileCount %d", elapsedMs, fileCount);
+#endif
+
     return true;
 }
 
@@ -1575,7 +1587,9 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     }
 
     // Debug
+#ifdef DEBUG_FILE_INFO_JSON_TIMING
     uint32_t debugStartMs = millis();
+#endif
 
     // Check file system is valid
     if (cachedFs.fsSizeBytes == 0)
@@ -1640,9 +1654,11 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     // Format response
     respStr = formatJSONFileInfo(req, cachedFs, fileListStr, rootFolder);
 
+#ifdef DEBUG_FILE_INFO_JSON_TIMING
     // Debug
     uint32_t debugGetFilesMs = millis() - debugStartMs;
     LOG_I(MODULE_PREFIX, "getFilesJSON timing fileList %dms", debugGetFilesMs);
+#endif
 
     return true;
 }
