@@ -17,7 +17,7 @@
 // #define DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
 // #define DEBUG_ESP32RMTLEDSTRIP_INIT_RMT
 // #define DEBUG_ESP32RMTLEDSTRIP_POWER_CTRL
-#define DEBUG_ESP32RMTLEDSTRIP_FLICKER_DIAG
+// #define DEBUG_ESP32RMTLEDSTRIP_FLICKER_DIAG
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor and destructor
