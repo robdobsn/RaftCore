@@ -82,3 +82,7 @@ String platform_getAppVersion();
 
 // Get compile time and date
 String platform_getCompileTime(bool includeDate);
+
+// Portable timegm implementation (not available in ESP-IDF newlib)
+#include <ctime>
+time_t portable_timegm(struct tm *tm);

@@ -14,24 +14,6 @@
 #include <time.h>
 #include <sys/time.h>
 
-// Portable timegm implementation (not available in ESP-IDF newlib)
-static time_t portable_timegm(struct tm *tm)
-{
-    static const int mdays[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-    int year = tm->tm_year + 1900;
-    time_t days = 0;
-    for (int y = 1970; y < year; y++)
-        days += 365 + (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
-    for (int m = 0; m < tm->tm_mon; m++)
-    {
-        days += mdays[m];
-        if (m == 1 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
-            days++;
-    }
-    days += tm->tm_mday - 1;
-    return ((days * 24 + tm->tm_hour) * 60 + tm->tm_min) * 60 + tm->tm_sec;
-}
-
 #include "Logger.h"
 #include "SysManager.h"
 #include "RaftSysMod.h"
