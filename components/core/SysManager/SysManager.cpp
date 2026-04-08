@@ -1244,10 +1244,11 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief DateTime API handler - get or set UTC time
+/// @brief DateTime API handler - get or set UTC time and timezone
 /// GET datetime — returns current time
 /// GET datetime?UTC=yyyy-mm-ddThh:mm:ssZ — set time from ISO 8601
 /// GET datetime?epoch=<unix_seconds> — set time from Unix epoch
+/// GET datetime?tz=<POSIX_TZ_string> — set timezone (overrides SysTypes config)
 RaftRetCode SysManager::apiDateTime(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
 {
     // Extract parameters
@@ -1294,6 +1295,15 @@ RaftRetCode SysManager::apiDateTime(const String &reqStr, String& respStr, const
             return Raft::setJsonBoolResult(reqStr.c_str(), respStr, false,
                     "\"reason\":\"epoch too small, must be after 2024-01-01\"");
         }
+    }
+
+    // Set timezone if provided (POSIX TZ string, overrides SysTypes config)
+    String tzStr = nameValuesJson.getString("tz", "");
+    if (tzStr.length() > 0)
+    {
+        setenv("TZ", tzStr.c_str(), 1);
+        tzset();
+        LOG_I(MODULE_PREFIX, "apiDateTime set TZ=%s", tzStr.c_str());
     }
 
     // Return current time
