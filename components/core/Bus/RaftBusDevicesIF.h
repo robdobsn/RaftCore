@@ -21,8 +21,16 @@
 class RaftBusDeviceDecodeState
 {
 public:
+    // Wrap-around tracking (used by generated decode functions)
     uint64_t lastReportTimestampUs = 0;
     uint64_t reportTimestampOffsetUs = 0;
+
+    // Piecewise EMA timestamp reconstruction state
+    double   emaLastSampleTimeUs = 0.0;     // Last assigned sample timestamp (absolute µs)
+    double   emaIntervalUs = 0.0;           // EMA of actual sample interval (µs)
+    double   emaPrevPollTimeUs = 0.0;       // Previous poll timestamp (absolute µs)
+    bool     emaCalibrated = false;         // Whether initialization has occurred
+    uint16_t emaCalibrationPolls = 0;       // Number of polls used for alpha selection
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
