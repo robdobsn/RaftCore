@@ -158,7 +158,7 @@ public:
     uint16_t delayBeforeDeinitMs = 0;
 
     // RMT peripheral configuration - for simple encoder implementations
-    uint16_t memBlockSymbols = 64;      // RMT memory block size (larger = less flicker)
+    uint16_t memBlockSymbols = 64;      // RMT memory block size in symbols (allocated in chip-specific blocks: 64 for ESP32, 48 for S3/C3/C6/H2)
     uint16_t transQueueDepth = 1;       // Transaction queue depth (only 1 to prevent buffer corruption)
     uint16_t minChunkSize = 64;         // Min chunk size for simple encoder
 

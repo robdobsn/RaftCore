@@ -17,6 +17,7 @@
 // #define DEBUG_ESP32RMTLEDSTRIP_DEINIT_AFTER_TX
 // #define DEBUG_ESP32RMTLEDSTRIP_INIT_RMT
 // #define DEBUG_ESP32RMTLEDSTRIP_POWER_CTRL
+#define DEBUG_ESP32RMTLEDSTRIP_FLICKER_DIAG
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor and destructor
@@ -238,6 +239,7 @@ void ESP32RMTLedStrip::deinitRMTPeripheral()
         _ledStripEncoderHandle = nullptr;
     }
     _isInit = false;
+    _lastTxBufferValid = false;
     RaftMutex_unlock(_stateMutex);
 }
 
@@ -258,12 +260,21 @@ bool ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     if (numPixelsToCopy > pixels.size() - _pixelIdxStartOffset)
         numPixelsToCopy = pixels.size() - _pixelIdxStartOffset;
 
-    // Check if transmission is already in progress
-    // If so, skip this update to prevent buffer corruption
+    // Wait for any in-progress transmission to complete before overwriting buffer
     if (RaftAtomicBool_get(_txInProgress))
     {
-        // Skip this update - transmission still in progress
-        return false;
+#ifdef DEBUG_ESP32RMTLEDSTRIP_FLICKER_DIAG
+        LOG_I(MODULE_PREFIX, "DIAG showPixels TX was in progress, waiting");
+#endif
+        waitUntilShowComplete();
+        // If still in progress after wait (timeout), skip this update
+        if (RaftAtomicBool_get(_txInProgress))
+        {
+#ifdef DEBUG_ESP32RMTLEDSTRIP_FLICKER_DIAG
+            LOG_I(MODULE_PREFIX, "DIAG showPixels TIMEOUT waiting for TX");
+#endif
+            return false;
+        }
     }
 
     // Copy the buffer
@@ -277,6 +288,49 @@ bool ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     for (uint32_t i = 0; i < numPixelsToCopy; i++)
     {
         memcpy(_pixelBuffer.data() + (i * bytesPerPixel), srcPixels[i].raw, bytesPerPixel);
+    }
+
+#ifdef DEBUG_ESP32RMTLEDSTRIP_FLICKER_DIAG
+    // Log buffer bytes for pixels 3-5 (the ones that flicker) - rate limited
+    static uint32_t _diagRmtLastLogMs = 0;
+    uint32_t _diagRmtNowMs = millis();
+    // Check if any of the pixels 3-5 have unexpected zero values
+    bool possibleFlicker = false;
+    for (uint32_t i = 3; i < numPixelsToCopy && i < 6; i++)
+    {
+        uint32_t byteOff = i * bytesPerPixel;
+        bool allZero = true;
+        for (uint32_t b = 0; b < bytesPerPixel && (byteOff + b) < _pixelBuffer.size(); b++)
+        {
+            if (_pixelBuffer[byteOff + b] != 0) allZero = false;
+        }
+        // If a pixel that should be lit is zero, that's suspicious
+        bool srcAllZero = true;
+        for (uint32_t b = 0; b < bytesPerPixel; b++)
+        {
+            if (srcPixels[i].raw[b] != 0) srcAllZero = false;
+        }
+        if (allZero && !srcAllZero) possibleFlicker = true;
+    }
+    if (possibleFlicker || Raft::isTimeout(_diagRmtNowMs, _diagRmtLastLogMs, 5000))
+    {
+        _diagRmtLastLogMs = _diagRmtNowMs;
+        LOG_I(MODULE_PREFIX, "DIAG buf flk=%d off=%d n=%d bpp=%d buf[%02x%02x%02x %02x%02x%02x %02x%02x%02x %02x%02x%02x %02x%02x%02x %02x%02x%02x]",
+            possibleFlicker, _pixelIdxStartOffset, numPixelsToCopy, bytesPerPixel,
+            _pixelBuffer.size() > 0 ? _pixelBuffer[0] : 0, _pixelBuffer.size() > 1 ? _pixelBuffer[1] : 0, _pixelBuffer.size() > 2 ? _pixelBuffer[2] : 0,
+            _pixelBuffer.size() > 3 ? _pixelBuffer[3] : 0, _pixelBuffer.size() > 4 ? _pixelBuffer[4] : 0, _pixelBuffer.size() > 5 ? _pixelBuffer[5] : 0,
+            _pixelBuffer.size() > 6 ? _pixelBuffer[6] : 0, _pixelBuffer.size() > 7 ? _pixelBuffer[7] : 0, _pixelBuffer.size() > 8 ? _pixelBuffer[8] : 0,
+            _pixelBuffer.size() > 9 ? _pixelBuffer[9] : 0, _pixelBuffer.size() > 10 ? _pixelBuffer[10] : 0, _pixelBuffer.size() > 11 ? _pixelBuffer[11] : 0,
+            _pixelBuffer.size() > 12 ? _pixelBuffer[12] : 0, _pixelBuffer.size() > 13 ? _pixelBuffer[13] : 0, _pixelBuffer.size() > 14 ? _pixelBuffer[14] : 0,
+            _pixelBuffer.size() > 15 ? _pixelBuffer[15] : 0, _pixelBuffer.size() > 16 ? _pixelBuffer[16] : 0, _pixelBuffer.size() > 17 ? _pixelBuffer[17] : 0);
+    }
+#endif
+
+    // Skip RMT transmission if buffer contents haven't changed since last successful TX
+    if (_lastTxBufferValid && (_lastTxBuffer.size() == _pixelBuffer.size()) &&
+        memcmp(_lastTxBuffer.data(), _pixelBuffer.data(), _pixelBuffer.size()) == 0)
+    {
+        return true;
     }
 
     // Check for power off if all power controlled pixels are blank
@@ -324,9 +378,15 @@ bool ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
         RaftAtomicBool_set(_txInProgress, false);
         deinitRMTPeripheral();
     }
+    else
+    {
+        // Save buffer snapshot for change detection
+        _lastTxBuffer.assign(_pixelBuffer.begin(), _pixelBuffer.end());
+        _lastTxBufferValid = true;
+    }
 
     // if tx ok ... Check for blocking show
-    else if (_ledStripConfig.blockingShow)
+    if ((err == ESP_OK) && _ledStripConfig.blockingShow)
     {
         // Block until complete
         waitUntilShowComplete();
@@ -408,8 +468,8 @@ void ESP32RMTLedStrip::waitUntilShowComplete()
 
     // We're not going to use rmt_tx_wait_all_done as it errors on timeout
 
-    // Max time to wait
-    uint64_t maxWaitUs = (WAIT_RMT_BASE_US + WAIT_RMT_PER_PIX_US * _pixelBuffer.size() + 1000)/1000;
+    // Max time to wait (WS2812B: ~30us per pixel = ~10us per byte, plus reset)
+    uint64_t maxWaitUs = WAIT_RMT_BASE_US + WAIT_RMT_PER_PIX_US * _pixelBuffer.size();
     uint64_t startTimeUs = micros();
     while (RaftAtomicBool_get(_txInProgress) && !Raft::isTimeout(micros(), startTimeUs, maxWaitUs))
     {

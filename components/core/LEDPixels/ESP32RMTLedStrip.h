@@ -81,9 +81,13 @@ private:
     // Pixel working buffer
     SpiramAwareUint8Vector _pixelBuffer;
 
-    // Wait for RMT complete
-    static const uint32_t WAIT_RMT_BASE_US = 100;
-    static const uint32_t WAIT_RMT_PER_PIX_US = 5;
+    // Last transmitted buffer (to skip redundant transmissions)
+    SpiramAwareUint8Vector _lastTxBuffer;
+    bool _lastTxBufferValid = false;
+
+    // Wait for RMT complete (WS2812B: ~1.25us/bit × 8 bits = ~10us per byte, plus ~80us reset)
+    static const uint32_t WAIT_RMT_BASE_US = 150;
+    static const uint32_t WAIT_RMT_PER_PIX_US = 10;
 
     // Helpers
     bool initRMTPeripheral();

@@ -270,6 +270,13 @@ private:
     // Default pattern runtime in ms
     uint32_t _patternRunTimeDefaultMs = 0;
     
+    // Flicker diagnostic state
+    uint32_t _diagShowCount = 0;
+    uint32_t _diagLastShowMs = 0;
+    uint32_t _diagLastLogMs = 0;
+    int _diagShowSource = -1;
+    LEDPixel _diagLastPixels[6] = {};
+
     // Debug
     static constexpr const char* MODULE_PREFIX = "LEDPix";
 };

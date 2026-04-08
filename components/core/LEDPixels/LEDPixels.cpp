@@ -13,8 +13,12 @@
 
 // #define DEBUG_LED_PIXEL_VALUES
 // #define DEBUG_LED_PIXEL_NONZERO
+// #define DEBUG_LED_PIXEL_START_PIXEL 1
+// #define DEBUG_LED_PIXEL_NUM_PIXELS 4
+// #define DEBUG_LED_PIXEL_NONZERO_ONLY
 // #define DEBUG_LED_PIXELS_LOOP_SHOW
 // #define DEBUG_LED_PATTERN_REGISTRY
+// #define DEBUG_LED_FLICKER_DIAG
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor and destructor
@@ -172,10 +176,14 @@ void LEDPixels::loop()
     }
 
     // Loop over segments
-    for (auto& segment : _segments)
+    for (uint32_t segIdx = 0; segIdx < _segments.size(); segIdx++)
     {
+        auto& segment = _segments[segIdx];
         if (segment.loop())
         {
+#ifdef DEBUG_LED_FLICKER_DIAG
+            _diagShowSource = segIdx;
+#endif
             show();
 #ifdef DEBUG_LED_PIXELS_LOOP_SHOW
             LOG_I(MODULE_PREFIX, "loop segment %s show", segment.getName().c_str());
@@ -187,6 +195,9 @@ void LEDPixels::loop()
             LOG_I(MODULE_PREFIX, "loop segment %s stop requested", segment.getName().c_str());
 #endif
             segment.stopPattern(true);
+#ifdef DEBUG_LED_FLICKER_DIAG
+            _diagShowSource = segIdx + 100;
+#endif
             show();
         }
     }
@@ -248,6 +259,37 @@ int32_t LEDPixels::getSegmentIdx(const String& segmentName) const
 
 bool LEDPixels::show()
 {
+#ifdef DEBUG_LED_FLICKER_DIAG
+    uint32_t nowMs = millis();
+    uint32_t elapsed = nowMs - _diagLastShowMs;
+    _diagLastShowMs = nowMs;
+    _diagShowCount++;
+
+    // Snapshot pixel values before showPixels
+    bool pixelsChanged = false;
+    for (uint32_t i = 0; i < _pixels.size() && i < 6; i++)
+    {
+        if (_pixels[i].c1 != _diagLastPixels[i].c1 || _pixels[i].c2 != _diagLastPixels[i].c2 || _pixels[i].c3 != _diagLastPixels[i].c3)
+            pixelsChanged = true;
+        _diagLastPixels[i] = _pixels[i];
+    }
+
+    // Log every show call: source segment, timing, pixel values, whether changed
+    // Rate-limit to avoid flooding: log if pixels changed, or every 2 seconds
+    if (pixelsChanged || Raft::isTimeout(nowMs, _diagLastLogMs, 2000))
+    {
+        _diagLastLogMs = nowMs;
+        LOG_I(MODULE_PREFIX, "DIAG show src=%d cnt=%d dt=%dms chg=%d p0=[%d,%d,%d] p1=[%d,%d,%d] p2=[%d,%d,%d] p3=[%d,%d,%d] p4=[%d,%d,%d] p5=[%d,%d,%d]",
+            _diagShowSource, _diagShowCount, elapsed, pixelsChanged,
+            _pixels.size() > 0 ? _pixels[0].c1 : 0, _pixels.size() > 0 ? _pixels[0].c2 : 0, _pixels.size() > 0 ? _pixels[0].c3 : 0,
+            _pixels.size() > 1 ? _pixels[1].c1 : 0, _pixels.size() > 1 ? _pixels[1].c2 : 0, _pixels.size() > 1 ? _pixels[1].c3 : 0,
+            _pixels.size() > 2 ? _pixels[2].c1 : 0, _pixels.size() > 2 ? _pixels[2].c2 : 0, _pixels.size() > 2 ? _pixels[2].c3 : 0,
+            _pixels.size() > 3 ? _pixels[3].c1 : 0, _pixels.size() > 3 ? _pixels[3].c2 : 0, _pixels.size() > 3 ? _pixels[3].c3 : 0,
+            _pixels.size() > 4 ? _pixels[4].c1 : 0, _pixels.size() > 4 ? _pixels[4].c2 : 0, _pixels.size() > 4 ? _pixels[4].c3 : 0,
+            _pixels.size() > 5 ? _pixels[5].c1 : 0, _pixels.size() > 5 ? _pixels[5].c2 : 0, _pixels.size() > 5 ? _pixels[5].c3 : 0);
+    }
+#endif
+
     // Show on all strips, tracking if any fail
     bool allSucceeded = true;
     uint32_t ledStripIdx = 0;
@@ -259,7 +301,12 @@ bool LEDPixels::show()
 
         // Show - continue even if this one fails
         if (!ledStrip->showPixels(_pixels))
+        {
             allSucceeded = false;
+#ifdef DEBUG_LED_FLICKER_DIAG
+            LOG_I(MODULE_PREFIX, "DIAG showPixels SKIPPED strip=%d", ledStripIdx);
+#endif
+        }
 
         // Post-show callback if specified
         if (_showCB)
@@ -277,7 +324,15 @@ bool LEDPixels::show()
     uint32_t firstNonZeroIdx = UINT32_MAX;
     LEDPixel firstNonZeroPixel;
 #endif
-    for (uint32_t idx = 0; idx < _pixels.size(); idx++)
+#if !defined(DEBUG_LED_PIXEL_START_PIXEL)
+#define DEBUG_LED_PIXEL_FIRST_PIXEL 0
+#else
+#define DEBUG_LED_PIXEL_FIRST_PIXEL (DEBUG_LED_PIXEL_START_PIXEL >= _pixels.size() ? 0 : DEBUG_LED_PIXEL_START_PIXEL)
+#endif
+#if !defined(DEBUG_LED_PIXEL_NUM_PIXELS)
+#define DEBUG_LED_PIXEL_NUM_PIXELS (_pixels.size())
+#endif
+    for (uint32_t idx = DEBUG_LED_PIXEL_START_PIXEL; (idx < DEBUG_LED_PIXEL_START_PIXEL + DEBUG_LED_PIXEL_NUM_PIXELS) && (idx < _pixels.size()); idx++)
     {
         const auto& pix = _pixels[idx];
         outStr += String(pix.c1) + "," + String(pix.c2) + "," + String(pix.c3);
@@ -295,11 +350,15 @@ bool LEDPixels::show()
         }
 #endif
     }
+#ifndef DEBUG_LED_PIXEL_NONZERO_ONLY
     LOG_I(MODULE_PREFIX, "show %d pixels %s", (int)_pixels.size(), outStr.c_str());
+#endif
 #ifdef DEBUG_LED_PIXEL_NONZERO
     if (nonZeroCount == 0)
     {
+#ifndef DEBUG_LED_PIXEL_NONZERO_ONLY
         LOG_I(MODULE_PREFIX, "show nonZero 0");
+#endif
     }
     else
     {
