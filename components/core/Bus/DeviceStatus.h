@@ -99,6 +99,17 @@ public:
         return 0;
     }
 
+    /// @brief Get the latest poll response (non-destructive peek)
+    /// @param dataTimeUs (output) timestamp of the latest data in microseconds
+    /// @param data (output) latest poll response data
+    /// @return true if data was available
+    bool getLatestPollResponse(uint64_t& dataTimeUs, std::vector<uint8_t>& data) const
+    {
+        if (pDataAggregator)
+            return pDataAggregator->getLatestValue(dataTimeUs, data);
+        return false;
+    }
+
     /// @brief Get and increment the per-device publish sequence counter
     /// @return current sequence counter value (pre-increment)
     uint8_t getAndIncrementSeqCounter() { return publishSeqCounter++; }

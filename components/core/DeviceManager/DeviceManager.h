@@ -10,6 +10,7 @@
 #include "BusRequestResult.h"
 #include "RaftDeviceConsts.h"
 #include "RaftThreading.h"
+#include <unordered_map>
 
 class APISourceInfo;
 class RaftBus;
@@ -36,11 +37,27 @@ public:
     /// @return pointer to device if found
     RaftDevice* getDevice(RaftDeviceID deviceID) const;
 
-    /// @brief Get device by string lookup using device ID or config name as string
-    /// @param deviceStr Device ID as string or config device name
+    /// @brief Get device by string lookup using device ID, config name, or device name map
+    /// @param deviceStr Device ID as string, config device name, or name from DeviceNames map
     /// @param tryConfigName Whether to try config name lookup if ID lookup fails
     /// @return pointer to device if found, nullptr otherwise
     RaftDevice* getDevice(const String& deviceStr, bool tryConfigName = true) const;
+
+    /// @brief Assign a friendly name to a bus device (identified by RaftDeviceID)
+    /// @param deviceID Device identifier
+    /// @param name Friendly name
+    void setDeviceName(RaftDeviceID deviceID, const String& name);
+
+    /// @brief Get friendly name for a device ID (from DeviceNames map)
+    /// @param deviceID Device identifier
+    /// @return friendly name, or deviceID.toString() if no name is mapped
+    String getDeviceNameForID(RaftDeviceID deviceID) const;
+
+    /// @brief Resolve a device name to a RaftDeviceID using the DeviceNames map
+    /// @param name Friendly device name
+    /// @param deviceID (out) resolved device ID
+    /// @return true if found in the name map
+    bool resolveDeviceNameToID(const String& name, RaftDeviceID& deviceID) const;
 
     /// @brief Register for device data notifications (note that callbacks may occur on different threads)
     /// @param deviceID Device identifier
@@ -291,6 +308,32 @@ private:
     /// @param eventName Name of the event
     /// @param eventData Data associated with the event
     void deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData);
+
+    // Device name maps (for bus devices with friendly names)
+    // Maps friendly name -> RaftDeviceID
+    std::unordered_map<std::string, RaftDeviceID> _deviceNameToID;
+    // Maps packed (busNum << 32 | address) -> friendly name
+    std::unordered_map<uint64_t, std::string> _deviceIDToName;
+
+    /// @brief Load device names from config (DeviceNames section)
+    /// @param devManConfig Device manager configuration
+    void loadDeviceNames(RaftJsonIF& devManConfig);
+
+    /// @brief Get a named value from a bus-discovered device using its cached poll data
+    /// @param deviceID Device identifier on the bus
+    /// @param paramName Attribute name (e.g. "ax", "temperature")
+    /// @param isValid (out) true if value was found and valid
+    /// @return attribute value
+    double getBusDeviceNamedValue(RaftDeviceID deviceID, const String& paramName, bool& isValid);
+
+    /// @brief Handle devman/setname API endpoint
+    RaftRetCode apiDevManSetName(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Pack a RaftDeviceID into a uint64_t key for map lookup
+    static uint64_t packDeviceIDKey(RaftDeviceID deviceID)
+    {
+        return (static_cast<uint64_t>(deviceID.getBusNum()) << 32) | deviceID.getAddress();
+    }
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;

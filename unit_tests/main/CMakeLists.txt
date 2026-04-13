@@ -18,6 +18,7 @@ idf_component_register(SRCS
             "SysTypeManager_test.cpp"
             "FileSystem_test.cpp"
             "RestAPIEndpointManager_test.cpp"
+            "DeviceNames_test.cpp"
 
             # The following test requires rebooting the ESP32 so isn't
             # included in the default test suite.

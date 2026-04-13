@@ -41,6 +41,7 @@
 // #define DEBUG_LOOP_SHOW_DEVICES_INTERVAL_MS 1000
 // #define DEBUG_DEVICE_CONFIG_API
 // #define DEBUG_REGISTER_FOR_DEVICE_DATA
+// #define DEBUG_DEVICE_NAMES
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -71,6 +72,9 @@ void DeviceManager::setup()
 
     // Setup device classes (these are the keys into the device factory)
     setupStaticDevices("Devices", modConfig());
+
+    // Load device names from config
+    loadDeviceNames(modConfig());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -604,7 +608,7 @@ String DeviceManager::getDebugJSON() const
 /// @param pValueName Name in format "DeviceName.paramName"
 /// @param isValid (out) true if value is valid
 /// @return double value
-/// @note This only supports static devices at the moment (i.e. devices defined in config and created in setupStaticDevices)
+/// @note This supports static devices and bus devices with names from the DeviceNames map
 double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
 {
     if (!pValueName)
@@ -616,12 +620,38 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
+
+        // Try static device first (existing path)
         RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice) 
         {
             double val = pDevice->getNamedValue(paramName.c_str(), isValid);
 #ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
             LOG_I("DeviceManager", "getNamedValue: device=%s param=%s result: %f (valid=%d)", 
+                        deviceName.c_str(), paramName.c_str(), val, isValid);
+#endif
+            return val;
+        }
+
+        // Try named bus device
+        auto it = _deviceNameToID.find(std::string(deviceName.c_str()));
+        if (it != _deviceNameToID.end())
+        {
+            double val = getBusDeviceNamedValue(it->second, paramName, isValid);
+#ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
+            LOG_I("DeviceManager", "getNamedValue busDevice: name=%s param=%s result: %f (valid=%d)",
+                        deviceName.c_str(), paramName.c_str(), val, isValid);
+#endif
+            return val;
+        }
+
+        // Try raw address as RaftDeviceID fallback
+        RaftDeviceID deviceID = RaftDeviceID::fromString(deviceName);
+        if (deviceID.isValid() && deviceID.getBusNum() != RaftDeviceID::BUS_NUM_DIRECT_CONN)
+        {
+            double val = getBusDeviceNamedValue(deviceID, paramName, isValid);
+#ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
+            LOG_I("DeviceManager", "getNamedValue busDeviceRaw: id=%s param=%s result: %f (valid=%d)",
                         deviceName.c_str(), paramName.c_str(), val, isValid);
 #endif
             return val;
@@ -639,7 +669,7 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
 /// @param pValueName Name in format "DeviceName.paramName"
 /// @param value Value to set
 /// @return true if set successfully
-/// @note This only supports static devices (i.e. devices defined in config and created in setupStaticDevices)
+/// @note This supports static devices and bus devices with names from the DeviceNames map
 bool DeviceManager::setNamedValue(const char* pValueName, double value)
 {
 
@@ -652,11 +682,37 @@ bool DeviceManager::setNamedValue(const char* pValueName, double value)
     {
         String deviceName = valueNameStr.substring(0, dotPos);
         String paramName = valueNameStr.substring(dotPos + 1);
+
+        // Try static device first
         RaftDevice* pDevice = getDevice(deviceName.c_str());
         if (pDevice)
         {
             pDevice->setNamedValue(paramName.c_str(), value);
             return true;
+        }
+
+        // Try named bus device — resolve name to deviceID
+        RaftDeviceID deviceID;
+        auto it = _deviceNameToID.find(std::string(deviceName.c_str()));
+        if (it != _deviceNameToID.end())
+        {
+            deviceID = it->second;
+        }
+        else
+        {
+            deviceID = RaftDeviceID::fromString(deviceName);
+        }
+
+        if (deviceID.isValid() && deviceID.getBusNum() != RaftDeviceID::BUS_NUM_DIRECT_CONN)
+        {
+            // For bus devices, route to the bus via sendCmdToDevice
+            // The bus device action routing is device-type-specific and would require
+            // DeviceTypeRecord lookup — for now log and return false
+            // (full action routing is a future enhancement)
+#ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
+            LOG_I("DeviceManager", "setNamedValue: bus device %s.%s = %f (bus device set not yet implemented)",
+                        deviceName.c_str(), paramName.c_str(), value);
+#endif
         }
     }
     return false;
@@ -785,7 +841,8 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
                             " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count>&sampleRateHz=<hz>&busHz=<hz>&busHzSlots=<csv> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
-                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device"
+                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device,"
+                            " devman/setname?deviceid=<deviceId>&name=<friendlyName> - Assign friendly name to a bus device"
                             " Note: typeName can be either a device type name or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
@@ -826,6 +883,8 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManDevConfig(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("busname"))
         return apiDevManBusName(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("setname"))
+        return apiDevManSetName(reqStr, respStr, jsonParams);
 
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
 }
@@ -1569,6 +1628,16 @@ RaftDevice* DeviceManager::getDevice(const String& deviceStr, bool tryConfigName
     }
     RaftMutex_unlock(_accessMutex);
 
+    // Try the DeviceNames map (for bus devices with friendly names)
+    auto it = _deviceNameToID.find(std::string(deviceStr.c_str()));
+    if (it != _deviceNameToID.end())
+    {
+        // Found the name — try to find the device by the mapped ID
+        RaftDevice* pDevice = getDevice(it->second);
+        if (pDevice)
+            return pDevice;
+    }
+
     // Not found
     return nullptr;
 }
@@ -1660,6 +1729,215 @@ void DeviceManager::deviceEventCB(RaftDevice& device, const char* eventName, con
         "SysMan",
         cmdStr.c_str()
     );
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Load device names from configuration
+/// @param devManConfig Device manager configuration (expects a "DeviceNames" object mapping RaftDeviceID strings to friendly names)
+void DeviceManager::loadDeviceNames(RaftJsonIF& devManConfig)
+{
+    // Get keys from DeviceNames config section
+    std::vector<String> keys;
+    if (!devManConfig.getKeys("DeviceNames", keys) || keys.empty())
+        return;
+
+    for (const auto& key : keys)
+    {
+        // Key is a RaftDeviceID string (e.g. "1_f8"), value is the friendly name
+        String path = "DeviceNames/" + key;
+        String friendlyName = devManConfig.getString(path.c_str(), "");
+        if (friendlyName.length() == 0)
+            continue;
+
+        RaftDeviceID deviceID = RaftDeviceID::fromString(key);
+        if (!deviceID.isValid())
+        {
+#ifdef DEBUG_DEVICE_NAMES
+            LOG_W(MODULE_PREFIX, "loadDeviceNames: invalid deviceID key: %s", key.c_str());
+#endif
+            continue;
+        }
+
+        // Store in both maps
+        setDeviceName(deviceID, friendlyName);
+#ifdef DEBUG_DEVICE_NAMES
+        LOG_I(MODULE_PREFIX, "loadDeviceNames: %s -> %s", key.c_str(), friendlyName.c_str());
+#endif
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Assign a friendly name to a bus device
+/// @param deviceID Device identifier
+/// @param name Friendly name
+void DeviceManager::setDeviceName(RaftDeviceID deviceID, const String& name)
+{
+    std::string nameStr(name.c_str());
+    uint64_t key = packDeviceIDKey(deviceID);
+
+    // Remove old name for this deviceID if it exists
+    auto itOld = _deviceIDToName.find(key);
+    if (itOld != _deviceIDToName.end())
+    {
+        _deviceNameToID.erase(itOld->second);
+        _deviceIDToName.erase(itOld);
+    }
+
+    // Remove old deviceID for this name if it exists
+    auto itOldName = _deviceNameToID.find(nameStr);
+    if (itOldName != _deviceNameToID.end())
+    {
+        _deviceIDToName.erase(packDeviceIDKey(itOldName->second));
+        _deviceNameToID.erase(itOldName);
+    }
+
+    // Store new mapping
+    _deviceNameToID[nameStr] = deviceID;
+    _deviceIDToName[key] = nameStr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get friendly name for a device ID
+/// @param deviceID Device identifier
+/// @return friendly name if mapped, otherwise deviceID.toString()
+String DeviceManager::getDeviceNameForID(RaftDeviceID deviceID) const
+{
+    uint64_t key = packDeviceIDKey(deviceID);
+    auto it = _deviceIDToName.find(key);
+    if (it != _deviceIDToName.end())
+        return String(it->second.c_str());
+    return deviceID.toString();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Resolve a device name to a RaftDeviceID using the DeviceNames map
+/// @param name Friendly device name
+/// @param deviceID (out) resolved device ID
+/// @return true if found in the name map
+bool DeviceManager::resolveDeviceNameToID(const String& name, RaftDeviceID& deviceID) const
+{
+    auto it = _deviceNameToID.find(std::string(name.c_str()));
+    if (it != _deviceNameToID.end())
+    {
+        deviceID = it->second;
+        return true;
+    }
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a named value from a bus-discovered device using its cached poll data
+/// @param deviceID Device identifier on the bus
+/// @param paramName Attribute name (e.g. "ax", "temperature")
+/// @param isValid (out) true if value was found and valid
+/// @return attribute value (with divisor/addend applied)
+double DeviceManager::getBusDeviceNamedValue(RaftDeviceID deviceID, const String& paramName, bool& isValid)
+{
+    isValid = false;
+
+    // Get the bus
+    RaftBus* pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+    if (!pBus)
+        return 0.0;
+
+    // Get device type index for the address
+    BusElemAddrType addr = deviceID.getAddress();
+    DeviceTypeIndexType deviceTypeIndex = pBus->getDeviceTypeIndex(addr);
+    if (deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID)
+        return 0.0;
+
+    // Get device type record
+    DeviceTypeRecord devTypeRec;
+    if (!deviceTypeRecords.getDeviceInfo(deviceTypeIndex, devTypeRec))
+        return 0.0;
+
+    // Must have poll field descriptors
+    if (!devTypeRec.pollFieldDescs || devTypeRec.pollFieldCount == 0 || devTypeRec.pollStructSize == 0)
+        return 0.0;
+
+    // Find the matching field by name
+    const AttrFieldDesc* pMatchedField = nullptr;
+    for (uint16_t i = 0; i < devTypeRec.pollFieldCount; i++)
+    {
+        if (paramName.equalsIgnoreCase(devTypeRec.pollFieldDescs[i].name))
+        {
+            pMatchedField = &devTypeRec.pollFieldDescs[i];
+            break;
+        }
+    }
+    if (!pMatchedField)
+        return 0.0;
+
+    // Get decoded poll data from the bus
+    RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+    if (!pDevicesIF)
+        return 0.0;
+
+    // Allocate stack buffer for decoded struct
+    // Limit stack allocation to a reasonable maximum
+    if (devTypeRec.pollStructSize > 4096)
+        return 0.0;
+    uint8_t decodedBuf[devTypeRec.pollStructSize];
+    memset(decodedBuf, 0, devTypeRec.pollStructSize);
+
+    // Use non-destructive latest-value path to avoid draining the ring buffer
+    // (which would starve the publish pipeline)
+    RaftBusDeviceDecodeState decodeState;
+    if (!pDevicesIF->getLatestDecodedPollResponse(addr, decodedBuf, devTypeRec.pollStructSize, decodeState))
+        return 0.0;
+
+    // Read the value from the decoded buffer at the field's offset
+    double rawVal = 0.0;
+    const uint8_t* pField = decodedBuf + pMatchedField->offset;
+    switch (pMatchedField->type)
+    {
+        case AttrType::Float:   { float v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
+        case AttrType::Int32:   { int32_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
+        case AttrType::Uint32:  { uint32_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
+        case AttrType::Int16:   { int16_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
+        case AttrType::Uint16:  { uint16_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
+        case AttrType::Int8:    { int8_t v = *reinterpret_cast<const int8_t*>(pField); rawVal = v; break; }
+        case AttrType::Uint8:   { rawVal = *pField; break; }
+        case AttrType::Bool:    { rawVal = (*pField) ? 1.0 : 0.0; break; }
+    }
+
+    // Apply divisor and addend
+    if (pMatchedField->divisor != 0.0f && pMatchedField->divisor != 1.0f)
+        rawVal /= pMatchedField->divisor;
+    rawVal += pMatchedField->addend;
+
+    isValid = true;
+    return rawVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/setname API endpoint
+/// @param reqStr request string
+/// @param respStr (out) response string
+/// @param jsonParams JSON object containing "deviceid" and "name" fields
+/// @return RaftRetCode
+RaftRetCode DeviceManager::apiDevManSetName(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    // Get device ID and name from params
+    String deviceIDStr = jsonParams.getString("deviceid", "");
+    String name = jsonParams.getString("name", "");
+
+    if (deviceIDStr.length() == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceIdMissing");
+    if (name.length() == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNameMissing");
+
+    RaftDeviceID deviceID = RaftDeviceID::fromString(deviceIDStr);
+    if (!deviceID.isValid())
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidDeviceId");
+
+    setDeviceName(deviceID, name);
+
+#ifdef DEBUG_DEVICE_NAMES
+    LOG_I(MODULE_PREFIX, "apiDevManSetName: %s -> %s", deviceIDStr.c_str(), name.c_str());
+#endif
+
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

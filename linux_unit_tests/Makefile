@@ -65,10 +65,24 @@ SOURCES = main.cpp \
 # Output binary
 OUTPUT = linux_unit_tests
 
-all: $(OUTPUT)
+all: $(OUTPUT) test_device_names
 
 $(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson.h ../components/core/Utils/RaftUtils.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUT) $(SOURCES)
 
+# Arduino stub object for missing itoa/utoa on Linux
+arduino_stubs.o: arduino_stubs.c
+	gcc -c -o $@ $<
+
+# Device names map unit test (standalone, minimal dependencies)
+test_device_names: test_device_names.cpp DeviceNamesTest.h arduino_stubs.o
+	$(CC) $(CFLAGS) -I../components/core/ArduinoUtils -I../components/core/RaftJson \
+		-I../components/core/RaftDevice -I../components/core/Bus -I. \
+		-o $@ test_device_names.cpp \
+		../components/core/ArduinoUtils/ArduinoWString.cpp \
+		../components/core/ArduinoUtils/ArduinoTime.cpp \
+		../components/core/ArduinoUtils/ArduinoStdlibNonISO.c \
+		arduino_stubs.o
+
 clean:
-	rm -f $(OUTPUT)
+	rm -f $(OUTPUT) test_device_names arduino_stubs.o
