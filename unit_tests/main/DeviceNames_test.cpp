@@ -81,13 +81,15 @@ TEST_CASE("packDeviceIDKey produces unique keys", "[DeviceNames]")
     RaftDeviceID id2(2, 0x00);
     uint64_t key1 = packDeviceIDKey(id1);
     uint64_t key2 = packDeviceIDKey(id2);
-    TEST_ASSERT_EQUAL_UINT64((uint64_t(1) << 32) | 0xf8, key1);
-    TEST_ASSERT_EQUAL_UINT64(uint64_t(2) << 32, key2);
+    uint64_t expected1 = (uint64_t(1) << 32) | 0xf8;
+    uint64_t expected2 = uint64_t(2) << 32;
+    TEST_ASSERT_TRUE(expected1 == key1);
+    TEST_ASSERT_TRUE(expected2 == key2);
     TEST_ASSERT_NOT_EQUAL(key1, key2);
 
     // Same device should produce same key
     RaftDeviceID id1copy(1, 0xf8);
-    TEST_ASSERT_EQUAL_UINT64(key1, packDeviceIDKey(id1copy));
+    TEST_ASSERT_TRUE(key1 == packDeviceIDKey(id1copy));
 }
 
 TEST_CASE("setDeviceName and getDeviceNameForID roundtrip", "[DeviceNames]")

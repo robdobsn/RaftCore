@@ -1428,7 +1428,10 @@ void NetworkSystem::setupMDNS()
 
     // Start NetBIOS name service responder so IP scanners (e.g. Advanced IP Scanner,
     // Angry IP Scanner) can discover the device hostname via NBNS queries on UDP port 137
+    // NetBIOS name max length is 15 characters; truncate to avoid lwIP assert.
     netbiosns_init();
-    netbiosns_set_name(_hostname.c_str());
-    LOG_I(MODULE_PREFIX, "NetBIOS name service started, name %s", _hostname.c_str());
+    const size_t netbiosMaxLen = 15;
+    String netbiosName = _hostname.length() > netbiosMaxLen ? _hostname.substring(0, netbiosMaxLen) : _hostname;
+    netbiosns_set_name(netbiosName.c_str());
+    LOG_I(MODULE_PREFIX, "NetBIOS name service started, name %s", netbiosName.c_str());
 }
