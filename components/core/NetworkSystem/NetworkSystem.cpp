@@ -15,6 +15,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
+#include "esp_idf_version.h"
 #include "nvs_flash.h"
 #include "esp_private/wifi.h"
 #include "sdkconfig.h"
@@ -1283,7 +1284,11 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station lost IP");
         break;
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case IP_EVENT_ASSIGNED_IP_TO_CLIENT:
+#else
     case IP_EVENT_AP_STAIPASSIGNED:
+#endif
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP station assigned IP");
         break;
     case IP_EVENT_GOT_IP6:

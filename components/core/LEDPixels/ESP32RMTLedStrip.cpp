@@ -72,39 +72,32 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
     }
 
     // Setup the RMT channel
-    _rmtChannelConfig = {
+    rmt_tx_channel_config_t rmtChannelConfig = {
         .gpio_num = (gpio_num_t)config.ledDataPin,          // LED strip data pin
         .clk_src = RMT_CLK_SRC_DEFAULT,                     // Default clock
         .resolution_hz = config.rmtResolutionHz,
         .mem_block_symbols = config.memBlockSymbols,        // Increase to reduce flickering
         .trans_queue_depth = config.transQueueDepth,        // Generally we only want one transaction at a time 
                                                             // (queueing without data buffering could cause corruption)
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
         .intr_priority = 0,                                  // Interrupt priority
         .flags = {
             .invert_out = false,                            // Invert output
             .with_dma = false,                              // No DMA
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
             .io_loop_back = false,                          // No loop
             .io_od_mode = false,                            // Not open drain
+#endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
             .allow_pd = config.allowPowerDown,              // Allow power down (save context to RAM)
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
-            .init_level = false,                            // Initial level 
+            .init_level = false,                            // Initial level
 #endif
         },
-#else
-        .intr_priority = 0,                                 // Interrupt priority
-        .flags = {
-            .invert_out = false,                            // Invert output
-            .with_dma = false,                              // No DMA
-            .io_loop_back = false,                          // No loop
-            .io_od_mode = false,                            // Not open drain
-        },
-#endif
     };
+    _rmtChannelConfig = rmtChannelConfig;
 
-    _ledStripEncoderConfig = {
+    led_strip_encoder_config_t ledStripEncoderConfig = {
         .resolution = config.rmtResolutionHz,
         .T0H_ticks = config.T0H_ticks,
         .T0L_ticks = config.T0L_ticks,
@@ -113,6 +106,7 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
         .reset_ticks = config.reset_ticks, 
         .msbFirst = config.msbFirst,
     };
+    _ledStripEncoderConfig = ledStripEncoderConfig;
 
     // Now setup
     _isSetup = true;
