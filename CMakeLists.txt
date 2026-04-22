@@ -22,6 +22,14 @@ set(RAFT_CORE_PRIV_REQUIRES
   esp_driver_uart
 )
 
+# USB Serial JTAG is not supported on the original ESP32 (only on S2/S3/C3/
+# C6/H2/P4 etc.). Gate on IDF_TARGET so the build still works on ESP32.
+# LoggerCore.cpp #ifdefs on CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG so source
+# compilation is safe without this component.
+if(NOT "${IDF_TARGET}" STREQUAL "esp32")
+  list(APPEND RAFT_CORE_PRIV_REQUIRES esp_driver_usb_serial_jtag)
+endif()
+
 set(RAFT_CORE_COMPILE_DEFINITIONS "")
 
 if (DEFINED FS_TYPE AND FS_TYPE STREQUAL "littlefs")
