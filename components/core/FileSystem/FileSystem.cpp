@@ -1184,6 +1184,7 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
         .base_path = LOCAL_FILE_SYSTEM_BASE_PATH,
         .partition_label = _fsPartitionName.c_str(),
         .partition = NULL,
+        .blockdev = NULL,
         .format_if_mount_failed = formatIfCorrupt,
         .read_only = false,
         .dont_mount = false,
