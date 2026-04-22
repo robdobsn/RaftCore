@@ -711,7 +711,7 @@
                 "desc": "Temp",
                 "manu": "Microchip",
                 "type": "MCP9808",
-                "clas": ["LGHT"],
+                "clas": ["TEMP"],
                 "resp": {
                     "b": 2,
                     "a": [
