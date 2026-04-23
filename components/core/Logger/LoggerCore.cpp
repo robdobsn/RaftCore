@@ -30,7 +30,7 @@
 // Override by defining RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS in the build
 // (e.g. via target_compile_definitions or CFLAGS).
 #ifndef RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS
-#define RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS 10
+#define RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS 100
 #endif
 #endif
 #endif
@@ -122,10 +122,38 @@ void LOGGING_FUNCTION_DECORATOR LoggerCore::log(esp_log_level_t level, const cha
     // driver. The VFS/stdio path flushes one USB packet per newline which caps
     // throughput at ~67 KB/s. Direct writes let the driver coalesce data and
     // reach the ~200 KB/s USB FS ceiling.
-    // Falls back gracefully if the driver isn't installed yet (returns -1,
-    // which we ignore — early-boot logs may be lost but that is acceptable).
-    usb_serial_jtag_write_bytes(msg, strlen(msg),
-                                pdMS_TO_TICKS(RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS));
+    // The USB JTAG driver is not installed until later in boot (e.g. by the
+    // SerialConsole sysmod). Before that, usb_serial_jtag_write_bytes() logs
+    // an error ("driver is not initialized yet") on every call, so we guard
+    // it with usb_serial_jtag_is_driver_installed() and fall back to printf
+    // (which uses the ROM console / VFS stdio path) during early boot.
+    if (usb_serial_jtag_is_driver_installed())
+    {
+        // Translate LF to CRLF to match the VFS/stdio behavior (which does
+        // this when CONFIG_LIBC_STDOUT_LINE_ENDING_CRLF is set). Without
+        // this, terminals see bare '\n' and lines appear staggered because
+        // the cursor never returns to column 0.
+        const TickType_t writeTimeoutTicks = pdMS_TO_TICKS(RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS);
+        const char* segStart = msg;
+        const char* p = msg;
+        while (*p)
+        {
+            if (*p == '\n')
+            {
+                if (p > segStart)
+                    usb_serial_jtag_write_bytes(segStart, p - segStart, writeTimeoutTicks);
+                usb_serial_jtag_write_bytes("\r\n", 2, writeTimeoutTicks);
+                segStart = p + 1;
+            }
+            p++;
+        }
+        if (p > segStart)
+            usb_serial_jtag_write_bytes(segStart, p - segStart, writeTimeoutTicks);
+    }
+    else
+    {
+        printf("%s", msg);
+    }
 #else
     printf("%s", msg);
 #endif
