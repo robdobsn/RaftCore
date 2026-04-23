@@ -1184,7 +1184,7 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
         .base_path = LOCAL_FILE_SYSTEM_BASE_PATH,
         .partition_label = _fsPartitionName.c_str(),
         .partition = NULL,
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if defined(ESP_LITTLEFS_HAS_BLOCKDEV) && ESP_LITTLEFS_HAS_BLOCKDEV
         .blockdev = NULL,
 #endif
         .format_if_mount_failed = formatIfCorrupt,
