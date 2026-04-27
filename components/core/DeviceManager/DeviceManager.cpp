@@ -15,6 +15,7 @@
 #include "RestAPIEndpointManager.h"
 #include "DemoDevice.h"
 #include "BusAddrStatus.h"
+#include "RaftDevice.h"
 
 // Warnings
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND
@@ -209,6 +210,27 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
     // register with the bus devices interface to receive data updates for the relevant device data change callbacks
     for (const BusAddrStatus& addrStatus : statusChanges)
     {
+        // Dispatch to listeners registered via DeviceManager::registerForDeviceStatusChange.
+        // This must happen for all transitions (ONLINE/OFFLINE/PENDING_DELETION and for
+        // isNewlyIdentified-only events), not just ONLINE, so that listeners like
+        // RaftROS auto-publish can detach on offline and attach on identify.  Bus-
+        // discovered devices don't normally have a RaftDevice in _staticDeviceList,
+        // so fall back to a minimal stub carrying just the RaftDeviceID — listeners
+        // dispatch on the ID + BusAddrStatus fields, not on derived RaftDevice state.
+        {
+            RaftDeviceID busDevID(bus.getBusNum(), addrStatus.address);
+            RaftDevice* pDevice = getDevice(busDevID);
+            if (pDevice)
+            {
+                callDeviceStatusChangeCBs(pDevice, addrStatus);
+            }
+            else
+            {
+                RaftDevice stubBusDevice("BusDevice", "{}", busDevID);
+                callDeviceStatusChangeCBs(&stubBusDevice, addrStatus);
+            }
+        }
+
         // Check the device is online
         if (addrStatus.onlineState != DeviceOnlineState::ONLINE)
             continue;
@@ -274,6 +296,10 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
                     _requestedDeviceDataChangeCBList.size(),
                     recordFound ? "Y" : "N");
 #endif
+
+        // Dispatch of status-change listeners now happens at the top of
+        // the loop body (before the ONLINE-only early-continue) so that
+        // OFFLINE / PENDING_DELETION transitions are also delivered.
     }
 
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
