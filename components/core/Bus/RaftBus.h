@@ -389,6 +389,25 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set the mode of a slot (e.g. "i2c", "serial-full", "serial-half")
+    /// @param slotNum 1-based slot number
+    /// @param pModeStr Mode string
+    /// @return RAFT_OK on success, RAFT_NOT_IMPLEMENTED if the bus doesn't support modal slots,
+    ///         RAFT_INVALID_DATA for an unknown mode or out-of-range slot.
+    virtual RaftRetCode setSlotMode(uint32_t slotNum, const char* pModeStr)
+    {
+        return RAFT_NOT_IMPLEMENTED;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get a JSON description of all slots and their modes
+    /// @return JSON array string (empty array "[]" if the bus has no slot controller)
+    virtual String getSlotModesJson() const
+    {
+        return "[]";
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get bus status as a stringCall bus element status callback
     /// @param busElemStatusCB - callback for bus element status changes
     void callBusElemStatusCB(const std::vector<BusAddrStatus>& statusChanges)

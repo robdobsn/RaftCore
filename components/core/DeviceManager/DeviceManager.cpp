@@ -869,6 +869,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device,"
                             " devman/setname?deviceid=<deviceId>&name=<friendlyName> - Assign friendly name to a bus device"
+                            " devman/slot?bus=<busNameOrNum>&slot=<n>&mode=<i2c|serial-full|serial-half> - Set slot mode (omit mode to query),"
                             " Note: typeName can be either a device type name or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
@@ -911,6 +912,8 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManBusName(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("setname"))
         return apiDevManSetName(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("slot"))
+        return apiDevManSlot(reqStr, respStr, jsonParams);
 
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
 }
@@ -1964,6 +1967,52 @@ RaftRetCode DeviceManager::apiDevManSetName(const String &reqStr, String &respSt
 #endif
 
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/slot API endpoint - set or query slot mode
+/// @param reqStr request string
+/// @param respStr (out) response string
+/// @param jsonParams expected fields: "bus" (name or number), "slot" (1-based), optional "mode"
+/// @return RaftRetCode
+RaftRetCode DeviceManager::apiDevManSlot(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    // Resolve bus
+    String busName = jsonParams.getString("bus", "");
+    if (busName.length() == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusMissing");
+    RaftBus* pBus = raftBusSystem.getBusByName(busName, true);
+    if (!pBus)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+
+    // Slot number is required for set; optional for query (omit -> return all slots)
+    String slotStr = jsonParams.getString("slot", "");
+    String modeStr = jsonParams.getString("mode", "");
+
+    // Query mode (no "mode" param) - return JSON describing slots on this bus
+    if (modeStr.length() == 0)
+    {
+        String slotsJson = pBus->getSlotModesJson();
+        String extra = "\"bus\":\"" + pBus->getBusName() + "\",\"slots\":" + slotsJson;
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
+    }
+
+    // Set mode - slot must be present
+    if (slotStr.length() == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failSlotMissing");
+    int slotNum = slotStr.toInt();
+    if (slotNum <= 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidSlot");
+
+    RaftRetCode retc = pBus->setSlotMode((uint32_t)slotNum, modeStr.c_str());
+    if (retc == RAFT_NOT_IMPLEMENTED)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNoSlotControl");
+    if (retc != RAFT_OK)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failSetMode");
+
+    String extra = "\"bus\":\"" + pBus->getBusName() + "\",\"slot\":" + String(slotNum)
+                 + ",\"mode\":\"" + modeStr + "\"";
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

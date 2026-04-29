@@ -329,6 +329,9 @@ private:
     /// @brief Handle devman/setname API endpoint
     RaftRetCode apiDevManSetName(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
+    /// @brief Handle devman/slot API endpoint (set or query slot mode)
+    RaftRetCode apiDevManSlot(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
     /// @brief Pack a RaftDeviceID into a uint64_t key for map lookup
     static uint64_t packDeviceIDKey(RaftDeviceID deviceID)
     {
