@@ -163,6 +163,9 @@ private:
     int _numWifiConnectRetries = 0; 
     uint32_t _lastReconnAttemptMs = 0;
 
+    // Suppress auto-reconnect while a new STA config is being applied
+    volatile bool _suppressWifiAutoReconnect = false;
+
     // Retry max, -1 means try forever
     static const int WIFI_CONNECT_MAX_RETRY = -1;
 

@@ -847,6 +847,118 @@
                 }
             }
         },
+        "CAP1188": {
+            "_notes": "Microchip CAP1188 8-channel capacitive touch sensor with 8 LED drivers. Product ID 0x50, Manufacturer ID 0x5D. ADDR_COMM strap selects address in range 0x28-0x2D.",
+            "addresses": "0x28-0x2d",
+            "deviceType": "CAP1188",
+            "detectionValues": "0xfd=0x50&0xfe=0x5d",
+            "initValues": "0x0000&0x1f06&0x2a00",
+            "pollInfo": {
+                "c": "0x02=r2&0x0000",
+                "i": 100,
+                "s": 5
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "CAP1188",
+                "desc": "Capacitive Touch x 8",
+                "manu": "Microchip",
+                "type": "CAP1188",
+                "clas": ["TCH"],
+                "resp": {
+                    "b": 2,
+                    "a": [
+                        {
+                            "n": "C1",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x01",
+                            "s": 0,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "C2",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x02",
+                            "s": 1,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "C3",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x04",
+                            "s": 2,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "C4",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x08",
+                            "s": 3,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "C5",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x10",
+                            "s": 4,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "C6",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x20",
+                            "s": 5,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "C7",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x40",
+                            "s": 6,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "C8",
+                            "at": 1,
+                            "t": "B",
+                            "r": [0, 1],
+                            "m": "0x80",
+                            "s": 7,
+                            "f": "b",
+                            "o": "bool"
+                        },
+                        {
+                            "n": "status",
+                            "t": ">H",
+                            "vs": false,
+                            "f": "04x",
+                            "o": "uint16"
+                        }
+                    ]
+                }
+            }
+        },
         "QwiicButton": {
             "addresses": "0x6f",
             "deviceType": "QwiicButton",

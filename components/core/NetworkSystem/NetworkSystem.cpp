@@ -555,29 +555,41 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
     strlcpy((char *)currentWifiConfig.sta.password, pwUnescaped.c_str(), 64);
     currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
 
-    // Set configuration
-    err = esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
-    if (err != ESP_OK)
+    // esp_wifi_set_config is rejected with ESP_ERR_WIFI_STATE if a connect attempt
+    // is currently in progress. Suppress auto-reconnect, issue a disconnect, and
+    // wait briefly for STA to become idle before applying the new configuration.
+    _suppressWifiAutoReconnect = true;
+    esp_err_t discErr = esp_wifi_disconnect();
+    if ((discErr != ESP_OK) && (discErr != ESP_ERR_WIFI_NOT_STARTED) && (discErr != ESP_ERR_WIFI_NOT_CONNECT))
     {
-        LOG_E(MODULE_PREFIX, "configWifiSTA FAILED err %s (%d) ***", esp_err_to_name(err), err);
-        return false;
+        LOG_W(MODULE_PREFIX, "configWifiSTA pre-disconnect err %s (%d)", esp_err_to_name(discErr), discErr);
+    }
+
+    // Retry esp_wifi_set_config until STA leaves the connecting state (or timeout)
+    static const uint32_t SET_CONFIG_TOTAL_TIMEOUT_MS = 2000;
+    static const uint32_t SET_CONFIG_RETRY_DELAY_MS = 20;
+    uint32_t startMs = millis();
+    while (true)
+    {
+        err = esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
+        if (err == ESP_OK)
+            break;
+        if ((err != ESP_ERR_WIFI_STATE) || (Raft::timeElapsed(millis(), startMs) > SET_CONFIG_TOTAL_TIMEOUT_MS))
+        {
+            _suppressWifiAutoReconnect = false;
+            LOG_E(MODULE_PREFIX, "configWifiSTA FAILED err %s (%d) ***", esp_err_to_name(err), err);
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(SET_CONFIG_RETRY_DELAY_MS));
     }
     _wifiStaSSIDConnectingTo = ssidUnescaped;
+    _numWifiConnectRetries = 0;
 
-    // Check if we need to disconnect
-    uint connBits = xEventGroupClearBits(_networkRTOSEventGroup, 0);
-    if (connBits & WIFI_STA_CONNECTED_BIT)
-    {
-        // Disconnecting will start the connection process again
-        esp_wifi_disconnect();
-        LOG_I(MODULE_PREFIX, "configWifiSTA disconnect requested (will reconnect) SSID %s", ssidUnescaped.c_str());
-    }
-    else
-    {
-        // Connect
-        esp_wifi_connect();
-        LOG_I(MODULE_PREFIX, "configWifiSTA connect requested SSID %s", ssidUnescaped.c_str());
-    }
+    // Re-enable auto-reconnect and connect
+    _suppressWifiAutoReconnect = false;
+    esp_err_t connErr = esp_wifi_connect();
+    LOG_I(MODULE_PREFIX, "configWifiSTA connect requested SSID %s err %s",
+                ssidUnescaped.c_str(), esp_err_to_name(connErr));
     return true;
 }
 
@@ -1335,8 +1347,8 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
 
 void NetworkSystem::handleWiFiStaDisconnectEvent()
 {
-    // Handle pause
-    if (!_isPaused)
+    // Handle pause / suppression while config is being applied
+    if (!_isPaused && !_suppressWifiAutoReconnect)
     {
         if ((WIFI_CONNECT_MAX_RETRY < 0) || (_numWifiConnectRetries < WIFI_CONNECT_MAX_RETRY))
         {
