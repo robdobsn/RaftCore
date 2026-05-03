@@ -1401,6 +1401,10 @@ void NetworkSystem::setupMDNS()
     if (!_networkSettings.enableMDNS)
         return;
 
+    // Check if mDNS is already setup
+    if (_mdnsIsSetup)
+        return;
+
     // Check if we have an IP address
     if (_wifiIPV4Addr.isEmpty() && _ethIPV4Addr.isEmpty())
         return;
@@ -1451,4 +1455,7 @@ void NetworkSystem::setupMDNS()
     String netbiosName = _hostname.length() > netbiosMaxLen ? _hostname.substring(0, netbiosMaxLen) : _hostname;
     netbiosns_set_name(netbiosName.c_str());
     LOG_I(MODULE_PREFIX, "NetBIOS name service started, name %s", netbiosName.c_str());
+
+    // Mark setup complete so repeated IP events don't re-add the same mDNS service
+    _mdnsIsSetup = true;
 }
