@@ -176,19 +176,38 @@ if (DEFINED DEV_TYPE_JSON_FILES AND NOT DEV_TYPE_JSON_FILES STREQUAL "")
     # Create a new list to store the updated file paths
     set(UPDATED_DEV_TYPE_JSON_FILES "")
 
+    set(DEV_TYPE_JSON_SEARCH_ROOTS
+        "${raftcore_SOURCE_DIR}"
+        "${CMAKE_SOURCE_DIR}/raftdevlibs/RaftCore"
+        "${RAFT_BUILD_ARTIFACTS_FOLDER}/RaftCore"
+    )
+
     # Iterate over each file in the list
     foreach(FILE_PATH ${DEV_TYPE_JSON_FILES})
-        # Check if the file exists
-        if (EXISTS "${FILE_PATH}")
-            list(APPEND UPDATED_DEV_TYPE_JSON_FILES "${FILE_PATH}")
+        set(RESOLVED_FILE_PATH "")
+        if (FILE_PATH MATCHES "^/devtypes(/|$)")
+            string(REGEX REPLACE "^/" "" RELATIVE_FILE_PATH "${FILE_PATH}")
+            foreach(SEARCH_ROOT ${DEV_TYPE_JSON_SEARCH_ROOTS})
+                if (RESOLVED_FILE_PATH STREQUAL "")
+                    set(CANDIDATE_FILE_PATH "${SEARCH_ROOT}/${RELATIVE_FILE_PATH}")
+                    if (EXISTS "${CANDIDATE_FILE_PATH}")
+                        set(RESOLVED_FILE_PATH "${CANDIDATE_FILE_PATH}")
+                    endif()
+                endif()
+            endforeach()
+        elseif (EXISTS "${FILE_PATH}")
+            set(RESOLVED_FILE_PATH "${FILE_PATH}")
         else()
-            # Prepend ${raftcore_SOURCE_DIR} and check again
-            set(PREPENDED_PATH "${raftcore_SOURCE_DIR}/${FILE_PATH}")
-            if (EXISTS "${PREPENDED_PATH}")
-                list(APPEND UPDATED_DEV_TYPE_JSON_FILES "${PREPENDED_PATH}")
-            else()
-                message(WARNING "File not found: ${FILE_PATH} (even after prepending ${raftcore_SOURCE_DIR})")
+            set(CANDIDATE_FILE_PATH "${raftcore_SOURCE_DIR}/${FILE_PATH}")
+            if (EXISTS "${CANDIDATE_FILE_PATH}")
+                set(RESOLVED_FILE_PATH "${CANDIDATE_FILE_PATH}")
             endif()
+        endif()
+
+        if (NOT RESOLVED_FILE_PATH STREQUAL "")
+            list(APPEND UPDATED_DEV_TYPE_JSON_FILES "${RESOLVED_FILE_PATH}")
+        else()
+            message(WARNING "File not found: ${FILE_PATH} (searched ${DEV_TYPE_JSON_SEARCH_ROOTS})")
         endif()
     endforeach()
 
