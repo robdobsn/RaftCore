@@ -156,6 +156,7 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
                 // Set endpoint callbacks
                 _pStreamChunkCB = pRestAPIEndpoint->_callbackChunk;
                 _pStreamIsReadyCB = pRestAPIEndpoint->_callbackIsReady;
+                _streamRequestStr = String(restAPIEndpointName) + "?streamID=" + String(streamID) + "&fileName=" + filename;
             }
 
             break;

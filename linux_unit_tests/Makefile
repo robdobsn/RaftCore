@@ -65,7 +65,7 @@ SOURCES = main.cpp \
 # Output binary
 OUTPUT = linux_unit_tests
 
-all: $(OUTPUT) test_device_names
+all: $(OUTPUT) test_device_names test_espnow_config
 
 $(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson.h ../components/core/Utils/RaftUtils.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUT) $(SOURCES)
@@ -84,5 +84,16 @@ test_device_names: test_device_names.cpp DeviceNamesTest.h arduino_stubs.o
 		../components/core/ArduinoUtils/ArduinoStdlibNonISO.c \
 		arduino_stubs.o
 
+# ESPNow config parser unit test (standalone, target-agnostic)
+test_espnow_config: test_espnow_config.cpp ../../RaftSysMods/components/ESPNowManager/ESPNowConfig.h ../../RaftSysMods/components/ESPNowManager/ESPNowConfig.cpp arduino_stubs.o
+	$(CC) $(CFLAGS) -I../components/core/ArduinoUtils -I../components/core/RaftJson \
+		-I../../RaftSysMods/components/ESPNowManager -I. \
+		-o $@ test_espnow_config.cpp \
+		../../RaftSysMods/components/ESPNowManager/ESPNowConfig.cpp \
+		../components/core/ArduinoUtils/ArduinoWString.cpp \
+		../components/core/ArduinoUtils/ArduinoTime.cpp \
+		../components/core/ArduinoUtils/ArduinoStdlibNonISO.c \
+		arduino_stubs.o
+
 clean:
-	rm -f $(OUTPUT) test_device_names arduino_stubs.o
+	rm -f $(OUTPUT) test_device_names test_espnow_config arduino_stubs.o

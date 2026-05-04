@@ -77,6 +77,7 @@ The OKTO protocol provides **guaranteed delivery** with batch acknowledgments. I
    ```
    [streamID:1byte] [filePos:3bytes BE] [payload:Nbytes]
    ```
+   Stream IDs on FILEBLOCK data frames are non-zero. `streamID` value `0` is reserved internally as `FILE_STREAM_ID_ANY` and must not be used for normal FILEBLOCK data. The stream ID and position are encoded as `(streamID << 24) | (filePos & 0x00ffffff)`.
    After each batch of `batchAckSize` blocks, the firmware sends an `"okto"` acknowledgment:
    ```json
    {"okto": 5000}
@@ -193,7 +194,8 @@ streamAudio(streamContents: Uint8Array, clearExisting: boolean, duration: number
 `FileStreamSession` manages active stream/upload sessions in the firmware:
 
 - Maximum **3 simultaneous sessions** 
-- Sessions identified by `streamID` (1–255, allocated sequentially)
+- Sessions identified by non-zero `streamID` values, allocated sequentially
+- `streamID` `0` is reserved as `FILE_STREAM_ID_ANY` for internal "unspecified stream" lookup and must not be emitted on data FILEBLOCKs for an allocated session
 - Idle timeout: **10 seconds** (reset on each block received)
 - Session creation is triggered by `ufStart` COMMAND_FRAME
 - Session type is determined by `fileType` field: `"fs"` → FILE, `"fw"` → FIRMWARE, `"rtstream"` → RT_STREAM

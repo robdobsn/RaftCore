@@ -570,9 +570,11 @@ void FileDownloadOKTOProtocol::sendBlock(FileStreamBlockOwned& block)
         _crcFilePos = block.getFilePos() + block.getBlockLen();
     }
 
-    // Form block message
+    // Form block message. FILEBLOCK encodes streamID in the top byte and
+    // the file position in the lower 24 bits.
+    uint32_t streamIDAndFilePos = ((_streamID & 0xff) << 24) | (block.getFilePos() & 0x00ffffff);
     CommsChannelMsg endpointMsg(_commsChannelID, MSG_PROTOCOL_RICREST, 0, MSG_TYPE_COMMAND);
-    RICRESTMsg::encodeFileBlock(block.getFilePos(), 
+    RICRESTMsg::encodeFileBlock(streamIDAndFilePos, 
                 block.getBlockData(), block.getBlockLen(), 
                 endpointMsg);
 
