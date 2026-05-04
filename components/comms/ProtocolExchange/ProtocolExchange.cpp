@@ -475,7 +475,15 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
         if (respondToMismatchedSession)
         {
             // Failure
-            Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+            if ((fileStreamMsgType == FileStreamBase::FILE_STREAM_MSG_TYPE_UPLOAD_START) ||
+                    (fileStreamMsgType == FileStreamBase::FILE_STREAM_MSG_TYPE_DOWNLOAD_START))
+            {
+                Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, "\"reason\":\"sessionNotStarted\"");
+            }
+            else
+            {
+                Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+            }
         }
 
         // Debug
@@ -630,6 +638,13 @@ FileStreamSession* ProtocolExchange::getFileStreamNewSession(const char* fileStr
     {
         LOG_W(MODULE_PREFIX, "getFileStreamNewSession failed to create session name %s channelID %d endpointName %s flow %s",
                         fileStreamName, channelID, restAPIEndpointName, FileStreamBase::getFileStreamFlowTypeStr(flowType));
+        return nullptr;
+    }
+    if (!pSession->isActive())
+    {
+        LOG_W(MODULE_PREFIX, "getFileStreamNewSession inactive session name %s channelID %d endpointName %s flow %s",
+                        fileStreamName, channelID, restAPIEndpointName, FileStreamBase::getFileStreamFlowTypeStr(flowType));
+        delete pSession;
         return nullptr;
     }
 

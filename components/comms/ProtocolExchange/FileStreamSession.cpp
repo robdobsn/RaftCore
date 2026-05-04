@@ -157,6 +157,22 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
                 _pStreamChunkCB = pRestAPIEndpoint->_callbackChunk;
                 _pStreamIsReadyCB = pRestAPIEndpoint->_callbackIsReady;
                 _streamRequestStr = String(restAPIEndpointName) + "?streamID=" + String(streamID) + "&fileName=" + filename;
+
+                // Notify the endpoint that the stream now exists. The callback
+                // receives the allocated streamID in the request string so it can
+                // attach state before the first data block arrives.
+                if (pRestAPIEndpoint->_callbackMain)
+                {
+                    String streamStartResp;
+                    RaftRetCode startRslt = pRestAPIEndpoint->_callbackMain(_streamRequestStr, streamStartResp, _streamSourceInfo);
+                    if (startRslt != RAFT_OK)
+                    {
+                        delete _pFileStreamProtocolHandler;
+                        _pFileStreamProtocolHandler = nullptr;
+                        _pStreamChunkCB = nullptr;
+                        _pStreamIsReadyCB = nullptr;
+                    }
+                }
             }
 
             break;
