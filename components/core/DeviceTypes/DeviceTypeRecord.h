@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include "RaftArduino.h"
 #include "RaftBus.h"
+#include "RaftUtils.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get decoded data record
@@ -70,18 +71,25 @@ public:
             return devInfoJson ? String(devInfoJson) : "{}";
         }
 
+        auto appendStringField = [](String& json, const char* name, const char* value)
+        {
+            if (!value)
+                return;
+            json += "\"";
+            json += name;
+            json += "\":\"";
+            json += Raft::escapeString(value, true);
+            json += "\",";
+        };
+
         // Form JSON string
         String devTypeInfo = "{";
-        if (deviceType)
-            devTypeInfo += "\"type\":\"" + String(deviceType) + "\",";
-        if (addresses)
-            devTypeInfo += "\"addr\":\"" + String(addresses) + "\",";
-        if (detectionValues)
-            devTypeInfo += "\"det\":\"" + String(detectionValues) + "\",";
-        if (initValues)
-            devTypeInfo += "\"init\":\"" + String(initValues) + "\",";
+        appendStringField(devTypeInfo, "type", deviceType);
+        appendStringField(devTypeInfo, "addr", addresses);
+        appendStringField(devTypeInfo, "det", detectionValues);
+        appendStringField(devTypeInfo, "init", initValues);
         if (pollInfo)
-            devTypeInfo += "\"poll\":\"" + String(pollInfo) + "\",";
+            devTypeInfo += "\"poll\":" + String(pollInfo) + ",";
         if (devInfoJson)
             devTypeInfo += "\"info\":" + String(devInfoJson) + ",";
         devTypeInfo += "\"pollSize\":" + String(pollDataSizeBytes);
