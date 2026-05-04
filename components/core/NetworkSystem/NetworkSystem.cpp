@@ -174,6 +174,13 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
 
 void NetworkSystem::loop()
 {
+    if (_pendingWiFiDisconnectWarn)
+    {
+        _pendingWiFiDisconnectWarn = false;
+        LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d",
+                _pendingWiFiDisconnectWarnRetries);
+    }
+
     // Get WiFi RSSI value if connected
     // Don't set WIFI_RSSI_CHECK_MS too low as getting AP info takes ~2ms
     if (Raft::isTimeout(millis(), _wifiRSSILastMs, WIFI_RSSI_CHECK_MS))
@@ -429,9 +436,27 @@ bool NetworkSystem::startWifi()
     }
 
     // Attach event handlers
-    esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &networkEventHandler, nullptr, nullptr);
-    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &networkEventHandler, nullptr, nullptr);
-    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_LOST_IP, &networkEventHandler, nullptr, nullptr);
+    if (!_wifiEventHandlerInstance)
+    {
+        esp_err_t regErr = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                &networkEventHandler, nullptr, &_wifiEventHandlerInstance);
+        if (regErr != ESP_OK)
+            LOG_E(MODULE_PREFIX, "startWifi failed to register WiFi event handler err %s (%d)", esp_err_to_name(regErr), regErr);
+    }
+    if (!_ipGotEventHandlerInstance)
+    {
+        esp_err_t regErr = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
+                                &networkEventHandler, nullptr, &_ipGotEventHandlerInstance);
+        if (regErr != ESP_OK)
+            LOG_E(MODULE_PREFIX, "startWifi failed to register IP got event handler err %s (%d)", esp_err_to_name(regErr), regErr);
+    }
+    if (!_ipLostEventHandlerInstance)
+    {
+        esp_err_t regErr = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_LOST_IP,
+                                &networkEventHandler, nullptr, &_ipLostEventHandlerInstance);
+        if (regErr != ESP_OK)
+            LOG_E(MODULE_PREFIX, "startWifi failed to register IP lost event handler err %s (%d)", esp_err_to_name(regErr), regErr);
+    }
 
     // Set storage
     esp_wifi_set_storage(WIFI_STORAGE_FLASH);
@@ -499,9 +524,30 @@ void NetworkSystem::stopWifi()
     esp_wifi_stop();
 
     // Remove event handlers
-    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, nullptr);
-    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_LOST_IP, nullptr);
-    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, nullptr);
+    if (_ipGotEventHandlerInstance)
+    {
+        esp_err_t unregErr = esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, _ipGotEventHandlerInstance);
+        if (unregErr == ESP_OK)
+            _ipGotEventHandlerInstance = nullptr;
+        else
+            LOG_W(MODULE_PREFIX, "stopWifi failed to unregister IP got event handler err %s (%d)", esp_err_to_name(unregErr), unregErr);
+    }
+    if (_ipLostEventHandlerInstance)
+    {
+        esp_err_t unregErr = esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_LOST_IP, _ipLostEventHandlerInstance);
+        if (unregErr == ESP_OK)
+            _ipLostEventHandlerInstance = nullptr;
+        else
+            LOG_W(MODULE_PREFIX, "stopWifi failed to unregister IP lost event handler err %s (%d)", esp_err_to_name(unregErr), unregErr);
+    }
+    if (_wifiEventHandlerInstance)
+    {
+        esp_err_t unregErr = esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, _wifiEventHandlerInstance);
+        if (unregErr == ESP_OK)
+            _wifiEventHandlerInstance = nullptr;
+        else
+            LOG_W(MODULE_PREFIX, "stopWifi failed to unregister WiFi event handler err %s (%d)", esp_err_to_name(unregErr), unregErr);
+    }
 
     // Deinit WiFi
     esp_wifi_deinit();
@@ -1369,7 +1415,8 @@ void NetworkSystem::warnOnWiFiDisconnectIfEthNotConnected()
             ((_numWifiConnectRetries < 1000) && (_numWifiConnectRetries % 100) == 0) ||
             ((_numWifiConnectRetries % 1000) == 0))
         {
-            LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d", _numWifiConnectRetries);
+            _pendingWiFiDisconnectWarnRetries = _numWifiConnectRetries;
+            _pendingWiFiDisconnectWarn = true;
         }
     }
 #endif
