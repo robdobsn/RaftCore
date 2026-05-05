@@ -162,6 +162,13 @@ private:
     // Connect retries
     int _numWifiConnectRetries = 0; 
     uint32_t _lastReconnAttemptMs = 0;
+    bool _pendingWiFiDisconnectWarn = false;
+    int _pendingWiFiDisconnectWarnRetries = 0;
+
+    // WiFi event handler instances
+    esp_event_handler_instance_t _wifiEventHandlerInstance = nullptr;
+    esp_event_handler_instance_t _ipGotEventHandlerInstance = nullptr;
+    esp_event_handler_instance_t _ipLostEventHandlerInstance = nullptr;
 
     // Suppress auto-reconnect while a new STA config is being applied
     volatile bool _suppressWifiAutoReconnect = false;
