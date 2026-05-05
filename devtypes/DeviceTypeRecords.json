@@ -695,6 +695,52 @@
                 }
             }
         },
+        "SHT40": {
+            "_notes": "Sensirion SHT4x (SHT40) at 0x44. Uses high-precision single-shot command 0xFD. Response is 6 bytes: T_MSB,T_LSB,T_CRC,RH_MSB,RH_LSB,RH_CRC.",
+            "addresses": "0x44-0x46",
+            "deviceType": "SHT40",
+            "detectionValues": "",
+            "initValues": "0xfd=&=p10",
+            "pollInfo": {
+                "c": "=r6&0xfd=",
+                "i": 5000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "SHT40",
+                "desc": "Temp&Humid",
+                "manu": "Sensirion",
+                "type": "SHT40",
+                "clas": ["TEMP","RH"],
+                "resp": {
+                    "b": 6,
+                    "a": [
+                        {
+                            "n": "temperature",
+                            "t": ">H",
+                            "u": "&deg;C",
+                            "r": [-45,130],
+                            "d": 374.48571428571427,
+                            "a": -45,
+                            "f": "3.2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "humidity",
+                            "at": 3,
+                            "t": ">H",
+                            "u": "%",
+                            "r": [0,100],
+                            "d": 524.28,
+                            "a": -6,
+                            "f": "3.1f",
+                            "o": "float"
+                        }
+                    ]
+                }
+            }
+        },
         "MCP9808": {
             "addresses": "0x18-0x1f",
             "deviceType": "MCP9808",
