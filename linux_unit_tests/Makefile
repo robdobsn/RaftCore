@@ -16,6 +16,7 @@ INCLUDES = -I../unit_tests/main \
   -I../components/core/RaftDevice \
   -I../components/core/Bus \
   -I../components/core/DeviceManager \
+  -I../components/core/DeviceTypes \
   -I../components/core/APICommon \
   -I../components/core/FileSystem \
   -I../components/core/RestAPIEndpoints \
@@ -60,7 +61,8 @@ SOURCES = main.cpp \
   ../components/core/MiniHDLC/MiniHDLC.cpp \
   ../components/core/ArduinoUtils/ArduinoTime.cpp \
   ../components/core/FileSystem/FileSystemChunker.cpp \
-  ../components/core/FileSystem/FileSystem.cpp
+  ../components/core/FileSystem/FileSystem.cpp \
+  linux_stubs.cpp
 
 # Output binary
 OUTPUT = linux_unit_tests

@@ -99,9 +99,9 @@ std::vector<uint8_t> DemoDevice::getStatusBinary() const
 String DemoDevice::getDebugJSON(bool includePlugAndPlayInfo) const
 {
     String debugStr = "{";
-    debugStr += "\"name\":\"" + getDeviceID().toString() + "\",";
-    debugStr += "\"type\":\"" + getConfiguredDeviceType() + "\",";
-    debugStr += "\"sampleRate\":" + String(_sampleRateMs);
+    RaftJson::appendStringField(debugStr, "name", getDeviceID().toString().c_str());
+    RaftJson::appendStringField(debugStr, "type", getConfiguredDeviceType().c_str());
+    RaftJson::appendRawField(debugStr, "sampleRate", String(_sampleRateMs).c_str());
     debugStr += "}";
     return debugStr;
 }

@@ -13,6 +13,7 @@
 #include "Logger.h"
 #include "WiFiScanner.h"
 #include "RaftUtils.h"
+#include "RaftJson.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
@@ -71,16 +72,17 @@ bool WiFiScanner::getResultsJSON(String& json)
         {
             if (i > 0)
                 json += ",";
-            json += "{";
-            json += "\"ssid\":\"" + Raft::escapeString(results[i].ssid.c_str()) + "\",";
-            json += "\"rssi\":" + String(results[i].rssi) + ",";
-            json += "\"ch1\":" + String(results[i].primaryChannel) + ",";
-            json += "\"ch2\":" + String(results[i].secondaryChannel) + ",";
-            json += "\"auth\":\"" + getAuthModeString(results[i].authMode) + "\",";
-            json += "\"bssid\":\"" + results[i].bssid + "\",";
-            json += "\"pair\":\"" + getCipherString(results[i].pairwiseCipher) + "\",";
-            json += "\"group\":\"" + getCipherString(results[i].groupCipher) + "\"";
-            json += "}";
+            String entry = "{";
+            RaftJson::appendStringField(entry, "ssid", results[i].ssid.c_str());
+            RaftJson::appendRawField(entry, "rssi", String(results[i].rssi).c_str());
+            RaftJson::appendRawField(entry, "ch1", String(results[i].primaryChannel).c_str());
+            RaftJson::appendRawField(entry, "ch2", String(results[i].secondaryChannel).c_str());
+            RaftJson::appendStringField(entry, "auth", getAuthModeString(results[i].authMode).c_str());
+            RaftJson::appendStringField(entry, "bssid", results[i].bssid.c_str());
+            RaftJson::appendStringField(entry, "pair", getCipherString(results[i].pairwiseCipher).c_str());
+            RaftJson::appendStringField(entry, "group", getCipherString(results[i].groupCipher).c_str());
+            entry += "}";
+            json += entry;
         }
         json += "]";
     }

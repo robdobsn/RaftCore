@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include "RaftArduino.h"
 #include "RaftBus.h"
-#include "RaftUtils.h"
+#include "RaftJson.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get decoded data record
@@ -71,28 +71,23 @@ public:
             return devInfoJson ? String(devInfoJson) : "{}";
         }
 
-        auto appendStringField = [](String& json, const char* name, const char* value)
-        {
-            if (!value)
-                return;
-            json += "\"";
-            json += name;
-            json += "\":\"";
-            json += Raft::escapeString(value, true);
-            json += "\",";
-        };
-
-        // Form JSON string
+        // Form JSON string — pre-reserve to avoid repeated heap reallocation
+        size_t reserveLen = 60; // fixed overhead: braces, key names, punctuation
+        if (deviceType)      reserveLen += strlen(deviceType);
+        if (addresses)       reserveLen += strlen(addresses);
+        if (detectionValues) reserveLen += strlen(detectionValues);
+        if (initValues)      reserveLen += strlen(initValues);
+        if (pollInfo)        reserveLen += strlen(pollInfo);
+        if (devInfoJson)     reserveLen += strlen(devInfoJson);
         String devTypeInfo = "{";
-        appendStringField(devTypeInfo, "type", deviceType);
-        appendStringField(devTypeInfo, "addr", addresses);
-        appendStringField(devTypeInfo, "det", detectionValues);
-        appendStringField(devTypeInfo, "init", initValues);
-        if (pollInfo)
-            devTypeInfo += "\"poll\":" + String(pollInfo) + ",";
-        if (devInfoJson)
-            devTypeInfo += "\"info\":" + String(devInfoJson) + ",";
-        devTypeInfo += "\"pollSize\":" + String(pollDataSizeBytes);
+        devTypeInfo.reserve(reserveLen);
+        RaftJson::appendStringField(devTypeInfo, "type", deviceType);
+        RaftJson::appendStringField(devTypeInfo, "addr", addresses);
+        RaftJson::appendStringField(devTypeInfo, "det", detectionValues);
+        RaftJson::appendStringField(devTypeInfo, "init", initValues);
+        RaftJson::appendRawField(devTypeInfo, "poll", pollInfo);
+        RaftJson::appendRawField(devTypeInfo, "info", devInfoJson);
+        RaftJson::appendRawField(devTypeInfo, "pollSize", String(pollDataSizeBytes).c_str());
         devTypeInfo += "}";
         return devTypeInfo;
     }

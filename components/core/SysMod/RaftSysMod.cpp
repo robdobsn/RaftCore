@@ -11,6 +11,7 @@
 #include "SysManagerIF.h"
 #include "CommsCoreIF.h"
 #include "DeviceManager.h"
+#include "RaftDevice.h"
 
 SysManagerIF* RaftSysMod::_pSysManager = NULL;
 
@@ -129,7 +130,7 @@ RaftDevice* RaftSysMod::getDeviceByName(const char* pDeviceName) const
         return nullptr;
 
     // Get device
-    return pDeviceManager->getDevice(pDeviceName);
+    return pDeviceManager->getDevice(String(pDeviceName));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

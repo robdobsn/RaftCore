@@ -590,6 +590,43 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Append JSON string field to an in-progress object
+    /// @param json : JSON object string (typically starts with "{")
+    /// @param name : field name
+    /// @param value : field value (null is ignored)
+    static void appendStringField(String& json, const char* name, const char* value)
+    {
+        if (!name || !value)
+            return;
+        if (json.length() > 1)
+            json += ',';
+        String escapedValue = value;
+        escapeString(escapedValue);
+        json += "\"";
+        json += name;
+        json += "\":\"";
+        json += escapedValue;
+        json += "\"";
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Append raw JSON field to an in-progress object
+    /// @param json : JSON object string (typically starts with "{")
+    /// @param name : field name
+    /// @param rawJson : raw JSON value (null is ignored)
+    static void appendRawField(String& json, const char* name, const char* rawJson)
+    {
+        if (!name || !rawJson)
+            return;
+        if (json.length() > 1)
+            json += ',';
+        json += "\"";
+        json += name;
+        json += "\":";
+        json += rawJson;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Escape a string
     /// @param strToEsc : string in which to replace characters which are invalid in JSON
     static void escapeString(String& strToEsc)

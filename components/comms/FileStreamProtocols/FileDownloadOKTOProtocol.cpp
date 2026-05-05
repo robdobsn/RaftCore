@@ -9,7 +9,9 @@
 #include "FileDownloadOKTOProtocol.h"
 #include "RICRESTMsg.h"
 #include "FileSystem.h"
+#ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
+#endif
 #include "CommsChannelMsg.h"
 #include "CommsCoreIF.h"
 #include "FileStreamBlockOwned.h"
@@ -454,6 +456,7 @@ void FileDownloadOKTOProtocol::transferService()
     }
 
     // Check if internal heap is too low to safely send - throttle to let TCP drain
+#ifdef ESP_PLATFORM
     uint32_t freeInternalHeap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (freeInternalHeap < HEAP_LOW_WATER_MARK_BYTES)
     {
@@ -463,6 +466,7 @@ void FileDownloadOKTOProtocol::transferService()
 #endif
         return;
     }
+#endif
 
     // Send a block
     FileStreamBlockOwned block;

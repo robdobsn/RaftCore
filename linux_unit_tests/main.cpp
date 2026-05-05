@@ -87,9 +87,46 @@ void testParseIntList()
     }
 }
 
+void testRaftJsonAppendFields()
+{
+    printf("Running testRaftJsonAppendFields...\n");
+
+    int failCount = 0;
+
+    // String + raw append with escaping and comma insertion
+    String json = "{";
+    RaftJson::appendStringField(json, "type", "abc");
+    RaftJson::appendStringField(json, "name", "q\"w\\e\nr");
+    RaftJson::appendRawField(json, "poll", "{\"c\":1}");
+    json += "}";
+
+    String expected = "{\"type\":\"abc\",\"name\":\"q\\\"w\\\\e\\nr\",\"poll\":{\"c\":1}}";
+    TEST_ASSERT(json == expected, "testAppendFieldsEscapingAndComma");
+
+    // Null values are ignored and do not change JSON
+    String jsonNull = "{";
+    RaftJson::appendStringField(jsonNull, "x", nullptr);
+    RaftJson::appendRawField(jsonNull, "y", nullptr);
+    jsonNull += "}";
+    TEST_ASSERT(jsonNull == "{}", "testAppendFieldsNullNoOp");
+
+    // Name nullptr should also be ignored
+    String jsonNameNull = "{";
+    RaftJson::appendStringField(jsonNameNull, nullptr, "abc");
+    RaftJson::appendRawField(jsonNameNull, nullptr, "{\"a\":1}");
+    jsonNameNull += "}";
+    TEST_ASSERT(jsonNameNull == "{}", "testAppendFieldsNameNullNoOp");
+
+    if (failCount == 0)
+        printf("testRaftJsonAppendFields all tests passed\n");
+    else
+        printf("testRaftJsonAppendFields FAILED %d tests\n", failCount);
+}
+
 int main()
 {
     testParseIntList();
+    testRaftJsonAppendFields();
 
     int constsAxis = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/axis", 0);
     int minotaur = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/oxis/coo[3]/minotaur[2]", 0);
