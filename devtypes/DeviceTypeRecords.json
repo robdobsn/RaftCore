@@ -289,63 +289,6 @@
                 }
             }
         },
-        "VEML6040": {
-            "_notes": "RGBW ambient light sensor. I2C address fixed at 0x10. No dedicated device ID register, so detection relies on address and response behavior.",
-            "addresses": "0x10",
-            "deviceType": "VEML6040",
-            "detectionValues": "",
-            "initValues": "0x000000=",
-            "pollInfo": {
-                "c": "0x08=r2&0x09=r2&0x0a=r2&0x0b=r2",
-                "i": 200,
-                "s": 1
-            },
-            "scanPriority": "high",
-            "devInfoJson": {
-                "name": "VEML6040",
-                "desc": "RGBW ALS",
-                "manu": "Vishay",
-                "type": "VEML6040",
-                "clas": ["LGHT"],
-                "resp": {
-                    "b": 8,
-                    "a": [
-                        {
-                            "n": "red",
-                            "t": "<H",
-                            "u": "",
-                            "r": [0,65535],
-                            "f": "5d",
-                            "o": "uint16"
-                        },
-                        {
-                            "n": "green",
-                            "t": "<H",
-                            "u": "",
-                            "r": [0,65535],
-                            "f": "5d",
-                            "o": "uint16"
-                        },
-                        {
-                            "n": "blue",
-                            "t": "<H",
-                            "u": "",
-                            "r": [0,65535],
-                            "f": "5d",
-                            "o": "uint16"
-                        },
-                        {
-                            "n": "white",
-                            "t": "<H",
-                            "u": "",
-                            "r": [0,65535],
-                            "f": "5d",
-                            "o": "uint16"
-                        }
-                    ]
-                }
-            }
-        },
         "VL6180": {
             "_notes": "Interleaved mode ALS & Range (0x2a3=>0x01)\nRange settings defined in https://www.st.com/resource/en/application_note/an4545-vl6180x-basic-ranging-application-note-stmicroelectronics.pdf\nALS integration period 100ms (0x0040=>0x0063)\nALS gain 20 (0x003f=>0x40)\n",
             "addresses": "0x29",
