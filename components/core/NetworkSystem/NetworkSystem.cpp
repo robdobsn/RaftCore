@@ -24,6 +24,7 @@
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
 #include "RaftArduino.h"
+#include "RaftSystemTime.h"
 #include "esp_idf_version.h"
 
 #include "mdns.h"
@@ -51,6 +52,10 @@
 
 // Global object
 NetworkSystem networkSystem;
+
+// Static flag posted by SNTP sync_cb (tcpip thread) and consumed by
+// NetworkSystem::loop() to safely fire RaftSystemTime::notifyChanged("sntp").
+volatile bool NetworkSystem::_sntpSyncPendingNotify = false;
 
 // Warnings
 #define WARN_ON_WIFI_DISCONNECT_IF_ETH_NOT_CONNECTED
@@ -174,6 +179,13 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
 
 void NetworkSystem::loop()
 {
+    // Dispatch any pending SNTP sync notification posted from the tcpip thread
+    if (_sntpSyncPendingNotify)
+    {
+        _sntpSyncPendingNotify = false;
+        RaftSystemTime::notifyChanged("sntp");
+    }
+
     if (_pendingWiFiDisconnectWarn)
     {
         _pendingWiFiDisconnectWarn = false;
@@ -245,6 +257,10 @@ void NetworkSystem::loop()
                     char strftime_buf[64];
                     strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
                     ESP_LOGI(MODULE_PREFIX, "time sync %s.%03d", strftime_buf, (int)(pTV->tv_usec / 1000));
+                    // Defer the system-time-changed notification to the main
+                    // task (NetworkSystem::loop) since we're on the lwIP
+                    // tcpip thread here.
+                    NetworkSystem::_sntpSyncPendingNotify = true;
                 };
 
                 // Sync time

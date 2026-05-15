@@ -21,6 +21,7 @@
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
+#include "RaftSystemTime.h"
 #include "DebugGlobals.h"
 #include "RICRESTMsg.h"
 
@@ -1255,6 +1256,7 @@ RaftRetCode SysManager::apiDateTime(const String &reqStr, String& respStr, const
             time_t t = portable_timegm(&timeinfo);
             struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
             settimeofday(&tv, nullptr);
+            RaftSystemTime::notifyChanged("api");
             LOG_I(MODULE_PREFIX, "apiDateTime set UTC=%s epoch=%ld", utcStr.c_str(), (long)t);
         }
         else
@@ -1270,6 +1272,7 @@ RaftRetCode SysManager::apiDateTime(const String &reqStr, String& respStr, const
         {
             struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
             settimeofday(&tv, nullptr);
+            RaftSystemTime::notifyChanged("api");
             LOG_I(MODULE_PREFIX, "apiDateTime set epoch=%ld", (long)t);
         }
         else

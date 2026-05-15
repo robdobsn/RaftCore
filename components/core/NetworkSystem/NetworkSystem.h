@@ -205,6 +205,10 @@ private:
     bool _timeSyncInitialDone = false;
     uint32_t _timeSyncLastMs = 0;
     static const uint32_t TIME_SYNC_INTERVAL_MS = 10*60*60*1000;
+    // Flag set from the SNTP sync_cb (lwIP tcpip thread) and consumed from
+    // NetworkSystem::loop() to dispatch RaftSystemTime::notifyChanged("sntp")
+    // on the main task.
+    static volatile bool _sntpSyncPendingNotify;
 
     // Deferred mDNS setup (done in loop rather than event handler)
     bool _mdnsSetupPending = false;

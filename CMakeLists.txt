@@ -127,6 +127,7 @@ idf_component_register(
     "components/core/SysMod/RaftSysMod.cpp"
     "components/core/SysTypes/SysTypeManager.cpp"
     "components/core/Utils/PlatformUtils.cpp"
+    "components/core/Utils/RaftSystemTime.cpp"
     "components/core/Utils/RaftThreading.cpp"
     "components/core/Utils/RaftUtils.cpp"
     ${RAFT_CORE_ADDITIONAL_SRCS}
