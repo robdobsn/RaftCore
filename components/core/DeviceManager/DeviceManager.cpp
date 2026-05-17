@@ -71,11 +71,12 @@ void DeviceManager::setup()
             std::bind(&DeviceManager::busOperationStatusCB, this, std::placeholders::_1, std::placeholders::_2)
     );
 
+    // Load device names from config first so that setupStaticDevices can overwrite
+    // entries for any device that provides a name in its Devices array entry.
+    loadDeviceNames(modConfig());
+
     // Setup device classes (these are the keys into the device factory)
     setupStaticDevices("Devices", modConfig());
-
-    // Load device names from config
-    loadDeviceNames(modConfig());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -308,9 +309,17 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Setup static devices that are defined in the SysType configuration
+/// @brief Setup devices defined in the SysType configuration
 /// @param pConfigPrefix prefix for the device configuration
 /// @param devManConfig configuration for the device manager
+/// @note Each entry in the configured array may be either:
+///       (a) A static device entry — identified by the presence of a "class" field.
+///           The device is instantiated via the factory and (if provided) its "name"
+///           and "role" fields are applied to the DeviceManager's name/role maps.
+///       (b) A bus-tagging entry — identified by the absence of a "class" field.
+///           No factory instantiation occurs; the entry exists purely to associate a
+///           friendly name and/or role with a bus-discovered device identified by
+///           "bus" + "addr". An "enable":false entry is skipped entirely.
 void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig)
 {
     // Get devices config
@@ -322,8 +331,34 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
         if (!devConf.getBool("enable", true))
             continue;
 
-        // Get class of device
+        // Optional friendly name and role apply to both static and bus entries
+        String name = devConf.getString("name", "");
+        String role = devConf.getString("role", "");
+
+        // Get class of device (presence indicates a static-device entry)
         String devClass = devConf.getString("class", "");
+
+        if (devClass.length() == 0)
+        {
+            // ----- Bus-tagging entry (class absent) -----
+            // Must identify a bus device via "bus" + "addr"
+            String busName = devConf.getString("bus", "");
+            String addrStr = devConf.getString("addr", "");
+            if (busName.length() == 0 || addrStr.length() == 0)
+                continue;
+            RaftBus* pBus = raftBusSystem.getBusByName(busName, true);
+            if (!pBus)
+                continue;
+            BusElemAddrType addr = (BusElemAddrType)strtoul(addrStr.c_str(), nullptr, 0);
+            RaftDeviceID deviceID(pBus->getBusNum(), addr);
+            if (name.length() > 0)
+                setDeviceName(deviceID, name);
+            if (role.length() > 0)
+                setDeviceRole(deviceID, role);
+            continue;
+        }
+
+        // ----- Static-device entry (class present) -----
 
         // Find the device class in the factory
         const DeviceFactory::RaftDeviceClassDef* pDeviceClassDef = deviceFactory.findDeviceClass(devClass.c_str());
@@ -346,9 +381,17 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
             continue;
         }
 
-        // Set deviceID and add to the list of instantiated devices (static creation from config)
-        pDevice->setDeviceID(RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _staticDeviceList.size()));
+        // Set deviceID and associate with this DeviceManager
+        RaftDeviceID deviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _staticDeviceList.size());
+        pDevice->setDeviceID(deviceID);
+        pDevice->setDeviceManager(this);
         _staticDeviceList.push_back({pDevice, true});
+
+        // Apply name and role (if provided) to DeviceManager's central maps
+        if (name.length() > 0)
+            setDeviceName(deviceID, name);
+        if (role.length() > 0)
+            setDeviceRole(deviceID, role);
 
         // Debug
 #ifdef DEBUG_DEVICE_FACTORY
@@ -366,7 +409,7 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
         if (devRec.pDevice)
         {
 #ifdef DEBUG_DEVICE_SETUP            
-            LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", devRec.pDevice, devRec.pDevice->getDeviceName());
+            LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", devRec.pDevice, devRec.pDevice->getConfiguredDeviceName().c_str());
 #endif
             // Setup device
             devRec.pDevice->setup();
@@ -401,7 +444,7 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
     for (auto& devRec : _staticDeviceList)
     {
         LOG_I(MODULE_PREFIX, "Device %d: %s", deviceIdx++, 
-                devRec.pDevice ? devRec.pDevice->getDeviceName() : "UNKNOWN");
+                devRec.pDevice ? devRec.pDevice->getConfiguredDeviceName().c_str() : "UNKNOWN");
             
     }
     if (_staticDeviceList.size() == 0)
@@ -523,7 +566,7 @@ std::vector<uint8_t> DeviceManager::getDevicesDataBinary(uint16_t topicIndex)
 
 #ifdef DEBUG_BINARY_DEVICE_DATA
         LOG_I(MODULE_PREFIX, "getDevicesDataBinary DEV %s hex %s", 
-                pDevice->getDeviceName().c_str(), Raft::getHexStr(deviceBinaryData.data(), deviceBinaryData.size()).c_str());
+                pDevice->getConfiguredDeviceName().c_str(), Raft::getHexStr(deviceBinaryData.data(), deviceBinaryData.size()).c_str());
 #endif        
     }
 
@@ -571,7 +614,7 @@ void DeviceManager::getDevicesHash(std::vector<uint8_t>& stateHash) const
 
 #ifdef DEBUG_JSON_DEVICE_HASH_DETAIL
         LOG_I(MODULE_PREFIX, "getDevicesHash %s hash %08x %02x%02x", 
-                pDevice->getDeviceName().c_str(), deviceStateHash, stateHash[0], stateHash[1]);
+                pDevice->getConfiguredDeviceName().c_str(), deviceStateHash, stateHash[0], stateHash[1]);
 #endif
     }
 
@@ -863,12 +906,15 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                             " devman/typeinfo?type=<typeName> - Get type info,"
+                            " devman/typeinfo?deviceid=<deviceId> - Get type info for a specific device (includes name/role sidecar fields when set),"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
                             " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count>&sampleRateHz=<hz>&busHz=<hz>&busHzSlots=<csv> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
                             " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device,"
-                            " devman/setname?deviceid=<deviceId>&name=<friendlyName> - Assign friendly name to a bus device"
+                            " devman/setname?deviceid=<deviceId>&name=<friendlyName> - Assign friendly name to a device,"
+                            " devman/setrole?deviceid=<deviceId>&role=<role> - Assign role (e.g. system) to a device (in-memory),"
+                            " devman/listdevs?role=<roleFilter> - Enumerate instantiated/detected devices (optional role filter),"
                             " devman/slot?bus=<busNameOrNum>&slot=<n>&mode=<i2c|serial-full|serial-half> - Set slot mode (omit mode to query),"
                             " Note: typeName can be either a device type name or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
@@ -912,6 +958,10 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManBusName(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("setname"))
         return apiDevManSetName(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("setrole"))
+        return apiDevManSetRole(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("listdevs"))
+        return apiDevManListDevs(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("slot"))
         return apiDevManSlot(reqStr, respStr, jsonParams);
 
@@ -926,6 +976,82 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
 /// @return RaftRetCode indicating success or failure of the operation, with the response containing the device type information in JSON format if successful
 RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
+    // Per-device lookup mode: caller supplies "deviceid" or ("bus" + "addr").
+    // In this mode we look up the device's actual installed type index and emit
+    // optional sidecar fields "name" and "role" (omitted when at their default values).
+    // NOTE: a request with only "bus" (no "addr") is NOT per-device mode — it falls
+    // through to the legacy type-name lookup for backward compatibility (e.g. the
+    // WebUI client passes `?bus=<name>&type=<type>` to scope a type-name lookup).
+    String deviceIdStr = jsonParams.getString("deviceid", "");
+    String busName = jsonParams.getString("bus", "");
+    String addrStr = jsonParams.getString("addr", "");
+    if ((deviceIdStr.length() > 0) || ((busName.length() > 0) && (addrStr.length() > 0)))
+    {
+        RaftDeviceID deviceID = RaftDeviceID::INVALID;
+        if (deviceIdStr.length() > 0)
+        {
+            deviceID = RaftDeviceID::fromString(deviceIdStr);
+        }
+        else
+        {
+            RaftBus* pBus = raftBusSystem.getBusByName(busName, true);
+            if (!pBus)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+            BusElemAddrType addr = (BusElemAddrType)strtoul(addrStr.c_str(), nullptr, 0);
+            deviceID = RaftDeviceID(pBus->getBusNum(), addr);
+        }
+        if (!deviceID.isValid())
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidDeviceId");
+
+        // Resolve device type index. For static devices use the in-memory RaftDevice;
+        // for bus devices use the bus's detection state (undetected -> not found).
+        DeviceTypeIndexType resolvedTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+        if (deviceID.getBusNum() == RaftDeviceID::BUS_NUM_DIRECT_CONN)
+        {
+            RaftDevice* pDevice = getDevice(deviceID);
+            if (!pDevice)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotFound");
+            resolvedTypeIndex = pDevice->getDeviceTypeIndex();
+        }
+        else
+        {
+            RaftBus* pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+            if (!pBus)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+            resolvedTypeIndex = pBus->getDeviceTypeIndex(deviceID.getAddress());
+            if (resolvedTypeIndex == DEVICE_TYPE_INDEX_INVALID)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotFound");
+        }
+
+        String devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(resolvedTypeIndex, false);
+        bool hasDevInfo = ((devInfo.length() > 0) && (devInfo != "{}"));
+
+        // Build response. For static devices (and any others) without a type-record entry,
+        // omit "devinfo" but still return name/role/dtIdx so callers can still query
+        // per-instance metadata.
+        String extras;
+        if (hasDevInfo)
+            extras = "\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(resolvedTypeIndex);
+        else
+            extras = "\"dtIdx\":" + String((int)resolvedTypeIndex);
+        String name = lookupDeviceName(deviceID);
+        if (name.length() > 0)
+        {
+            extras += ",\"name\":\"";
+            extras += name;
+            extras += "\"";
+        }
+        String role = getDeviceRole(deviceID);
+        if (!role.equalsIgnoreCase("normal"))
+        {
+            extras += ",\"role\":\"";
+            extras += role;
+            extras += "\"";
+        }
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
+    }
+
+    // Original type-name / type-index lookup mode
     String typeName = jsonParams.getString("type", "");
     if (typeName.length() == 0)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeMissing");
@@ -1839,6 +1965,58 @@ String DeviceManager::getDeviceNameForID(RaftDeviceID deviceID) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Look up a friendly name for a device ID without the toString fallback
+/// @param deviceID Device identifier
+/// @return friendly name if mapped, otherwise empty string
+String DeviceManager::lookupDeviceName(RaftDeviceID deviceID) const
+{
+    uint64_t key = packDeviceIDKey(deviceID);
+    auto it = _deviceIDToName.find(key);
+    if (it != _deviceIDToName.end())
+        return String(it->second.c_str());
+    return String();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Assign a role to a device ID
+/// @param deviceID Device identifier
+/// @param role Role string (e.g. "system"). Pass empty or "normal" to remove the mapping.
+void DeviceManager::setDeviceRole(RaftDeviceID deviceID, const String& role)
+{
+    uint64_t key = packDeviceIDKey(deviceID);
+    if (role.length() == 0 || role.equalsIgnoreCase("normal"))
+    {
+        _deviceRole.erase(key);
+        return;
+    }
+    _deviceRole[key] = std::string(role.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get role assigned to a device ID
+/// @param deviceID Device identifier
+/// @return role string, or "normal" if no role mapped
+String DeviceManager::getDeviceRole(RaftDeviceID deviceID) const
+{
+    uint64_t key = packDeviceIDKey(deviceID);
+    auto it = _deviceRole.find(key);
+    if (it != _deviceRole.end())
+        return String(it->second.c_str());
+    return String("normal");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether device has role "system"
+bool DeviceManager::isSystemDevice(RaftDeviceID deviceID) const
+{
+    uint64_t key = packDeviceIDKey(deviceID);
+    auto it = _deviceRole.find(key);
+    if (it == _deviceRole.end())
+        return false;
+    return it->second == "system";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Resolve a device name to a RaftDeviceID using the DeviceNames map
 /// @param name Friendly device name
 /// @param deviceID (out) resolved device ID
@@ -1967,6 +2145,112 @@ RaftRetCode DeviceManager::apiDevManSetName(const String &reqStr, String &respSt
 #endif
 
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/setrole API endpoint
+/// @param reqStr request string
+/// @param respStr (out) response string
+/// @param jsonParams JSON object containing "deviceid" and "role" fields
+/// @return RaftRetCode
+/// @note In-memory only; persistence is not handled by this endpoint
+RaftRetCode DeviceManager::apiDevManSetRole(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    String deviceIDStr = jsonParams.getString("deviceid", "");
+    String role = jsonParams.getString("role", "");
+
+    if (deviceIDStr.length() == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceIdMissing");
+
+    RaftDeviceID deviceID = RaftDeviceID::fromString(deviceIDStr);
+    if (!deviceID.isValid())
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidDeviceId");
+
+    setDeviceRole(deviceID, role);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/listdevs API endpoint
+/// @param reqStr request string
+/// @param respStr (out) response string
+/// @param jsonParams optional "role" filter
+/// @return RaftRetCode
+/// @note Enumerates instantiated static devices and bus-detected devices only.
+///       Undetected bus addresses are intentionally not reported.
+RaftRetCode DeviceManager::apiDevManListDevs(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    String roleFilter = jsonParams.getString("role", "");
+
+    String devsJson;
+    devsJson.reserve(256);
+    devsJson += "[";
+    bool first = true;
+
+    auto appendDev = [&](RaftDeviceID deviceID, DeviceTypeIndexType dtIdx) {
+        String role = getDeviceRole(deviceID);
+        if (roleFilter.length() > 0 && !roleFilter.equalsIgnoreCase(role))
+            return;
+        if (!first)
+            devsJson += ",";
+        first = false;
+        devsJson += "{\"deviceid\":\"";
+        devsJson += deviceID.toString();
+        devsJson += "\"";
+        String name = lookupDeviceName(deviceID);
+        if (name.length() > 0)
+        {
+            devsJson += ",\"name\":\"";
+            devsJson += name;
+            devsJson += "\"";
+        }
+        if (!role.equalsIgnoreCase("normal"))
+        {
+            devsJson += ",\"role\":\"";
+            devsJson += role;
+            devsJson += "\"";
+        }
+        if (dtIdx != DEVICE_TYPE_INDEX_INVALID)
+        {
+            devsJson += ",\"dtIdx\":";
+            devsJson += String(dtIdx);
+        }
+        devsJson += "}";
+    };
+
+    // Static devices
+    if (RaftMutex_lock(_accessMutex, 5))
+    {
+        for (auto& devRec : _staticDeviceList)
+        {
+            if (devRec.pDevice)
+                appendDev(devRec.pDevice->getDeviceID(), devRec.pDevice->getDeviceTypeIndex());
+        }
+        RaftMutex_unlock(_accessMutex);
+    }
+
+    // Bus-detected devices
+    for (RaftBus* pBus : raftBusSystem.getBusList())
+    {
+        if (!pBus)
+            continue;
+        RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+        if (!pDevicesIF)
+            continue;
+        std::vector<BusElemAddrType> addresses;
+        pDevicesIF->getDeviceAddresses(addresses, true);
+        for (BusElemAddrType addr : addresses)
+        {
+            RaftDeviceID deviceID(pBus->getBusNum(), addr);
+            appendDev(deviceID, pBus->getDeviceTypeIndex(addr));
+        }
+    }
+
+    devsJson += "]";
+
+    String extras = "\"devices\":";
+    extras += devsJson;
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

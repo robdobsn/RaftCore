@@ -9,6 +9,7 @@
 #include "RaftDevice.h"
 #include "RaftUtils.h"
 #include "RaftBusSystem.h"
+#include "DeviceManager.h"
 
 // #define DEBUG_RAFT_DEVICE_CONSTRUCTOR
 // #define DEBUG_BINARY_DEVICE_DATA 
@@ -24,9 +25,6 @@ RaftDevice::RaftDevice(const char* pClassName, const char* pDevConfigJson, RaftD
 #endif
         _deviceID(deviceID)
 {
-    // Configured device name 
-    configuredDeviceName = deviceConfig.getString("name", "");
-
     // Init publish device type (default to class name)
     configuredDeviceType = deviceConfig.getString("type", pClassName);
 
@@ -158,6 +156,40 @@ bool RaftDevice::genBinaryDeviceRecord(std::vector<uint8_t>& binData,
         return true;
     }
 
+/// @brief Non-static convenience overload: generate a binary device record with a single
+///        sample using this device's own bus/address from `_deviceID`.
+bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData,
+    uint16_t deviceTypeIndex,
+    DeviceOnlineState onlineState,
+    uint8_t deviceSeqNum,
+    std::vector<uint8_t> sampleData) const
+{
+    return genBinaryDataMsg(binData,
+        (uint8_t)_deviceID.getBusNum(),
+        _deviceID.getAddress(),
+        deviceTypeIndex,
+        onlineState,
+        deviceSeqNum,
+        std::move(sampleData));
+}
+
+/// @brief Non-static convenience overload: generate a binary device record from a pre-formatted
+///        payload using this device's own bus/address from `_deviceID`.
+bool RaftDevice::genBinaryDeviceRecord(std::vector<uint8_t>& binData,
+    uint16_t deviceTypeIndex,
+    DeviceOnlineState onlineState,
+    uint8_t deviceSeqNum,
+    std::vector<uint8_t> preformattedPayload) const
+{
+    return genBinaryDeviceRecord(binData,
+        (uint8_t)_deviceID.getBusNum(),
+        _deviceID.getAddress(),
+        deviceTypeIndex,
+        onlineState,
+        deviceSeqNum,
+        std::move(preformattedPayload));
+}
+
 /// @brief Get device debug info JSON
 /// @return JSON string
 String RaftDevice::getDebugJSON(bool includeBraces) const
@@ -220,4 +252,31 @@ void RaftDevice::registerForDeviceData(RaftDeviceDataChangeCB dataChangeCB, uint
     RaftBusDevicesIF* pBusDevicesIF = pBus->getBusDevicesIF();
     if (pBusDevicesIF)
         pBusDevicesIF->registerForDeviceData(_deviceID.getAddress(), dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo);
+}
+
+/// @brief Get the configured device name - delegates to owning DeviceManager
+/// @return Friendly name from DeviceManager (empty string if no mapping)
+String RaftDevice::getConfiguredDeviceName() const
+{
+    if (!_pDeviceManager)
+        return String();
+    return _pDeviceManager->lookupDeviceName(_deviceID);
+}
+
+/// @brief Get the role of the device - delegates to owning DeviceManager
+/// @return Role string ("normal" if no DeviceManager is set or role not assigned)
+String RaftDevice::getRole() const
+{
+    if (!_pDeviceManager)
+        return String("normal");
+    return _pDeviceManager->getDeviceRole(_deviceID);
+}
+
+/// @brief Check whether this device is tagged as a system device
+/// @return true if DeviceManager has tagged this device with role "system"
+bool RaftDevice::isSystemDevice() const
+{
+    if (!_pDeviceManager)
+        return false;
+    return _pDeviceManager->isSystemDevice(_deviceID);
 }

@@ -14,6 +14,7 @@ public:
     // Mirrors the maps from DeviceManager
     std::unordered_map<std::string, RaftDeviceID> _deviceNameToID;
     std::unordered_map<uint64_t, std::string> _deviceIDToName;
+    std::unordered_map<uint64_t, std::string> _deviceRole;
 
     static uint64_t packDeviceIDKey(RaftDeviceID deviceID)
     {
@@ -63,6 +64,36 @@ public:
         return false;
     }
 
+    // ---- Role mirror (matches DeviceManager::setDeviceRole/getDeviceRole/isSystemDevice) ----
+    void setDeviceRole(RaftDeviceID deviceID, const String& role)
+    {
+        uint64_t key = packDeviceIDKey(deviceID);
+        if (role.length() == 0 || role.equalsIgnoreCase("normal"))
+        {
+            _deviceRole.erase(key);
+            return;
+        }
+        _deviceRole[key] = std::string(role.c_str());
+    }
+
+    String getDeviceRole(RaftDeviceID deviceID) const
+    {
+        uint64_t key = packDeviceIDKey(deviceID);
+        auto it = _deviceRole.find(key);
+        if (it != _deviceRole.end())
+            return String(it->second.c_str());
+        return String("normal");
+    }
+
+    bool isSystemDevice(RaftDeviceID deviceID) const
+    {
+        uint64_t key = packDeviceIDKey(deviceID);
+        auto it = _deviceRole.find(key);
+        if (it == _deviceRole.end())
+            return false;
+        return it->second == "system";
+    }
+
     void loadDeviceNamesFromJson(const char* jsonStr)
     {
         // Parse using RaftJson
@@ -100,6 +131,9 @@ public:
         testUnmappedDeviceReturnsIDString(failCount);
         testResolveNonExistentName(failCount);
         testMultipleDevices(failCount);
+        testDeviceRoleBasic(failCount);
+        testDeviceRoleClearOnNormal(failCount);
+        testIsSystemDevice(failCount);
 
         if (failCount == 0)
             printf("DeviceNamesTest all tests passed\n");
@@ -288,6 +322,71 @@ private:
         DN_ASSERT(resolved == id2, "dev_b should resolve to id2");
         resolveDeviceNameToID("dev_c", resolved);
         DN_ASSERT(resolved == id3, "dev_c should resolve to id3");
+    }
+
+    void testDeviceRoleBasic(int& failCount)
+    {
+        printf("  testDeviceRoleBasic\n");
+        _deviceRole.clear();
+
+        RaftDeviceID id(1, 0xf8);
+
+        // Unset role defaults to "normal"
+        DN_ASSERT(getDeviceRole(id) == "normal", "unset role should default to 'normal'");
+        DN_ASSERT(!isSystemDevice(id), "unset role should not be a system device");
+
+        // Set a custom role
+        setDeviceRole(id, "system");
+        DN_ASSERT(getDeviceRole(id) == "system", "role should be 'system' after set");
+        DN_ASSERT(isSystemDevice(id), "isSystemDevice should be true");
+
+        // Overwrite role
+        setDeviceRole(id, "diagnostic");
+        DN_ASSERT(getDeviceRole(id) == "diagnostic", "role should be 'diagnostic' after overwrite");
+        DN_ASSERT(!isSystemDevice(id), "isSystemDevice should be false for 'diagnostic'");
+    }
+
+    void testDeviceRoleClearOnNormal(int& failCount)
+    {
+        printf("  testDeviceRoleClearOnNormal\n");
+        _deviceRole.clear();
+
+        RaftDeviceID id(1, 0xf8);
+        setDeviceRole(id, "system");
+        DN_ASSERT(_deviceRole.size() == 1, "role map should have 1 entry after set");
+
+        // Setting to "normal" should clear the mapping
+        setDeviceRole(id, "normal");
+        DN_ASSERT(_deviceRole.size() == 0, "role map should be empty after setting 'normal'");
+        DN_ASSERT(getDeviceRole(id) == "normal", "getDeviceRole should still return 'normal' after clear");
+
+        // Setting to empty string should also clear the mapping
+        setDeviceRole(id, "system");
+        setDeviceRole(id, "");
+        DN_ASSERT(_deviceRole.size() == 0, "role map should be empty after setting empty role");
+    }
+
+    void testIsSystemDevice(int& failCount)
+    {
+        printf("  testIsSystemDevice\n");
+        _deviceRole.clear();
+
+        RaftDeviceID id1(1, 0x10);
+        RaftDeviceID id2(1, 0x20);
+        setDeviceRole(id1, "system");
+        setDeviceRole(id2, "actuator");
+
+        DN_ASSERT(isSystemDevice(id1), "id1 should be a system device");
+        DN_ASSERT(!isSystemDevice(id2), "id2 should not be a system device (role=actuator)");
+
+        RaftDeviceID idUnset(2, 0x30);
+        DN_ASSERT(!isSystemDevice(idUnset), "device with no role mapping should not be system");
+
+        // isSystemDevice is case-sensitive on the stored value (only literal "system" matches)
+        // — verify by setting an explicit mixed-case value and confirming behaviour.
+        RaftDeviceID id3(3, 0x40);
+        setDeviceRole(id3, "System");
+        DN_ASSERT(!isSystemDevice(id3), "case-sensitive: stored 'System' should not match 'system'");
     }
 
 #undef DN_ASSERT

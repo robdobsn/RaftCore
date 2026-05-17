@@ -19,6 +19,7 @@
 class RestAPIEndpointManager;
 class CommsCoreIF;
 class DeviceTypeRecordDynamic;
+class DeviceManager;
 
 #define DEBUG_INCLUDE_RAFT_DEVICE_CLASS_NAME
 
@@ -71,10 +72,24 @@ public:
     }
 
     /// @brief Get the configured device name
-    /// @return Configured device name as a string
-    virtual String getConfiguredDeviceName() const
+    /// @return Device name from DeviceManager's name map, or empty string if no name is mapped
+    /// @note This is a thin accessor that delegates to the owning DeviceManager so that
+    ///       the DeviceManager remains the single source of truth for device names.
+    virtual String getConfiguredDeviceName() const;
+
+    /// @brief Get the role of the device (e.g. "normal", "system")
+    /// @return Role string as managed by DeviceManager, or "normal" if no DeviceManager is set
+    virtual String getRole() const;
+
+    /// @brief Check whether this device is tagged as a system device
+    /// @return true if DeviceManager has tagged this device with role "system"
+    virtual bool isSystemDevice() const;
+
+    /// @brief Associate the device with its owning DeviceManager (used for name/role delegation)
+    /// @param pDeviceManager Pointer to the DeviceManager that owns this device
+    void setDeviceManager(DeviceManager* pDeviceManager)
     {
-        return configuredDeviceName;
+        _pDeviceManager = pDeviceManager;
     }
 
     /// @brief Get the device type record for this device so that it can be added to the device type records
@@ -156,6 +171,20 @@ public:
         uint8_t deviceSeqNum,
         std::vector<uint8_t> sampleData);
 
+    /// @brief Generate a binary device record with a single sample using this device's own
+    ///        bus/address (taken from `_deviceID`). Convenience wrapper around the static overload.
+    /// @param binData (out) Binary data (appended to)
+    /// @param deviceTypeIndex Index of the device type
+    /// @param onlineState Device online state
+    /// @param deviceSeqNum Per-device sequence counter
+    /// @param sampleData Raw sample data (single sample, no length prefix)
+    /// @return true if created ok
+    bool genBinaryDataMsg(std::vector<uint8_t>& binData,
+        uint16_t deviceTypeIndex,
+        DeviceOnlineState onlineState,
+        uint8_t deviceSeqNum,
+        std::vector<uint8_t> sampleData) const;
+
     /// @brief Generate a binary device record from a pre-formatted payload (already length-prefixed samples)
     /// @param binData (out) Binary data (appended to)
     /// @param busNumber Bus number (0-63)
@@ -172,6 +201,20 @@ public:
         DeviceOnlineState onlineState,
         uint8_t deviceSeqNum,
         std::vector<uint8_t> preformattedPayload);
+
+    /// @brief Generate a binary device record from a pre-formatted payload using this device's own
+    ///        bus/address (taken from `_deviceID`). Convenience wrapper around the static overload.
+    /// @param binData (out) Binary data (appended to)
+    /// @param deviceTypeIndex Index of the device type
+    /// @param onlineState Device online state
+    /// @param deviceSeqNum Per-device sequence counter
+    /// @param preformattedPayload Pre-formatted payload with per-sample length prefixes already applied
+    /// @return true if created ok
+    bool genBinaryDeviceRecord(std::vector<uint8_t>& binData,
+        uint16_t deviceTypeIndex,
+        DeviceOnlineState onlineState,
+        uint8_t deviceSeqNum,
+        std::vector<uint8_t> preformattedPayload) const;
 
     /// @brief Get device debug info JSON
     /// @return JSON string
@@ -298,14 +341,14 @@ protected:
     // Configured device type
     String configuredDeviceType;
 
-    // Configured device name
-    String configuredDeviceName;
-
     // Device type record index
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
     // Device ID
     RaftDeviceID _deviceID;
+
+    // Owning DeviceManager (used for friendly name and role delegation)
+    DeviceManager* _pDeviceManager = nullptr;
 
     // Debug
     static constexpr const char *MODULE_PREFIX = "RaftDevice";

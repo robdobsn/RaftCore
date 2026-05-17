@@ -53,11 +53,31 @@ public:
     /// @return friendly name, or deviceID.toString() if no name is mapped
     String getDeviceNameForID(RaftDeviceID deviceID) const;
 
+    /// @brief Look up a friendly name for a device ID without the toString fallback
+    /// @param deviceID Device identifier
+    /// @return friendly name, or empty string if no name is mapped
+    String lookupDeviceName(RaftDeviceID deviceID) const;
+
     /// @brief Resolve a device name to a RaftDeviceID using the DeviceNames map
     /// @param name Friendly device name
     /// @param deviceID (out) resolved device ID
     /// @return true if found in the name map
     bool resolveDeviceNameToID(const String& name, RaftDeviceID& deviceID) const;
+
+    /// @brief Assign a role string to a device (identified by RaftDeviceID)
+    /// @param deviceID Device identifier
+    /// @param role Role string (e.g. "system"). Pass "normal" or empty to clear.
+    void setDeviceRole(RaftDeviceID deviceID, const String& role);
+
+    /// @brief Get the role assigned to a device ID
+    /// @param deviceID Device identifier
+    /// @return role string, or "normal" if no role is mapped
+    String getDeviceRole(RaftDeviceID deviceID) const;
+
+    /// @brief Check whether a device is tagged with role "system"
+    /// @param deviceID Device identifier
+    /// @return true if role is "system"
+    bool isSystemDevice(RaftDeviceID deviceID) const;
 
     /// @brief Register for device data notifications (note that callbacks may occur on different threads)
     /// @param deviceID Device identifier
@@ -315,6 +335,10 @@ private:
     // Maps packed (busNum << 32 | address) -> friendly name
     std::unordered_map<uint64_t, std::string> _deviceIDToName;
 
+    // Device role map: packed (busNum << 32 | address) -> role string
+    // Empty / missing entry implies role "normal"
+    std::unordered_map<uint64_t, std::string> _deviceRole;
+
     /// @brief Load device names from config (DeviceNames section)
     /// @param devManConfig Device manager configuration
     void loadDeviceNames(RaftJsonIF& devManConfig);
@@ -328,6 +352,12 @@ private:
 
     /// @brief Handle devman/setname API endpoint
     RaftRetCode apiDevManSetName(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devman/setrole API endpoint
+    RaftRetCode apiDevManSetRole(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devman/listdevs API endpoint
+    RaftRetCode apiDevManListDevs(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
     /// @brief Handle devman/slot API endpoint (set or query slot mode)
     RaftRetCode apiDevManSlot(const String &reqStr, String &respStr, const RaftJson& jsonParams);
