@@ -204,8 +204,8 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
 
             # Check if gen_decode is set
             if gen_options.get("gen_decode", False):
-                header_file.write(f',\n        {decodeGenerator.decode_fn(dev_type)}')
-                header_file.write(f',\n        {decodeGenerator.field_desc_ref(dev_type)}')
+                header_file.write(f',\n        {decodeGenerator.decode_fn(dev_type, dev_type_key)}')
+                header_file.write(f',\n        {decodeGenerator.field_desc_ref(dev_type, dev_type_key)}')
 
             header_file.write('\n    },\n')
             dev_record_index += 1

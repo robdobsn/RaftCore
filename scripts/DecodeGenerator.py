@@ -176,12 +176,14 @@ class DecodeGenerator:
         # C field
         return c_type + " " + attr_name
         
-    def gen_struct_name(self, dev_info_json):
-        # Get the device type record name
-        dev_type_name = dev_info_json.get("name", "")
-        if dev_type_name == "":
+    def gen_struct_name(self, dev_type_key):
+        # Use the unique top-level devTypes key as the basis for the C struct name
+        # (previously based on devInfoJson["name"], which is a human-readable label
+        # and could collide between different device types such as multiple
+        # distance sensors all named "Distance Sensor").
+        if not dev_type_key:
             return ""
-        return "struct poll_" + self.to_valid_c_var_name(dev_type_name)
+        return "struct poll_" + self.to_valid_c_var_name(dev_type_key)
     
     def gen_struct_elements(self, dev_info_json):
         # Iterate through attributes in dev_info_json["resp"] and generate struct elements for each
@@ -442,7 +444,7 @@ class DecodeGenerator:
         extract_code.append(f"{line_prefix}    numRecs++;\n")
         extract_code.append(line_prefix + "}\n")
 
-    def gen_extract_code(self, dev_info_json, line_prefix):
+    def gen_extract_code(self, dev_info_json, line_prefix, dev_type_key):
         # Get the response meta data
         poll_resp_meta = dev_info_json.get("resp", {})
         line_prefix = line_prefix + "    "
@@ -460,7 +462,7 @@ class DecodeGenerator:
             return "".join(extract_code)
                 
         # Output struct(s)
-        struct_name = self.gen_struct_name(dev_info_json)
+        struct_name = self.gen_struct_name(dev_type_key)
         extract_code.append(f"{line_prefix}{struct_name}* pStruct = ({struct_name}*) pStructOut;\n")
         extract_code.append(f"{line_prefix}{struct_name}* pOut = pStruct;\n")
         extract_code.append(f"{line_prefix}const uint8_t* pBufEnd = pBufIn + bufLen;\n")
@@ -485,24 +487,29 @@ class DecodeGenerator:
         poll_rslt_len = self._get_polling_config_result_len_bytes(poll_config_record)
         return poll_rslt_len
 
-    def decode_fn(self, dev_type_record):
+    def decode_fn(self, dev_type_record, dev_type_key):
         dev_info_json = dev_type_record.get("devInfoJson", {})
-        struct_name = self.gen_struct_name(dev_info_json)
+        struct_name = self.gen_struct_name(dev_type_key)
         if struct_name == "":
             return "nullptr"
         fn_def =  "[](const uint8_t* pBufIn, uint32_t bufLen, void* pStructOut, uint32_t structOutSize, \n\
                         uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) -> uint32_t {\n"
-        fn_def += self.gen_extract_code(dev_info_json, "        ")
+        fn_def += self.gen_extract_code(dev_info_json, "        ", dev_type_key)
         fn_def += "        }"
         return fn_def
 
     def get_struct_defs(self, dev_type_records):
         struct_defs = []
-        for dev_type_record in dev_type_records.values():
+        seen_struct_names = set()
+        for dev_type_key, dev_type_record in dev_type_records.items():
             dev_info_json = dev_type_record.get("devInfoJson", {})
-            struct_name = self.gen_struct_name(dev_info_json)
+            struct_name = self.gen_struct_name(dev_type_key)
             if struct_name == "":
                 return "nullptr"
+            # Guard against duplicate keys (shouldn't happen with a normal JSON dict)
+            if struct_name in seen_struct_names:
+                continue
+            seen_struct_names.add(struct_name)
             struct_def = struct_name + " {\n"
             struct_def += self.gen_struct_elements(dev_info_json)
             struct_def += "};\n"
@@ -546,9 +553,9 @@ class DecodeGenerator:
                 return val
         return 'AttrType::Uint8'
 
-    def get_field_desc_def(self, dev_info_json):
+    def get_field_desc_def(self, dev_info_json, dev_type_key):
         """Generate a static const AttrFieldDesc array for one device type"""
-        struct_name = self.gen_struct_name(dev_info_json)
+        struct_name = self.gen_struct_name(dev_type_key)
         if struct_name == "":
             return ""
         poll_resp_meta = dev_info_json.get("resp", {})
@@ -579,17 +586,17 @@ class DecodeGenerator:
     def get_field_desc_defs(self, dev_type_records):
         """Generate AttrFieldDesc arrays for all device types"""
         defs = []
-        for dev_type_record in dev_type_records.values():
+        for dev_type_key, dev_type_record in dev_type_records.items():
             dev_info_json = dev_type_record.get("devInfoJson", {})
-            desc_def = self.get_field_desc_def(dev_info_json)
+            desc_def = self.get_field_desc_def(dev_info_json, dev_type_key)
             if desc_def:
                 defs.append(desc_def)
         return defs
 
-    def field_desc_ref(self, dev_type_record):
+    def field_desc_ref(self, dev_type_record, dev_type_key):
         """Return the three initializer fields for a DeviceTypeRecord: pointer, count, sizeof"""
         dev_info_json = dev_type_record.get("devInfoJson", {})
-        struct_name = self.gen_struct_name(dev_info_json)
+        struct_name = self.gen_struct_name(dev_type_key)
         if struct_name == "":
             return "nullptr, 0, 0"
         poll_resp_meta = dev_info_json.get("resp", {})
