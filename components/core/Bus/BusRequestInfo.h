@@ -38,6 +38,10 @@ typedef std::function<RaftRetCode(const BusRequestInfo* pReqRec, uint32_t pollLi
 // Callback to send i2c message (sync)
 typedef std::function<RaftRetCode(const BusRequestInfo* pReqRec, std::vector<uint8_t>* pReadData)> BusReqSyncFn;
 
+// Callback to enqueue a bus request for asynchronous processing by the bus worker task.
+// Returns true if the request was successfully queued.
+typedef std::function<bool(BusRequestInfo& busReqInfo)> BusReqEnqueueFn;
+
 // Bus request info
 class BusRequestInfo
 {
