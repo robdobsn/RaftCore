@@ -5,6 +5,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "LEDPixelsDevice.h"
+#include "LEDPatternStatus.h"
 
 // #define DEBUG_LED_PIXELS_SETUP
 // #define DEBUG_BUS_PIXELS_API
@@ -28,17 +29,27 @@ LEDPixelsDevice::~LEDPixelsDevice()
 /// @brief Setup function
 void LEDPixelsDevice::setup()
 {
+    // Register patterns before setup() so that any initial pattern named in the
+    // SysType (e.g. a segment "pattern") can be resolved during setup
+    _ledPixels.addPattern("Status", &LEDPatternStatus::create);
+
     // Setup LED Pixels
 #ifdef DEBUG_LED_PIXELS_SETUP
-    bool rslt = 
+    bool rslt =
 #endif
     _ledPixels.setup(deviceConfig);
+
+    // Push an initial all-off frame to the hardware. Addressable LED strips
+    // power up in an indeterminate state and are only updated when show() is
+    // called, so without this the strip would retain its power-on state until
+    // a pattern or API call happened to drive a show().
+    _ledPixels.clear(true);
 
     // Log
 #ifdef DEBUG_LED_PIXELS_SETUP
     LOG_I(MODULE_PREFIX, "setup %s numPixels %d numSegments %d",
-            rslt ? "OK" : "FAILED", 
-            _ledPixels.getNumPixels(), 
+            rslt ? "OK" : "FAILED",
+            _ledPixels.getNumPixels(),
             _ledPixels.getNumSegments());
 #endif
 }

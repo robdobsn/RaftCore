@@ -24,6 +24,13 @@ public:
         ETH_CHIP_TYPE_W5500
     };
 
+    // RMII clock source — replaces the removed CONFIG_ETH_RMII_CLK_* Kconfig in IDF 6.0
+    enum EthRmiiClockMode
+    {
+        ETH_RMII_CLK_EXT_IN,    // External clock fed to GPIO0
+        ETH_RMII_CLK_OUT        // ESP32 sources clock out on a GPIO
+    };
+
     void setFromConfig(RaftJsonIF& config, const String& defaultHostnameIn, const char* pPrefix = nullptr)
     {
         RaftJsonPrefixed configPrefixed(config, pPrefix);
@@ -53,6 +60,8 @@ public:
         smiMDIOPin = configPrefixed.getLong("ethMDIOPin", -1);
         phyAddr = configPrefixed.getLong("ethPhyAddr", -1);
         phyRstPin = configPrefixed.getLong("ethPhyRstPin", -1);
+        ethRmiiClockMode = getRmiiClockModeEnum(configPrefixed.getString("ethRmiiClockMode", "OUTPUT"));
+        ethRmiiClockGpio = configPrefixed.getLong("ethRmiiClockGpio", 17);
 
         // SPI Ethernet settings (for W5500)
         spiHostDevice = configPrefixed.getLong("spiHostDevice", 2);
@@ -94,6 +103,8 @@ public:
     int smiMDIOPin = -1;
     int phyAddr = 0;
     int phyRstPin = -1;
+    EthRmiiClockMode ethRmiiClockMode = ETH_RMII_CLK_OUT;
+    int ethRmiiClockGpio = 17;
 
     // SPI Ethernet (W5500)
     int spiHostDevice = 2;      // SPI2_HOST
@@ -119,6 +130,12 @@ private:
         if (ethLanChip.equalsIgnoreCase("W5500"))
             return ETH_CHIP_TYPE_W5500;
         return ETH_CHIP_TYPE_NONE;
+    }
+    EthRmiiClockMode getRmiiClockModeEnum(const String& mode)
+    {
+        if (mode.equalsIgnoreCase("INPUT") || mode.equalsIgnoreCase("EXT_IN"))
+            return ETH_RMII_CLK_EXT_IN;
+        return ETH_RMII_CLK_OUT;
     }
     wifi_auth_mode_t getAuthModeFromStr(const String& inStr)
     {

@@ -27,7 +27,8 @@ public:
         GRB,
         BGR,
         RGBWW,  // WS2805: R, G, B, Cold White, Warm White
-        GRBWW,  // GRB variant with dual white channels
+        GRBWW,  // GRB variant with dual white channels (Cold White, Warm White)
+        GRBWC,  // GRB variant with dual white channels in swapped order (Warm White, Cold White)
     };
 
     // Colour value (meaning depends on LED type)
@@ -81,6 +82,7 @@ public:
                 c1 = r; c2 = g; c3 = b; c4 = 0; c5 = 0;
                 break;
             case GRBWW:
+            case GRBWC:
                 c1 = g; c2 = r; c3 = b; c4 = 0; c5 = 0;
                 break;
         }
@@ -102,6 +104,9 @@ public:
                 break;
             case GRBWW:
                 c1 = g; c2 = r; c3 = b; c4 = cw; c5 = ww;
+                break;
+            case GRBWC:
+                c1 = g; c2 = r; c3 = b; c4 = ww; c5 = cw;
                 break;
             // For 3-channel orders, white channels are discarded
             case RGB:
@@ -165,6 +170,8 @@ public:
             return RGBWW;
         if (strcasecmp(pColourOrder, "GRBWW") == 0)
             return GRBWW;
+        if (strcasecmp(pColourOrder, "GRBWC") == 0)
+            return GRBWC;
         return RGB;
     }
 
@@ -177,6 +184,7 @@ public:
             case BGR: return "BGR";
             case RGBWW: return "RGBWW";
             case GRBWW: return "GRBWW";
+            case GRBWC: return "GRBWC";
         }
         return "RGB";
     }
@@ -190,6 +198,7 @@ public:
         {
             case RGBWW:
             case GRBWW:
+            case GRBWC:
                 return 5;
             default:
                 return 3;

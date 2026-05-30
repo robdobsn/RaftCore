@@ -51,6 +51,17 @@ endif()
 # NetworkSystem.h handle compile-time conditionality.
 set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_eth)
 
+# The W5500 SPI Ethernet driver was moved out of esp_eth into the external
+# espressif/w5500 component in IDF 6.0. Link it ONLY when a SysType requests
+# W5500 (RAFT_ENABLE_ETH_W5500 set in its features.cmake). Unlike esp_eth this
+# can be gated on a plain CMake variable (available at config time), so non-W5500
+# builds never pull the component into the REQUIRES closure -> zero firmware-size
+# impact. The dependency is declared in idf_component.yml so it is available when
+# required (download is disk-only; it is not linked unless required here).
+if(DEFINED RAFT_ENABLE_ETH_W5500 AND RAFT_ENABLE_ETH_W5500)
+  set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} espressif__w5500)
+endif()
+
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.0")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_psram)
   set(RAFT_CORE_PRIV_REQUIRES ${RAFT_CORE_PRIV_REQUIRES} esp_adc)

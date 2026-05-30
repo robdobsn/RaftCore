@@ -41,10 +41,16 @@
 #endif
 #endif
 
-// SPI Ethernet support (W5500)
-#if defined(CONFIG_ETH_USE_SPI_ETHERNET)
+// SPI Ethernet support (W5500). Gated on HW_ETH_USE_W5500 (set by the SysType)
+// so non-W5500 builds pull in none of this. In IDF 6.0 the W5500 driver was
+// moved out of esp_eth to the external espressif/w5500 component, which provides
+// the esp_eth_{mac,phy}_w5500.h headers; pre-6.0 declared them in esp_eth.
+#if defined(ETHERNET_IS_ENABLED) && defined(HW_ETH_USE_W5500) && defined(CONFIG_ETH_USE_SPI_ETHERNET)
 #include "driver/spi_master.h"
-#ifdef ETHERNET_IS_ENABLED
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "esp_eth_mac_w5500.h"
+#include "esp_eth_phy_w5500.h"
+#else
 #include "esp_eth_phy.h"
 #include "esp_eth_mac.h"
 #endif
@@ -432,11 +438,17 @@ bool NetworkSystem::startWifi()
 {
     // Create the default WiFi elements
     bool enWifiSTAMode = _networkSettings.enableWifiSTAMode;
+#if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
     bool enWifiAPMode = _networkSettings.enableWifiAPMode;
+#else
+    bool enWifiAPMode = false;
+#endif
     if (enWifiSTAMode && !_pWifiStaNetIf)
         _pWifiStaNetIf = esp_netif_create_default_wifi_sta();
+#if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
     if (enWifiAPMode && !_pWifiApNetIf)
         _pWifiApNetIf = esp_netif_create_default_wifi_ap();
+#endif
 
     // Set hostname
     if (_pWifiStaNetIf && !_hostname.isEmpty())
@@ -479,8 +491,12 @@ bool NetworkSystem::startWifi()
 
     // Set mode
     wifi_mode_t mode = WIFI_MODE_APSTA;
+#if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
     if (!enWifiSTAMode) mode = WIFI_MODE_AP;
     if (!enWifiAPMode) mode = WIFI_MODE_STA;
+#else
+    mode = WIFI_MODE_STA;
+#endif
     err = esp_wifi_set_mode(mode);
     if (err != ESP_OK)
     {
@@ -659,6 +675,7 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
 // Configure Wifi AP
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
 {
     // Handle AP mode config
@@ -691,6 +708,7 @@ bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
     _wifiAPSSID = apSSID;
     return true;
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Clear credentials
@@ -898,8 +916,10 @@ bool NetworkSystem::startEthernet()
     if (pEthNetif && !_hostname.isEmpty())
         esp_netif_set_hostname(pEthNetif, _hostname.c_str());
 
-    // Handle W5500 SPI Ethernet
-#if defined(CONFIG_ETH_USE_SPI_ETHERNET) && defined(CONFIG_ETH_SPI_ETHERNET_W5500)
+    // Handle W5500 SPI Ethernet. Gated on HW_ETH_USE_W5500 (SysType-set) rather
+    // than the removed CONFIG_ETH_SPI_ETHERNET_W5500 Kconfig. The driver itself
+    // comes from the espressif/w5500 component (see RaftCore CMakeLists).
+#if defined(HW_ETH_USE_W5500) && defined(CONFIG_ETH_USE_SPI_ETHERNET)
     if (_networkSettings.ethLanChip == NetworkSettings::ETH_CHIP_TYPE_W5500)
     {
         LOG_I(MODULE_PREFIX, "startEthernet - W5500 SPI mode MOSI:%d MISO:%d SCLK:%d CS:%d INT:%d RST:%d",
@@ -942,6 +962,9 @@ bool NetworkSystem::startEthernet()
         // W5500 specific configuration
         eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG((spi_host_device_t)_networkSettings.spiHostDevice, &devcfg);
         w5500_config.int_gpio_num = _networkSettings.spiIntPin;
+        // When no interrupt pin is wired, the driver must poll the W5500
+        if (_networkSettings.spiIntPin < 0)
+            w5500_config.poll_period_ms = 10;
 
         // MAC configuration
         eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
@@ -1032,65 +1055,30 @@ bool NetworkSystem::startEthernet()
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
 
     // Create Ethernet driver
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-// TODO - This is a hacky fix - hopefully temporary - for ESP IDF 5.3.0 which throws a compile error
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-#if CONFIG_ETH_RMII_CLK_INPUT // IDF-9724
-    #define DEFAULT_RMII_CLK_MODE EMAC_CLK_EXT_IN
-#if CONFIG_ETH_RMII_CLK_IN_GPIO == 0
-    #define DEFAULT_RMII_CLK_GPIO ((emac_rmii_clock_gpio_t)CONFIG_ETH_RMII_CLK_IN_GPIO)
-#else
-    #error "ESP32 EMAC only support input RMII clock to GPIO0"
-#endif // CONFIG_ETH_RMII_CLK_IN_GPIO == 0
-#elif CONFIG_ETH_RMII_CLK_OUTPUT
-    #define DEFAULT_RMII_CLK_MODE EMAC_CLK_OUT
-#if CONFIG_ETH_RMII_CLK_OUTPUT_GPIO0
-    #define DEFAULT_RMII_CLK_GPIO EMAC_APPL_CLK_OUT_GPIO
-#else
-    #undef DEFAULT_RMII_CLK_GPIO
-    #define DEFAULT_RMII_CLK_GPIO ((emac_rmii_clock_gpio_t)CONFIG_ETH_RMII_CLK_OUT_GPIO)
-#endif // CONFIG_ETH_RMII_CLK_OUTPUT_GPIO0
-#else
-#error "Unsupported RMII clock mode"
-#endif // CONFIG_ETH_RMII_CLK_INPUT
-    eth_esp32_emac_config_t esp32_emac_config = 
-    {
-        .smi_gpio =
-        {
-            .mdc_num = 23,
-            .mdio_num = 18
-        },
-        .interface = EMAC_DATA_INTERFACE_RMII,
-        .clock_config =
-        {
-            .rmii =
-            {
-                .clock_mode = DEFAULT_RMII_CLK_MODE,
-                .clock_gpio = DEFAULT_RMII_CLK_GPIO
-            }
-        },
-        .dma_burst_len = ETH_DMA_BURST_LEN_32,
-        .intr_priority = 0,
-    };
+    // Runtime EMAC config (IDF 6.0 removed the CONFIG_ETH_RMII_CLK_* Kconfig
+    // options; clock mode/GPIO now come from NetworkSettings JSON).
+    eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
     esp32_emac_config.smi_gpio.mdc_num = (gpio_num_t) _networkSettings.smiMDCPin;
-    esp32_emac_config.smi_gpio.mdio_num= (gpio_num_t) _networkSettings.smiMDIOPin;
-    // Create new ESP32 Ethernet MAC instance
+    esp32_emac_config.smi_gpio.mdio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
+    esp32_emac_config.interface = EMAC_DATA_INTERFACE_RMII;
+    esp32_emac_config.clock_config.rmii.clock_mode =
+        (_networkSettings.ethRmiiClockMode == NetworkSettings::ETH_RMII_CLK_EXT_IN)
+            ? EMAC_CLK_EXT_IN : EMAC_CLK_OUT;
+    esp32_emac_config.clock_config.rmii.clock_gpio = _networkSettings.ethRmiiClockGpio;
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#else
-    // Init vendor specific MAC config to default
+#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
     esp32_emac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
     esp32_emac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
-    // Create new ESP32 Ethernet MAC instance
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#endif
 #else
     mac_config.smi_mdc_gpio_num = (gpio_num_t) _networkSettings.smiMDCPin;
     mac_config.smi_mdio_gpio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
 #endif
 
-    // Any phy hw?
+    // PHY config
 #if defined(HW_ETH_PHY_IP101) || defined(HW_ETH_PHY_RTL8201) || defined(HW_ETH_PHY_LAN87XX) || \
         defined(HW_ETH_PHY_DP83848) || defined(HW_ETH_PHY_KSZ8041) || defined(HW_ETH_PHY_KSZ8081)
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
@@ -1098,9 +1086,15 @@ bool NetworkSystem::startEthernet()
     phy_config.reset_gpio_num = _networkSettings.phyRstPin;
 #endif
 
-    // Create Ethernet PHY instance
+    // Create Ethernet PHY instance. In IDF 6.0 the per-chip PHY constructors
+    // were moved out of esp_eth to esp-eth-drivers; the generic 802.3 driver
+    // covers all IEEE 802.3 compliant PHYs (LAN87XX, IP101, RTL8201, etc.).
     esp_eth_phy_t *phy = nullptr;
-#if defined(HW_ETH_PHY_IP101)
+#if defined(HW_ETH_PHY_IP101) || defined(HW_ETH_PHY_RTL8201) || defined(HW_ETH_PHY_LAN87XX) || \
+        defined(HW_ETH_PHY_DP83848) || defined(HW_ETH_PHY_KSZ8041) || defined(HW_ETH_PHY_KSZ8081)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    phy = esp_eth_phy_new_generic(&phy_config);
+#elif defined(HW_ETH_PHY_IP101)
     phy = esp_eth_phy_new_ip101(&phy_config);
 #elif defined(HW_ETH_PHY_RTL8201)
     phy = esp_eth_phy_new_rtl8201(&phy_config);
@@ -1112,6 +1106,7 @@ bool NetworkSystem::startEthernet()
     phy = esp_eth_phy_new_ksz8041(&phy_config);
 #elif defined(HW_ETH_PHY_KSZ8081)
     phy = esp_eth_phy_new_ksz8081(&phy_config);
+#endif
 #endif
     if (!phy)
     {
@@ -1223,6 +1218,7 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
     case WIFI_EVENT_STA_WPS_ER_PIN:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station WPS pin");
         break;
+#if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
     case WIFI_EVENT_AP_START:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP started");
         break;
@@ -1251,6 +1247,7 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
     case WIFI_EVENT_AP_PROBEREQRECVED:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP probe request received");
         break;
+#endif
     case WIFI_EVENT_FTM_REPORT:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi FTM report");
         break;

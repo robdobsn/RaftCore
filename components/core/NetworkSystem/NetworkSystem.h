@@ -100,7 +100,9 @@ public:
 
     // Configuration
     bool configWifiSTA(const String& ssid, const String& pw);
+    #if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
     bool configWifiAP(const String& apSsid, const String& apPassword);
+    #endif
 
     // Clear credentials
     esp_err_t clearCredentials();

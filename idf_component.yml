@@ -1,7 +1,14 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  joltwallet/littlefs: ">=1.20.4"
+  joltwallet/littlefs: ">=1.22.1"
   espressif/mdns: ">=1.11.0"
+  # NOTE: the W5500 SPI Ethernet driver (espressif/w5500) is intentionally NOT a
+  # dependency here. A manifest dependency of RaftCore is an implicit requirement
+  # of every build, which would force the W5500 driver to compile (and fail) on
+  # non-SPI SysTypes. It is instead pulled in only for W5500 SysTypes via the
+  # optional carrier component in optional_components/EthW5500 (added through
+  # OPTIONAL_COMPONENTS in the SysType features.cmake). See
+  # devdocs/ethernet-idf6-lan87xx-w5500-plan.md §4.
   ## Required IDF version
   idf:
     version: ">=5.5.2"
