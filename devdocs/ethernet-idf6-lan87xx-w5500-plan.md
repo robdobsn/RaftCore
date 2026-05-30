@@ -135,18 +135,19 @@ Note the asymmetry: the RMII PHY path was migrated (switched to the generic
 constructor that survives in `esp_eth`), but the SPI path was not, because its
 APIs have no in-`esp_eth` replacement — they require the external component.
 
-### 3.1 Add the W5500 driver component
+### 3.1 Add the W5500 driver component (via a carrier — NOT RaftCore's manifest)
 
-Standalone component (smaller than the `espressif/ethernet_init` umbrella, which
-pulls in every driver — avoid it for size reasons):
+The standalone `espressif/w5500` component (chosen over the `espressif/ethernet_init`
+umbrella, which pulls in every driver — avoid it for size) provides headers
+`esp_eth_mac_w5500.h` / `esp_eth_phy_w5500.h`.
 
-```
-idf.py add-dependency "espressif/w5500^1.0.1"
-```
-
-This must be added so that it is **only linked for W5500 systypes** — see
-[§4](#4-gating-strategy-zero-size-when-disabled). It provides headers
-`esp_eth_mac_w5500.h` and `esp_eth_phy_w5500.h`.
+It must **not** be added to RaftCore's `idf_component.yml`: that would make it an
+implicit requirement of every build and break non-SPI systypes (see
+[§4 Gate C](#gate-c--w5500-component-availability--linkage-carrier-component--env-var)).
+Instead it is declared by the carrier component
+[optional_components/EthW5500](../../../optional_components/EthW5500), which the
+W5500 SysType adds via `OPTIONAL_COMPONENTS`. So the dependency is pulled in (and
+written to `dependencies.lock`) only when a W5500 SysType is built.
 
 ### 3.2 New gating macro (replaces removed Kconfig)
 
@@ -154,10 +155,11 @@ Since `CONFIG_ETH_SPI_ETHERNET_W5500` is gone, introduce a RaftCore-owned compil
 macro, consistent with the existing `HW_ETH_PHY_*` pattern:
 
 - Macro name: **`HW_ETH_USE_W5500`** (set via `add_compile_definitions` in the
-  SysType `features.cmake`).
-- Drives the source `#if` and is paired with a CMake variable
-  **`RAFT_ENABLE_ETH_W5500`** that gates the component `REQUIRES`
-  (see [§4](#4-gating-strategy-zero-size-when-disabled)).
+  SysType `features.cmake`) — drives the source `#if`.
+- It is paired with the **`RAFT_ENABLE_ETH_W5500` environment variable** that gates
+  RaftCore's `REQUIRES espressif__w5500`, and an optional carrier component that
+  brings the managed driver into the build. The env var (not a CMake variable) is
+  load-bearing — see [§4](#4-gating-strategy-zero-size-when-disabled).
 
 ### 3.3 Includes
 
@@ -186,31 +188,33 @@ with:
 The body (SPI bus init, `spi_device_interface_config_t`, `ETH_W5500_DEFAULT_CONFIG`,
 MAC/PHY creation, driver install, MAC-from-eFuse, attach, start) is essentially
 unchanged — the `espressif/w5500` API is API-compatible with the old in-tree
-driver. Re-verify against the component README:
-- `ETH_W5500_DEFAULT_CONFIG(spi_host, &devcfg)` signature.
-- `eth_w5500_config_t` fields actually used: `int_gpio_num` (and consider
-  `poll_period_ms` for interrupt-less polling mode if INT pin is -1).
+driver. As implemented and verified against `espressif/w5500` 1.0.1:
+- `ETH_W5500_DEFAULT_CONFIG(spi_host, &devcfg)` — unchanged signature.
+- `eth_w5500_config_t.int_gpio_num` set from `spiIntPin`; when `spiIntPin < 0` the
+  code sets `poll_period_ms = 10` (the driver polls when no interrupt pin).
 - The W5500 has an internal MAC+PHY; `esp_eth_phy_new_w5500()` is still required
   (the generic 802.3 PHY does **not** work for it).
 
-### 3.5 SysType configuration for a W5500 board
+### 3.5 SysType configuration for a W5500 board — as implemented for `ScaderLedsWaveshare`
 
-Example (`ScaderLedsWaveshare` already has the SPI-only sdkconfig skeleton):
-- `features.cmake`:
+- [`features.cmake`](../../../systypes/ScaderLedsWaveshare/features.cmake) — three lines:
   ```cmake
-  set(RAFT_ENABLE_ETH_W5500 ON)          # gates the component REQUIRES
-  add_compile_definitions(HW_ETH_USE_W5500)
+  set(ENV{RAFT_ENABLE_ETH_W5500} "1")          # gates RaftCore REQUIRES (early-expansion safe)
+  add_compile_definitions(HW_ETH_USE_W5500)    # compiles the W5500 path
+  list(APPEND OPTIONAL_COMPONENTS "${CMAKE_SOURCE_DIR}/optional_components/EthW5500")
   ```
   Do **not** also define `HW_ETH_PHY_LAN87XX` for a pure-W5500 board.
-- `sdkconfig.defaults`:
+- [`sdkconfig.defaults`](../../../systypes/ScaderLedsWaveshare/sdkconfig.defaults) —
+  re-enable Ethernet (Common forces it off):
   ```
   CONFIG_ETH_ENABLED=y
   CONFIG_ETH_USE_SPI_ETHERNET=y
   CONFIG_ETH_USE_ESP32_EMAC=n
   ```
-- JSON network settings: `ethLanChip:"W5500"`, `spiHostDevice`, `spiMOSIPin`,
-  `spiMISOPin`, `spiSCLKPin`, `spiCSPin`, `spiIntPin`, `spiClockSpeedMHz`,
-  `ethPhyRstPin`, `ethPhyAddr` (already parsed by `NetworkSettings`).
+- JSON network settings (already present in `ScaderLedsWaveshare/SysTypes.json`):
+  `ethLanChip:"W5500"`, `spiHostDevice`, `spiMOSIPin`, `spiMISOPin`, `spiSCLKPin`,
+  `spiCSPin`, `spiIntPin`, `spiClockSpeedMHz`, `ethPhyRstPin`, `ethPhyAddr`
+  (parsed by `NetworkSettings`).
 
 ---
 
@@ -238,39 +242,55 @@ by `#if defined(HW_ETH_USE_W5500) ...` ([§3.4](#34-re-gate-and-update-the-w5500
 This guarantees a LAN87xx build is byte-identical before and after the W5500
 feature is added to the codebase.
 
-### Gate C — W5500 component linkage (`RAFT_ENABLE_ETH_W5500`)
-This is the new and subtle one. A managed dependency in `idf_component.yml` is
-*downloaded* unconditionally (disk only), but only contributes to the **firmware**
-if it is in the component dependency closure (i.e. something `REQUIRES` it) and its
-symbols are referenced.
+### Gate C — W5500 component availability + linkage (carrier component + env var)
+This is the subtle one, and the original plan got it wrong twice before landing on
+the design below. Two hard constraints, both discovered by building:
 
-Approach, mirroring the existing `RAFT_ENABLE_SD` / `FS_TYPE` pattern in
-[CMakeLists.txt](../CMakeLists.txt):
+**C-1: the dependency must NOT live in RaftCore's `idf_component.yml`.** A manifest
+dependency of an always-built component (RaftCore) is an *implicit requirement of
+every build*. With `MINIMAL_BUILD` off (it is — `-- Minimal build - OFF`), IDF
+compiles every component in the graph, so the W5500 driver would compile for every
+systype. It doesn't just cost size — it **fails to compile** on non-SPI systypes,
+because `espressif/w5500`'s headers use `eth_spi_custom_driver_config_t`, which
+`esp_eth_mac_spi.h` only defines under `#if CONFIG_ETH_USE_SPI_ETHERNET`.
+`EXCLUDE_COMPONENTS` does **not** rescue this — it cannot remove a component that a
+manifest pulls in. So the dependency must sit in a component that is itself only in
+the build for W5500 systypes.
+
+Implemented as a **carrier component**, [optional_components/EthW5500](../../../optional_components/EthW5500):
+its `idf_component.yml` declares `espressif/w5500: ">=1.0.1"`; its `CMakeLists.txt`
+is sources-less (`idf_component_register(REQUIRES espressif__w5500)`). It lives
+*outside* `components/` (which IDF auto-scans) and is added to the build only by the
+W5500 SysType, via `list(APPEND OPTIONAL_COMPONENTS …)` →
+`EXTRA_COMPONENT_DIRS` (RaftBootstrapPhase2.cmake). Non-W5500 builds never see it,
+so `espressif/w5500` is never downloaded, compiled, or linked.
+
+**C-2: RaftCore's `REQUIRES espressif__w5500` must be gated on an ENVIRONMENT
+VARIABLE, not a CMake variable.** ESP-IDF captures component `REQUIRES` during an
+*early-expansion* pass that runs each component's `CMakeLists.txt` in a restricted
+context where the project cache, `CONFIG_*`, and ordinary project variables are
+**not visible** (this is the same fact the `esp_eth` comment alludes to). A plain
+or even `CACHE FORCE` `RAFT_ENABLE_ETH_W5500` reads as `ON` in the *normal* pass but
+as unset during early expansion, so the requirement silently never lands (verified:
+declared `reqs` contained `espressif__w5500`, resolved `reqs` did not, and the
+compile failed with "esp_eth_mac_w5500.h: No such file"). The **process
+environment** *is* visible during early expansion. So:
 ```cmake
-# In RaftCore/CMakeLists.txt, near the esp_eth block (line ~48-52).
-# esp_eth stays unconditional (the existing comment explains why: component
-# requirements are resolved before sdkconfig, so CONFIG_* can't gate REQUIRES).
-# The W5500 driver is gated on a plain CMake var set by features.cmake, which IS
-# available at config time.
-if(DEFINED RAFT_ENABLE_ETH_W5500 AND RAFT_ENABLE_ETH_W5500)
+# RaftCore/CMakeLists.txt — gated on the ENV var (early-expansion safe)
+if(DEFINED ENV{RAFT_ENABLE_ETH_W5500} AND "$ENV{RAFT_ENABLE_ETH_W5500}" STREQUAL "1")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} espressif__w5500)
 endif()
 ```
-The registry component `espressif/w5500` registers under the CMake component name
-`espressif__w5500`. Because `RAFT_ENABLE_ETH_W5500` is unset for every other
-systype, the W5500 component is **not in their REQUIRES closure** and is therefore
+and the SysType sets `set(ENV{RAFT_ENABLE_ETH_W5500} "1")` in its `features.cmake`
+(before `project()`; the env var persists for the whole configure including early
+expansion). For non-W5500 systypes the env var is simply absent → no requirement →
 not linked.
 
-Two independent backstops make this robust:
-1. **`-ffunction-sections -fdata-sections` + `-Wl,--gc-sections`** are default in
-   IDF 6.0 (`tools/cmake/build.cmake:178-179`, confirmed). Any unreferenced
-   function/data is dropped from the final image regardless of what got compiled.
-2. **Minimal build** (`MINIMAL_BUILD` property, `tools/cmake/project.cmake:519+`):
-   when enabled, only components in `main`'s closure are compiled at all.
-
-So the firmware-size guarantee comes from **Gate C (conditional REQUIRES) +
-gc-sections**, not from the manifest. The manifest dependency costs disk and
-download time only.
+So the firmware-size guarantee comes from **C-1 (the driver is not even in the
+build graph)**, with `-Wl,--gc-sections` (`build.cmake:178-179`) as a backstop for
+any incidental references. Verified empirically: `ScaderRelays` (LAN87xx) builds
+with **zero** occurrences of `espressif__w5500` and a byte-identical binary
+(`0x1aafd0`), while `ScaderLedsWaveshare` builds with the driver linked.
 
 ### 4.1 Known non-zero residues (accepted)
 
@@ -301,38 +321,39 @@ understood, not hidden.
    `-Wl,--gc-sections` drops it to ~zero in the final image. This is sound in
    principle but rests on the linker; confirm once with an `idf.py size` diff
    ([§5](#5-verification-checklist)). The W5500 component is *not* treated this way
-   — it is gated via Gate C precisely so it never enters a non-W5500 link graph.
+   — Gate C keeps it out of the build graph entirely so it never even compiles for
+   non-W5500 systypes.
 
-### `idf_component.yml` consideration
-The component manager resolves `idf_component.yml` dependencies regardless of
-SysType. Options, in order of preference:
-1. **Preferred:** list `espressif/w5500` in the manifest but keep it out of
-   `REQUIRES` unless `RAFT_ENABLE_ETH_W5500` (Gate C). Verify with a size diff that
-   a non-W5500 build is unchanged. This is the least fragile and keeps a single
-   manifest.
-2. If even the download is undesirable for most builds, the dependency can instead
-   be declared in the W5500 SysType's own component manifest rather than RaftCore's,
-   keeping it out of the dependency tree entirely for other systypes. Heavier to
-   maintain; only do this if option 1 shows a measurable size regression.
+### `idf_component.yml` consideration (resolved)
+The W5500 dependency is deliberately **not** in RaftCore's manifest (it would
+become a global implicit requirement — see Gate C). It is carried by
+[optional_components/EthW5500](../../../optional_components/EthW5500) and only
+reaches `dependencies.lock` when a W5500 SysType is built. Note `dependencies.lock`
+lives at the repo root and is re-solved per build, so it churns when switching
+between W5500 and non-W5500 SysTypes — expected for a generated file.
 
 ---
 
 ## 5. Verification checklist
 
-Size (the binding constraint):
-- [ ] `idf.py size` for a **non-Ethernet** systype (e.g. `ScaderLocks`) — must be
-      byte-identical before/after the W5500 changes land.
-- [ ] `idf.py size` for an **RMII/LAN87xx** systype (`ScaderRelays`) — must be
-      unchanged by the W5500 work (Gate B + C).
-- [ ] `idf.py size-components` on a W5500 systype to confirm `espressif__w5500`
-      appears only there.
+Build/size (the binding constraint) — done on IDF 6.0.1, local build:
+- [x] **Non-W5500 build unaffected.** `ScaderRelays` (LAN87xx) builds clean with
+      **0** occurrences of `espressif__w5500` in the build, it is absent from
+      RaftCore's resolved `reqs`, and the app binary is `0x1aafd0` bytes — identical
+      with and without the W5500 feature present in the tree. Zero impact confirmed.
+- [x] **LAN87xx generic-PHY path compiles on IDF 6.0.1** (`ScaderRelays`,
+      `esp_eth_phy_new_generic`).
+- [x] **W5500 build links the driver.** `ScaderLedsWaveshare` builds with
+      `espressif__w5500` in resolved `reqs`; app binary `0x171f10`, 17% free.
+- [ ] (Optional) `idf.py size` on a pure non-Ethernet systype (e.g. `ScaderLocks`)
+      to quantify the `esp_eth`/NetworkSettings residue from [§4.1](#41-known-non-zero-residues-accepted).
 
-Functional:
-- [ ] LAN87xx (Olimex ESP32-PoE-ISO): builds on IDF 6.0.1, links, gets DHCP IP via
-      `IP_EVENT_ETH_GOT_IP`. Confirm `ethRmiiClockMode`/`ethRmiiClockGpio` defaults
-      (OUTPUT/17) match the board, else set in JSON.
-- [ ] W5500 board: builds, links `espressif/w5500`, SPI bus init OK, MAC read from
-      eFuse, link up, DHCP IP.
+Functional (on hardware — not yet done):
+- [ ] LAN87xx (Olimex ESP32-PoE-ISO): links, gets DHCP IP via `IP_EVENT_ETH_GOT_IP`.
+      Confirm `ethRmiiClockMode`/`ethRmiiClockGpio` defaults (OUTPUT/17) match the
+      board, else set in JSON.
+- [ ] W5500 board (`ScaderLedsWaveshare`): SPI bus init OK, MAC read from eFuse,
+      link up, DHCP IP.
 - [ ] Cleanup: remove dead `CONFIG_ETH_PHY_INTERFACE_RMII` / `CONFIG_ETH_RMII_CLK_*`
       / `CONFIG_ETH_SPI_ETHERNET_W5500` keys from all `sdkconfig.defaults`.
 
@@ -344,7 +365,10 @@ Functional:
    now.** The `#elif` ladders for IDF 5.0–5.3 and the per-chip PHY constructors are
    retained; the W5500 changes are layered on top with `ESP_IDF_VERSION >= 6.0.0`
    guards rather than replacing them.
-2. Confirm the exact `espressif/w5500` CMake component target name
-   (`espressif__w5500` expected) once the component is fetched.
-3. Decide manifest strategy ([§4](#4-gating-strategy-zero-size-when-disabled),
-   option 1 vs 2) after the first size-diff measurement.
+2. ~~Confirm the `espressif/w5500` component target name~~ — confirmed
+   `espressif__w5500` (1.0.1).
+3. ~~Decide manifest strategy~~ — resolved: carrier component + env-var gate
+   (see [§4 Gate C](#gate-c--w5500-component-availability--linkage-carrier-component--env-var)).
+4. The three-line W5500 opt-in in a SysType's `features.cmake` is repetitive; if a
+   second W5500 board appears, consider wrapping it in a small `raft_enable_w5500()`
+   helper macro in `Common/features.cmake`.

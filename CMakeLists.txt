@@ -53,12 +53,14 @@ set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} esp_eth)
 
 # The W5500 SPI Ethernet driver was moved out of esp_eth into the external
 # espressif/w5500 component in IDF 6.0. Link it ONLY when a SysType requests
-# W5500 (RAFT_ENABLE_ETH_W5500 set in its features.cmake). Unlike esp_eth this
-# can be gated on a plain CMake variable (available at config time), so non-W5500
-# builds never pull the component into the REQUIRES closure -> zero firmware-size
-# impact. The dependency is declared in idf_component.yml so it is available when
-# required (download is disk-only; it is not linked unless required here).
-if(DEFINED RAFT_ENABLE_ETH_W5500 AND RAFT_ENABLE_ETH_W5500)
+# W5500. The gate MUST be an environment variable: component REQUIRES are
+# captured during ESP-IDF's early-expansion pass, where CMake cache variables
+# and CONFIG_* are not visible (see the esp_eth note above) but the process
+# environment is. The W5500 SysType's features.cmake sets ENV{RAFT_ENABLE_ETH_W5500}
+# (and brings in the espressif/w5500 component via the optional carrier in
+# optional_components/EthW5500). Non-W5500 builds never see the env var, so the
+# component is never required/compiled/linked -> zero firmware-size impact.
+if(DEFINED ENV{RAFT_ENABLE_ETH_W5500} AND "$ENV{RAFT_ENABLE_ETH_W5500}" STREQUAL "1")
   set(RAFT_CORE_REQUIRES ${RAFT_CORE_REQUIRES} espressif__w5500)
 endif()
 
