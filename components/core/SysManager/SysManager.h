@@ -288,11 +288,17 @@ private:
     bool _reportEnable = true;
     std::vector<String> _monitorReportList;
 
+    // Optional detailed heap/stack diagnostic appended to each monitor report
+    // (heap caps breakdown + per-task stack high-water). Off by default; enable
+    // per-SysType with SysManager config "heapDetail":1.
+    bool _reportHeapDetail = false;
+
     // Stats available callback
     SysManager_statsCB _statsCB = nullptr;
 
     // Stats
     void statsShow();
+    void statsShowHeapDetail();
 
     // SysManager also handles system restarts
     bool _systemRestartPending = false;

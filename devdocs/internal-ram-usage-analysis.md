@@ -297,17 +297,70 @@ _TODO: Record several statsShow() lines after system reaches steady state._
 
 ### 8.4. Task Stack High-Water Marks
 
-| Task | Stack Size | HWM Remaining | Actual Usage | Reducible To |
-|---|---|---|---|---|
-| Main | 10,000 | | | |
-| I2C Worker | | | | |
-| BLE NimBLE Host | 6,144 | | | |
-| BLE Outbound | | | | |
-| WebServer | 5,000 | | | |
-| ESP OTA | | | | |
+Measured 2026-06-02 on ScaderRelays (Ethernet, BLE central, WebServer) via the
+`heapDetail` diagnostic. "Free min" = `stackFreeMin` (lowest free stack ever seen).
+
+| Task | Free min (bytes) | Verdict |
+|---|---|---|
+| main | 15940 | **Over-provisioned** (20000 stack, ~4KB used) → trimmed to 10000 |
+| sys_evt | 1836 | OK after 2304→4096 bump (was ~44B margin → would overflow) |
+| tcpip | 2296 | OK |
+| socketLstnTask | 2356 | OK (minor headroom; left as-is) |
+| emac_rx | 3036 | OK |
+| esp_timer | 3420 | OK |
+| mdns | 2596 | OK |
+| nimble_host | 2236 | OK (don't trim BLE stacks lightly) |
+| btController | 2080 | OK |
+| Tmr Svc | 1584 | OK |
+| ipc0 / ipc1 | 300 / 484 | IDF-fixed, leave |
+| IDLE0 / IDLE1 | 912 / 920 | IDF-fixed, leave |
 
 ### 8.5. Actions Taken
 
 | Date | Action | Impact (bytes saved) | Notes |
 |---|---|---|---|
-| | | | |
+| 2026-06-02 | ScaderRelays: ETH DMA `RX 10→6`, `TX 10→4` (×512) | ~5 KB internal/DMA | Light traffic; raise RX if drops |
+| 2026-06-02 | ScaderRelays: lwIP `MAX_ACTIVE_TCP 32→16`, `MAX_SOCKETS 24→16`, `MAX_LISTENING_TCP 8→4` | ~few KB heap | relay+web+MQTT needs few PCBs |
+| 2026-06-02 | Common: `ESP_SYSTEM_EVENT_TASK_STACK_SIZE 2304→4096` | **−1.8 KB** (cost) | Fix: `sys_evt` stack overflow during Ethernet bring-up |
+| 2026-06-02 | ScaderRelays: `ESP_MAIN_TASK_STACK_SIZE 20000→10000` | ~10 KB heap | Measured main `stackFreeMin` 15940 (only ~4KB used) |
+
+### 8.7. Findings (2026-06-02)
+
+- **Not fragmentation, not steady-state.** Under load `largest_free_block`
+  (~41–43KB) tracks total free, so the heap stays contiguous. The `hpMin` floor
+  (~26.8KB) is a **transient ~18KB spike** during a `WebServer` burst — almost
+  certainly a gzipped WebUI static file buffered whole in RAM to send, then freed
+  (coincides with `WebServer` slowUs ~28ms and an `errno 104`/ECONNRESET).
+- Trimming the main stack raises the **baseline** ~10KB, lifting the worst-case
+  floor under that same spike from ~26.8KB to ~36–37KB — comfortable.
+- Remaining lever if more is needed: make WebServer **stream** static files in
+  chunks rather than buffering whole, to cut the transient spike itself (a
+  RaftWebServer change; not needed if the floor is comfortable).
+
+### 8.6. Live heap/stack diagnostic (`heapDetail`)
+
+SysManager can append a detailed breakdown to each periodic monitor report. It is
+**off by default**; enable it at runtime (no rebuild) via the `sysman` API:
+
+```
+GET /sysman?heapDetail=1          # turn the breakdown on
+GET /sysman?interval=5            # (optional) drop report period to 5s for finer resolution
+GET /sysman?heapDetail=0          # turn it off
+```
+
+Then exercise the device (e.g. fetch a web page / open a TLS connection) and watch
+the next dump. Each report adds, after the normal `SysMan: {...}` line:
+
+- `heapDetail INTERNAL free/min/largest | DMA free/min/largest | 8BIT(all) | SPIRAM`
+  — `largest` ≪ `free` means **fragmentation**; `DMA` is the pool ETH/WiFi/SPI DMA
+  buffers draw from; `SPIRAM` is 0 on this board (no PSRAM).
+- one `heapDetail task <name> stackFreeMin <bytes> prio <p> core <c>` line per task —
+  `stackFreeMin` is the lowest free stack ever seen; large values are reclaimable
+  over-provisioned stacks (feed §8.4), small values are tasks near overflow.
+
+Watching `INTERNAL min` and `largest` before vs. a few seconds after a web fetch
+isolates whether the pressure is steady-state, a transient TLS/WebServer spike, or
+fragmentation. (Implemented in `SysManager::statsShowHeapDetail()`; needs
+`CONFIG_FREERTOS_USE_TRACE_FACILITY`, which Common enables. Can also be enabled at
+build time with SysManager config `"heapDetail":1`, but note SysTypes.json merging
+is shallow — a SysType `SysManager` block replaces Common's entirely.)

@@ -28,6 +28,8 @@
 #ifdef ESP_PLATFORM
 #include "esp_system.h"
 #include "esp_heap_caps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "NetworkSystem.h"
 #endif // ESP_PLATFORM
 
@@ -120,6 +122,7 @@ void SysManager::preSetup()
     _monitorTimerMs = millis();
     _reportEnable = sysManConfig.getBool("reportEnable", true);
     sysManConfig.getArrayElems("reportList", _monitorReportList);
+    _reportHeapDetail = sysManConfig.getBool("heapDetail", false);
 
     // System restart flag
     _systemRestartMs = millis();
@@ -1183,6 +1186,11 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
         //     LOG_I(MODULE_PREFIX, "apiSysManSettings reportitem %s", s.c_str());
     }
 
+    // Toggle the detailed heap/stack breakdown in the periodic report (heapDetail=1/0)
+    int heapDetail = nameValueParamsJson.getLong("heapDetail", -1);
+    if (heapDetail >= 0)
+        _reportHeapDetail = (heapDetail != 0);
+
     // Check for baud-rate change
     int baudRate = nameValueParamsJson.getLong("baudRate", -1);
     String debugStr;
@@ -1216,9 +1224,9 @@ RaftRetCode SysManager::apiSysManSettings(const String &reqStr, String& respStr,
     }
 
     // Debug
-    LOG_I(MODULE_PREFIX, "apiSysManSettings report interval %.1f secs reportList %s%s", 
+    LOG_I(MODULE_PREFIX, "apiSysManSettings report interval %.1f secs reportList %s heapDetail %d%s",
                 _monitorPeriodMs/1000.0, nameValueParamsJson.getString("report","").c_str(),
-                debugStr.c_str());
+                _reportHeapDetail, debugStr.c_str());
 
     // Create response JSON
     String reqStrWithoutQuotes = reqStr;
@@ -1357,6 +1365,63 @@ void SysManager::statsShow()
 
     // Report stats
     LOG_I(MODULE_PREFIX, "%s", statsOut.c_str());
+
+    // Optional detailed heap/stack breakdown
+    if (_reportHeapDetail)
+        statsShowHeapDetail();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Show a detailed heap and per-task stack breakdown (diagnostic).
+/// Emitted alongside the normal monitor report when SysManager config
+/// "heapDetail":1 is set. Fetch a web page (or otherwise stress the device),
+/// then watch the next periodic dump to see which pool tightened and whether
+/// fragmentation (largest-free-block << free) or a stack is the cause.
+void SysManager::statsShowHeapDetail()
+{
+#ifdef ESP_PLATFORM
+    // Heap by capability: free / min-watermark / largest contiguous free block.
+    // largest-free-block well below free indicates fragmentation. DMA is the pool
+    // Ethernet/WiFi/SPI DMA buffers draw from; SPIRAM is 0 on boards without PSRAM.
+    LOG_I(MODULE_PREFIX, "heapDetail INTERNAL free %d min %d largest %d | DMA free %d min %d largest %d | 8BIT(all) free %d | SPIRAM free %d",
+                heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                heap_caps_get_free_size(MALLOC_CAP_DMA),
+                heap_caps_get_minimum_free_size(MALLOC_CAP_DMA),
+                heap_caps_get_largest_free_block(MALLOC_CAP_DMA),
+                heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+
+    // Per-task minimum free stack ("stackFreeMin"). Task stacks are allocated from
+    // internal heap, so an over-provisioned stack is reclaimable RAM; a small value
+    // is a task close to overflow. Needs CONFIG_FREERTOS_USE_TRACE_FACILITY.
+#if (configUSE_TRACE_FACILITY == 1)
+    UBaseType_t numTasks = uxTaskGetNumberOfTasks();
+    TaskStatus_t* pTaskStatus = (TaskStatus_t*) malloc(numTasks * sizeof(TaskStatus_t));
+    if (pTaskStatus)
+    {
+        UBaseType_t numReturned = uxTaskGetSystemState(pTaskStatus, numTasks, nullptr);
+        for (UBaseType_t i = 0; i < numReturned; i++)
+        {
+            LOG_I(MODULE_PREFIX, "heapDetail task %-16s stackFreeMin %u bytes prio %u core %d",
+                        pTaskStatus[i].pcTaskName,
+                        (unsigned)(pTaskStatus[i].usStackHighWaterMark * sizeof(StackType_t)),
+                        (unsigned)pTaskStatus[i].uxCurrentPriority,
+#if (configTASKLIST_INCLUDE_COREID == 1)
+                        (int)pTaskStatus[i].xCoreID);
+#else
+                        -1);
+#endif
+        }
+        free(pTaskStatus);
+    }
+    else
+    {
+        LOG_W(MODULE_PREFIX, "heapDetail could not alloc task status for %u tasks", (unsigned)numTasks);
+    }
+#endif // configUSE_TRACE_FACILITY
+#endif // ESP_PLATFORM
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
