@@ -113,11 +113,42 @@ void FileSystem::loop()
 
 bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool force)
 {
-    // Check for file system disabled
+    // Check for file system disabled. This usually means the filesystem failed to
+    // mount at boot (blank or incompatible partition). When force is requested we
+    // attempt recovery: select the compiled-in default FS type and run setup with
+    // format-if-corrupt enabled, which creates a blank filesystem in the existing
+    // partition. This can ONLY succeed if the device's flashed partition table
+    // actually contains the filesystem partition - OTA never rewrites the partition
+    // table, so a device with a mismatched/old table still needs a wired flash.
     if (_localFsType == LOCAL_FS_DISABLE)
     {
-        LOG_W(MODULE_PREFIX, "reformat local file system disabled");
+        if (!force)
+        {
+            LOG_W(MODULE_PREFIX, "reformat local file system disabled");
+            Raft::setJsonErrorResult("reformat", respStr, "fsdisabled");
+            return false;
+        }
+
+#ifdef FILE_SYSTEM_SUPPORTS_LITTLEFS
+        _localFsType = LOCAL_FS_LITTLEFS;
+#elif defined(RAFT_FILESYSTEM_HAS_SPIFFS)
+        _localFsType = LOCAL_FS_SPIFFS;
+#else
+        LOG_W(MODULE_PREFIX, "reformat no filesystem support compiled in");
+        Raft::setJsonErrorResult("reformat", respStr, "fsdisabled");
         return false;
+#endif
+        LOG_W(MODULE_PREFIX, "reformat attempting recovery of disabled filesystem (format if corrupt)");
+        localFileSystemSetup(true);
+        if (_localFsType == LOCAL_FS_DISABLE)
+        {
+            LOG_W(MODULE_PREFIX, "reformat recovery FAILED - filesystem partition not found (wired flash required)");
+            Raft::setJsonErrorResult("reformat", respStr, "nopartition");
+            return false;
+        }
+        LOG_W(MODULE_PREFIX, "reformat recovery OK - blank filesystem created");
+        Raft::setJsonBoolResult("reformat", respStr, true);
+        return true;
     }
 
     // Check file system supported
