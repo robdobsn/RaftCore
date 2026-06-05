@@ -158,6 +158,7 @@ private:
     public:
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fileName;
         uint32_t fileSize = 0;
+        bool isDir = false;
         bool isValid = false;
     };
     class CachedFileSystem

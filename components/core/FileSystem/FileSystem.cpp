@@ -872,6 +872,31 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     startMs = millis();
 #endif
 
+    // When opening for write, ensure any parent directories in the path exist.
+    // LittleFS/FAT do not auto-create parent folders on fopen, so an upload to a
+    // path like /local/webui/assets/app.js would otherwise fail silently. Create
+    // each intermediate directory (ignoring those that already exist).
+    if (writeMode)
+    {
+        int lastSlash = rootFilename.lastIndexOf('/');
+        // Skip the leading '/' (and the filesystem root e.g. /local) - start creating
+        // directories only beyond the filesystem mount point.
+        int searchFrom = rootFilename.indexOf('/', 1);
+        if (searchFrom > 0)
+            searchFrom = rootFilename.indexOf('/', searchFrom + 1);
+        if ((lastSlash > 0) && (searchFrom > 0))
+        {
+            int pos = searchFrom;
+            while ((pos > 0) && (pos <= lastSlash))
+            {
+                String dirPath = rootFilename.substring(0, pos);
+                if (dirPath.length() > 0)
+                    mkdir(dirPath.c_str(), 0755);
+                pos = rootFilename.indexOf('/', pos + 1);
+            }
+        }
+    }
+
     FILE* pFile = fopen(rootFilename.c_str(), writeMode ? ((seekToPos != 0) || seekFromEnd ? "ab" : "wb") : "rb");
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
@@ -1550,7 +1575,9 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
     uint32_t fileCount = 0;
     for (CachedFileInfo& cachedFileInfo : cachedFs.cachedRootFileList)
     {
-        fileListStr += String(firstFile ? R"({"name":")" : R"(,{"name":")") + cachedFileInfo.fileName.c_str() + R"(","size":)" + String(cachedFileInfo.fileSize) + "}";
+        fileListStr += String(firstFile ? R"({"name":")" : R"(,{"name":")") + cachedFileInfo.fileName.c_str() + 
+                    R"(","size":)" + String(cachedFileInfo.fileSize) + 
+                    R"(,"isDir":)" + (cachedFileInfo.isDir ? "1" : "0") + "}";
         firstFile = false;
         fileCount++;
     }
@@ -1632,11 +1659,13 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 
         // Get file info including size
         size_t fileSize = 0;
+        bool isDir = false;
         struct stat st;
         String filePath = (rootFolder.endsWith("/") ? rootFolder + fName : rootFolder + "/" + fName);
         if (stat(filePath.c_str(), &st) == 0) 
         {
             fileSize = st.st_size;
+            isDir = S_ISDIR(st.st_mode);
         }
 
         // Form the JSON list
@@ -1647,6 +1676,8 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
         fileListStr += ent->d_name;
         fileListStr += R"(","size":)";
         fileListStr += String(fileSize);
+        fileListStr += R"(,"isDir":)";
+        fileListStr += isDir ? "1" : "0";
         fileListStr += "}";
     }
 
@@ -1853,17 +1884,20 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
 
             // Get file info including size
             size_t fileSize = 0;
+            bool isDir = false;
             struct stat st;
             String filePath = rootFolder + fName;
             if (stat(filePath.c_str(), &st) == 0) 
             {
                 fileSize = st.st_size;
+                isDir = S_ISDIR(st.st_mode);
             }
 
             // Add file to list
             CachedFileInfo fileInfo;
             fileInfo.fileName = fName.c_str();
             fileInfo.fileSize = fileSize;
+            fileInfo.isDir = isDir;
             fileInfo.isValid = true;
             cachedFs.cachedRootFileList.push_back(fileInfo);
             fileCount++;
@@ -1900,6 +1934,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
                 if (stat(filePath.c_str(), &st) == 0) 
                 {
                     it->fileSize = st.st_size;
+                    it->isDir = S_ISDIR(st.st_mode);
                     LOG_I(MODULE_PREFIX, "fileSystemCacheService updated %s size %d", 
                             it->fileName.c_str(), (int)st.st_size);
                 }
