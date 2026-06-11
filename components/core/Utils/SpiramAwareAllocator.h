@@ -60,10 +60,20 @@ public:
 #ifdef CONFIG_ESP32_SPIRAM_SUPPORT
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
         if (esp_spiram_get_chip_size() != ESP_SPIRAM_SIZE_INVALID)
-            return (T*) (heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        {
+            T* p = (T*) (heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+            // Fall back to internal RAM if SPIRAM can't satisfy the request
+            if (p)
+                return p;
+        }
 #else
         if (esp_psram_get_size() != 0)
-            return (T*) (heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        {
+            T* p = (T*) (heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+            // Fall back to internal RAM if SPIRAM can't satisfy the request
+            if (p)
+                return p;
+        }
 #endif
 #endif
 
