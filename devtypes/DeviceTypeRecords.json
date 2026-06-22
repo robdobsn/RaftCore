@@ -1582,6 +1582,344 @@
                     ]
                 }
             }
+        },
+        "TrillBar": {
+            "_notes": "Bela Trill Bar - 1D capacitive touch, 26 channels, up to 5 simultaneous touches. CENTROID mode. Identify cmd returns device_type=1 in byte 1 of 3-byte response. Address jumper-configurable 0x20-0x27.",
+            "addresses": "0x20-0x27",
+            "deviceType": "TrillBar",
+            "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000001",
+            "initValues": "0x000100=p15&0x0006=p30",
+            "pollInfo": {
+                "c": "0x04=r20",
+                "i": 50,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Trill Bar",
+                "desc": "Capacitive Touch Bar",
+                "manu": "Bela",
+                "type": "TrillBar",
+                "clas": ["TCH"],
+                "resp": {
+                    "b": 20,
+                    "a": [
+                        { "n": "loc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                    ]
+                },
+                "actions": [
+                    { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+                    {
+                        "n": "_conf.mode",
+                        "t": "B",
+                        "r": [0, 3],
+                        "d": 0,
+                        "desc": "Sensor mode",
+                        "map": {
+                            "centroid": { "w": "000100" },
+                            "raw":      { "w": "000101" },
+                            "baseline": { "w": "000102" },
+                            "diff":     { "w": "000103" }
+                        }
+                    },
+                    { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
+                    { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+                    { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+                ]
+            }
+        },
+        "TrillSquare": {
+            "_notes": "Bela Trill Square - 2D capacitive touch, 30 channels, up to 4 simultaneous touches. CENTROID mode returns 4 vertical loc+size pairs followed by 4 horizontal loc+size pairs. Address jumper-configurable 0x28-0x2F.",
+            "addresses": "0x28-0x2F",
+            "deviceType": "TrillSquare",
+            "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000010",
+            "initValues": "0x000100=p15&0x0006=p30",
+            "pollInfo": {
+                "c": "0x04=r32",
+                "i": 50,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Trill Square",
+                "desc": "Capacitive Touch Square",
+                "manu": "Bela",
+                "type": "TrillSquare",
+                "clas": ["TCH"],
+                "resp": {
+                    "b": 32,
+                    "a": [
+                        { "n": "vloc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vloc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vloc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vloc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                    ]
+                },
+                "actions": [
+                    { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+                    {
+                        "n": "_conf.mode",
+                        "t": "B",
+                        "r": [0, 3],
+                        "d": 0,
+                        "desc": "Sensor mode",
+                        "map": {
+                            "centroid": { "w": "000100" },
+                            "raw":      { "w": "000101" },
+                            "baseline": { "w": "000102" },
+                            "diff":     { "w": "000103" }
+                        }
+                    },
+                    { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
+                    { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+                    { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+                ]
+            }
+        },
+        "TrillCraft": {
+            "_notes": "Bela Trill Craft - 1D capacitive sensor strip, 30 channels, up to 5 simultaneous touches in CENTROID mode (default DIFF). Address jumper-configurable 0x30-0x37.",
+            "addresses": "0x30-0x37",
+            "deviceType": "TrillCraft",
+            "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000011",
+            "initValues": "0x000100=p15&0x0006=p30",
+            "pollInfo": {
+                "c": "0x04=r20",
+                "i": 50,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Trill Craft",
+                "desc": "Capacitive Touch Craft",
+                "manu": "Bela",
+                "type": "TrillCraft",
+                "clas": ["TCH"],
+                "resp": {
+                    "b": 20,
+                    "a": [
+                        { "n": "loc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                    ]
+                },
+                "actions": [
+                    { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+                    {
+                        "n": "_conf.mode",
+                        "t": "B",
+                        "r": [0, 3],
+                        "d": 0,
+                        "desc": "Sensor mode",
+                        "map": {
+                            "centroid": { "w": "000100" },
+                            "raw":      { "w": "000101" },
+                            "baseline": { "w": "000102" },
+                            "diff":     { "w": "000103" }
+                        }
+                    },
+                    { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
+                    { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+                    { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+                ]
+            }
+        },
+        "TrillRing": {
+            "_notes": "Bela Trill Ring - 1D circular capacitive touch, 28 ring channels + 2 button channels, up to 5 touches. CENTROID response: 5 loc + 5 size + 2 button values (uint16 BE). Address jumper-configurable 0x38-0x3F.",
+            "addresses": "0x38-0x3F",
+            "deviceType": "TrillRing",
+            "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000100",
+            "initValues": "0x000100=p15&0x0006=p30",
+            "pollInfo": {
+                "c": "0x04=r24",
+                "i": 50,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Trill Ring",
+                "desc": "Capacitive Touch Ring",
+                "manu": "Bela",
+                "type": "TrillRing",
+                "clas": ["TCH", "BTN"],
+                "resp": {
+                    "b": 24,
+                    "a": [
+                        { "n": "loc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "btn0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "btn1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                    ]
+                },
+                "actions": [
+                    { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+                    {
+                        "n": "_conf.mode",
+                        "t": "B",
+                        "r": [0, 3],
+                        "d": 0,
+                        "desc": "Sensor mode",
+                        "map": {
+                            "centroid": { "w": "000100" },
+                            "raw":      { "w": "000101" },
+                            "baseline": { "w": "000102" },
+                            "diff":     { "w": "000103" }
+                        }
+                    },
+                    { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
+                    { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+                    { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+                ]
+            }
+        },
+        "TrillHex": {
+            "_notes": "Bela Trill Hex - 2D hexagonal capacitive touch pad, 30 channels, up to 4 simultaneous touches. CENTROID response: 4 vertical loc + 4 vertical size + 4 horizontal loc + 4 horizontal size (uint16 BE). Address jumper-configurable 0x40-0x47.",
+            "addresses": "0x40-0x47",
+            "deviceType": "TrillHex",
+            "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000101",
+            "initValues": "0x000100=p15&0x0006=p30",
+            "pollInfo": {
+                "c": "0x04=r32",
+                "i": 50,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Trill Hex",
+                "desc": "Capacitive Touch Hex",
+                "manu": "Bela",
+                "type": "TrillHex",
+                "clas": ["TCH"],
+                "resp": {
+                    "b": 32,
+                    "a": [
+                        { "n": "vloc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vloc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vloc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vloc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "vsize3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hloc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "hsize3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                    ]
+                },
+                "actions": [
+                    { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+                    {
+                        "n": "_conf.mode",
+                        "t": "B",
+                        "r": [0, 3],
+                        "d": 0,
+                        "desc": "Sensor mode",
+                        "map": {
+                            "centroid": { "w": "000100" },
+                            "raw":      { "w": "000101" },
+                            "baseline": { "w": "000102" },
+                            "diff":     { "w": "000103" }
+                        }
+                    },
+                    { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
+                    { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+                    { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+                ]
+            }
+        },
+        "TrillFlex": {
+            "_notes": "Bela Trill Flex - flexible 1D capacitive touch with custom electrode connection, 30 channels, up to 5 touches in CENTROID mode (default DIFF). Address jumper-configurable 0x48-0x4F.",
+            "addresses": "0x48-0x4F",
+            "deviceType": "TrillFlex",
+            "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000110",
+            "initValues": "0x000100=p15&0x0006=p30",
+            "pollInfo": {
+                "c": "0x04=r20",
+                "i": 50,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Trill Flex",
+                "desc": "Capacitive Touch Flex",
+                "manu": "Bela",
+                "type": "TrillFlex",
+                "clas": ["TCH"],
+                "resp": {
+                    "b": 20,
+                    "a": [
+                        { "n": "loc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "loc4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                        { "n": "size4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                    ]
+                },
+                "actions": [
+                    { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+                    {
+                        "n": "_conf.mode",
+                        "t": "B",
+                        "r": [0, 3],
+                        "d": 0,
+                        "desc": "Sensor mode",
+                        "map": {
+                            "centroid": { "w": "000100" },
+                            "raw":      { "w": "000101" },
+                            "baseline": { "w": "000102" },
+                            "diff":     { "w": "000103" }
+                        }
+                    },
+                    { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
+                    { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+                    { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+                ]
+            }
         }
     }
 }
