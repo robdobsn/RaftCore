@@ -146,6 +146,18 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Perform a synchronous (blocking) bus transaction: write then optional read.
+    /// @param pReqRec - bus request information (address, write data, read length)
+    /// @param pReadData - (out) buffer to receive read data (may be nullptr if no read required)
+    /// @return result code (RAFT_OK on success, RAFT_NOT_IMPLEMENTED if the bus has no sync path)
+    /// @note This is a generic, device-agnostic blocking transaction. The caller is responsible
+    ///       for bus coordination (e.g. pause()/isPaused()) so it does not race the bus worker.
+    virtual RaftRetCode busReqSync(const BusRequestInfo* pReqRec, std::vector<uint8_t>* pReadData)
+    {
+        return RAFT_NOT_IMPLEMENTED;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get bus statistics as a JSON string
     /// @return JSON string
     virtual String getBusStatsJSON() const

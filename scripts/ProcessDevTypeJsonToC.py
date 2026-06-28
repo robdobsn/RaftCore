@@ -96,8 +96,15 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         addr_list_hex = ",".join([f'0x{addr:02x}' for addr in addr_list])
         print(f"Record {dev_record_index} Addresses {addr_range} Addr List {addr_list_hex}")
 
+        # Some device types (e.g. Robotical RSAOs) are identified by probing rather than by
+        # bus address, and several share the same addresses. They are excluded from the
+        # address->record map (and scan-priority sets) so they are not auto-identified by
+        # address; they keep their record (index, decode fn, addresses string) and are
+        # adopted explicitly by the RSAO identification hook instead.
+        exclude_from_addr_map = bool(dev_type.get("excludeFromAddrMap", False))
+
         # Scan priority
-        if "scanPriority" in dev_type:
+        if "scanPriority" in dev_type and not exclude_from_addr_map:
             scan_priority = dev_type.get("scanPriority", 0)
 
             # If scan_priority is an array then set scan priority for primary address to first
@@ -116,11 +123,12 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
                     addr_scan_priority_sets[priority_value].add(addr)
 
         # Generate a dictionary with all addresses referring to a record index
-        for addr in addr_list:
-            if addr in addr_index_to_dev_record:
-                addr_index_to_dev_record[addr].append(dev_record_index)
-            else:
-                addr_index_to_dev_record[addr] = [dev_record_index]
+        if not exclude_from_addr_map:
+            for addr in addr_list:
+                if addr in addr_index_to_dev_record:
+                    addr_index_to_dev_record[addr].append(dev_record_index)
+                else:
+                    addr_index_to_dev_record[addr] = [dev_record_index]
 
         # Bump index
         dev_record_index += 1

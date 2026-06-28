@@ -15,6 +15,35 @@
 #include "RaftDeviceConsts.h"
 #include "DevicePollingInfo.h"
 
+// Forward declaration (full definition not needed by the interface)
+class DeviceStatus;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Verdict returned by a registered new-device identification handler
+/// @note Device-agnostic: the bus has no knowledge of what the handler identifies
+/// - NotMine:  the handler does not own this device; default identification proceeds unchanged
+/// - Handled:  the handler has identified the device and set deviceStatus.deviceTypeIndex to a
+///             valid device-type index. The bus completes the device status (init + polling +
+///             data aggregator) from that index using the standard device-type records, so the
+///             handler stays device-agnostic and the existing polling/decode pipeline is reused.
+///             Default address-based identification is skipped.
+/// - Deferred: the device is not yet ready to identify (e.g. mid-arbitration); leave it
+///             unidentified and unpolled for now and retry on a later scan
+enum class RaftDeviceIdentVerdict
+{
+    NotMine,
+    Handled,
+    Deferred
+};
+
+/// @brief New-device identification handler function
+/// @param address address of the newly-detected device
+/// @param deviceStatus (out) when returning Handled, set deviceStatus.deviceTypeIndex to the
+///        identified device-type index (the bus fills in the remaining fields)
+/// @param pCtx opaque context registered alongside the handler
+/// @return identification verdict
+typedef RaftDeviceIdentVerdict (*RaftNewDeviceIdentFn)(BusElemAddrType address, DeviceStatus& deviceStatus, void* pCtx);
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Device decode state
 /// @class RaftBusDeviceDecodeState
@@ -142,6 +171,18 @@ public:
     virtual RaftRetCode sendCmdToDevice(RaftDeviceID deviceID, const char* cmdJSON, String* respMsg)
     {
         return RaftRetCode::RAFT_NOT_IMPLEMENTED;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Register a handler invoked before default identification for newly-detected devices
+    /// @param newDeviceIdentFn handler function (nullptr to clear)
+    /// @param pCtx opaque context passed to the handler
+    /// @note Generic/device-agnostic: the handler decides whether it owns a device and may fully
+    ///       populate its DeviceStatus (verdict Handled), decline (NotMine) or defer (Deferred).
+    virtual void registerNewDeviceIdentHandler(RaftNewDeviceIdentFn newDeviceIdentFn, void* pCtx)
+    {
+        (void)newDeviceIdentFn;
+        (void)pCtx;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
