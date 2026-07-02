@@ -40,7 +40,14 @@ else()
   list(APPEND RAFT_CORE_COMPILE_DEFINITIONS RAFT_FILESYSTEM_HAS_SPIFFS)
 endif()
 
-if (DEFINED RAFT_ENABLE_SD AND RAFT_ENABLE_SD)
+# SD card (FAT filesystem) support. The gate MUST be an environment variable:
+# component REQUIRES are captured during ESP-IDF's early-expansion pass, where
+# CMake cache/normal variables and CONFIG_* are not visible (see the esp_eth /
+# W5500 notes below) but the process environment is. The SysType's features.cmake
+# sets ENV{RAFT_ENABLE_SD}. A plain CMake variable would define the compile flag
+# in the main pass but silently fail to add fatfs/sdmmc to REQUIRES, causing a
+# missing esp_vfs_fat.h at compile time.
+if(DEFINED ENV{RAFT_ENABLE_SD} AND "$ENV{RAFT_ENABLE_SD}" STREQUAL "1")
   set(RAFT_CORE_PRIV_REQUIRES ${RAFT_CORE_PRIV_REQUIRES} fatfs sdmmc)
   list(APPEND RAFT_CORE_COMPILE_DEFINITIONS RAFT_FILESYSTEM_HAS_FATSD)
 endif()

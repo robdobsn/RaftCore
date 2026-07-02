@@ -170,6 +170,10 @@ private:
         uint32_t fsSizeBytes = 0;
         uint32_t fsUsedBytes = 0;
         RaftAtomicBool isSizeInfoValid = {0};
+        // Used-bytes info is computed separately from total size because on SD
+        // (FAT) cards it can require a full FAT scan (f_getfree) taking several
+        // seconds. It is therefore populated lazily off the boot/main-loop path.
+        RaftAtomicBool isUsedInfoValid = {0};
         RaftAtomicBool isFileInfoValid = {0};
         RaftAtomicBool isFileInfoSetup = {0};
         RaftAtomicBool isUsed = {0};
@@ -197,6 +201,7 @@ private:
     bool fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr);
     bool fileInfoGenImmediate(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr);
     bool fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr);
+    void sdUpdateUsedBytes(CachedFileSystem& cachedFs);
     void markFileCacheDirty(const String& fsName, const String& filename);
     void fileSystemCacheService(CachedFileSystem& cachedFs);
     String formatJSONFileInfo(const char* req, CachedFileSystem& cachedFs, const String& fileListStr, const String& rootFolder);

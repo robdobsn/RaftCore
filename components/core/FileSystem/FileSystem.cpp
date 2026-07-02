@@ -1567,6 +1567,10 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
 
 bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr)
 {
+    // Ensure SD used-bytes is populated. This is done lazily here (on the request
+    // task) rather than at boot because it can take several seconds on some cards.
+    sdUpdateUsedBytes(cachedFs);
+
     // Check valid (atomic reads before taking mutex)
     if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) || !RaftAtomicBool_get(cachedFs.isFileInfoValid))
     {
@@ -1779,30 +1783,25 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
             Raft::setJsonErrorResult(req, respStr, "fsInfo");
             return false;
         }
-        // FS settings
+        // FS settings (local FS reports size and used bytes together, both cheap)
         cachedFs.fsSizeBytes = sizeBytes;
         cachedFs.fsUsedBytes = usedBytes;
         RaftAtomicBool_set(cachedFs.isSizeInfoValid, true);
+        RaftAtomicBool_set(cachedFs.isUsedInfoValid, true);
     }
 #ifdef RAFT_FILESYSTEM_HAS_FATSD
     else if (fsName == SD_FILE_SYSTEM_NAME)
     {
-        // Get size info
+        // Total capacity is available immediately from the card CSD. The used-bytes
+        // figure requires f_getfree() which can trigger a full FAT scan taking
+        // several seconds on cards whose on-disk FSINFO free-cluster count is
+        // invalid. This runs on the main SysManager loop at boot, so compute only
+        // the capacity here and populate used-bytes lazily (see sdUpdateUsedBytes)
+        // to avoid stalling startup.
         sdmmc_card_t* pCard = (sdmmc_card_t*)_pSDCard;
         if (pCard)
         {
             cachedFs.fsSizeBytes = ((double) pCard->csd.capacity) * pCard->csd.sector_size;
-        	FATFS* fsinfo;
-            DWORD fre_clust;
-            if(f_getfree("0:",&fre_clust,&fsinfo) == 0)
-            {
-                cachedFs.fsUsedBytes = ((double)(fsinfo->csize))*((fsinfo->n_fatent - 2) - (fsinfo->free_clst))
-            #if _MAX_SS != 512
-                    *(fsinfo->ssize);
-            #else
-                    *512;
-            #endif
-            }
             RaftAtomicBool_set(cachedFs.isSizeInfoValid, true);
         }
     }
@@ -1814,6 +1813,52 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
 }
 
 #endif  // __linux__ / ESP32 fileSysInfoUpdateCache
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Lazily update SD card used-bytes
+// f_getfree() can trigger a full FAT scan taking several seconds on cards whose
+// on-disk FSINFO free-cluster count is invalid. This must NOT run on the main
+// SysManager loop at boot (it would stall the whole system), so it is called on
+// demand from the file-info request path (web/BLE task) and only computed once.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FileSystem::sdUpdateUsedBytes(CachedFileSystem& cachedFs)
+{
+#if !defined(__linux__) && defined(RAFT_FILESYSTEM_HAS_FATSD)
+    // Only needs computing once, and only for the SD (FAT) file system
+    if (RaftAtomicBool_get(cachedFs.isUsedInfoValid))
+        return;
+    String fsName = cachedFs.fsName.c_str();
+    if (fsName != SD_FILE_SYSTEM_NAME)
+        return;
+    sdmmc_card_t* pCard = (sdmmc_card_t*)_pSDCard;
+    if (!pCard)
+        return;
+
+    // Take mutex (this call may block for several seconds while scanning the FAT)
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return;
+
+    uint32_t debugStartMs = millis();
+    FATFS* fsinfo;
+    DWORD fre_clust;
+    if (f_getfree("0:", &fre_clust, &fsinfo) == 0)
+    {
+        cachedFs.fsUsedBytes = ((double)(fsinfo->csize)) * ((fsinfo->n_fatent - 2) - (fsinfo->free_clst))
+    #if _MAX_SS != 512
+            * (fsinfo->ssize);
+    #else
+            * 512;
+    #endif
+    }
+    RaftAtomicBool_set(cachedFs.isUsedInfoValid, true);
+    RaftMutex_unlock(_fileSysMutex);
+    LOG_I(MODULE_PREFIX, "sdUpdateUsedBytes used %d bytes took %dms",
+                (int)cachedFs.fsUsedBytes, (int)(millis() - debugStartMs));
+#else
+    (void)cachedFs;
+#endif
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Mark file cache dirty
