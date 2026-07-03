@@ -32,7 +32,7 @@ public:
     // Setup 
     void setup(LocalFileSystemType localFsType, bool localFsFormatIfCorrupt, bool enableSD, 
         int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin, bool defaultToSDIfAvailable,
-        bool cacheFileSystemInfo);
+        bool cacheFileSystemInfo, bool sdScanUsedAtBoot);
 
     // Service
     void loop();
@@ -139,7 +139,7 @@ public:
     String getTempFileName();
 
     // Get file system size
-    bool getFileSystemSize(const String& fileSystemStr, uint32_t& fsSizeBytes, uint32_t& fsUsedBytes);
+    bool getFileSystemSize(const String& fileSystemStr, uint64_t& fsSizeBytes, uint64_t& fsUsedBytes);
     
 private:
 
@@ -148,6 +148,13 @@ private:
     bool _defaultToSDIfAvailable = false;
     bool _sdIsOk = false;
     bool _cacheFileSystemInfo = false;
+
+    // If true the (potentially slow) SD used-bytes scan is started at boot;
+    // otherwise it is started lazily on first use of the SD card. Either way the
+    // scan runs on a background task so it never stalls the caller.
+    bool _sdScanUsedAtBoot = false;
+    RaftThreadHandle _sdUsedScanTaskHandle = RAFT_THREAD_HANDLE_INVALID;
+    RaftAtomicBool _sdUsedScanStarted = {0};
 
     // SD card
     void* _pSDCard = nullptr;
@@ -167,8 +174,9 @@ private:
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fsName;
         std::basic_string<char, std::char_traits<char>, SpiramAwareAllocator<char>> fsBase;
         std::list<CachedFileInfo, SpiramAwareAllocator<CachedFileInfo>> cachedRootFileList;
-        uint32_t fsSizeBytes = 0;
-        uint32_t fsUsedBytes = 0;
+        // 64-bit so capacities and usage for cards larger than 4GB do not overflow
+        uint64_t fsSizeBytes = 0;
+        uint64_t fsUsedBytes = 0;
         RaftAtomicBool isSizeInfoValid = {0};
         // Used-bytes info is computed separately from total size because on SD
         // (FAT) cards it can require a full FAT scan (f_getfree) taking several
@@ -202,10 +210,16 @@ private:
     bool fileInfoGenImmediate(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr);
     bool fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr);
     void sdUpdateUsedBytes(CachedFileSystem& cachedFs);
+    void sdRequestUsedBytesUpdate(CachedFileSystem& cachedFs);
+    static void sdUsedBytesScanTaskStatic(void* pArg);
     void markFileCacheDirty(const String& fsName, const String& filename);
     void fileSystemCacheService(CachedFileSystem& cachedFs);
     String formatJSONFileInfo(const char* req, CachedFileSystem& cachedFs, const String& fileListStr, const String& rootFolder);
     static const uint32_t SERVICE_COUNT_FOR_CACHE_PRIMING = 10;
+
+    // Background task used to compute SD used-bytes (f_getfree can take seconds)
+    static const uint32_t SD_USED_SCAN_TASK_STACK_BYTES = 4096;
+    static const int SD_USED_SCAN_TASK_PRIORITY = 5;
 
     // File system name
     static constexpr const char* LOCAL_FILE_SYSTEM_NAME = "local";

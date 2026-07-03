@@ -14,7 +14,7 @@
 
 TEST_CASE("file_system_test", "[filesystem]")
 {
-    fileSystem.setup(FileSystem::LOCAL_FS_LITTLEFS, true, false, -1, -1, -1, -1, false, false);
+    fileSystem.setup(FileSystem::LOCAL_FS_LITTLEFS, true, false, -1, -1, -1, -1, false, false, false);
 
     TEST_ASSERT_EQUAL_STRING("local", fileSystem.getDefaultFSRoot().c_str());
 

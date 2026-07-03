@@ -75,22 +75,29 @@ FileSystem::~FileSystem()
 
 void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsFormatIfCorrupt, bool enableSD, 
         int sdMOSIPin, int sdMISOPin, int sdCLKPin, int sdCSPin, bool defaultToSDIfAvailable,
-        bool cacheFileSystemInfo)
+        bool cacheFileSystemInfo, bool sdScanUsedAtBoot)
 {
     // Init
     _localFsType = localFsDefaultType;
     _cacheFileSystemInfo = cacheFileSystemInfo;
     _defaultToSDIfAvailable = defaultToSDIfAvailable;
+    _sdScanUsedAtBoot = sdScanUsedAtBoot;
 
     // Setup local file system
     localFileSystemSetup(localFsFormatIfCorrupt);
 
     // Setup SD file system
-    sdFileSystemSetup(enableSD, sdMOSIPin, sdMISOPin, sdCLKPin, sdCSPin);
+    _sdIsOk = sdFileSystemSetup(enableSD, sdMOSIPin, sdMISOPin, sdCLKPin, sdCSPin);
 
     // Service a few times to setup caches
     for (uint32_t i = 0; i < SERVICE_COUNT_FOR_CACHE_PRIMING; i++)
         loop();
+
+    // Optionally start the (potentially slow) SD used-bytes scan at boot. This runs
+    // on a background task so startup is never stalled; when disabled the scan is
+    // started lazily on first use of the SD card instead.
+    if (_sdScanUsedAtBoot && _sdIsOk)
+        sdRequestUsedBytesUpdate(_sdFsCache);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1567,9 +1574,10 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
 
 bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs, const String& folderStr, String& respStr)
 {
-    // Ensure SD used-bytes is populated. This is done lazily here (on the request
-    // task) rather than at boot because it can take several seconds on some cards.
-    sdUpdateUsedBytes(cachedFs);
+    // Ensure SD used-bytes is populated. This is done lazily here (started on a
+    // background task, never blocking this request) rather than at boot because it
+    // can take several seconds on some cards.
+    sdRequestUsedBytesUpdate(cachedFs);
 
     // Check valid (atomic reads before taking mutex)
     if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) || !RaftAtomicBool_get(cachedFs.isFileInfoValid))
@@ -1643,6 +1651,10 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
         if (!fileSysInfoUpdateCache(req, cachedFs, respStr))
             return false;
     }
+
+    // Ensure SD used-bytes is populated (started on a background task, computed off
+    // the boot/main-loop path and never blocking this request)
+    sdRequestUsedBytesUpdate(cachedFs);
 
     // Take mutex
     if (!RaftMutex_lock(_fileSysMutex, 0))
@@ -1853,10 +1865,67 @@ void FileSystem::sdUpdateUsedBytes(CachedFileSystem& cachedFs)
     }
     RaftAtomicBool_set(cachedFs.isUsedInfoValid, true);
     RaftMutex_unlock(_fileSysMutex);
-    LOG_I(MODULE_PREFIX, "sdUpdateUsedBytes used %d bytes took %dms",
-                (int)cachedFs.fsUsedBytes, (int)(millis() - debugStartMs));
+    LOG_I(MODULE_PREFIX, "sdUpdateUsedBytes used %llu bytes took %dms",
+                (unsigned long long)cachedFs.fsUsedBytes, (int)(millis() - debugStartMs));
 #else
     (void)cachedFs;
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Request an SD used-bytes update (non-blocking)
+// Starts a one-shot background task to run the (potentially multi-second)
+// f_getfree scan exactly once, so no caller thread (including the main SysManager
+// loop / serial console) is ever stalled. Called at boot when configured, and/or
+// lazily from the file-info request path.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FileSystem::sdRequestUsedBytesUpdate(CachedFileSystem& cachedFs)
+{
+#if !defined(__linux__) && defined(RAFT_FILESYSTEM_HAS_FATSD)
+    // Nothing to do if already computed, or not the SD (FAT) file system
+    if (RaftAtomicBool_get(cachedFs.isUsedInfoValid))
+        return;
+    String fsName = cachedFs.fsName.c_str();
+    if (fsName != SD_FILE_SYSTEM_NAME)
+        return;
+
+    // Ensure the scan is only ever started once
+    if (RaftAtomicBool_get(_sdUsedScanStarted))
+        return;
+    RaftAtomicBool_set(_sdUsedScanStarted, true);
+
+    // Start a one-shot background task to perform the scan
+    bool ok = RaftThread_start(_sdUsedScanTaskHandle, FileSystem::sdUsedBytesScanTaskStatic, this,
+                SD_USED_SCAN_TASK_STACK_BYTES, "SDUsedScan", SD_USED_SCAN_TASK_PRIORITY, 0, false);
+    if (!ok)
+    {
+        // Could not create the task - fall back to a synchronous scan
+        RaftAtomicBool_set(_sdUsedScanStarted, false);
+        LOG_W(MODULE_PREFIX, "sdRequestUsedBytesUpdate failed to start task, scanning synchronously");
+        sdUpdateUsedBytes(cachedFs);
+    }
+#else
+    (void)cachedFs;
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// SD used-bytes scan background task (one-shot, self-deleting)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FileSystem::sdUsedBytesScanTaskStatic(void* pArg)
+{
+#if !defined(__linux__) && defined(RAFT_FILESYSTEM_HAS_FATSD)
+    FileSystem* pThis = (FileSystem*)pArg;
+    if (pThis)
+    {
+        pThis->sdUpdateUsedBytes(pThis->_sdFsCache);
+        pThis->_sdUsedScanTaskHandle = RAFT_THREAD_HANDLE_INVALID;
+    }
+    vTaskDelete(NULL);
+#else
+    (void)pArg;
 #endif
 }
 
@@ -2043,9 +2112,13 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
 String FileSystem::formatJSONFileInfo(const char* req, CachedFileSystem& cachedFs, 
             const String& fileListStr, const String& rootFolder)
 {
+    // Used-bytes may still be being computed on a background task (see
+    // sdRequestUsedBytesUpdate). Report -1 while it is not yet known.
+    String diskUsedStr = RaftAtomicBool_get(cachedFs.isUsedInfoValid) ? String(cachedFs.fsUsedBytes) : String("-1");
+
     // Start response JSON
     return R"({"req":")" + String(req) + R"(","rslt":"ok","fsName":")" + String(cachedFs.fsName.c_str()) + 
                 R"(","fsBase":")" + String(cachedFs.fsBase.c_str()) + 
-                R"(","diskSize":)" + String(cachedFs.fsSizeBytes) + R"(,"diskUsed":)" + String(cachedFs.fsUsedBytes) +
+                R"(","diskSize":)" + String(cachedFs.fsSizeBytes) + R"(,"diskUsed":)" + diskUsedStr +
                 R"(,"folder":")" + rootFolder + R"(","files":[)" + fileListStr + "]}";
 }
