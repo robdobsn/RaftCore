@@ -20,7 +20,7 @@
 #include "sdkconfig.h"
 #include "esp_app_desc.h"
 #include "esp_random.h"
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#if defined(CONFIG_SPIRAM) || defined(CONFIG_ESP32_SPIRAM_SUPPORT)
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -539,7 +539,7 @@ String platform_getCompileTime(bool includeDate)
 uint32_t utilsGetSPIRAMSize()
 {
 #ifdef ESP_PLATFORM
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#if defined(CONFIG_SPIRAM) || defined(CONFIG_ESP32_SPIRAM_SUPPORT)
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     switch (esp_spiram_get_chip_size())
     {
