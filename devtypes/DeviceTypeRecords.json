@@ -596,6 +596,72 @@
                 }
             }
         },
+        "MMC5603": {
+            "_notes": "MEMSIC MMC5603NJ 3-axis magnetometer. Product ID reg 0x39=0x10. Init: SW reset (CTRL1 0x1C=0x80, wait 20ms), SET/RESET pulses (CTRL0 0x1B=0x08 then 0x10) to null bridge offset, ODR reg 0x1A=0x64 (100Hz), continuous mode with auto set/reset (CTRL0 0x1B=0xA0 = cmm_freq_en|Auto_SR_en) and CTRL2 0x1D=0x10 (cmm_en). Poll reads 6 bytes 0x00-0x05 (top 16 bits of each 20-bit axis, big-endian). Zero-field null=32768, 0.1uT/LSB, range +/-30 Gauss (+/-3000uT).",
+            "addresses": "0x30",
+            "deviceType": "MMC5603",
+            "detectionValues": "0x39=0x10",
+            "initValues": "0x1C80=&=p20&0x1B08=&=p1&0x1B10=&=p1&0x1A64=&0x1BA0=&0x1D10=",
+            "pollInfo": {
+                "c": "0x00=r6",
+                "i": 100,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Magnetometer",
+                "desc": "3-Axis Mag",
+                "manu": "MEMSIC",
+                "type": "MMC5603",
+                "clas": [
+                    "MAG"
+                ],
+                "resp": {
+                    "b": 6,
+                    "a": [
+                        {
+                            "n": "x",
+                            "t": ">H",
+                            "u": "&micro;T",
+                            "r": [
+                                -3000,
+                                3000
+                            ],
+                            "d": 10,
+                            "a": -3276.8,
+                            "f": ".1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "y",
+                            "t": ">H",
+                            "u": "&micro;T",
+                            "r": [
+                                -3000,
+                                3000
+                            ],
+                            "d": 10,
+                            "a": -3276.8,
+                            "f": ".1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "z",
+                            "t": ">H",
+                            "u": "&micro;T",
+                            "r": [
+                                -3000,
+                                3000
+                            ],
+                            "d": 10,
+                            "a": -3276.8,
+                            "f": ".1f",
+                            "o": "float"
+                        }
+                    ]
+                }
+            }
+        },
         "LSM6DS": {
             "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. Two-phase I2C read: first reads FIFO_STATUS1-4 (word count), then reads only the required FIFO data bytes from 0x3E. FIFO_PATTERN (STATUS3/4) used to skip to next aligned group boundary before decoding. Each sample = 6 words (gx,gy,gz,ax,ay,az). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
             "addresses": "0x6a",
