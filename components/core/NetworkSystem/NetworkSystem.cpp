@@ -17,7 +17,10 @@
 #include "esp_wifi.h"
 #include "esp_idf_version.h"
 #include "nvs_flash.h"
+// Not present when the esp_wifi API is provided by esp_wifi_remote (e.g. ESP32-P4)
+#if __has_include("esp_private/wifi.h")
 #include "esp_private/wifi.h"
+#endif
 #include "sdkconfig.h"
 #include "Logger.h"
 #include "NetworkSystem.h"
@@ -1038,14 +1041,15 @@ bool NetworkSystem::startEthernet()
     // Handle power pin
     if (_networkSettings.powerPin >= 0)
     {
-        gpio_config_t powerPinConfig(
-        {
-            .pin_bit_mask = (1ULL << _networkSettings.powerPin),
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE
-        });
+        // Zero-init then assign fields (newer targets/IDF versions add extra
+        // fields, e.g. hys_ctrl_mode on ESP32-P4, which would otherwise trip
+        // -Werror=missing-field-initializers)
+        gpio_config_t powerPinConfig = {};
+        powerPinConfig.pin_bit_mask = (1ULL << _networkSettings.powerPin);
+        powerPinConfig.mode = GPIO_MODE_OUTPUT;
+        powerPinConfig.pull_up_en = GPIO_PULLUP_DISABLE;
+        powerPinConfig.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        powerPinConfig.intr_type = GPIO_INTR_DISABLE;
         gpio_config(&powerPinConfig);
         gpio_set_level((gpio_num_t) _networkSettings.powerPin, 1);
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -1058,7 +1062,11 @@ bool NetworkSystem::startEthernet()
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
     // Runtime EMAC config (IDF 6.0 removed the CONFIG_ETH_RMII_CLK_* Kconfig
     // options; clock mode/GPIO now come from NetworkSettings JSON).
-    eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+    // Note: ETH_ESP32_EMAC_DEFAULT_CONFIG() is not used because on some
+    // targets (e.g. ESP32-P4) it uses out-of-order designated initializers
+    // which are invalid in C++; zero-init and assign the fields we need.
+    eth_esp32_emac_config_t esp32_emac_config = {};
+    esp32_emac_config.dma_burst_len = ETH_DMA_BURST_LEN_32;
     esp32_emac_config.smi_gpio.mdc_num = (gpio_num_t) _networkSettings.smiMDCPin;
     esp32_emac_config.smi_gpio.mdio_num = (gpio_num_t) _networkSettings.smiMDIOPin;
     esp32_emac_config.interface = EMAC_DATA_INTERFACE_RMII;

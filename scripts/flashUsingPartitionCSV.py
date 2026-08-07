@@ -32,7 +32,7 @@ def parse_args():
                         # Optional so we can extract from sdkconfig
                         nargs='?',
                         default=None,
-                        help="Target chip: esp32, esp32s3, esp32c3, esp32c6")
+                        help="Target chip: esp32, esp32s3, esp32c3, esp32c6, esp32p4")
     parser.add_argument('-b', '--baud', default='2000000',
                         help="Baud rate for serial port")
     parser.add_argument('-f', '--filesysimage', default='',
@@ -100,15 +100,18 @@ def main():
     if args.targetChip is None:
         raise ValueError(f"Target chip not specified and not found in cmake file {args.cmakefilewithidftarget}")
 
+    # Bootloader flash offset varies by chip
+    bootloaderOffsets = {
+        "esp32": "0x1000",
+        "esp32s2": "0x1000",
+        "esp32c5": "0x2000",
+        "esp32p4": "0x2000"
+    }
+    bootloaderOffset = bootloaderOffsets.get(args.targetChip, "0x0000")
+
     # Flash files and offsets
     filesToFlash = [
-        ["bootloader/bootloader.bin","0x1000"],
-        ["partition_table/partition-table.bin", "0x8000"],
-        ["ota_data_initial.bin", "$otadata"],
-        ["$firmware_binary_name", "$app0"],
-        ["$filesysimage", "$fs"]
-    ] if args.targetChip == "esp32" else [
-        ["bootloader/bootloader.bin","0x0000"],
+        ["bootloader/bootloader.bin", bootloaderOffset],
         ["partition_table/partition-table.bin", "0x8000"],
         ["ota_data_initial.bin", "$otadata"],
         ["$firmware_binary_name", "$app0"],

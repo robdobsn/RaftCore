@@ -107,6 +107,9 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
     // Use the public (MAC) address of BLE
     uint8_t addr[6] = {0,0,0,0,0,0};
     int rc = esp_read_mac(addr, macType);
+    // Chips without the requested interface (e.g. WiFi STA on ESP32-P4) - use base MAC
+    if (rc != ESP_OK)
+        rc = esp_read_mac(addr, ESP_MAC_BASE);
     if (rc != ESP_OK)
         return "";
     String macStr = Raft::formatMACAddr(addr, pSeparator);

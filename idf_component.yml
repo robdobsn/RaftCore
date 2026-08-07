@@ -2,6 +2,18 @@
 dependencies:
   joltwallet/littlefs: ">=1.22.1"
   espressif/mdns: ">=1.11.0"
+  # ESP32-P4 has no native WiFi - the esp_wifi API is provided by esp_wifi_remote
+  # which forwards to a companion chip (e.g. ESP32-C6) via esp_hosted transport
+  # (SDIO/SPI/UART). Only pulled in for esp32p4 targets so other chips are
+  # unaffected. Host-side transport/pin config is set in the app's sdkconfig.
+  espressif/esp_wifi_remote:
+    version: "*"
+    rules:
+      - if: "target == esp32p4"
+  espressif/esp_hosted:
+    version: "*"
+    rules:
+      - if: "target == esp32p4"
   # NOTE: the W5500 SPI Ethernet driver (espressif/w5500) is intentionally NOT a
   # dependency here. A manifest dependency of RaftCore is an implicit requirement
   # of every build, which would force the W5500 driver to compile (and fail) on
