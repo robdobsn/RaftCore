@@ -1280,8 +1280,9 @@ bool FileSystem::localFileSystemSetupLittleFS(bool formatIfCorrupt)
                 LOG_I(MODULE_PREFIX, "setup failed to init LittleFS (error %s)", esp_err_to_name(ret));
             }
 #endif
+            return false;
         }
-        return false;
+        // ALT partition registered ok - fall through to complete setup
     }
 
     // Get file system info
