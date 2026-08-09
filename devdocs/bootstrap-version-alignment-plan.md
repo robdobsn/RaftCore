@@ -1,8 +1,9 @@
 # Bootstrap version alignment plan (RaftCore + RaftCLI)
 
-_Status: PLANNED 2026-08-09. Context: CMP0169 FetchContent deprecation fix made
-in RaftCore scripts (uncommitted); RaftCLI scaffolds projects with a stale
-pinned bootstrap._
+_Status: COMPLETE 2026-08-09. RaftCore v1.52.1 released (CMP0169 fix +
+release-asset GitHub Action, verified working); RaftCLI 1.20.1 published with
+the derived-bootstrap-URL template. All verification items below done except
+the optional full-offline reconfigure test._
 
 ## Problem
 
@@ -138,10 +139,12 @@ normal users (fallback identical).
 
 ### 6. Verification
 
-- [ ] Scaffold a throwaway project with the updated RaftCLI (`raft new`),
-      build for esp32 and esp32p4, confirm: no CMP0169/deprecation warnings,
-      bootstrap version in build log matches the pin, components fetch and
-      link
+- [x] Scaffolded a throwaway project with RaftCLI 1.20.1 (`raft new`, esp32,
+      IDF 6.0.2): full build clean, no CMP0169/deprecation warnings.
+      `RaftCore@main` → stamp shows `releases/latest/download`; repinned
+      `RaftCore@v1.52.1` → stamp shows `releases/download/v1.52.1`. Note:
+      the pin lives in `systypes/Common/features.cmake` in scaffolded
+      projects (2026-08-09)
 - [x] Tag parse logic unit-tested (PlaneRadar `main` and synthetic pinned
       `v1.52.1` both resolve correctly)
 - [x] Delete-build-folder rebuild of PlaneRadar with `raftdevlibs` removed:
@@ -150,5 +153,9 @@ normal users (fallback identical).
       succeeded (2026-08-09). Gotcha discovered: open editor tabs can
       resurrect a skeleton `raftdevlibs` — the local-override EXISTS check
       could be hardened to verify Phase2 script presence too
-- [ ] Offline reconfigure test (network disabled) to prove the download guard
-      keeps an existing build working
+- [x] Download-failure guard proven two ways: (a) reconfigure with unchanged
+      URL skips re-download (stamp-file guard); (b) pin to nonexistent
+      `v9.99.9` → warning "download failed - using previously downloaded
+      copy" and configure continues (subsequent source fetch fails as
+      expected since the ref doesn't exist). Full offline test not run but
+      the guard path is exercised
