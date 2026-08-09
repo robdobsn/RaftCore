@@ -125,14 +125,19 @@ foreach(_raft_component ${RAFT_COMPONENTS})
 
     else()
 
-        # Fetch the Raft library from remote
+        # Fetch the Raft library from remote. SOURCE_SUBDIR points at a
+        # non-existent folder so FetchContent_MakeAvailable only downloads the
+        # sources without add_subdirectory() - components are added to the build
+        # via EXTRA_COMPONENT_DIRS instead. (FetchContent_Populate with declared
+        # details is deprecated - CMP0169.)
         FetchContent_Declare(
             ${_raft_component_lower}
             SOURCE_DIR     ${RAFT_BUILD_ARTIFACTS_FOLDER}/${_raft_component_name}
             GIT_REPOSITORY ${_raft_repo_url}
             GIT_TAG        ${_raft_component_tag}
+            SOURCE_SUBDIR  _raft_fetch_only_no_subdir_
         )
-        FetchContent_Populate(${_raft_component_lower})
+        FetchContent_MakeAvailable(${_raft_component_lower})
 
         # Add the component dir to the list of extra component dirs
         set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${${_raft_component_lower}_SOURCE_DIR})

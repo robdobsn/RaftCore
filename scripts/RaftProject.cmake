@@ -233,14 +233,18 @@ foreach(_raft_component ${RAFT_COMPONENTS})
         list(GET _raft_component_split 1 _raft_component_tag)
     endif()
 
-    # Fetch the Raft library
+    # Fetch the Raft library. SOURCE_SUBDIR points at a non-existent folder so
+    # FetchContent_MakeAvailable only downloads the sources without
+    # add_subdirectory() - components are added via EXTRA_COMPONENT_DIRS.
+    # (FetchContent_Populate with declared details is deprecated - CMP0169.)
     FetchContent_Declare(
         ${_raft_component_lower}
         SOURCE_DIR     ${RAFT_BUILD_ARTIFACTS_FOLDER}/${_raft_component_name}
         GIT_REPOSITORY https://github.com/robdobsn/${_raft_component_name}.git
         GIT_TAG        ${_raft_component_tag}
+        SOURCE_SUBDIR  _raft_fetch_only_no_subdir_
     )
-    FetchContent_Populate(${_raft_component_lower})
+    FetchContent_MakeAvailable(${_raft_component_lower})
 
     # Add the component dir to the list of extra component dirs
     set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${${_raft_component_lower}_SOURCE_DIR})
