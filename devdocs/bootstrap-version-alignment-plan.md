@@ -36,10 +36,10 @@ IDF 6.0.2): zero warnings, identical component resolution.
 ### 1. RaftCore: release the fix
 
 - [x] Commit the two script changes (37c0776)
-- [ ] Push and cut release **v1.52.1** (or v1.53.0)
+- [x] Push and cut release **v1.52.1** (published 2026-08-09)
 - [x] Release must include the `RaftBootstrap.cmake` asset — via the new
       GitHub Action (step 2); v1.37.1's asset was uploaded manually and no
-      workflow exists in this repo today (`.github/workflows` absent)
+      workflow existed in this repo before
 
 ### 2. RaftCore: GitHub Action to attach RaftBootstrap.cmake to every release
 
@@ -69,7 +69,7 @@ jobs:
 - [x] Add the workflow (16d2732) (trigger on `release: published` so it also
       works for releases created from the GitHub UI; `--clobber` makes re-runs
       safe)
-- [ ] Verify on the next release that the asset appears and matches the
+- [x] Verified on v1.52.1: asset uploaded by the action, hash-identical to the
       tagged `scripts/RaftBootstrap.cmake`
 
 ### 3. RaftCLI template: bootstrap version follows the RaftCore tag (DECIDED)
@@ -142,11 +142,13 @@ normal users (fallback identical).
       build for esp32 and esp32p4, confirm: no CMP0169/deprecation warnings,
       bootstrap version in build log matches the pin, components fetch and
       link
-- [ ] Scaffold once with a pinned `RaftCore@<tag>` and once with
-      `RaftCore@main` — confirm the derived bootstrap URL is the tag asset
-      and `releases/latest` respectively
-- [ ] Delete-build-folder rebuild of PlaneRadar with the bumped URL (fallback
-      path, i.e. with `raftdevlibs` temporarily renamed) to prove the release
-      asset works
+- [x] Tag parse logic unit-tested (PlaneRadar `main` and synthetic pinned
+      `v1.52.1` both resolve correctly)
+- [x] Delete-build-folder rebuild of PlaneRadar with `raftdevlibs` removed:
+      bootstrap downloaded from the v1.52.1 release via `releases/latest`
+      (asset download count confirmed), zero deprecation warnings, full build
+      succeeded (2026-08-09). Gotcha discovered: open editor tabs can
+      resurrect a skeleton `raftdevlibs` — the local-override EXISTS check
+      could be hardened to verify Phase2 script presence too
 - [ ] Offline reconfigure test (network disabled) to prove the download guard
       keeps an existing build working
