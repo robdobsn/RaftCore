@@ -377,6 +377,9 @@ private:
     // Get system version
     RaftRetCode apiGetVersion(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
+    // Get capabilities (enumerate registered REST API endpoints)
+    RaftRetCode apiGetCaps(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
+
     // Friendly name get/set
     RaftRetCode apiFriendlyName(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo);
 
