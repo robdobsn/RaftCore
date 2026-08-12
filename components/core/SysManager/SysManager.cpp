@@ -190,6 +190,9 @@ void SysManager::postSetup()
         _pRestAPIEndpointManager->addEndpoint("v", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET, 
                 std::bind(&SysManager::apiGetVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), 
                 "Get version info");
+        _pRestAPIEndpointManager->addEndpoint("caps", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET, 
+                std::bind(&SysManager::apiGetCaps, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), 
+                "List capabilities (registered API endpoints). caps/<name> for detail");
         _pRestAPIEndpointManager->addEndpoint("sysmodinfo", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET, 
                 std::bind(&SysManager::apiGetSysModInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), 
                 "Get sysmod info");
@@ -1004,6 +1007,68 @@ RaftRetCode SysManager::apiGetVersion(const String &reqStr, String& respStr, con
 #endif
 
     return RaftRetCode::RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief API for enumerating system capabilities (registered REST API endpoints)
+/// @param reqStr Request string. "caps" lists all endpoint names, "caps/<name>" returns detail for one
+/// @param respStr Response string
+/// @param sourceInfo Source of the request
+/// @return response code
+/// @note This is the single source of truth for what the firmware supports - clients can use it to
+///       feature-detect endpoints instead of probing them (which causes spurious timeouts/retries).
+///       Older firmware without this endpoint returns "failUnknownAPI", which clients treat as
+///       "capabilities unknown" and fall back to their own detection.
+RaftRetCode SysManager::apiGetCaps(const String &reqStr, String& respStr, const APISourceInfo& sourceInfo)
+{
+    // Capabilities schema version - bump when the response shape changes
+    static const int CAPS_VERSION = 1;
+
+    // No endpoint manager means nothing to enumerate
+    if (!_pRestAPIEndpointManager)
+    {
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "noEndpoints");
+    }
+
+    // Optional feature name - "caps/<name>" requests detail for a single endpoint
+    String featureName = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
+
+    // Common capsVersion field included in every response
+    String capsVersionJson = "\"capsVersion\":" + String(CAPS_VERSION);
+
+    // Extended form: caps/<name> returns detail for a single endpoint
+    if (featureName.length() > 0)
+    {
+        for (int i = 0; i < _pRestAPIEndpointManager->getNumEndpoints(); i++)
+        {
+            RestAPIEndpoint* pEndpoint = _pRestAPIEndpointManager->getNthEndpoint(i);
+            if (!pEndpoint)
+                continue;
+            if (!featureName.equalsIgnoreCase(pEndpoint->_endpointStr))
+                continue;
+            String detailJson = capsVersionJson +
+                    ",\"name\":\"" + Raft::escapeString(pEndpoint->_endpointStr.c_str(), true) + "\"" +
+                    ",\"method\":\"" + RestAPIEndpointManager::getEndpointMethodStr(pEndpoint->_endpointMethod) + "\"" +
+                    ",\"desc\":\"" + Raft::escapeString(pEndpoint->_description.c_str(), true) + "\"";
+            return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, detailJson.c_str());
+        }
+        // Not found
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "unknownFeature", capsVersionJson.c_str());
+    }
+
+    // Default form: caps returns the list of all registered endpoint names
+    String capsList;
+    for (int i = 0; i < _pRestAPIEndpointManager->getNumEndpoints(); i++)
+    {
+        RestAPIEndpoint* pEndpoint = _pRestAPIEndpointManager->getNthEndpoint(i);
+        if (!pEndpoint)
+            continue;
+        if (capsList.length() > 0)
+            capsList += ",";
+        capsList += "\"" + Raft::escapeString(pEndpoint->_endpointStr.c_str(), true) + "\"";
+    }
+    String listJson = capsVersionJson + ",\"caps\":[" + capsList + "]";
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, listJson.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
