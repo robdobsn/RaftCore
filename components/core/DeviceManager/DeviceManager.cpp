@@ -1678,6 +1678,43 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
 void DeviceManager::registerForDeviceData(const char* deviceTypeName, RaftDeviceDataChangeCB dataChangeCB,
         uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo, bool unregister)
 {
+    // The identifier may be a device address of the form "<bus>_<addr>[@slot]"
+    // (e.g. "I2CA_0x6a@0") rather than a device type name. If it resolves to a
+    // real bus + address, register by device ID instead. That path is deferred
+    // until the device at that address comes online (see busElemStatusCB), so it
+    // works even when called before the device has been identified.
+    {
+        String idStr(deviceTypeName);
+        int usPos = idStr.indexOf('_');
+        if (usPos > 0)
+        {
+            String busPart = idStr.substring(0, usPos);
+            String addrPart = idStr.substring(usPos + 1);
+            // Drop any "@slot" suffix
+            int atPos = addrPart.indexOf('@');
+            if (atPos >= 0)
+                addrPart = addrPart.substring(0, atPos);
+            // Strip an optional 0x prefix from the address
+            if (addrPart.startsWith("0x") || addrPart.startsWith("0X"))
+                addrPart = addrPart.substring(2);
+            // Only treat as an address if the bus resolves (by name or number)
+            // and the address starts with a hex digit
+            RaftBus* pNamedBus = raftBusSystem.getBusByName(busPart, true);
+            char c0 = addrPart.length() > 0 ? addrPart[0] : '\0';
+            bool addrIsHex = (c0 >= '0' && c0 <= '9') || (c0 >= 'a' && c0 <= 'f') || (c0 >= 'A' && c0 <= 'F');
+            if (pNamedBus && addrIsHex)
+            {
+                BusElemAddrType address = (BusElemAddrType)strtoul(addrPart.c_str(), nullptr, 16);
+                RaftDeviceID deviceID(pNamedBus->getBusNum(), address);
+                if (deviceID.isValid())
+                {
+                    registerForDeviceData(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo, unregister);
+                    return;
+                }
+            }
+        }
+    }
+
     // Get device type index for the device type name
     DeviceTypeRecord devTypeRec;
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
