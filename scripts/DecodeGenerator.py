@@ -124,6 +124,27 @@ class DecodeGenerator:
             return self.larger_signed_c_type[c_type]
         return c_type
 
+    # Attr type format: optional endian, optional prefix count, code, optional [N] suffix
+    # e.g. "B", ">h", "B[9]", "<h[64]", "3H"
+    _attr_type_re = re.compile(r'^([<>]?)(\d*)([a-zA-Z?])(?:\[(\d+)\])?$')
+
+    def parse_attr_type(self, pystruct_type):
+        """Parse an attribute type string into (base_type, repeat_count)"""
+        m = self._attr_type_re.match(pystruct_type.strip())
+        if not m:
+            return pystruct_type, 1
+        endian, prefix, code, bracket = m.groups()
+        repeat = (int(prefix) if prefix else 1) * (int(bracket) if bracket else 1)
+        # 's' strings consume the count as byte length producing one value
+        if code == 's':
+            repeat = 1
+        return endian + code, max(repeat, 1)
+
+    def attr_repeat_count(self, attr_rec):
+        """Number of elements for an attribute (>1 for array attributes)"""
+        _, repeat = self.parse_attr_type(attr_rec.get("t", ""))
+        return repeat
+
     def get_c_eqv_type(self, attr_rec, use_o_field_if_present, larger_signed_type):
         
         # Check if there is a specific definition in the "o" field
@@ -140,8 +161,9 @@ class DecodeGenerator:
         if len(pystruct_type) == 0:
             return ""
         
-        # Get C type from pystruct map
-        pystruct_rec = self.pystruct_map.get(pystruct_type, None)
+        # Get C type from pystruct map (base type - repeat count doesn't change the C type)
+        base_type, _ = self.parse_attr_type(pystruct_type)
+        pystruct_rec = self.pystruct_map.get(base_type, None)
         if pystruct_rec is None:
             print("get_c_eqv_type unknown type: " + pystruct_type)
             return ""
@@ -172,6 +194,13 @@ class DecodeGenerator:
         
         # Get C type
         c_type = self.get_c_eqv_type(attr_rec, True, False)
+        if c_type == "":
+            return ""
+
+        # Array attributes become C array fields
+        repeat = self.attr_repeat_count(attr_rec)
+        if repeat > 1:
+            return c_type + " " + attr_name + "[" + str(repeat) + "]"
 
         # C field
         return c_type + " " + attr_name
@@ -201,7 +230,8 @@ class DecodeGenerator:
     def is_attr_type_signed(self, attrType: str) -> bool:
         if len(attrType) == 0:
             return False
-        attrStr = attrType[1] if (attrType[0] == ">" or attrType[0] == "<") and len(attrType) > 1 else attrType[0]
+        base_type, _ = self.parse_attr_type(attrType)
+        attrStr = base_type[1] if (base_type[0] == ">" or base_type[0] == "<") and len(base_type) > 1 else base_type[0]
         return attrStr == "b" or attrStr == "h" or attrStr == "i" or attrStr == "l" or attrStr == "q"
 
     def gen_timestamp_extract_code(self, extract_code, line_prefix):
@@ -373,36 +403,46 @@ class DecodeGenerator:
                     extract_code.append(f"{line_prefix}        const uint8_t* pAbsPos = pAttrStart + {attr_pos};\n")
                     var_pPos = "pAbsPos"
 
-            # Generate code to check the buffer bounds
-            extract_code.append(f"{line_prefix}        if ({var_pPos} + sizeof({buf_elem_type}) > pBufEnd) break;\n")
+            # Element repeat count (array attributes decode element-by-element in a loop)
+            repeat = self.attr_repeat_count(el)
+            elem_ind = "    " if repeat > 1 else ""
+            store_target = f"pOut->{attr_name}[__elemIdx]" if repeat > 1 else f"pOut->{attr_name}"
 
-            # Mask on signed value handling
-            pystruct_type_for_extract = pystruct_type
+            # Generate code to check the buffer bounds
+            if repeat > 1:
+                extract_code.append(f"{line_prefix}        if ({var_pPos} + {repeat} * sizeof({buf_elem_type}) > pBufEnd) break;\n")
+                extract_code.append(f"{line_prefix}        for (uint32_t __elemIdx = 0; __elemIdx < {repeat}; __elemIdx++) {{\n")
+            else:
+                extract_code.append(f"{line_prefix}        if ({var_pPos} + sizeof({buf_elem_type}) > pBufEnd) break;\n")
+
+            # Mask on signed value handling (lookup uses the base type without repeat count)
+            base_type, _ = self.parse_attr_type(pystruct_type)
+            pystruct_type_for_extract = base_type
             if self.is_attr_type_signed(pystruct_type) and "m" in el:
                 # Upper case the type to get the unsigned version
-                pystruct_type_for_extract = pystruct_type.upper()
+                pystruct_type_for_extract = base_type.upper()
 
             # Get the function to extract the attribute from the buffer
             attr_get_and_inc_fn = self.pystruct_map.get(pystruct_type_for_extract, None)[1]
 
             # Generate code to extract the attribute from the buffer
-            extract_code.append(f"{line_prefix}        {intermediate_type} __{attr_name} = {attr_get_and_inc_fn}({var_pPos}, pBufEnd);\n")
+            extract_code.append(f"{line_prefix}        {elem_ind}{intermediate_type} __{attr_name} = {attr_get_and_inc_fn}({var_pPos}, pBufEnd);\n")
 
             # Check for XOR mask
             if "x" in el:
                 mask = int(el["x"], 0)
-                extract_code.append(f"{line_prefix}        __{attr_name} ^= 0x{mask:x};\n")
+                extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} ^= 0x{mask:x};\n")
                 
             # Generate AND mask code
             if "m" in el:
                 mask = int(el["m"], 0)
                 if self.is_attr_type_signed(pystruct_type):
                     sign_bit_mask = (mask + 1) >> 1
-                    extract_code.append(f"{line_prefix}        if (__{attr_name} & {sign_bit_mask})" + " {\n")
-                    extract_code.append(f"{line_prefix}            __{attr_name} |= ~{mask} & ~{sign_bit_mask};\n")
-                    extract_code.append(f"{line_prefix}        " + "}\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}if (__{attr_name} & {sign_bit_mask})" + " {\n")
+                    extract_code.append(f"{line_prefix}            {elem_ind}__{attr_name} |= ~{mask} & ~{sign_bit_mask};\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}" + "}\n")
                 else:
-                    extract_code.append(f"{line_prefix}        __{attr_name} &= 0x{mask:x};\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} &= 0x{mask:x};\n")
 
             # Check for sign-bit and subtract handling
             if "sb" in el:
@@ -410,30 +450,34 @@ class DecodeGenerator:
                 sign_bit_mask = 1 << sign_bit_pos
                 if "ss" in el:
                     sign_bit_subtract = int(el["ss"])
-                    extract_code.append(f"{line_prefix}        if (__{attr_name} & 0x{sign_bit_mask:x}) __{attr_name} = 0x{sign_bit_subtract:x} - __{attr_name};\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}if (__{attr_name} & 0x{sign_bit_mask:x}) __{attr_name} = 0x{sign_bit_subtract:x} - __{attr_name};\n")
                 else:
-                    extract_code.append(f"{line_prefix}        if (__{attr_name} & 0x{sign_bit_mask:x}) __{attr_name} -= {sign_bit_mask << 1};\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}if (__{attr_name} & 0x{sign_bit_mask:x}) __{attr_name} -= {sign_bit_mask << 1};\n")
 
             # Check for bit shift required
             if "s" in el and el["s"] != 0:
                 bitshift = el["s"]
                 if bitshift > 0:
-                    extract_code.append(f"{line_prefix}        __{attr_name} <<= {bitshift};\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} <<= {bitshift};\n")
                 elif bitshift < 0:
-                    extract_code.append(f"{line_prefix}        __{attr_name} >>= {-bitshift};\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} >>= {-bitshift};\n")
 
             # Generate code to store the value to the struct
-            extract_code.append(f"{line_prefix}        pOut->{attr_name} = __{attr_name};\n")
+            extract_code.append(f"{line_prefix}        {elem_ind}{store_target} = __{attr_name};\n")
             
             # Check for divisor
             if "d" in el and el["d"] != 0:
                 divisor = el["d"]
-                extract_code.append(f"{line_prefix}        pOut->{attr_name} /= {divisor};\n")
+                extract_code.append(f"{line_prefix}        {elem_ind}{store_target} /= {divisor};\n")
 
             # Check for addition
             if "a" in el and el["a"] != 0:
                 addition = el["a"]
-                extract_code.append(f"{line_prefix}        pOut->{attr_name} += {addition};\n")
+                extract_code.append(f"{line_prefix}        {elem_ind}{store_target} += {addition};\n")
+
+            # Close the element loop for array attributes
+            if repeat > 1:
+                extract_code.append(f"{line_prefix}        " + "}\n")
             
             # End block to stop C++ from complaining about reused variables
             extract_code.append(f"{line_prefix}    " + "}\n")
