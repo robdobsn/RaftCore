@@ -292,6 +292,14 @@ private:
     /// @param reqResult Result of the command
     void cmdResultReportCallback(BusRequestResult& reqResult);
 
+    // cmdraw read-back: single in-flight request; the API task waits for the bus
+    // worker's callback to fill the buffer. The cmdId carries a generation count
+    // so a late callback from an abandoned request can't satisfy a newer one.
+    static const uint32_t CMDID_CMDRAW_BASE = 0x43520000;
+    uint32_t _cmdRawInFlightCmdId = 0;
+    volatile bool _cmdRawResultReady = false;
+    std::vector<uint8_t> _cmdRawReadData;
+
     /// @brief Get device list frozen
     /// @param pDeviceList (out) list of devices (must be maxNumDevices long)
     /// @param maxNumDevices maximum number of devices to return

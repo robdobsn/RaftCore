@@ -1164,9 +1164,12 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeVec.data(), numBytesToWrite);
     writeVec.resize(writeBytesLen);
 
-    // Create hardware element request
-    static const uint32_t CMDID_CMDRAW = 100;
-    HWElemReq hwElemReq = {writeVec, numBytesToRead, CMDID_CMDRAW, "cmdraw", 0};
+    // Create hardware element request (generation-stamped cmdId for read-back matching)
+    static uint32_t cmdRawGeneration = 0;
+    uint32_t cmdId = CMDID_CMDRAW_BASE + (++cmdRawGeneration & 0xFFFF);
+    _cmdRawInFlightCmdId = cmdId;
+    _cmdRawResultReady = false;
+    HWElemReq hwElemReq = {writeVec, numBytesToRead, (int)cmdId, "cmdraw", 0};
 
     // Create bus request info with callback to receive response
     BusRequestInfo busReqInfo("", deviceID.getAddress());
@@ -1197,6 +1200,26 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
 #ifdef DEBUG_API_CMDRAW
     LOG_I(MODULE_PREFIX, "apiHWDevice hexWriteData %s numToRead %d", hexWriteData.c_str(), numBytesToRead);
 #endif
+
+    // If a read was requested, wait (bounded) for the bus worker's callback and
+    // return the read bytes in the response. This can run on the main loop task,
+    // so the wait is capped at a short long-stop to avoid stalling servicing.
+    if (rslt && (numBytesToRead > 0))
+    {
+        static const uint32_t CMDRAW_READ_TIMEOUT_MAX_MS = 20;
+        uint32_t timeoutMs = jsonParams.getLong("timeoutMs", CMDRAW_READ_TIMEOUT_MAX_MS);
+        if (timeoutMs > CMDRAW_READ_TIMEOUT_MAX_MS)
+            timeoutMs = CMDRAW_READ_TIMEOUT_MAX_MS;
+        uint32_t startMs = millis();
+        while (!_cmdRawResultReady && !Raft::isTimeout(millis(), startMs, timeoutMs))
+            RaftThread_sleep(1);
+        if (!_cmdRawResultReady)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "readTimeout");
+        String hexRead;
+        Raft::getHexStrFromBytes(_cmdRawReadData.data(), _cmdRawReadData.size(), hexRead);
+        String otherJson = "\"rdData\":\"" + hexRead + "\"";
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, otherJson.c_str());
+    }
 
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, rslt);
 }
@@ -2341,6 +2364,16 @@ RaftRetCode DeviceManager::apiDevManSlot(const String &reqStr, String &respStr, 
 /// @param reqResult Result of the command
 void DeviceManager::cmdResultReportCallback(BusRequestResult& reqResult)
 {
+    // Capture read data for a waiting cmdraw API call (runs on the bus worker task;
+    // ready flag is set only after the data is stored)
+    if ((_cmdRawInFlightCmdId != 0) && (reqResult.getCmdId() == _cmdRawInFlightCmdId) && !_cmdRawResultReady)
+    {
+        if (reqResult.getReadData() && (reqResult.getReadDataLen() > 0))
+            _cmdRawReadData.assign(reqResult.getReadData(), reqResult.getReadData() + reqResult.getReadDataLen());
+        else
+            _cmdRawReadData.clear();
+        _cmdRawResultReady = true;
+    }
 #ifdef DEBUG_CMD_RESULT_CALLBACK
     LOG_I(MODULE_PREFIX, "cmdResultReportCallback len %d", reqResult.getReadDataLen());
     Raft::logHexBuf(reqResult.getReadData(), reqResult.getReadDataLen(), MODULE_PREFIX, "cmdResultReportCallback");
