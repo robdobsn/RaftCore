@@ -279,6 +279,7 @@ private:
 
     /// @brief Handle devman/busname
     RaftRetCode apiDevManBusName(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManBusStatus(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
     /// @brief Resolve a RaftDeviceID and RaftBus pointer from API params ("deviceid" OR "bus"+"addr")
     /// @param jsonParams JSON object containing the parameters for the command, expected to have ("bus" and "addr"), "deviceid" or "device" fields

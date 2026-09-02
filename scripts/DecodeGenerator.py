@@ -529,6 +529,13 @@ class DecodeGenerator:
         poll_info = dev_type_record.get("pollInfo", {})
         poll_config_record = poll_info.get("c", "")
         poll_rslt_len = self._get_polling_config_result_len_bytes(poll_config_record)
+        # A device that declares a response-integrity trailer is read with the trailer
+        # included, but the bus layer validates and strips it before the decode runs -
+        # so the decoded record size (resp.b) is the read length minus the trailer.
+        # See RaftI2C devdocs/i2c-poll-data-integrity-crc-plan.md
+        crc_info = poll_info.get("crc", {})
+        if crc_info.get("t", ""):
+            poll_rslt_len -= crc_info.get("trailer", 3)
         return poll_rslt_len
 
     def decode_fn(self, dev_type_record, dev_type_key):

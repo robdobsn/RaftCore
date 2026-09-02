@@ -104,7 +104,11 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         exclude_from_addr_map = bool(dev_type.get("excludeFromAddrMap", False))
 
         # Scan priority
-        if "scanPriority" in dev_type and not exclude_from_addr_map:
+        # A record with no "addresses" contributes no addresses to prioritise. Guard for it:
+        # without this, addr_list[0] below raises IndexError for any record that declares a
+        # scanPriority but no addresses (all RSAO records are in exactly that state today, so
+        # clearing excludeFromAddrMap on one would crash the build rather than do anything).
+        if "scanPriority" in dev_type and not exclude_from_addr_map and len(addr_list) > 0:
             scan_priority = dev_type.get("scanPriority", 0)
 
             # If scan_priority is an array then set scan priority for primary address to first

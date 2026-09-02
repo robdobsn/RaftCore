@@ -359,6 +359,50 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
             pollingInfo.pollBusHzSlotMask |= (1ULL << slotNum);
     }
 
+    // Poll response integrity (CRC + trailer), e.g.
+    //   "crc": { "t": "crc16ccitt", "trailer": 3, "reread": "0x22", "retries": 1 }
+    // Absent (or an unrecognised type) leaves polling behaviour exactly as before.
+    // See RaftI2C devdocs/i2c-poll-data-integrity-crc-plan.md
+    String crcTypeStr = pollInfo.getString("crc/t", "");
+    if (crcTypeStr.equalsIgnoreCase("crc16ccitt"))
+    {
+        pollingInfo.pollCrcType = DevicePollingInfo::POLL_CRC_16_CCITT;
+        pollingInfo.pollCrcTrailerLen = pollInfo.getLong("crc/trailer", 3);
+        pollingInfo.pollCrcRetries = pollInfo.getLong("crc/retries", 1);
+        String rereadStr = pollInfo.getString("crc/reread", "");
+        if (rereadStr.length() > 0)
+            extractBufferDataFromHexStr(rereadStr, pollingInfo.pollCrcRereadCmd);
+        // Without a re-read command there is nothing to retry with - detect and drop.
+        if (pollingInfo.pollCrcRereadCmd.size() == 0)
+            pollingInfo.pollCrcRetries = 0;
+
+        // Optional recovery backstop for a device that has stopped producing valid
+        // responses altogether (e.g. an RSAO that reset into its bootloader).
+        String recoverStr = pollInfo.getString("crc/recover", "");
+        if (recoverStr.length() > 0)
+            extractBufferDataFromHexStr(recoverStr, pollingInfo.pollCrcRecoverCmd);
+        pollingInfo.pollCrcRecoverAfter = pollInfo.getLong("crc/recoverAfter", 0);
+        if (pollingInfo.pollCrcRecoverCmd.size() == 0)
+            pollingInfo.pollCrcRecoverAfter = 0;
+
+        // The trailer is stripped once validated, so the stored result (and hence the
+        // decode and the record's resp.b) stays the size it was before the CRC was
+        // added - only the read length grows.
+        if (pollResultDataSize >= pollingInfo.pollCrcTrailerLen)
+            pollResultDataSize -= pollingInfo.pollCrcTrailerLen;
+
+#ifdef DEBUG_POLL_REQUEST_REQS
+        LOG_I(MODULE_PREFIX, "getPollInfo addr %04x crc16ccitt trailer %d retries %d rereadLen %d storedSize %d",
+                    addr, (int)pollingInfo.pollCrcTrailerLen, (int)pollingInfo.pollCrcRetries,
+                    (int)pollingInfo.pollCrcRereadCmd.size(), (int)pollResultDataSize);
+#endif
+    }
+    else if (crcTypeStr.length() > 0)
+    {
+        LOG_W(MODULE_PREFIX, "getPollInfo addr %04x UNKNOWN crc type %s - integrity checking disabled",
+                    addr, crcTypeStr.c_str());
+    }
+
     // Set the poll result size
     pollingInfo.pollResultSizeIncTimestamp = pollResultDataSize + DevicePollingInfo::POLL_RESULT_TIMESTAMP_SIZE;
 }

@@ -26,6 +26,12 @@ public:
         pollBusHz = 0;
         pollBusHzSlotMask = 0;
         pollResultSizeIncTimestamp = 0;
+        pollCrcType = POLL_CRC_NONE;
+        pollCrcTrailerLen = 0;
+        pollCrcRetries = 0;
+        pollCrcRereadCmd.clear();
+        pollCrcRecoverCmd.clear();
+        pollCrcRecoverAfter = 0;
         pollReqs.clear();
     }
 
@@ -69,6 +75,45 @@ public:
 
     // Size of poll result (including timestamp)
     uint32_t pollResultSizeIncTimestamp = 0;
+
+    // -- Poll response integrity (CRC + trailer) ------------------------------
+    // Some devices append a trailer of [seq][crc...] after a declared response
+    // length L, so a corrupted read can be detected rather than silently decoded.
+    // The device zero-pads its response up to L, so the trailer is always at the
+    // same offset and the CRC covers bytes 0..L inclusive (data + padding + seq).
+    // The poll therefore reads L + trailerLen bytes; the trailer is stripped after
+    // validation so the decode and the record's resp.b are unaffected.
+    //
+    // On a CRC failure a device that can re-send its previous response (needed when
+    // the read is destructive, e.g. a FIFO pop) names a re-read command; otherwise
+    // the burst is simply dropped. See RaftI2C
+    // devdocs/i2c-poll-data-integrity-crc-plan.md.
+    enum PollCrcType
+    {
+        POLL_CRC_NONE = 0,
+        POLL_CRC_16_CCITT = 1,      // CRC-16/CCITT-FALSE, poly 0x1021, init 0xFFFF
+    };
+    PollCrcType pollCrcType = POLL_CRC_NONE;
+
+    // Bytes of trailer appended after the declared length (3 for [seq][crcHi][crcLo])
+    uint32_t pollCrcTrailerLen = 0;
+
+    // Re-read attempts before dropping the response (0 = detect and drop)
+    uint32_t pollCrcRetries = 0;
+
+    // Bytes to write to request a re-send of the previous response (empty = none)
+    std::vector<uint8_t> pollCrcRereadCmd;
+
+    // Recovery backstop: bytes to write after pollCrcRecoverAfter consecutive dropped
+    // responses, to nudge a device that has stopped producing valid data back into a
+    // working state. Device-agnostic here - the record supplies the bytes.
+    //
+    // The motivating case: an RSAO that resets stays in its bootloader indefinitely,
+    // because the master only sends START_APP during detection. The bootloader answers
+    // polls from shared code but knows no application opcodes and emits no trailer, so
+    // every poll fails CRC forever. Writing START_APP recovers it.
+    std::vector<uint8_t> pollCrcRecoverCmd;
+    uint32_t pollCrcRecoverAfter = 0;   // 0 = disabled
 
     // Poll request rec
     std::vector<BusRequestInfo> pollReqs;

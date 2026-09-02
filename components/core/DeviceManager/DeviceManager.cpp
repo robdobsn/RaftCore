@@ -916,6 +916,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/setrole?deviceid=<deviceId>&role=<role> - Assign role (e.g. system) to a device (in-memory),"
                             " devman/listdevs?role=<roleFilter> - Enumerate instantiated/detected devices (optional role filter),"
                             " devman/slot?bus=<busNameOrNum>&slot=<n>&mode=<i2c|serial-full|serial-half> - Set slot mode (omit mode to query),"
+                            " devman/busstatus[?busnum=<n>] - Per-bus diagnostics (e.g. poll-response integrity counters),"
                             " Note: typeName can be either a device type name or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
@@ -964,8 +965,39 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManListDevs(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("slot"))
         return apiDevManSlot(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("busstatus"))
+        return apiDevManBusStatus(reqStr, respStr, jsonParams);
 
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Report per-bus status JSON (bus-specific diagnostics, e.g. poll-response
+///        integrity counters). Optional "busnum" selects one bus; otherwise all buses
+///        are reported. Buses with nothing to report return an empty object.
+RaftRetCode DeviceManager::apiDevManBusStatus(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    // NOTE: BUS_NUM_FIRST_BUS is uint32_t, so comparing a negative "not specified"
+    // sentinel against it directly promotes to unsigned and is always true. Cast to
+    // int so the sentinel behaves as intended.
+    const int busNum = jsonParams.getLong("busnum", -1);
+    const bool filterByBusNum = (busNum >= (int)RaftDeviceID::BUS_NUM_FIRST_BUS);
+    String busesJson;
+    for (RaftBus* pBus : raftBusSystem.getBusList())
+    {
+        if (!pBus)
+            continue;
+        if (filterByBusNum && ((int)pBus->getBusNum() != busNum))
+            continue;
+        if (busesJson.length() > 0)
+            busesJson += ",";
+        busesJson += "\"" + pBus->getBusName() + "\":" + pBus->getBusStatusJson();
+    }
+    if (filterByBusNum && (busesJson.length() == 0))
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");
+
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true,
+                                   ("\"buses\":{" + busesJson + "}").c_str());
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
