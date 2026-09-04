@@ -160,6 +160,24 @@ public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get bus statistics as a JSON string
     /// @return JSON string
+    /// @brief Check whether the bus lines are physically stuck (e.g. SDA held low)
+    /// @return true if stuck
+    /// @note A stuck bus is not the same as a busy or faulty device: every address appears
+    ///       to ACK (an ACK is the line pulled low) and every read returns zeros, so a
+    ///       caller that cannot ask this question will mistake a wedged bus for a device
+    ///       answering with garbage. Default false for buses with no such notion.
+    virtual bool isBusStuck() const
+    {
+        return false;
+    }
+
+    /// @brief Attempt to clear a stuck bus (e.g. by clocking it until a device releases)
+    /// @return true if the bus is no longer stuck
+    virtual bool clearBusStuck()
+    {
+        return false;
+    }
+
     virtual String getBusStatsJSON() const
     {
         return _busStats.getStatsJSON(getBusName());
