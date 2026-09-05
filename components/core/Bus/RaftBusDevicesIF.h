@@ -19,6 +19,14 @@
 class DeviceStatus;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handler serviced on the bus task for application work that drives the bus
+/// @param pCtx opaque context registered alongside the handler
+/// @brief Handler run on the bus worker task
+/// @param pCtx caller context
+/// @return true while the handler is mid-operation. The worker then holds off device polling
+///         (but NOT scanning) for that iteration - see registerBusTaskServiceHandler().
+typedef bool (*RaftBusTaskServiceFn)(void* pCtx);
+
 /// @brief Verdict returned by a registered new-device identification handler
 /// @note Device-agnostic: the bus has no knowledge of what the handler identifies
 /// - NotMine:  the handler does not own this device; default identification proceeds unchanged
@@ -182,6 +190,38 @@ public:
     virtual void registerNewDeviceIdentHandler(RaftNewDeviceIdentFn newDeviceIdentFn, void* pCtx)
     {
         (void)newDeviceIdentFn;
+        (void)pCtx;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Register a handler serviced on the bus task, for application work that must
+    ///        drive the bus itself
+    /// @param busTaskServiceFn handler function (nullptr to clear)
+    /// @param pCtx opaque context passed to the handler
+    /// @note Runs in the bus worker's own task, interleaved with scanning and polling, so a
+    ///       handler may issue synchronous bus transactions safely - it IS the bus task, and
+    ///       is therefore serialised against scanning and polling by construction. This is
+    ///       what the new-device identification hook already relies on.
+    ///
+    ///       The alternative - driving the bus from another task - is unsafe: the bus has no
+    ///       lock, only a pause flag with no notion of an owner, so two such callers corrupt
+    ///       each other. Application work belongs here instead.
+    ///
+    ///       The handler MUST return promptly (a few ms). It shares the loop with polling, so
+    ///       long-running work must be a state machine that yields, exactly as scanning is.
+    ///
+    ///       Returning true means "I am mid-operation": the worker then skips DEVICE POLLING
+    ///       for that iteration, so a timed sequence of transactions does not queue behind
+    ///       polling traffic. Use it only for work whose timing matters, and make sure it
+    ///       becomes false again - existing devices are not polled while it is true.
+    ///
+    ///       Scanning is deliberately NOT suspended by this, and must not be: multiplexer
+    ///       recovery is driven by the scanner (BusMultiplexers::taskService() is empty; it is
+    ///       elemStateChange() from a scan that re-detects and re-initialises a mux wedged by
+    ///       a device reset). A handler that resets devices depends on that recovery running.
+    virtual void registerBusTaskServiceHandler(RaftBusTaskServiceFn busTaskServiceFn, void* pCtx)
+    {
+        (void)busTaskServiceFn;
         (void)pCtx;
     }
 
