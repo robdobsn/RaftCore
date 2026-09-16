@@ -189,6 +189,11 @@ private:
     //
     // The result is that suppression costs nothing on a unit that does not use it, and the bound
     // below exists only to stop an untrusted file growing the list without limit.
+    // Largest single read a device type record may declare (the NNN in "rNNN"). The value sizes a
+    // heap allocation taken straight from a record, so it needs a ceiling now that records can come
+    // from a file. Chosen well above any real device: the largest compiled profile reads 23 bytes.
+    static constexpr uint32_t MAX_DEVICE_READ_BYTES = 1024;
+
     // A mutex of its own rather than sharing the one above: getDeviceTypeIdxsForAddr walks the
     // extended records and then filters the base records by suppression, so one non-recursive mutex
     // covering both would have to be taken twice in that path.

@@ -605,13 +605,37 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
     {
         // Compute length
         uint32_t lenBytes = strtol(readStrLC.c_str() + readIdx + 1, NULL, 10);
+
+        // Refuse a length that is absent, zero, or larger than any device reads in one go. Both
+        // multiplicands of the allocation below come from a device type record, and records may now
+        // be supplied as data rather than only compiled in, so an unbounded resize is an unbounded
+        // allocation driven by an untrusted file.
+        if ((lenBytes == 0) || (lenBytes > MAX_DEVICE_READ_BYTES))
+            return false;
+
         // Extract the read data
         readDataMask.resize(lenBytes);
         readDataCheck.resize(lenBytes);
-        for (int i = readIdx + 1; i < readStrLC.length(); i++)
+
+        // Fill exactly the elements the old loop filled, minus the ones that were out of bounds.
+        //
+        // The loop ran over the STRING while the vectors were sized from the NUMBER parsed out of
+        // it, and the two are unrelated: it wrote indices readIdx..length-2 into a vector of
+        // lenBytes. So "r01" sized one element and wrote two, "r0000001" sized one and wrote seven,
+        // "r0" sized none and wrote one, and "0x05=r2" sized one and wrote at index 5. Every one of
+        // those is a heap buffer overflow reachable from a device type record - which matters far
+        // more now that records can be supplied as data rather than only compiled in.
+        //
+        // The indices and values are otherwise left exactly as they were. For the ordinary form
+        // ("r6") that is index 0 only, with the rest left at the resize default. That fill looks
+        // wrong - it is hard to see why one byte of a six-byte mask should differ - but all forty
+        // compiled profiles were detected and polled against this behaviour, so it is preserved
+        // rather than guessed at. Correcting it is a separate change needing its own evidence.
+        const int lastIdx = (int)readStrLC.length() - 2;
+        for (int i = readIdx; (i <= lastIdx) && (i < (int)lenBytes); i++)
         {
-            readDataMask[i - 1] = maskToZeros ? 0xff : 0;
-            readDataCheck[i - 1] = 0;
+            readDataMask[i] = maskToZeros ? 0xff : 0;
+            readDataCheck[i] = 0;
         }
         return true;
     }
