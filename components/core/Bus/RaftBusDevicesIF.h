@@ -194,6 +194,22 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Discard what has been concluded about every device on the bus, so each is identified again
+    /// @return number of devices whose identification was discarded
+    /// @note Devices stay ONLINE - this says "what I decided these were is no longer trustworthy",
+    ///       not "they have gone". Polling stops until the scanner re-identifies them, which it does
+    ///       on its normal sweep.
+    ///
+    ///       This exists because the device type table can change after devices have been found.
+    ///       Identification happens once, when a device appears, so a type added, overridden or
+    ///       suppressed afterwards would otherwise have no effect on anything already on the bus -
+    ///       silently, and until the next power cycle or unplug.
+    virtual uint32_t reIdentifyDevices()
+    {
+        return 0;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Register a handler serviced on the bus task, for application work that must
     ///        drive the bus itself
     /// @param busTaskServiceFn handler function (nullptr to clear)

@@ -117,6 +117,41 @@ public:
     /// @return poll decode function
     DeviceTypeRecordDecodeFn getPollDecodeFn(uint16_t deviceTypeIdx) const;
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Suppress a device type by name, so it is never matched during identification
+    /// @param deviceTypeName name as it appears in the compiled records, e.g. "VCNL4040"
+    /// @return true if suppressed (false if the name is empty or the limit is reached)
+    /// @note Suppression hides the type from lookup by name and from the address->type map. It does
+    ///       NOT unbind a device already identified as that type - identification is where the
+    ///       decision is made, so clear the device's identification to have this take effect on
+    ///       something already found (RaftBusDevicesIF::reIdentifyDevices).
+    ///
+    ///       Suppressing a name that an extended record also defines suppresses both: the point is
+    ///       "this type must not be detected", whoever supplied it.
+    bool addSuppressedDeviceType(const String& deviceTypeName);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Remove all suppressions
+    void clearSuppressedDeviceTypes();
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if a device type name is suppressed
+    /// @param deviceTypeName device type name
+    /// @return true if suppressed
+    bool isDeviceTypeSuppressed(const char* deviceTypeName) const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the number of extended device type records this build will hold
+    /// @return maximum record count
+    /// @note Exposed so a caller supplying records can say up front how many will fit, rather than
+    ///       discovering the limit by having records silently refused partway through a file.
+    static constexpr uint32_t getMaxExtendedDeviceTypeRecords() { return MAX_EXTENDED_DEV_TYPE_RECORDS; }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the number of device types that may be suppressed
+    /// @return maximum suppression count
+    static constexpr uint32_t getMaxSuppressedDeviceTypes() { return MAX_SUPPRESSED_DEV_TYPES; }
+
 private:
     // Mutex for access to extended device type records (mutable to allow locking in const methods)
     mutable RaftMutex _extDeviceTypeRecordsMutex;
@@ -127,13 +162,43 @@ private:
     RaftAtomicBool _extendedRecordsAdded;
 
     // Maximum number of added device type records (see note below about absolute pointers since this space will be reserved)
-    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 20;
+    // This costs sizeof(DeviceTypeRecordDynamic) (~112 bytes) of internal RAM per slot, reserved at
+    // construction whether used or not, so it is a real cost on every unit rather than a cap that is
+    // free until reached. It bounds ADDITIONS AND OVERRIDES only - suppression is a separate list
+    // below and does not consume these slots.
+    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 32;
 
     // Extended device type records
     // This list MUST only ever be extended and the absolute pointers to 
     // the DeviceTypeRecordDynamic instances must not change so storage MUST
     // be allocated in a way that does not move the instances
     std::vector<DeviceTypeRecordDynamic> _extendedDevTypeRecords;
+
+    // Device type names that must never be matched during identification
+    //
+    // Deliberately NOT a flag on DeviceTypeRecordDynamic, which is the obvious place for it. Two
+    // reasons, both about the array above rather than about style:
+    //
+    //  - A suppression carries one piece of information (a name) but would occupy a whole ~112-byte
+    //    record, and those records are reserved up front. Allowing "suppress everything in the base
+    //    library" would mean reserving a slot per base type on every unit, used or not.
+    //  - The reserve exists because DeviceTypeRecord hands out c_str() pointers INTO those records,
+    //    and String stores anything under 12 characters inline (SSO), so a reallocation dangles them.
+    //    Nothing takes a pointer into this list - it is only ever compared by name - so it has no
+    //    such constraint and can grow on demand.
+    //
+    // The result is that suppression costs nothing on a unit that does not use it, and the bound
+    // below exists only to stop an untrusted file growing the list without limit.
+    // A mutex of its own rather than sharing the one above: getDeviceTypeIdxsForAddr walks the
+    // extended records and then filters the base records by suppression, so one non-recursive mutex
+    // covering both would have to be taken twice in that path.
+    static constexpr uint32_t MAX_SUPPRESSED_DEV_TYPES = 128;
+    mutable RaftMutex _suppressedDevTypesMutex;
+    std::vector<String> _suppressedDevTypeNames;
+
+    // Flag indicating if any device types have been suppressed - same purpose as
+    // _extendedRecordsAdded above: keep the mutex out of the common case
+    RaftAtomicBool _anyDevTypesSuppressed;
 
     // Helpers
     static bool extractBufferDataFromHexStr(const String& writeStr, std::vector<uint8_t>& writeData);

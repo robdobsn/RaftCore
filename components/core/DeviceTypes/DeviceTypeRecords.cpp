@@ -33,18 +33,99 @@ DeviceTypeRecords::DeviceTypeRecords()
 {
     // Create mutex
     RaftMutex_init(_extDeviceTypeRecordsMutex);
+    RaftMutex_init(_suppressedDevTypesMutex);
 
     // Initialize atomic bool
     RaftAtomicBool_init(_extendedRecordsAdded, false);
+    RaftAtomicBool_init(_anyDevTypesSuppressed, false);
 
     // Reserve space for extended device type records (to avoid changing absolute pointer values)
     _extendedDevTypeRecords.reserve(MAX_EXTENDED_DEV_TYPE_RECORDS);
+
+    // Deliberately no reserve for _suppressedDevTypeNames - nothing takes a pointer into it, so it
+    // may reallocate freely, and a unit that suppresses nothing should pay nothing
 }
 
 DeviceTypeRecords::~DeviceTypeRecords()
 {
     // Delete mutex
     RaftMutex_destroy(_extDeviceTypeRecordsMutex);
+    RaftMutex_destroy(_suppressedDevTypesMutex);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Suppress a device type by name, so it is never matched during identification
+/// @param deviceTypeName name as it appears in the compiled records
+/// @return true if suppressed
+bool DeviceTypeRecords::addSuppressedDeviceType(const String& deviceTypeName)
+{
+    if (deviceTypeName.length() == 0)
+        return false;
+    if (!RaftMutex_lock(_suppressedDevTypesMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    bool isOk = true;
+    bool alreadyPresent = false;
+    for (const String& name : _suppressedDevTypeNames)
+    {
+        if (name == deviceTypeName)
+        {
+            alreadyPresent = true;
+            break;
+        }
+    }
+    if (!alreadyPresent)
+    {
+        if (_suppressedDevTypeNames.size() >= MAX_SUPPRESSED_DEV_TYPES)
+        {
+            isOk = false;
+        }
+        else
+        {
+            _suppressedDevTypeNames.push_back(deviceTypeName);
+            RaftAtomicBool_set(_anyDevTypesSuppressed, true);
+        }
+    }
+    RaftMutex_unlock(_suppressedDevTypesMutex);
+    return isOk;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Remove all suppressions
+void DeviceTypeRecords::clearSuppressedDeviceTypes()
+{
+    if (!RaftMutex_lock(_suppressedDevTypesMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return;
+    _suppressedDevTypeNames.clear();
+    // The flag is cleared here (unlike _extendedRecordsAdded, which is set once and never cleared)
+    // because suppression is reversible by design - restoring the defaults must actually restore them
+    RaftAtomicBool_set(_anyDevTypesSuppressed, false);
+    RaftMutex_unlock(_suppressedDevTypesMutex);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if a device type name is suppressed
+/// @param deviceTypeName device type name
+/// @return true if suppressed
+bool DeviceTypeRecords::isDeviceTypeSuppressed(const char* deviceTypeName) const
+{
+    if (!deviceTypeName)
+        return false;
+    // Common case - nothing suppressed, so no mutex on the identification hot path
+    if (!RaftAtomicBool_get(_anyDevTypesSuppressed))
+        return false;
+    if (!RaftMutex_lock(_suppressedDevTypesMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    bool isSuppressed = false;
+    for (const String& name : _suppressedDevTypeNames)
+    {
+        if (name == deviceTypeName)
+        {
+            isSuppressed = true;
+            break;
+        }
+    }
+    RaftMutex_unlock(_suppressedDevTypesMutex);
+    return isSuppressed;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,12 +142,19 @@ std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(Bus
     std::vector<DeviceTypeIndexType> devTypeIdxsForAddr;
 
     // Check if any of the extended device type records match
+    // Note that a suppressed name is skipped here too - "this type must not be detected" applies
+    // whoever supplied the record, otherwise suppressing a type would be undone by overriding it
     if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         // Ext devType indices continue on from the base devType indices
         DeviceTypeIndexType devTypeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
+            if (isDeviceTypeSuppressed(extDevTypeRec.deviceTypeName.c_str()))
+            {
+                devTypeIdx++;
+                continue;
+            }
             std::vector<int> addressList;
             Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
             for (int devAddr : addressList)
@@ -93,9 +181,17 @@ std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(Bus
         return devTypeIdxsForAddr;
 
     // Iterate the types for this address
+    //
+    // Extended records are added ahead of these, so an override is tried first - but the base record
+    // is still a candidate behind it, and identification falls through to it if the override's
+    // detection values do not match. That is why overriding a type is not the same as replacing it,
+    // and why suppression is a separate idea rather than a side effect of overriding.
     for (uint32_t i = 0; i < numTypes; i++)
     {
-        devTypeIdxsForAddr.push_back(baseDevTypeIndexByAddr[addrIdx][i]);
+        const DeviceTypeIndexType baseIdx = baseDevTypeIndexByAddr[addrIdx][i];
+        if (isDeviceTypeSuppressed(baseDevTypeRecords[baseIdx].deviceType))
+            continue;
+        devTypeIdxsForAddr.push_back(baseIdx);
     }
     
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
@@ -151,6 +247,12 @@ bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceT
 /// @return true if device type found
 bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const
 {
+    // A suppressed type must not resolve at all, by either route. This is the path the RSAO
+    // identification hook uses to turn a WHOAMI id into a device type index, so without this check
+    // suppression would work for address-detected devices and silently not for RSAOs.
+    if (isDeviceTypeSuppressed(deviceTypeName.c_str()))
+        return false;
+
     // Iterate the extended device types first - so that device type names can be overridden
     bool isValid = false;
     uint32_t typeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
@@ -807,10 +909,10 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 #ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
     LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
                 recFound ? "ALREADY PRESENT" : "ADDED OK",
-                devTypeRec.deviceTypeName_.c_str(), 
+                devTypeRec.deviceTypeName.c_str(), 
                 deviceTypeIndex,
-                devTypeRec.addresses_.c_str(), devTypeRec.detectionValues_.c_str(),
-                devTypeRec.initValues_.c_str(), devTypeRec.pollInfo_.c_str());
+                devTypeRec.addresses.c_str(), devTypeRec.detectionValues.c_str(),
+                devTypeRec.initValues.c_str(), devTypeRec.pollInfo.c_str());
 #endif
     return !recFound;
 }
