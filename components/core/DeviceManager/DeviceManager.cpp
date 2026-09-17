@@ -905,7 +905,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     // REST API endpoints
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            " devman/typeinfo?type=<typeName> - Get type info,"
+                            " devman/typeinfo?type=<typeName>[&full=1] - Get type info; full=1 returns the whole type record as devrec,"
                             " devman/typeinfo?deviceid=<deviceId> - Get type info for a specific device (includes name/role sidecar fields when set),"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
@@ -1088,22 +1088,37 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
     if (typeName.length() == 0)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeMissing");
 
+    // "full=1" asks for the whole type record rather than only what a reading MEANS.
+    //
+    // Without it this returns devInfoJson alone - names, units, how to decode a response - and never
+    // the addresses, detection, init or poll that say how the device is found and read. That is
+    // enough to LIST what a board knows and not enough to show anyone a definition, or to start a
+    // custom profile from one, which is the first thing someone asks for after seeing the list.
+    //
+    // Opt-in rather than always-on because the answer roughly doubles in size, and the caller that
+    // walks the whole table to enumerate types does not want that on every one of ~31 requests. It
+    // is also emitted under its own key: "devrec" is a record, "devinfo" is the reading metadata,
+    // and they are different shapes - devInfoJson appears inside devrec as "info".
+    const bool wantFullRecord = jsonParams.getLong("full", 0) != 0;
+
     String devInfo;
     DeviceTypeIndexType deviceTypeIndex = 0;
 
     if ((typeName.length() > 0) && isdigit(typeName[0]))
     {
         deviceTypeIndex = (DeviceTypeIndexType)typeName.toInt();
-        devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(deviceTypeIndex, false);
+        devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(deviceTypeIndex, wantFullRecord);
     }
     if (devInfo.length() == 0)
-        devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(typeName, false, deviceTypeIndex);
+        devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(typeName, wantFullRecord, deviceTypeIndex);
 
+    // An absent record is "{}" whichever form was asked for, so this still detects a miss.
     if ((devInfo.length() == 0) || (devInfo == "{}"))
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
 
+    String resultKey = wantFullRecord ? "\"devrec\":" : "\"devinfo\":";
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true,
-                ("\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(deviceTypeIndex)).c_str());
+                (resultKey + devInfo + ",\"dtIdx\":" + String(deviceTypeIndex)).c_str());
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1238,8 +1253,22 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     // so the wait is capped at a short long-stop to avoid stalling servicing.
     if (rslt && (numBytesToRead > 0))
     {
-        static const uint32_t CMDRAW_READ_TIMEOUT_MAX_MS = 20;
-        uint32_t timeoutMs = jsonParams.getLong("timeoutMs", CMDRAW_READ_TIMEOUT_MAX_MS);
+        // The DEFAULT stays short for the reason above - this can run on the main loop task, and
+        // waiting there delays every other SysMod's servicing. What changes is the ceiling.
+        //
+        // timeoutMs was read from the request and then clamped to the same 20ms as the default,
+        // which made it inert: the I2C worker is busy polling and rarely turns a one-off transaction
+        // round that fast, so a requested read effectively never arrived. Measured over WiFi on an
+        // Axiom: 0 of 12 reads completed, every one reporting readTimeout, with timeoutMs=500 asked
+        // for and silently reduced to 20. cmdraw could therefore only ever write, which is why the
+        // browser sends numToRd=0 and calls the write one-way.
+        //
+        // A caller that knows it is waiting on a bus transaction can now say how long it will wait.
+        // The ceiling bounds the damage: half a second is far below any task watchdog, and is only
+        // ever reached by a caller that explicitly asked for it.
+        static const uint32_t CMDRAW_READ_TIMEOUT_DEFAULT_MS = 20;
+        static const uint32_t CMDRAW_READ_TIMEOUT_MAX_MS = 500;
+        uint32_t timeoutMs = jsonParams.getLong("timeoutMs", CMDRAW_READ_TIMEOUT_DEFAULT_MS);
         if (timeoutMs > CMDRAW_READ_TIMEOUT_MAX_MS)
             timeoutMs = CMDRAW_READ_TIMEOUT_MAX_MS;
         uint32_t startMs = millis();
