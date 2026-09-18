@@ -368,20 +368,6 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
 
             uint32_t maxReadLen = readLenExpr->getMaxValue();
 
-            // Same ceiling as the fixed-length rNNN form. This branch continues before
-            // extractMaskAndDataFromHexStr is ever reached, so the bound there does not cover it -
-            // the :max value went straight from the record into a read buffer size, capped only by
-            // the uint16_t it was eventually stored in. A record supplied as a file should not be
-            // able to size an allocation by accident of truncation.
-            if ((maxReadLen == 0) || (maxReadLen > MAX_DEVICE_READ_BYTES))
-            {
-#ifdef DEBUG_POLL_REQUEST_REQS
-                LOG_I(MODULE_PREFIX, "getPollInfo FAIL dynamic read max %d out of range in %s",
-                            (int)maxReadLen, valueStr.c_str());
-#endif
-                continue;
-            }
-
             uint32_t pauseAfterSendMs = extractBarAccessMs(valueStr);
 
             // Create the poll request with the max read length
@@ -621,13 +607,6 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
         // Compute length
         uint32_t lenBytes = strtol(readStrLC.c_str() + readIdx + 1, NULL, 10);
 
-        // Refuse a length that is absent, zero, or larger than any device reads in one go. Both
-        // multiplicands of the allocation below come from a device type record, and records may now
-        // be supplied as data rather than only compiled in, so an unbounded resize is an unbounded
-        // allocation driven by an untrusted file.
-        if ((lenBytes == 0) || (lenBytes > MAX_DEVICE_READ_BYTES))
-            return false;
-
         // Extract the read data
         readDataMask.resize(lenBytes);
         readDataCheck.resize(lenBytes);
@@ -757,11 +736,7 @@ uint32_t DeviceTypeRecords::extractReadDataSize(const String& readStr)
     // Check for readStr starts with rNNNN (for read NNNN bytes)
     if (readStrLC.startsWith("r"))
     {
-        // Bounded like every other read length taken from a record. This one feeds the INIT path,
-        // whose initValues come from the same user-supplied file as everything else, and it was a
-        // bare strtol with no ceiling at all.
-        const uint32_t lenBytes = strtoul(readStrLC.c_str() + 1, NULL, 10);
-        return lenBytes > MAX_DEVICE_READ_BYTES ? 0 : lenBytes;
+        return strtol(readStrLC.c_str() + 1, NULL, 10);
     }
     // Check if readStr starts with 0b 
     if (readStrLC.startsWith("0b"))

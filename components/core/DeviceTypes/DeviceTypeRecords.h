@@ -166,7 +166,7 @@ private:
     // construction whether used or not, so it is a real cost on every unit rather than a cap that is
     // free until reached. It bounds ADDITIONS AND OVERRIDES only - suppression is a separate list
     // below and does not consume these slots.
-    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 32;
+    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 20;
 
     // Extended device type records
     // This list MUST only ever be extended and the absolute pointers to 
@@ -192,7 +192,6 @@ private:
     // Largest single read a device type record may declare (the NNN in "rNNN"). The value sizes a
     // heap allocation taken straight from a record, so it needs a ceiling now that records can come
     // from a file. Chosen well above any real device: the largest compiled profile reads 23 bytes.
-    static constexpr uint32_t MAX_DEVICE_READ_BYTES = 1024;
 
     // A mutex of its own rather than sharing the one above: getDeviceTypeIdxsForAddr walks the
     // extended records and then filters the base records by suppression, so one non-recursive mutex
