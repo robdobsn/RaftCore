@@ -1239,6 +1239,12 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
                     outStr.c_str());
 #endif
 
+    // Ask for the result on the bus task. Without this the callback is queued and delivered from
+    // the main loop - the task this handler is about to block - so the wait below could never be
+    // satisfied whatever its duration. The callback itself only copies bytes into a member and sets
+    // a flag, which is safe to do from the bus worker.
+    busReqInfo.setCallbackFromBusTask(true);
+
     // Send request to bus
     bool rslt = pBus->addRequest(busReqInfo);
     if (!rslt)
@@ -1253,27 +1259,16 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     // so the wait is capped at a short long-stop to avoid stalling servicing.
     if (rslt && (numBytesToRead > 0))
     {
-        // This wait cannot succeed, and raising the cap does not change that. Recorded here so the
-        // next person does not spend the afternoon discovering it again, as this one did.
-        //
-        // A non-polling bus request does not call its callback from the bus transaction. The result
-        // is put on BusAccessor's response queue and the callback is invoked from BusAccessor::loop()
-        // - reached via BusI2C::loop() <- raftBusSystem.loop() <- DeviceManager::loop(), which is a
-        // SysMod loop on the main loop task. This API handler runs on that same task, so while it
-        // waits here the queue is never drained and the callback can never arrive.
-        //
-        // Measured on an Axiom: 0 of 12 reads completed at 20ms and 0 of 12 at 500ms, while the
-        // round trip lengthened from 199ms to 649ms - the wait was honoured, the result could not
-        // come. And an unrelated /api/v went from 143ms to 686ms alongside it, which is the loop
-        // being held. The cap is therefore a limit on how long a caller can stall the system for a
-        // guaranteed failure, and is left short deliberately.
-        //
-        // Making a read work needs the result delivered off this task, not a longer wait: either
-        // cmdraw returns immediately and the answer arrives asynchronously (the unimplemented
-        // msgKey parameter looks like it was meant for this), or non-polling results are called
-        // back from the bus worker as polling results already are.
-        static const uint32_t CMDRAW_READ_TIMEOUT_MAX_MS = 20;
-        uint32_t timeoutMs = jsonParams.getLong("timeoutMs", CMDRAW_READ_TIMEOUT_MAX_MS);
+        // The DEFAULT stays short because this can run on the main loop task, and waiting there
+        // delays every other SysMod's servicing. What a caller may now do is ask for longer, which
+        // was previously pointless: the result was delivered from the very loop being blocked, so
+        // no wait could be satisfied - 0 of 12 reads completed at 20ms and 0 of 12 at 500ms, with
+        // an unrelated /api/v going from 143ms to 686ms alongside one, which is the loop being held.
+        // setCallbackFromBusTask above moves delivery onto the bus worker, so the wait can now end
+        // early with an answer instead of always running to the timeout.
+        static const uint32_t CMDRAW_READ_TIMEOUT_DEFAULT_MS = 20;
+        static const uint32_t CMDRAW_READ_TIMEOUT_MAX_MS = 500;
+        uint32_t timeoutMs = jsonParams.getLong("timeoutMs", CMDRAW_READ_TIMEOUT_DEFAULT_MS);
         if (timeoutMs > CMDRAW_READ_TIMEOUT_MAX_MS)
             timeoutMs = CMDRAW_READ_TIMEOUT_MAX_MS;
         uint32_t startMs = millis();

@@ -95,6 +95,28 @@ public:
         _barAccessForMsAfterSend = hwElemReq._barAccessAfterSendMs;
     }
 
+    /// @brief Ask for this request's callback on the bus worker task rather than the main loop
+    /// @note Off by default, so every existing caller keeps the behaviour it has: a non-polling
+    ///       result is queued and the callback runs later from the bus's loop().
+    ///
+    ///       That deferral makes a result impossible to WAIT for. The loop it is delivered from is
+    ///       a SysMod loop on the main loop task, so a caller blocking that task to wait - which is
+    ///       what an API handler does - stops the queue being drained at all, and the callback it is
+    ///       waiting for can never arrive however long it waits.
+    ///
+    ///       A polling request has never had this problem: its callback is already invoked straight
+    ///       from the worker. This asks for the same treatment. A callback delivered that way runs
+    ///       on the bus task, so it must do only what a bus task may safely do.
+    void setCallbackFromBusTask(bool callbackFromBusTask)
+    {
+        _callbackFromBusTask = callbackFromBusTask;
+    }
+
+    bool isCallbackFromBusTask() const
+    {
+        return _callbackFromBusTask;
+    }
+
     BusReqType getBusReqType() const
     {
         return _busReqType;
@@ -213,6 +235,7 @@ public:
 
 private:
     // Request type
+    bool _callbackFromBusTask = false;
     BusReqType _busReqType = BUS_REQ_TYPE_STD;
 
     // Address
