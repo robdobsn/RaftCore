@@ -616,7 +616,11 @@ public:
     /// @param rawJson : raw JSON value (null is ignored)
     static void appendRawField(String& json, const char* name, const char* rawJson)
     {
-        if (!name || !rawJson)
+        // An empty value is skipped for the same reason a null one is: the alternative is emitting
+        // "name": with nothing after it, which is not JSON. DeviceTypeRecord::getJson hit exactly
+        // that on a record with no pollInfo - AxiomPowerV1, a static device - producing
+        // {"type":"AxiomPowerV1",...,"poll":,"info":{...}} which no parser will accept.
+        if (!name || !rawJson || (*rawJson == '\0'))
             return;
         if (json.length() > 1)
             json += ',';
