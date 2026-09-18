@@ -8,6 +8,7 @@
 
 #pragma once
 #include <vector>
+#include <atomic>
 #include "RaftArduino.h"
 
 class WiFiScanner
@@ -44,6 +45,12 @@ public:
     // Scan complete - called by WiFi event handler
     void scanComplete();
 
+    // Abandon scan - called when a scan can no longer complete (e.g. WiFi paused)
+    void scanAbandon()
+    {
+        _scanInProgress = false;
+    }
+
     // Check if scan is in progress
     bool isScanInProgress()
     {
@@ -51,8 +58,8 @@ public:
     }
 
 private:
-    // Scan in progress
-    bool _scanInProgress;
+    // Scan in progress (set on the main task and cleared by WiFi event handler on the sys_evt task)
+    std::atomic<bool> _scanInProgress{false};
 
     // Max scan result size
     static const uint32_t MAX_SCAN_LIST_SIZE = 30;

@@ -159,12 +159,17 @@ private:
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Callback type for device data change
+/// @note TASK CONTEXT: for bus devices this callback is made on the bus worker task (e.g. the I2C worker) and
+///       NOT on the main task - so it may run in parallel with the subscriber's loop() (on another core).
+///       The callback must be short, must not block and must hand data off to the main task in a thread-safe
+///       way (e.g. ThreadSafeQueue or atomics) rather than touching state owned by the main task.
 typedef std::function<void(uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo)> RaftDeviceDataChangeCB;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Callback type for device status change
 /// @param device Device whose status has changed
 /// @param addrStatus Address and status of the bus element that changed
+/// @note TASK CONTEXT: this callback is made on the main task (from the bus's loop())
 typedef std::function<void(RaftDevice& device, const BusAddrStatus& addrStatus)> RaftDeviceStatusChangeCB;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

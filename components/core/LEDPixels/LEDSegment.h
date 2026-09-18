@@ -15,6 +15,7 @@
 #include "LEDPixelConfig.h"
 #include "LEDPatternBase.h"
 #include "LEDPixelIF.h"
+#include "RaftMainTask.h"
 #include "esp_idf_version.h"
 
 // #define DEBUG_LED_SEGMENT_PATTERN_DURATION
@@ -136,8 +137,11 @@ public:
     /// @brief Set pattern
     /// @param patternName Name of pattern
     /// @param pParamsJson Parameters for pattern
+    /// @note Main task only - the pattern object is deleted/replaced here and is used by loop() without a lock
     void setPattern(const String& patternName, uint32_t patternRunTimeDefaultMs = 0, const char* pParamsJson=nullptr)
     {
+        RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "setPattern");
+
         // Save current pattern name
         String curPatternName = _currentPatternName;
 
@@ -219,8 +223,11 @@ public:
 
     /// @brief Stop pattern
     /// @param clearPixels Clear pixels after stopping
+    /// @note Main task only - the pattern object is deleted here and is used by loop() without a lock
     void stopPattern(bool clearPixels)
     {
+        RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "stopPattern");
+
         // Stop no longer required
         _stopRequested = false;
 

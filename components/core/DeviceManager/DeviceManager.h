@@ -157,7 +157,11 @@ private:
     static const uint32_t DEVICE_LIST_MAX_SIZE = 100;
 
     // Access mutex (mutable to allow locking in const methods)
+    // This protects _staticDeviceList, _requestedDeviceDataChangeCBList and _requestedDeviceStatusChangeCBList
+    // It is only ever held for short periods (never while calling a callback or another module) so waiting
+    // indefinitely is safe and avoids silently dropping work (e.g. status change callbacks) on contention
     mutable RaftMutex _accessMutex;
+    static const uint32_t ACCESS_MUTEX_MAX_WAIT_MS = RAFT_MUTEX_WAIT_FOREVER;
 
     // Device data change record
     class DeviceDataChangeRec

@@ -87,22 +87,10 @@ void disableCore1WDT(){
 
 #endif
 
-static String __systemMACCachedBT;
-static String __systemMACCachedETH;
-static String __systemMACCachedSTA;
-static String __systemMACCachedSep;
 String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
 {
-    if (pSeparator && (__systemMACCachedSep.equals(pSeparator)))
-    {
-    // Check if already got
-        if ((macType == ESP_MAC_BT) && (__systemMACCachedBT.length() > 0))
-            return __systemMACCachedBT;
-        else if ((macType == ESP_MAC_ETH) && (__systemMACCachedETH.length() > 0))
-            return __systemMACCachedETH;
-        else if ((macType == ESP_MAC_WIFI_STA) && (__systemMACCachedSTA.length() > 0))
-            return __systemMACCachedSTA;
-    }
+    // Note that the result is deliberately not cached in static Strings as this function may be called
+    // from any task (and reading the MAC address is inexpensive)
 
     // Use the public (MAC) address of BLE
     uint8_t addr[6] = {0,0,0,0,0,0};
@@ -112,16 +100,7 @@ String getSystemMACAddressStr(esp_mac_type_t macType, const char* pSeparator)
         rc = esp_read_mac(addr, ESP_MAC_BASE);
     if (rc != ESP_OK)
         return "";
-    String macStr = Raft::formatMACAddr(addr, pSeparator);
-    if (macType == ESP_MAC_BT)
-        __systemMACCachedBT = macStr;
-    else if (macType == ESP_MAC_ETH)
-        __systemMACCachedETH = macStr;
-    else if (macType == ESP_MAC_WIFI_STA)
-        __systemMACCachedSTA = macStr;
-    if (pSeparator)
-        __systemMACCachedSep = pSeparator;
-    return macStr;
+    return Raft::formatMACAddr(addr, pSeparator);
 }
 
 // Get the app version string

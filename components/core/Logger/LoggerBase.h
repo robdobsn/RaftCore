@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdarg.h>
+#include <atomic>
 #include "Logger.h"
 #include "esp_attr.h"
 #include "esp_log.h"
@@ -140,8 +141,9 @@ public:
 
 protected:
     String _loggerType;
-    esp_log_level_t _level = ESP_LOG_INFO;
-    bool _isPaused = false;
+    // Level and paused are atomic as they are set on the main task and read in log() which can be called from any task
+    std::atomic<esp_log_level_t> _level{ESP_LOG_INFO};
+    std::atomic<bool> _isPaused{false};
     esp_log_level_t convStrToLogLevel(const char* pStr)
     {
         if ((pStr == nullptr) || (pStr[0] == '\0'))

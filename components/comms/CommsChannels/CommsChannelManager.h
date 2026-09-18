@@ -102,6 +102,11 @@ private:
 
     // Consts
     static const int MAX_INBOUND_MSGS_IN_LOOP = 1;
+    static const uint32_t COMMS_CHANNELS_RESERVE_COUNT = 20;
+
+    // Throttle for warning about missing codec
+    uint32_t _noCodecWarnLastMs = 0;
+    static const uint32_t NO_CODEC_WARN_INTERVAL_MS = 10000;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "CommsMan";

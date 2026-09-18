@@ -55,11 +55,8 @@ public:
 
     static NamedValueProvider* getNullProvider()
     {
-        if (_nullValueProvider == nullptr)
-            _nullValueProvider = new NamedValueProvider();
-        return _nullValueProvider;
+        // Initialisation of a function-local static is thread-safe
+        static NamedValueProvider nullValueProvider;
+        return &nullValueProvider;
     }
-
-private:
-    static NamedValueProvider* _nullValueProvider;
 };

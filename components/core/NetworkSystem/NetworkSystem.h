@@ -21,6 +21,8 @@
 #include "WiFiScanner.h"
 #include "NetworkSettings.h"
 #include "sdkconfig.h"
+#include "RaftThreading.h"
+#include <atomic>
 
 // Check if ethernet is enabled
 #if defined(CONFIG_ETH_ENABLED) && CONFIG_ETH_ENABLED
@@ -69,13 +71,13 @@ public:
     // Connection info
     String getWiFiIPV4AddrStr() const
     {
-        return _wifiIPV4Addr;
+        return getConnInfoStr(_wifiIPV4Addr);
     }
 
 #ifdef ETHERNET_IS_ENABLED
     String getEthIPV4AddrStr() const
     {
-        return _ethIPV4Addr;
+        return getConnInfoStr(_ethIPV4Addr);
     }
 #endif
 
@@ -89,7 +91,7 @@ public:
     // SSID
     String getSSID() const
     {
-        return _wifiStaSSID;
+        return getConnInfoStr(_wifiStaSSID);
     }
 
     // Get SSID we're trying to connect to
@@ -124,8 +126,9 @@ public:
     // Get RSSI
     int getRSSI(bool& isValid) const
     {
-        isValid = _wifiRSSI != 0;
-        return _wifiRSSI;
+        int rssi = _wifiRSSI;
+        isValid = rssi != 0;
+        return rssi;
     }
 
     // Set log level
@@ -139,7 +142,15 @@ private:
     NetworkSettings _networkSettings;
 
     // Flags
-    bool _isPaused = false;
+    // Note that _isPaused is set on the main task and read in event handlers (sys_evt task)
+    std::atomic<bool> _isPaused{false};
+
+    // Connection info strings which are written in event handlers (sys_evt task) and read on the main task
+    // These MUST only be accessed using getConnInfoStr() / setConnInfoStr() which use _connInfoMutex
+    // (_wifiStaSSID, _wifiIPV4Addr, _ethIPV4Addr, _ethMACAddress)
+    mutable RaftMutex _connInfoMutex;
+    String getConnInfoStr(const String& connInfoStr) const;
+    void setConnInfoStr(String& connInfoStr, const String& newValue);
 
     // WiFi connection details
     String _wifiStaSSID;
@@ -152,20 +163,21 @@ private:
 
     // WiFi AP
     String _wifiAPSSID;
-    uint8_t _wifiAPClientCount = 0;
+    std::atomic<uint8_t> _wifiAPClientCount{0};
 
     // RSSI
-    int8_t _wifiRSSI = 0;
+    std::atomic<int8_t> _wifiRSSI{0};
     uint32_t _wifiRSSILastMs = 0;
 
     // RSSI check interval
     static const uint32_t WIFI_RSSI_CHECK_MS = 2000;
 
     // Connect retries
-    int _numWifiConnectRetries = 0; 
+    // (these are accessed from both event handlers (sys_evt task) and the main task)
+    std::atomic<int> _numWifiConnectRetries{0};
     uint32_t _lastReconnAttemptMs = 0;
-    bool _pendingWiFiDisconnectWarn = false;
-    int _pendingWiFiDisconnectWarnRetries = 0;
+    std::atomic<bool> _pendingWiFiDisconnectWarn{false};
+    std::atomic<int> _pendingWiFiDisconnectWarnRetries{0};
 
     // WiFi event handler instances
     esp_event_handler_instance_t _wifiEventHandlerInstance = nullptr;
@@ -173,7 +185,7 @@ private:
     esp_event_handler_instance_t _ipLostEventHandlerInstance = nullptr;
 
     // Suppress auto-reconnect while a new STA config is being applied
-    volatile bool _suppressWifiAutoReconnect = false;
+    std::atomic<bool> _suppressWifiAutoReconnect{false};
 
     // Retry max, -1 means try forever
     static const int WIFI_CONNECT_MAX_RETRY = -1;
@@ -213,8 +225,9 @@ private:
     static volatile bool _sntpSyncPendingNotify;
 
     // Deferred mDNS setup (done in loop rather than event handler)
-    bool _mdnsSetupPending = false;
-    uint32_t _mdnsSetupPendingMs = 0;
+    // The flag is set in event handlers (sys_evt task) and the time MUST be written before the flag
+    std::atomic<bool> _mdnsSetupPending{false};
+    std::atomic<uint32_t> _mdnsSetupPendingMs{0};
     bool _mdnsIsSetup = false;
     static const uint32_t MDNS_SETUP_DELAY_MS = 500;
 
@@ -232,6 +245,8 @@ private:
     void handleWiFiStaDisconnectEvent();
     void warnOnWiFiDisconnectIfEthNotConnected();
     void setupMDNS();
+    void requestMDNSSetup();
+    void setupNetBIOS(const String& netbiosName, bool init);
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "NetSys";
