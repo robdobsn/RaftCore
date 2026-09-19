@@ -79,9 +79,10 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_W(MODULE_PREFIX, "setJsonDoc nvs_set_str FAIL ns %s error %d", 
+        LOG_W(MODULE_PREFIX, "setJsonDoc nvs_set_str FAIL ns %s error %s",
                         _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
+        nvs_close(nvsHandle);
         return false;
     }
 
@@ -90,9 +91,10 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     if (err != ESP_OK)
     {
 #ifdef WARN_ON_NVS_ACCESS_FAILURES
-        LOG_E(MODULE_PREFIX, "setJsonDoc nvs_commit FAIL ns %s error %s", 
+        LOG_E(MODULE_PREFIX, "setJsonDoc nvs_commit FAIL ns %s error %s",
                         _nvsNamespace.c_str(), esp_err_to_name(err));
 #endif
+        nvs_close(nvsHandle);
         return false;
     }
 

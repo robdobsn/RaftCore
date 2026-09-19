@@ -207,6 +207,15 @@ void DeviceManager::busOperationStatusCB(RaftBus& bus, BusOperationStatus busOpe
 /// @param statusChanges - an array of status changes (online/offline) for bus elements
 void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatus>& statusChanges)
 {
+    // Take a copy of the requested device data change callbacks under the lock (the list may be changed
+    // by registerForDeviceData on another task)
+    std::vector<DeviceDataChangeRec> requestedDeviceDataChangeCBs;
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        requestedDeviceDataChangeCBs.assign(_requestedDeviceDataChangeCBList.begin(), _requestedDeviceDataChangeCBList.end());
+        RaftMutex_unlock(_accessMutex);
+    }
+
     // Check if the deviceID or deviceTypeIndex of any of the status changes matches a registered device data change callback and if so 
     // register with the bus devices interface to receive data updates for the relevant device data change callbacks
     for (const BusAddrStatus& addrStatus : statusChanges)
@@ -245,7 +254,7 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
         bool recordFound = false;
 #endif
-        for (const DeviceDataChangeRec& rec : _requestedDeviceDataChangeCBList)
+        for (const DeviceDataChangeRec& rec : requestedDeviceDataChangeCBs)
         {
             // Check if the record matches the deviceID
             bool registerForData = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID) && 
@@ -293,8 +302,8 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
                     bus.getBusName().c_str(), addrStatus.address,
                     BusAddrStatus::getOnlineStateStr(addrStatus.onlineState), 
                     addrStatus.isNewlyIdentified ? "Y" : "N", 
-                    addrStatus.deviceTypeIndex, 
-                    _requestedDeviceDataChangeCBList.size(),
+                    addrStatus.deviceTypeIndex,
+                    requestedDeviceDataChangeCBs.size(),
                     recordFound ? "Y" : "N");
 #endif
 
@@ -1233,9 +1242,13 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     LOG_I(MODULE_PREFIX, "apiHWDevice hexWriteData %s numToRead %d", hexWriteData.c_str(), numBytesToRead);
 #endif
 
-    // If a read was requested, wait (bounded) for the bus worker's callback and
-    // return the read bytes in the response. This can run on the main loop task,
-    // so the wait is capped at a short long-stop to avoid stalling servicing.
+    // If a read was requested, wait (bounded) for the result callback and return the read bytes in
+    // the response. This generally runs on the main task so the wait is capped at a short long-stop to
+    // avoid stalling servicing.
+    // Note that the result callback for a (non-poll) bus request is delivered from the bus's loop() function
+    // which is only called from the main task. So when this is running on the main task the bus must be
+    // serviced while waiting or the result could never be received (and the callback then also runs on this
+    // task so there is no concurrent access to the result data)
     if (rslt && (numBytesToRead > 0))
     {
         static const uint32_t CMDRAW_READ_TIMEOUT_MAX_MS = 20;
@@ -1243,8 +1256,15 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
         if (timeoutMs > CMDRAW_READ_TIMEOUT_MAX_MS)
             timeoutMs = CMDRAW_READ_TIMEOUT_MAX_MS;
         uint32_t startMs = millis();
+        bool isMainTask = RaftThread_isMainTask();
         while (!_cmdRawResultReady && !Raft::isTimeout(millis(), startMs, timeoutMs))
+        {
+            if (isMainTask)
+                pBus->loop();
+            if (_cmdRawResultReady)
+                break;
             RaftThread_sleep(1);
+        }
         if (!_cmdRawResultReady)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "readTimeout");
         String hexRead;
@@ -1672,9 +1692,21 @@ void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataC
     if (unregister)
     {
         // Remove matching record from the list
-        _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
-            return rec.matches(deviceID, dataChangeCB, pCallbackInfo);
-        });
+        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+        {
+            _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
+                return rec.matches(deviceID, dataChangeCB, pCallbackInfo);
+            });
+            RaftMutex_unlock(_accessMutex);
+        }
+
+        // Also unregister from the bus (if the device is on a bus) as the callback and callback info may
+        // already have been installed on the bus (which makes data change callbacks on its own task)
+        // Note that this must not be done while holding _accessMutex as it may wait for a callback to complete
+        RaftBus* pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+        RaftBusDevicesIF* pBusDevicesIF = pBus ? pBus->getBusDevicesIF() : nullptr;
+        if (pBusDevicesIF)
+            pBusDevicesIF->unregisterForDeviceData(deviceID.getAddress(), pCallbackInfo);
         
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
         LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceID %s cb callbackInfo %p", 
@@ -1688,7 +1720,11 @@ void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataC
             deviceID.toString().c_str(), pCallbackInfo, minTimeBetweenReportsMs);
 #endif
 
-    _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+        RaftMutex_unlock(_accessMutex);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1704,9 +1740,33 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
     if (unregister)
     {
         // Remove matching record from the list
-        _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
-            return rec.matches(deviceTypeIndex, dataChangeCB, pCallbackInfo);
-        });
+        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+        {
+            _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
+                return rec.matches(deviceTypeIndex, dataChangeCB, pCallbackInfo);
+            });
+            RaftMutex_unlock(_accessMutex);
+        }
+
+        // Also unregister from all buses as the callback and callback info may already have been installed
+        // (per address) on a bus (which makes data change callbacks on its own task)
+        // Registrations on a bus are identified only by the callback info so this is only possible if callback
+        // info was provided - and note that ALL registrations with this callback info are removed from the buses
+        // Note that this must not be done while holding _accessMutex as it may wait for a callback to complete
+        if (pCallbackInfo)
+        {
+            for (RaftBus* pBus : raftBusSystem.getBusList())
+            {
+                RaftBusDevicesIF* pBusDevicesIF = pBus ? pBus->getBusDevicesIF() : nullptr;
+                if (pBusDevicesIF)
+                    pBusDevicesIF->unregisterForDeviceDataAll(pCallbackInfo);
+            }
+        }
+        else
+        {
+            LOG_W(MODULE_PREFIX, "registerForDeviceData unregister deviceTypeIndex %u - no callbackInfo so can't unregister from buses",
+                        deviceTypeIndex);
+        }
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
         LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceTypeIndex %u callbackInfo %p", 
                 deviceTypeIndex, pCallbackInfo);
@@ -1720,7 +1780,11 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
 #endif    
     
     // Add to requests for device data changes
-    _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+        RaftMutex_unlock(_accessMutex);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1794,7 +1858,11 @@ void DeviceManager::registerForDeviceData(const char* deviceTypeName, RaftDevice
 void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB)
 {
     // Add to requests for device status changes
-    _requestedDeviceStatusChangeCBList.push_back(statusChangeCB);
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        _requestedDeviceStatusChangeCBList.push_back(statusChangeCB);
+        RaftMutex_unlock(_accessMutex);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1807,7 +1875,7 @@ void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statu
 uint32_t DeviceManager::getStaticDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, 
         bool* pDeviceOnlineArray) const
 {
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return 0;
     
     uint32_t numDevices = 0;
@@ -1832,7 +1900,7 @@ uint32_t DeviceManager::getStaticDeviceListFrozen(RaftDevice** pDevices, uint32_
 /// @return pointer to device if found
 RaftDevice* DeviceManager::getDevice(RaftDeviceID deviceID) const
 {
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return nullptr;
     for (auto& devRec : _staticDeviceList)
     {
@@ -1863,7 +1931,7 @@ RaftDevice* DeviceManager::getDevice(const String& deviceStr, bool tryConfigName
     }
     
     // Try to match the device string to a configured device name
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return nullptr;
     for (auto& devRec : _staticDeviceList)
     {
@@ -1896,7 +1964,7 @@ RaftDevice* DeviceManager::getDevice(const String& deviceStr, bool tryConfigName
 void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddrStatus& addrAndStatus)
 {
     // Obtain a lock & make a copy of the device status change callbacks
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return;
     std::vector<RaftDeviceStatusChangeCB> statusChangeCallbacks(_requestedDeviceStatusChangeCBList.begin(), _requestedDeviceStatusChangeCBList.end());
     RaftMutex_unlock(_accessMutex);
@@ -2311,7 +2379,7 @@ RaftRetCode DeviceManager::apiDevManListDevs(const String &reqStr, String &respS
     };
 
     // Static devices
-    if (RaftMutex_lock(_accessMutex, 5))
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
     {
         for (auto& devRec : _staticDeviceList)
         {
@@ -2396,8 +2464,8 @@ RaftRetCode DeviceManager::apiDevManSlot(const String &reqStr, String &respStr, 
 /// @param reqResult Result of the command
 void DeviceManager::cmdResultReportCallback(BusRequestResult& reqResult)
 {
-    // Capture read data for a waiting cmdraw API call (runs on the bus worker task;
-    // ready flag is set only after the data is stored)
+    // Capture read data for a waiting cmdraw API call (this runs on the task which calls the bus's loop()
+    // function - i.e. normally the main task; the ready flag is set only after the data is stored)
     if ((_cmdRawInFlightCmdId != 0) && (reqResult.getCmdId() == _cmdRawInFlightCmdId) && !_cmdRawResultReady)
     {
         if (reqResult.getReadData() && (reqResult.getReadDataLen() > 0))

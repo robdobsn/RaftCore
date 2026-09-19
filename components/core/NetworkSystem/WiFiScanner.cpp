@@ -33,8 +33,15 @@ WiFiScanner::~WiFiScanner()
 
 bool WiFiScanner::scanStart()
 {
+    // Flag is set before starting as the scan-done event (on the sys_evt task) may occur before
+    // esp_wifi_scan_start returns
     _scanInProgress = true;
-    return esp_wifi_scan_start(NULL, false) == ESP_OK;
+    if (esp_wifi_scan_start(NULL, false) != ESP_OK)
+    {
+        _scanInProgress = false;
+        return false;
+    }
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

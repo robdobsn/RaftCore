@@ -20,6 +20,7 @@
 #include "RaftJsonNVS.h"
 #include "RestAPIEndpointManager.h"
 #include "RaftUtils.h"
+#include "RaftThreading.h"
 #include "PlatformUtils.h"
 #include "RaftSystemTime.h"
 #include "DebugGlobals.h"
@@ -342,6 +343,9 @@ void SysManager::postSetup()
 /// @brief Loop (called from main thread's endless loop)
 void SysManager::loop()
 {
+    // Record the task running the main loop (see RaftMainTask.h)
+    RaftThread_setMainTask();
+
     // Check if sysmod list is dirty
     if (_sysmodListDirty)
     {
@@ -593,7 +597,8 @@ void SysManager::clearAllStatusChangeCBs()
     // Go through the sysmod list
     for (RaftSysMod* pSysMod : _sysModuleList)
     {
-        return pSysMod->clearStatusChangeCBs();
+        if (pSysMod)
+            pSysMod->clearStatusChangeCBs();
     }
 }
 

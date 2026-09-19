@@ -182,6 +182,12 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     // Watchdog is not enabled on core 1 in Arduino according to this
     // https://www.bountychannel.com/issues/44690700-watchdog-with-system-reset
     // disableCore0WDT();
+    // Take mutex so that no other task is using the file system while it is formatted
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        Raft::setJsonErrorResult("reformat", respStr, "fsbusy");
+        return false;
+    }
     RaftAtomicBool_set(_localFsCache.isSizeInfoValid, false);
     RaftAtomicBool_set(_localFsCache.isFileInfoValid, false);
     RaftAtomicBool_set(_localFsCache.isFileInfoSetup, false);
@@ -197,6 +203,7 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
         ret = esp_spiffs_format(NULL);
 #endif
     // enableCore0WDT();
+    RaftMutex_unlock(_fileSysMutex);
     Raft::setJsonBoolResult("reformat", respStr, ret == ESP_OK);
     LOG_W(MODULE_PREFIX, "Reformat result %s", (ret == ESP_OK ? "OK" : "FAIL"));
 #else
@@ -1848,22 +1855,31 @@ void FileSystem::sdUpdateUsedBytes(CachedFileSystem& cachedFs)
     if (!pCard)
         return;
 
-    // Take mutex (this call may block for several seconds while scanning the FAT)
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
-        return;
-
+    // This call may block for several seconds while scanning the FAT so _fileSysMutex is deliberately NOT
+    // held here - otherwise every file system operation (including those on the local file system made from
+    // the main task) would be stalled for the duration. FatFs is built re-entrant in ESP-IDF (FF_FS_REENTRANT)
+    // so the volume is protected by its own lock while the scan is in progress.
     uint32_t debugStartMs = millis();
     FATFS* fsinfo;
     DWORD fre_clust;
+    bool usedBytesValid = false;
+    uint64_t usedBytes = 0;
     if (f_getfree("0:", &fre_clust, &fsinfo) == 0)
     {
-        cachedFs.fsUsedBytes = ((double)(fsinfo->csize)) * ((fsinfo->n_fatent - 2) - (fsinfo->free_clst))
+        usedBytes = ((double)(fsinfo->csize)) * ((fsinfo->n_fatent - 2) - (fsinfo->free_clst))
     #if _MAX_SS != 512
             * (fsinfo->ssize);
     #else
             * 512;
     #endif
+        usedBytesValid = true;
     }
+
+    // Store the result under the mutex (the value is written before the valid flag is set)
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return;
+    if (usedBytesValid)
+        cachedFs.fsUsedBytes = usedBytes;
     RaftAtomicBool_set(cachedFs.isUsedInfoValid, true);
     RaftMutex_unlock(_fileSysMutex);
     LOG_I(MODULE_PREFIX, "sdUpdateUsedBytes used %llu bytes took %dms",
@@ -1891,10 +1907,9 @@ void FileSystem::sdRequestUsedBytesUpdate(CachedFileSystem& cachedFs)
     if (fsName != SD_FILE_SYSTEM_NAME)
         return;
 
-    // Ensure the scan is only ever started once
-    if (RaftAtomicBool_get(_sdUsedScanStarted))
+    // Ensure the scan is only ever started once (atomic test-and-set as this may be called from more than one task)
+    if (RaftAtomicBool_exchange(_sdUsedScanStarted, true))
         return;
-    RaftAtomicBool_set(_sdUsedScanStarted, true);
 
     // Start a one-shot background task to perform the scan
     bool ok = RaftThread_start(_sdUsedScanTaskHandle, FileSystem::sdUsedBytesScanTaskStatic, this,

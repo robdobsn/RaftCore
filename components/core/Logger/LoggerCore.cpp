@@ -61,38 +61,49 @@ LoggerCore::LoggerCore()
 /// @brief Destructor
 LoggerCore::~LoggerCore()
 {
-    for (LoggerBase* pLogger : _loggers)
+    uint32_t numLoggers = _numLoggers.exchange(0);
+    for (uint32_t i = 0; i < numLoggers; i++)
     {
-        delete pLogger;
+        delete _loggers[i];
     }
 }
 
 /// @brief Loop
 void LoggerCore::loop()
 {
-    for (LoggerBase* pLogger : _loggers)
+    uint32_t numLoggers = _numLoggers;
+    for (uint32_t i = 0; i < numLoggers; i++)
     {
-        pLogger->loop();
+        _loggers[i]->loop();
     }
 }
 
 /// @brief Clear loggers
 void LoggerCore::clearLoggers()
 {
-    _loggers.clear();
+    // Note that the loggers are not deleted since another task may be using one in log()
+    _numLoggers = 0;
 }
 
 /// @brief Add a logger
 void LoggerCore::addLogger(LoggerBase* pLogger)
 {
-    _loggers.push_back(pLogger);
+    // Must only be called from one task at a time (the main task)
+    uint32_t numLoggers = _numLoggers;
+    if ((numLoggers >= MAX_LOGGERS) || !pLogger)
+        return;
+
+    // Write the slot before publishing the new count as log() may be running on another task
+    _loggers[numLoggers] = pLogger;
+    _numLoggers = numLoggers + 1;
 }
 
 /// @brief Get loggers
 /// @return vector of loggers
 std::vector<LoggerBase*> LoggerCore::getLoggers()
 {
-    return _loggers;
+    uint32_t numLoggers = _numLoggers;
+    return std::vector<LoggerBase*>(_loggers, _loggers + numLoggers);
 }
 
 /// @brief Get loggers as JSON
@@ -101,11 +112,12 @@ std::vector<LoggerBase*> LoggerCore::getLoggers()
 String LoggerCore::getLoggersJSON(bool includeBraces)
 {
     String loggersJSON;
-    for (LoggerBase* pLogger : _loggers)
+    uint32_t numLoggers = _numLoggers;
+    for (uint32_t i = 0; i < numLoggers; i++)
     {
         if (!loggersJSON.isEmpty())
             loggersJSON += ",";
-        loggersJSON += pLogger->getLoggerJSON();
+        loggersJSON += _loggers[i]->getLoggerJSON();
     }
     loggersJSON = "loggers:[" + loggersJSON + "]";
     return includeBraces ? "{" + loggersJSON + "}" : loggersJSON;
@@ -158,10 +170,11 @@ void LOGGING_FUNCTION_DECORATOR LoggerCore::log(esp_log_level_t level, const cha
     printf("%s", msg);
 #endif
 
-    // Log to all loggers
-    for (LoggerBase* pLogger : _loggers)
+    // Log to all loggers (this can be called from any task - see note in header)
+    uint32_t numLoggers = _numLoggers;
+    for (uint32_t i = 0; i < numLoggers; i++)
     {
-        // printf("LoggerCore::log type %s msg %s", pLogger->getLoggerType(), msg);
-        pLogger->log(level, tag, msg);
+        // printf("LoggerCore::log type %s msg %s", _loggers[i]->getLoggerType(), msg);
+        _loggers[i]->log(level, tag, msg);
     }
 }

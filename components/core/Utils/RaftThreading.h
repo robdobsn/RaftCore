@@ -172,6 +172,10 @@ void RaftAtomicBool_init(RaftAtomicBool &atomic, bool initialValue);
 void RaftAtomicBool_set(RaftAtomicBool &atomic, bool value);
 bool RaftAtomicBool_get(const RaftAtomicBool &atomic);
 
+/// @brief Atomically set the value and return the previous value (test-and-set)
+/// @return previous value (so false means the caller was the one to change it to the new value from false)
+bool RaftAtomicBool_exchange(RaftAtomicBool &atomic, bool value);
+
 // Atomic uint32 functions
 void RaftAtomicUint32_init(RaftAtomicUint32 &atomic, uint32_t initialValue);
 
@@ -182,6 +186,27 @@ uint32_t IRAM_ATTR RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAto
 void RaftAtomicUint32_store(RaftAtomicUint32 &atomic, uint32_t value, RaftAtomicOrdering ordering);
 uint32_t RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrdering ordering);
 #endif
+
+#ifdef __cplusplus
+}
+#endif
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Main task identification
+// The main task is the one which runs SysManager::loop() (and hence all SysMod loop() functions)
+// Most framework state is owned by the main task - see RaftMainTask.h for a check macro
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// @brief Record the calling task as the main task (called by SysManager)
+void RaftThread_setMainTask();
+
+/// @brief Check if the calling task is the main task
+/// @return true if the calling task is the main task (or if no main task has yet been recorded)
+bool RaftThread_isMainTask();
 
 #ifdef __cplusplus
 }

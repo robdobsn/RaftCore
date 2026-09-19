@@ -60,16 +60,27 @@
     }
     bool RaftMutex_lock(RaftMutex &mutex, uint32_t timeout_ms)
     {
-        uint32_t ticksToWait = timeout_ms;
+        // Check mutex was created
+        if (!mutex.mutex)
+            return false;
+        TickType_t ticksToWait = 0;
         if (timeout_ms == UINT32_MAX)
+        {
             ticksToWait = portMAX_DELAY;
-        else
+        }
+        else if (timeout_ms != 0)
+        {
+            // Ensure a non-zero timeout never degrades to a try-lock (when tick rate < 1kHz)
             ticksToWait = pdMS_TO_TICKS(timeout_ms);
+            if (ticksToWait == 0)
+                ticksToWait = 1;
+        }
         return xSemaphoreTake(mutex.mutex, ticksToWait) == pdTRUE;
     }
     void RaftMutex_unlock(RaftMutex &mutex)
     {
-        xSemaphoreGive(mutex.mutex);
+        if (mutex.mutex)
+            xSemaphoreGive(mutex.mutex);
     }
     void RaftMutex_destroy(RaftMutex &mutex)
     {
@@ -220,6 +231,18 @@ bool RaftAtomicBool_get(const RaftAtomicBool &atomic)
 #endif
 }
 
+bool RaftAtomicBool_exchange(RaftAtomicBool &atomic, bool value)
+{
+#if defined(ESP_PLATFORM) || defined(__linux__)
+    return __atomic_exchange_n(&atomic.value, value ? 1 : 0, __ATOMIC_SEQ_CST) != 0;
+#else
+    // Fallback for other platforms - NOT thread-safe
+    bool prevValue = atomic.value != 0;
+    atomic.value = value ? 1 : 0;
+    return prevValue;
+#endif
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Atomic uint32 functions
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -260,3 +283,47 @@ uint32_t RaftAtomicUint32_load(const RaftAtomicUint32 &atomic, RaftAtomicOrderin
     return atomic.value;
 #endif
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Main task identification
+// The main task is the one which runs SysManager::loop() (and hence all SysMod loop() functions)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(MICROPY_PY_THREAD)
+
+void RaftThread_setMainTask()
+{
+}
+bool RaftThread_isMainTask()
+{
+    return true;
+}
+
+#elif defined(FREERTOS_CONFIG_H) || defined(FREERTOS_H) || defined(ESP_PLATFORM)
+
+static volatile TaskHandle_t raftMainTaskHandle = nullptr;
+void RaftThread_setMainTask()
+{
+    raftMainTaskHandle = xTaskGetCurrentTaskHandle();
+}
+bool RaftThread_isMainTask()
+{
+    TaskHandle_t mainTaskHandle = raftMainTaskHandle;
+    return (mainTaskHandle == nullptr) || (mainTaskHandle == xTaskGetCurrentTaskHandle());
+}
+
+#elif defined(__linux__)
+
+static volatile bool raftMainTaskValid = false;
+static pthread_t raftMainTaskHandle;
+void RaftThread_setMainTask()
+{
+    raftMainTaskHandle = pthread_self();
+    raftMainTaskValid = true;
+}
+bool RaftThread_isMainTask()
+{
+    return (!raftMainTaskValid) || pthread_equal(raftMainTaskHandle, pthread_self());
+}
+
+#endif
