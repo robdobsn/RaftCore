@@ -207,15 +207,6 @@ void DeviceManager::busOperationStatusCB(RaftBus& bus, BusOperationStatus busOpe
 /// @param statusChanges - an array of status changes (online/offline) for bus elements
 void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatus>& statusChanges)
 {
-    // Take a copy of the requested device data change callbacks under the lock (the list may be changed
-    // by registerForDeviceData on another task)
-    std::vector<DeviceDataChangeRec> requestedDeviceDataChangeCBs;
-    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
-    {
-        requestedDeviceDataChangeCBs.assign(_requestedDeviceDataChangeCBList.begin(), _requestedDeviceDataChangeCBList.end());
-        RaftMutex_unlock(_accessMutex);
-    }
-
     // Check if the deviceID or deviceTypeIndex of any of the status changes matches a registered device data change callback and if so 
     // register with the bus devices interface to receive data updates for the relevant device data change callbacks
     for (const BusAddrStatus& addrStatus : statusChanges)
@@ -244,6 +235,17 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
         // Check the device is online
         if (addrStatus.onlineState != DeviceOnlineState::ONLINE)
             continue;
+
+        // Take a copy of the requested device data change callbacks under the lock (the list may be changed
+        // by registerForDeviceData on another task). This must be taken after the status change callbacks
+        // above as a listener may register for device data from its status change callback (e.g. when a
+        // device is newly identified) and that registration must be passed to the bus below
+        std::vector<DeviceDataChangeRec> requestedDeviceDataChangeCBs;
+        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+        {
+            requestedDeviceDataChangeCBs.assign(_requestedDeviceDataChangeCBList.begin(), _requestedDeviceDataChangeCBList.end());
+            RaftMutex_unlock(_accessMutex);
+        }
 
         // Get the devices interface for the bus and if it exists register for device data updates for the deviceID of the bus element with the status change
         RaftBusDevicesIF* pBusDevicesIF = bus.getBusDevicesIF();

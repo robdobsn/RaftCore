@@ -254,6 +254,9 @@ void NetworkSystem::loop()
         _wifiRSSI = wifiRSSI;
     }
 
+    // Collect completed WiFi scan results promptly
+    _wifiScanner.loop();
+
     // Handle deferred mDNS setup
     if (_mdnsSetupPending && Raft::isTimeout(millis(), _mdnsSetupPendingMs.load(), MDNS_SETUP_DELAY_MS))
     {
@@ -378,7 +381,8 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
         bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
-        if (useBeforePauseValue)
+        // The value before pause is only relevant while paused (if WiFi has never been paused it is false)
+        if (useBeforePauseValue && isPaused())
             wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
         String ssidToUse = wifiStaConnWithIP ? wifiStaSSID : _wifiStaSSIDConnectingTo;
         jsonStr += R"("wifiSTA":{"conn":)" + String(wifiStaConnWithIP) + 
@@ -393,8 +397,9 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         {
             jsonStr += R"(,"MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") + R"(")";
         }
-        if (isPaused())
+        if (isPaused() && !wifiStaConnWithIP)
         {
+            // (RSSI and IP have already been added above if connected)
             jsonStr += R"(,"RSSI":)" + String(wifiRSSI) +
             R"(,"IP":")" + wifiIPV4Addr + R"(")";
         }
@@ -546,16 +551,24 @@ bool NetworkSystem::startWifi()
         wifi_config_t currentWifiConfig = {0};
 #pragma GCC diagnostic pop
         esp_err_t err = esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
-        if ((err != ESP_OK) || 
-            (currentWifiConfig.sta.threshold.authmode != _networkSettings.wifiSTAScanThreshold))
+        const wifi_scan_method_t scanMethod = getWifiSTAScanMethod();
+        const wifi_sort_method_t sortMethod = getWifiSTASortMethod();
+        if ((err != ESP_OK) ||
+            (currentWifiConfig.sta.threshold.authmode != _networkSettings.wifiSTAScanThreshold) ||
+            (currentWifiConfig.sta.scan_method != scanMethod) ||
+            (currentWifiConfig.sta.sort_method != sortMethod))
         {
-            // Amend config as required
-            LOG_I(MODULE_PREFIX, "startWifi threshold %d set to %d", 
+            // Amend config as required (the stored config may predate these settings)
+            LOG_I(MODULE_PREFIX, "startWifi threshold %d set to %d scanMethod %d set to %d sortMethod %d set to %d",
                         currentWifiConfig.sta.threshold.authmode,
-                        _networkSettings.wifiSTAScanThreshold);
+                        _networkSettings.wifiSTAScanThreshold,
+                        currentWifiConfig.sta.scan_method, scanMethod,
+                        currentWifiConfig.sta.sort_method, sortMethod);
 
             // Set new settings
             currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
+            currentWifiConfig.sta.scan_method = scanMethod;
+            currentWifiConfig.sta.sort_method = sortMethod;
             esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
 
             // Set SSID we're trying to connect to
@@ -667,6 +680,8 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
     strlcpy((char *)currentWifiConfig.sta.ssid, ssidUnescaped.c_str(), 32);
     strlcpy((char *)currentWifiConfig.sta.password, pwUnescaped.c_str(), 64);
     currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
+    currentWifiConfig.sta.scan_method = getWifiSTAScanMethod();
+    currentWifiConfig.sta.sort_method = getWifiSTASortMethod();
 
     // esp_wifi_set_config is rejected with ESP_ERR_WIFI_STATE if a connect attempt
     // is currently in progress. Suppress auto-reconnect, issue a disconnect, and
@@ -841,17 +856,17 @@ bool NetworkSystem::wifiScan(bool start, String& jsonResult)
     // WiFi control operations are not thread safe and must be called from the main task
     RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "wifiScan");
 
-    // Check for start
+    // Start returns the scan status (and fails only if the scan could not be started). Results
+    // return the scan status and the cached results of the last completed scan - the status
+    // state indicates whether a scan is in progress, done or failed
     if (start)
-        return _wifiScanner.scanStart();
-
-    // Check for scan completed
-    if (!_wifiScanner.isScanInProgress())
     {
-        // Get results
-        return _wifiScanner.getResultsJSON(jsonResult);
+        bool rslt = _wifiScanner.scanStart();
+        jsonResult = _wifiScanner.getStatusJSON();
+        return rslt;
     }
-    return false;
+    jsonResult = _wifiScanner.getResultsJSON();
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1234,8 +1249,12 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
     switch (eventId)
     {
     case WIFI_EVENT_SCAN_DONE:
-        networkSystem._wifiScanner.scanComplete();
+    {
+        const wifi_event_sta_scan_done_t* pScanDone = (const wifi_event_sta_scan_done_t*)pEventData;
+        networkSystem._wifiScanner.scanComplete(pScanDone && (pScanDone->status == 0),
+                    pScanDone ? pScanDone->number : 0);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi scan done");
+    }
         break;
     case WIFI_EVENT_WIFI_READY:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi ready");

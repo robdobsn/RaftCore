@@ -234,6 +234,18 @@ private:
     // Helpers
     bool startWifi();
     void stopWifi();
+
+    // STA AP selection from settings (see NetworkSettings::wifiSTAConnectBySignal)
+    wifi_scan_method_t getWifiSTAScanMethod() const
+    {
+        return _networkSettings.wifiSTAConnectBySignal ? WIFI_ALL_CHANNEL_SCAN : WIFI_FAST_SCAN;
+    }
+    wifi_sort_method_t getWifiSTASortMethod() const
+    {
+        // Sorting only applies to an all-channel scan; BY_SIGNAL is also the
+        // ESP-IDF zero default, so fast-scan behaviour is unchanged
+        return WIFI_CONNECT_AP_BY_SIGNAL;
+    }
     static void networkEventHandler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* pEventData);
     void wifiEventHandler(void* arg, int32_t event_id, void* pEventData);
