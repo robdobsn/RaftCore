@@ -32,9 +32,11 @@ CommsChannel::CommsChannel(const char* pSourceProtocolName,
             :
             _settings(pSettings ? *pSettings : CommsChannelSettings()),
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-            // TODO: this uses inboundBlockLen as the max queue COUNT - it should probably be inboundQueueCountMax
-            // but that would greatly reduce the effective queue depth (e.g. for BLE) so needs testing on hardware
-            _inboundQueue(_settings.inboundBlockLen),
+            // The maximum number of messages in the inbound queue is inboundQueueCountMax
+            // Note that, until Sept 2026, inboundBlockLen (a number of bytes) was used for this by mistake which
+            // gave a very deep queue (1200 messages by default). A channel which has no way to apply back-pressure
+            // to the sender and isn't fed from the main loop (e.g. BLE) should set inboundQueueCountMax explicitly
+            _inboundQueue(_settings.inboundQueueCountMax),
 #endif
             _outboundQueue(_settings.outboundQueueMaxLen)
 {

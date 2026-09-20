@@ -11,6 +11,10 @@
 
 #include <stdint.h>
 
+// inboundBlockLen / inboundBlockLenMax / outboundBlockLen: message sizes in bytes
+// inboundQueueCountMax / outboundQueueMaxLen: maximum number of messages in the inbound / outbound queue
+// (a message arriving when the inbound queue is full is dropped and a warning is logged)
+// inboundQueueBytesMax: not currently enforced
 class CommsChannelSettings
 {
 public:

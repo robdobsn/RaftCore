@@ -365,6 +365,26 @@ endif()
 # Include ESP-IDF build system (must be done after setting CONFIG_IDF_TARGET)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
+################################################
+# Component manager lock file
+################################################
+
+# The ESP-IDF component manager records the versions of managed components (mdns, littlefs, etc) in a lock file
+# together with the ESP-IDF version and target chip they were resolved for. By default that is dependencies.lock
+# in the project folder which is shared by every SysType - so SysTypes which use different ESP-IDF versions
+# (set(ESP_IDF_VERSION ...) in features.cmake) or different target chips each invalidate the other's lock file,
+# which is then re-resolved (needing network access) and rewritten on every switch between them.
+# So a SysType has its own lock file, systypes/<SysType>/dependencies.lock, if either:
+#  - the project sets ESP_IDF_VERSION (it uses the scheme which allows a different ESP-IDF version per SysType), or
+#  - that file already exists (which is how any other project can opt in: copy dependencies.lock there)
+# Otherwise the default is unchanged so existing projects keep using the dependencies.lock they have.
+# Note that the managed_components folder itself can't be moved and remains shared by all SysTypes.
+set(_raft_systype_lock_file "${BUILD_CONFIG_DIR}/dependencies.lock")
+if(EXISTS "${_raft_systype_lock_file}" OR (DEFINED ESP_IDF_VERSION AND NOT "${ESP_IDF_VERSION}" STREQUAL ""))
+    idf_build_set_property(DEPENDENCIES_LOCK "${_raft_systype_lock_file}")
+    message(STATUS "Component manager lock file: ${_raft_systype_lock_file}")
+endif()
+
 # Set the firmware image name (if not already set)
 if(NOT DEFINED FW_IMAGE_NAME)
     set(FW_IMAGE_NAME "${_systype_name}")
