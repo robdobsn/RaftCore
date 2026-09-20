@@ -27,7 +27,8 @@ public:
     };
 
     // Start a scan (main task). Returns false if the scan could not be started (the reason is
-    // reported in the status). A start request while a scan is in progress is not an error.
+    // reported in the status). A start request while a scan is in progress, or within
+    // MIN_RESCAN_INTERVAL_MS of a scan completing, is not an error and doesn't start a new scan.
     bool scanStart();
 
     // Service (main task) - collects the results of a completed scan promptly, as the driver's
@@ -93,6 +94,9 @@ private:
 
     // Max scan result size
     static const uint32_t MAX_SCAN_LIST_SIZE = 30;
+
+    // A start request within this time of a scan completing doesn't start a new scan
+    static const uint32_t MIN_RESCAN_INTERVAL_MS = 1000;
 
     // Helpers
     void collectResults(uint16_t numFound);

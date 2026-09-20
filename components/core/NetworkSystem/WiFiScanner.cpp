@@ -33,9 +33,21 @@ WiFiScanner::~WiFiScanner()
 
 bool WiFiScanner::scanStart()
 {
+    // Pick up a completion that happened since the last loop()
+    loop();
+
     // A scan is already running - report its status rather than restarting it
     if (_scanState == ScanState::SCANNING)
         return true;
+
+    // A scan has only just completed - report its (fresh) results rather than scanning again.
+    // A client connected over WiFi gets no response while the radio is scanning so may re-send
+    // the start request - the repeats are all delivered at the moment the scan completes
+    if ((_scanState == ScanState::DONE) && !Raft::isTimeout(millis(), _scanEndMs, MIN_RESCAN_INTERVAL_MS))
+    {
+        LOG_I(MODULE_PREFIX, "scanStart ignored - scan %d completed %dms ago", (int)_scanId, (int)(millis() - _scanEndMs));
+        return true;
+    }
 
     // New scan
     _scanId++;
