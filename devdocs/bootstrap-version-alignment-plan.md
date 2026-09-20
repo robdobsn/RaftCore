@@ -107,6 +107,49 @@ includes the fetched copy's own bootstrap (with a recursion guard) — then the
 downloaded file almost never changes and version matching evaporates. Do at a
 natural release boundary.
 
+### 3c. Rule adopted 2026-09-20: stage 1 is frozen
+
+Prompted by the per-SysType ESP-IDF version check (RaftCLI `devdocs/eim-support-plan.md`), which was first
+added to `RaftBootstrap.cmake` and then moved, unchanged in behaviour, to `RaftBootstrapPhase2.cmake`.
+
+Why a stage 1 change is nearly always the wrong place:
+
+- A project using `RaftCore@main` gets stage 1 from the latest **release** but stage 2 from `main`, so a
+  stage 1 change does nothing until a release is cut.
+- Stage 1 is cached in the build folder against a URL stamp and the `releases/latest` URL never changes,
+  so it is only refreshed by a clean build.
+- Older projects hardcode a release URL (`unit_tests` here still uses v1.37.1) and never get it at all.
+- Stage 2 always matches the RaftCore in use, sees everything stage 1 sets (it is pulled in with
+  `include()`) and runs before the ESP-IDF `project.cmake`. Checked back to the v1.37.1 stage 1, which
+  already sets `_systype_name` and `BUILD_CONFIG_DIR`, includes `features.cmake` and hands off the same way.
+
+So: **new build features go in stage 2** (`RaftBootstrapPhase2.cmake`, `RaftProject.cmake` and the scripts
+they call) unless they cannot possibly work there. This is stated at the top of `RaftBootstrapPhase2.cmake`.
+What is sensitive to the ESP-IDF version (sdkconfig merge, `project.cmake`, partitions, FS image) is already
+in stage 2; stage 1 is sensitive to the CMake version instead (CMP0169 was the one forced change).
+
+For the rare case where stage 1 must change in a way stage 2 depends on, stage 2 now checks
+`RAFT_BOOTSTRAP_API`: a stage 1 that does not set it (every release up to and including v1.54.1) is API 1,
+the number required is `_raft_bootstrap_api_required` in `RaftBootstrapPhase2.cmake` (currently 1, so
+nothing is rejected) and a too-old stage 1 gets a message saying how to update the project rather than an
+obscure failure. When the 3b shim is done it should `set(RAFT_BOOTSTRAP_API 2)`; raise the required number
+only if stage 2 then relies on something the shim provides.
+
+### 3d. Skew warning and unit_tests (2026-09-20)
+
+- RaftCLI `raft build` now warns (`src/bootstrap_check.rs`) when a project's `CMakeLists.txt` has a bootstrap
+  release URL written into it AND its RaftCore floats (`RaftCore@main`, a branch, or no tag). It says how to move
+  to the derived-URL `CMakeLists.txt`. It is silent for the current template, for a local bootstrap include, and
+  for a project which pins RaftCore to a release even if the bootstrap release differs (a deliberately locked
+  build, e.g. RoboticalCogFW_195release: bootstrap v1.17.11 with RaftCore v1.20.2). Projects which currently get
+  the warning: MartyCamFW (v1.17.11), RoboticalAxiom1, SandBotFirmware, RaftI2C/TestWebUI, RaftROS/unit_tests
+  (all v1.37.1) and RaftMotorControl/unit_tests (v1.24.1), all with `RaftCore@main`. This is step 5 below made
+  visible: those old stage 1 scripts still use the deprecated `FetchContent_Populate`.
+- `unit_tests/CMakeLists.txt` no longer downloads the v1.37.1 bootstrap. It includes
+  `../scripts/RaftBootstrap.cmake` so both stages come from the RaftCore under test (it already used the local
+  RaftCore for everything else). Reconfigure and a full build verified with ESP-IDF 6.0.1; the CMP0169
+  deprecation warning it used to produce has gone.
+
 ### 4. RaftCLI template: local bootstrap override (optional but recommended)
 
 Add the pattern proven in PlaneRadar's CMakeLists.txt to the template:

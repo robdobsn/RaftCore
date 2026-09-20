@@ -127,6 +127,66 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 include(${BUILD_CONFIG_DIR}/features.cmake)
 
 ################################################
+# Check the ESP-IDF version
+################################################
+
+# The ESP-IDF version a SysType is built with can be set in features.cmake using set(ESP_IDF_VERSION "x.y.z")
+# (in the SysType's features.cmake or in Common/features.cmake) and the raft command line tool finds (or uses a
+# Docker image with) that version. The tool passes the version it is building with in the RAFT_ESP_IDF_VERSION
+# environment variable (which takes precedence here as the version can be overridden on its command line).
+# A Raft project isn't intended to be built by running idf.py/CMake directly and doing so with the wrong
+# ESP-IDF version is reported as an error here.
+set(_raft_idf_version_required "")
+if(DEFINED ENV{RAFT_ESP_IDF_VERSION} AND NOT "$ENV{RAFT_ESP_IDF_VERSION}" STREQUAL "")
+    set(_raft_idf_version_required "$ENV{RAFT_ESP_IDF_VERSION}")
+elseif(DEFINED ESP_IDF_VERSION AND NOT "${ESP_IDF_VERSION}" STREQUAL "")
+    set(_raft_idf_version_required "${ESP_IDF_VERSION}")
+endif()
+if(NOT _raft_idf_version_required STREQUAL "" AND EXISTS "$ENV{IDF_PATH}/tools/cmake/version.cmake")
+    # Required version (a missing patch number is 0 so 6.1 is the same as 6.1.0)
+    if(_raft_idf_version_required MATCHES "([0-9]+)\\.([0-9]+)(\\.([0-9]+))?")
+        set(_raft_idf_req_major "${CMAKE_MATCH_1}")
+        set(_raft_idf_req_minor "${CMAKE_MATCH_2}")
+        set(_raft_idf_req_patch "${CMAKE_MATCH_4}")
+        if(_raft_idf_req_patch STREQUAL "")
+            set(_raft_idf_req_patch "0")
+        endif()
+
+        # Version of the ESP-IDF in use
+        file(STRINGS "$ENV{IDF_PATH}/tools/cmake/version.cmake" _raft_idf_version_lines REGEX "IDF_VERSION_(MAJOR|MINOR|PATCH)")
+        set(_raft_idf_act_major "")
+        set(_raft_idf_act_minor "")
+        set(_raft_idf_act_patch "0")
+        foreach(_raft_idf_version_line IN LISTS _raft_idf_version_lines)
+            if(_raft_idf_version_line MATCHES "IDF_VERSION_MAJOR[ \t]+([0-9]+)")
+                set(_raft_idf_act_major "${CMAKE_MATCH_1}")
+            elseif(_raft_idf_version_line MATCHES "IDF_VERSION_MINOR[ \t]+([0-9]+)")
+                set(_raft_idf_act_minor "${CMAKE_MATCH_1}")
+            elseif(_raft_idf_version_line MATCHES "IDF_VERSION_PATCH[ \t]+([0-9]+)")
+                set(_raft_idf_act_patch "${CMAKE_MATCH_1}")
+            endif()
+        endforeach()
+
+        if(NOT _raft_idf_act_major STREQUAL "" AND NOT _raft_idf_act_minor STREQUAL "")
+            set(_raft_idf_req "${_raft_idf_req_major}.${_raft_idf_req_minor}.${_raft_idf_req_patch}")
+            set(_raft_idf_act "${_raft_idf_act_major}.${_raft_idf_act_minor}.${_raft_idf_act_patch}")
+            if(NOT _raft_idf_req STREQUAL _raft_idf_act)
+                message(FATAL_ERROR
+                    "\nESP-IDF version mismatch: SysType ${_build_config_name} requires ESP-IDF ${_raft_idf_req} "
+                    "but ESP-IDF ${_raft_idf_act} is being used ($ENV{IDF_PATH}).\n"
+                    "The required version is set by ESP_IDF_VERSION in systypes/${_build_config_name}/features.cmake "
+                    "(or systypes/Common/features.cmake).\n"
+                    "Build using the raft command line tool (raft build) which selects the correct ESP-IDF - "
+                    "see https://github.com/robdobsn/RaftCLI\n")
+            endif()
+            message(STATUS "ESP-IDF version ${_raft_idf_act} matches the version required")
+        endif()
+    else()
+        message(WARNING "ESP_IDF_VERSION \"${_raft_idf_version_required}\" is not a version number so the ESP-IDF version has not been checked")
+    endif()
+endif()
+
+################################################
 # DevTypes Generation
 ################################################
 
