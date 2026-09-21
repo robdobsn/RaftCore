@@ -1202,6 +1202,11 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     if (retc != RAFT_OK)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
 
+    // A valid deviceID may resolve to no bus (e.g. a directly-connected device such as
+    // power management or LEDs). There is no bus to address so report rather than deref.
+    if (!pBus)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+
     // Data to write and number of bytes to read
     String hexWriteData = jsonParams.getString("hexWr", "");
     int numBytesToRead = jsonParams.getLong("numToRd", 0);
@@ -1412,6 +1417,12 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
     RaftRetCode retc = resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr);
     if (retc != RAFT_OK)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
+
+    // A valid deviceID may resolve to no bus (e.g. a directly-connected device such as
+    // power management or LEDs). Bus poll settings do not apply so report rather than deref.
+    if (!pBus)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+
     BusElemAddrType addr = deviceID.getAddress();
 
     // Check if poll interval is provided
