@@ -51,6 +51,7 @@ DeviceManager::DeviceManager(const char *pModuleName, RaftJsonIF& sysConfig)
 {
     // Create mutex
     RaftMutex_init(_accessMutex);
+    RaftMutex_init(_cmdRawMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +60,7 @@ DeviceManager::~DeviceManager()
 {
     // Delete mutex
     RaftMutex_destroy(_accessMutex);
+    RaftMutex_destroy(_cmdRawMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1214,8 +1216,13 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     // Create hardware element request (generation-stamped cmdId for read-back matching)
     static uint32_t cmdRawGeneration = 0;
     uint32_t cmdId = CMDID_CMDRAW_BASE + (++cmdRawGeneration & 0xFFFF);
-    _cmdRawInFlightCmdId = cmdId;
-    _cmdRawResultReady = false;
+    if (RaftMutex_lock(_cmdRawMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        _cmdRawInFlightCmdId = cmdId;
+        _cmdRawResultReady = false;
+        _cmdRawReadData.clear();
+        RaftMutex_unlock(_cmdRawMutex);
+    }
     HWElemReq hwElemReq = {writeVec, numBytesToRead, (int)cmdId, "cmdraw", 0};
 
     // Create bus request info with callback to receive response
@@ -1271,13 +1278,37 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
         uint32_t timeoutMs = jsonParams.getLong("timeoutMs", CMDRAW_READ_TIMEOUT_DEFAULT_MS);
         if (timeoutMs > CMDRAW_READ_TIMEOUT_MAX_MS)
             timeoutMs = CMDRAW_READ_TIMEOUT_MAX_MS;
+        // Take a COPY under the lock rather than formatting from the shared vector. Formatting
+        // from it directly is what allowed a reader to touch it while the worker was still
+        // reallocating it.
         uint32_t startMs = millis();
-        while (!_cmdRawResultReady && !Raft::isTimeout(millis(), startMs, timeoutMs))
+        std::vector<uint8_t> readData;
+        bool haveResult = false;
+        while (!Raft::isTimeout(millis(), startMs, timeoutMs))
+        {
+            if (RaftMutex_lock(_cmdRawMutex, RAFT_MUTEX_WAIT_FOREVER))
+            {
+                haveResult = _cmdRawResultReady;
+                if (haveResult)
+                    readData = _cmdRawReadData;
+                RaftMutex_unlock(_cmdRawMutex);
+            }
+            if (haveResult)
+                break;
             RaftThread_sleep(1);
-        if (!_cmdRawResultReady)
+        }
+
+        // Retire the request whatever happened, so a late callback cannot land on the next one.
+        if (RaftMutex_lock(_cmdRawMutex, RAFT_MUTEX_WAIT_FOREVER))
+        {
+            _cmdRawInFlightCmdId = 0;
+            RaftMutex_unlock(_cmdRawMutex);
+        }
+
+        if (!haveResult)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "readTimeout");
         String hexRead;
-        Raft::getHexStrFromBytes(_cmdRawReadData.data(), _cmdRawReadData.size(), hexRead);
+        Raft::getHexStrFromBytes(readData.data(), readData.size(), hexRead);
         String otherJson = "\"rdData\":\"" + hexRead + "\"";
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, otherJson.c_str());
     }
@@ -2425,15 +2456,20 @@ RaftRetCode DeviceManager::apiDevManSlot(const String &reqStr, String &respStr, 
 /// @param reqResult Result of the command
 void DeviceManager::cmdResultReportCallback(BusRequestResult& reqResult)
 {
-    // Capture read data for a waiting cmdraw API call (runs on the bus worker task;
-    // ready flag is set only after the data is stored)
-    if ((_cmdRawInFlightCmdId != 0) && (reqResult.getCmdId() == _cmdRawInFlightCmdId) && !_cmdRawResultReady)
+    // Capture read data for a waiting cmdraw API call. Runs on the BUS WORKER task, while the
+    // handler waits on another - so the vector and the flag are taken together under the lock,
+    // never a bare store to a volatile the other side spins on.
+    if (RaftMutex_lock(_cmdRawMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
-        if (reqResult.getReadData() && (reqResult.getReadDataLen() > 0))
-            _cmdRawReadData.assign(reqResult.getReadData(), reqResult.getReadData() + reqResult.getReadDataLen());
-        else
-            _cmdRawReadData.clear();
-        _cmdRawResultReady = true;
+        if ((_cmdRawInFlightCmdId != 0) && (reqResult.getCmdId() == _cmdRawInFlightCmdId) && !_cmdRawResultReady)
+        {
+            if (reqResult.getReadData() && (reqResult.getReadDataLen() > 0))
+                _cmdRawReadData.assign(reqResult.getReadData(), reqResult.getReadData() + reqResult.getReadDataLen());
+            else
+                _cmdRawReadData.clear();
+            _cmdRawResultReady = true;
+        }
+        RaftMutex_unlock(_cmdRawMutex);
     }
 #ifdef DEBUG_CMD_RESULT_CALLBACK
     LOG_I(MODULE_PREFIX, "cmdResultReportCallback len %d", reqResult.getReadDataLen());

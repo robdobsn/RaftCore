@@ -297,8 +297,18 @@ private:
     // worker's callback to fill the buffer. The cmdId carries a generation count
     // so a late callback from an abandoned request can't satisfy a newer one.
     static const uint32_t CMDID_CMDRAW_BASE = 0x43520000;
+    // Handed between two tasks: the API handler that asks, and the bus worker that answers.
+    //
+    // It did not used to be. A non-polling result was called back from the main loop, the same task
+    // the handler runs on, so one task touched all of this and nothing could race - the read simply
+    // never arrived in time. Asking for the callback on the bus worker is what made the read work
+    // and what made this shared state, and volatile carries no ordering between cores: the store to
+    // the ready flag could be seen before the vector's own pointer and length stores, leaving the
+    // reader calling data() on a vector mid-reallocation. That is a load from null, and it crashed
+    // an Axiom in the field as LoadProhibited with EXCVADDR 0.
+    mutable RaftMutex _cmdRawMutex;
     uint32_t _cmdRawInFlightCmdId = 0;
-    volatile bool _cmdRawResultReady = false;
+    bool _cmdRawResultReady = false;
     std::vector<uint8_t> _cmdRawReadData;
 
     /// @brief Get device list frozen
