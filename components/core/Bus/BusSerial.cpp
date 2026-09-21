@@ -122,6 +122,9 @@ bool BusSerial::serialInit()
             .stop_bits = UART_STOP_BITS_1,
             .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
             .rx_flow_ctrl_thresh = 10,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+            .rx_glitch_filt_thresh = 0,
+#endif
 #if ESP_IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 0, 0)
                 .use_ref_tick = false,
 #else
