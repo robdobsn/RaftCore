@@ -127,6 +127,66 @@ set(ADDED_PROJECT_DEPENDENCIES ${ADDED_PROJECT_DEPENDENCIES} SysTypeInfoRecs)
 include(${BUILD_CONFIG_DIR}/features.cmake)
 
 ################################################
+# Check the ESP-IDF version
+################################################
+
+# The ESP-IDF version a SysType is built with can be set in features.cmake using set(ESP_IDF_VERSION "x.y.z")
+# (in the SysType's features.cmake or in Common/features.cmake) and the raft command line tool finds (or uses a
+# Docker image with) that version. The tool passes the version it is building with in the RAFT_ESP_IDF_VERSION
+# environment variable (which takes precedence here as the version can be overridden on its command line).
+# A Raft project isn't intended to be built by running idf.py/CMake directly and doing so with the wrong
+# ESP-IDF version is reported as an error here.
+set(_raft_idf_version_required "")
+if(DEFINED ENV{RAFT_ESP_IDF_VERSION} AND NOT "$ENV{RAFT_ESP_IDF_VERSION}" STREQUAL "")
+    set(_raft_idf_version_required "$ENV{RAFT_ESP_IDF_VERSION}")
+elseif(DEFINED ESP_IDF_VERSION AND NOT "${ESP_IDF_VERSION}" STREQUAL "")
+    set(_raft_idf_version_required "${ESP_IDF_VERSION}")
+endif()
+if(NOT _raft_idf_version_required STREQUAL "" AND EXISTS "$ENV{IDF_PATH}/tools/cmake/version.cmake")
+    # Required version (a missing patch number is 0 so 6.1 is the same as 6.1.0)
+    if(_raft_idf_version_required MATCHES "([0-9]+)\\.([0-9]+)(\\.([0-9]+))?")
+        set(_raft_idf_req_major "${CMAKE_MATCH_1}")
+        set(_raft_idf_req_minor "${CMAKE_MATCH_2}")
+        set(_raft_idf_req_patch "${CMAKE_MATCH_4}")
+        if(_raft_idf_req_patch STREQUAL "")
+            set(_raft_idf_req_patch "0")
+        endif()
+
+        # Version of the ESP-IDF in use
+        file(STRINGS "$ENV{IDF_PATH}/tools/cmake/version.cmake" _raft_idf_version_lines REGEX "IDF_VERSION_(MAJOR|MINOR|PATCH)")
+        set(_raft_idf_act_major "")
+        set(_raft_idf_act_minor "")
+        set(_raft_idf_act_patch "0")
+        foreach(_raft_idf_version_line IN LISTS _raft_idf_version_lines)
+            if(_raft_idf_version_line MATCHES "IDF_VERSION_MAJOR[ \t]+([0-9]+)")
+                set(_raft_idf_act_major "${CMAKE_MATCH_1}")
+            elseif(_raft_idf_version_line MATCHES "IDF_VERSION_MINOR[ \t]+([0-9]+)")
+                set(_raft_idf_act_minor "${CMAKE_MATCH_1}")
+            elseif(_raft_idf_version_line MATCHES "IDF_VERSION_PATCH[ \t]+([0-9]+)")
+                set(_raft_idf_act_patch "${CMAKE_MATCH_1}")
+            endif()
+        endforeach()
+
+        if(NOT _raft_idf_act_major STREQUAL "" AND NOT _raft_idf_act_minor STREQUAL "")
+            set(_raft_idf_req "${_raft_idf_req_major}.${_raft_idf_req_minor}.${_raft_idf_req_patch}")
+            set(_raft_idf_act "${_raft_idf_act_major}.${_raft_idf_act_minor}.${_raft_idf_act_patch}")
+            if(NOT _raft_idf_req STREQUAL _raft_idf_act)
+                message(FATAL_ERROR
+                    "\nESP-IDF version mismatch: SysType ${_build_config_name} requires ESP-IDF ${_raft_idf_req} "
+                    "but ESP-IDF ${_raft_idf_act} is being used ($ENV{IDF_PATH}).\n"
+                    "The required version is set by ESP_IDF_VERSION in systypes/${_build_config_name}/features.cmake "
+                    "(or systypes/Common/features.cmake).\n"
+                    "Build using the raft command line tool (raft build) which selects the correct ESP-IDF - "
+                    "see https://github.com/robdobsn/RaftCLI\n")
+            endif()
+            message(STATUS "ESP-IDF version ${_raft_idf_act} matches the version required")
+        endif()
+    else()
+        message(WARNING "ESP_IDF_VERSION \"${_raft_idf_version_required}\" is not a version number so the ESP-IDF version has not been checked")
+    endif()
+endif()
+
+################################################
 # DevTypes Generation
 ################################################
 
@@ -172,6 +232,26 @@ endif()
 
 # Include ESP-IDF build system (must be done after setting CONFIG_IDF_TARGET)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+
+################################################
+# Component manager lock file
+################################################
+
+# The ESP-IDF component manager records the versions of managed components (mdns, littlefs, etc) in a lock file
+# together with the ESP-IDF version and target chip they were resolved for. By default that is dependencies.lock
+# in the project folder which is shared by every SysType - so SysTypes which use different ESP-IDF versions
+# (set(ESP_IDF_VERSION ...) in features.cmake) or different target chips each invalidate the other's lock file,
+# which is then re-resolved (needing network access) and rewritten on every switch between them.
+# So a SysType has its own lock file, systypes/<SysType>/dependencies.lock, if either:
+#  - the project sets ESP_IDF_VERSION (it uses the scheme which allows a different ESP-IDF version per SysType), or
+#  - that file already exists (which is how any other project can opt in: copy dependencies.lock there)
+# Otherwise the default is unchanged so existing projects keep using the dependencies.lock they have.
+# Note that the managed_components folder itself can't be moved and remains shared by all SysTypes.
+set(_raft_systype_lock_file "${BUILD_CONFIG_DIR}/dependencies.lock")
+if(EXISTS "${_raft_systype_lock_file}" OR (DEFINED ESP_IDF_VERSION AND NOT "${ESP_IDF_VERSION}" STREQUAL ""))
+    idf_build_set_property(DEPENDENCIES_LOCK "${_raft_systype_lock_file}")
+    message(STATUS "Component manager lock file: ${_raft_systype_lock_file}")
+endif()
 
 # Set the firmware image name (if not already set)
 if(NOT DEFINED FW_IMAGE_NAME)
