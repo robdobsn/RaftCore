@@ -164,9 +164,31 @@ public:
     /// @param dataChangeCB Callback for data change
     /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
     /// @param pCallbackInfo Callback info (passed to the callback)
-    virtual void registerForDeviceData(BusElemAddrType address, RaftDeviceDataChangeCB dataChangeCB, 
+    virtual void registerForDeviceData(BusElemAddrType address, RaftDeviceDataChangeCB dataChangeCB,
                 uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
     {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Unregister for device data notifications for a specific address
+    /// @param address address of device
+    /// @param pCallbackInfo Callback info that was passed when registering (identifies the subscriber)
+    /// @return true if a matching registration was found (and disarmed)
+    /// @note Implementations must ensure that on return the callback is not in progress (on another task) and
+    ///       will not be called again for this address - so that the subscriber can then safely be destroyed
+    virtual bool unregisterForDeviceData(BusElemAddrType address, const void* pCallbackInfo)
+    {
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Unregister for device data notifications on all addresses
+    /// @param pCallbackInfo Callback info that was passed when registering (identifies the subscriber)
+    /// @return number of registrations disarmed
+    /// @note see unregisterForDeviceData
+    virtual uint32_t unregisterForDeviceDataAll(const void* pCallbackInfo)
+    {
+        return 0;
     }
 
     /// @brief Send command to device on bus

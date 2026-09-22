@@ -238,6 +238,17 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
         if (addrStatus.onlineState != DeviceOnlineState::ONLINE)
             continue;
 
+        // Take a copy of the requested device data change callbacks under the lock (the list may be changed
+        // by registerForDeviceData on another task). This must be taken after the status change callbacks
+        // above as a listener may register for device data from its status change callback (e.g. when a
+        // device is newly identified) and that registration must be passed to the bus below
+        std::vector<DeviceDataChangeRec> requestedDeviceDataChangeCBs;
+        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+        {
+            requestedDeviceDataChangeCBs.assign(_requestedDeviceDataChangeCBList.begin(), _requestedDeviceDataChangeCBList.end());
+            RaftMutex_unlock(_accessMutex);
+        }
+
         // Get the devices interface for the bus and if it exists register for device data updates for the deviceID of the bus element with the status change
         RaftBusDevicesIF* pBusDevicesIF = bus.getBusDevicesIF();
         if (!pBusDevicesIF)
@@ -247,7 +258,7 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
         bool recordFound = false;
 #endif
-        for (const DeviceDataChangeRec& rec : _requestedDeviceDataChangeCBList)
+        for (const DeviceDataChangeRec& rec : requestedDeviceDataChangeCBs)
         {
             // Check if the record matches the deviceID
             bool registerForData = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID) && 
@@ -295,8 +306,8 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
                     bus.getBusName().c_str(), addrStatus.address,
                     BusAddrStatus::getOnlineStateStr(addrStatus.onlineState), 
                     addrStatus.isNewlyIdentified ? "Y" : "N", 
-                    addrStatus.deviceTypeIndex, 
-                    _requestedDeviceDataChangeCBList.size(),
+                    addrStatus.deviceTypeIndex,
+                    requestedDeviceDataChangeCBs.size(),
                     recordFound ? "Y" : "N");
 #endif
 
@@ -1743,9 +1754,21 @@ void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataC
     if (unregister)
     {
         // Remove matching record from the list
-        _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
-            return rec.matches(deviceID, dataChangeCB, pCallbackInfo);
-        });
+        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+        {
+            _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
+                return rec.matches(deviceID, dataChangeCB, pCallbackInfo);
+            });
+            RaftMutex_unlock(_accessMutex);
+        }
+
+        // Also unregister from the bus (if the device is on a bus) as the callback and callback info may
+        // already have been installed on the bus (which makes data change callbacks on its own task)
+        // Note that this must not be done while holding _accessMutex as it may wait for a callback to complete
+        RaftBus* pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+        RaftBusDevicesIF* pBusDevicesIF = pBus ? pBus->getBusDevicesIF() : nullptr;
+        if (pBusDevicesIF)
+            pBusDevicesIF->unregisterForDeviceData(deviceID.getAddress(), pCallbackInfo);
         
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
         LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceID %s cb callbackInfo %p", 
@@ -1759,7 +1782,11 @@ void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataC
             deviceID.toString().c_str(), pCallbackInfo, minTimeBetweenReportsMs);
 #endif
 
-    _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+        RaftMutex_unlock(_accessMutex);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1775,9 +1802,33 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
     if (unregister)
     {
         // Remove matching record from the list
-        _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
-            return rec.matches(deviceTypeIndex, dataChangeCB, pCallbackInfo);
-        });
+        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+        {
+            _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
+                return rec.matches(deviceTypeIndex, dataChangeCB, pCallbackInfo);
+            });
+            RaftMutex_unlock(_accessMutex);
+        }
+
+        // Also unregister from all buses as the callback and callback info may already have been installed
+        // (per address) on a bus (which makes data change callbacks on its own task)
+        // Registrations on a bus are identified only by the callback info so this is only possible if callback
+        // info was provided - and note that ALL registrations with this callback info are removed from the buses
+        // Note that this must not be done while holding _accessMutex as it may wait for a callback to complete
+        if (pCallbackInfo)
+        {
+            for (RaftBus* pBus : raftBusSystem.getBusList())
+            {
+                RaftBusDevicesIF* pBusDevicesIF = pBus ? pBus->getBusDevicesIF() : nullptr;
+                if (pBusDevicesIF)
+                    pBusDevicesIF->unregisterForDeviceDataAll(pCallbackInfo);
+            }
+        }
+        else
+        {
+            LOG_W(MODULE_PREFIX, "registerForDeviceData unregister deviceTypeIndex %u - no callbackInfo so can't unregister from buses",
+                        deviceTypeIndex);
+        }
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
         LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceTypeIndex %u callbackInfo %p", 
                 deviceTypeIndex, pCallbackInfo);
@@ -1791,7 +1842,11 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
 #endif    
     
     // Add to requests for device data changes
-    _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
+        RaftMutex_unlock(_accessMutex);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1865,7 +1920,11 @@ void DeviceManager::registerForDeviceData(const char* deviceTypeName, RaftDevice
 void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB)
 {
     // Add to requests for device status changes
-    _requestedDeviceStatusChangeCBList.push_back(statusChangeCB);
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        _requestedDeviceStatusChangeCBList.push_back(statusChangeCB);
+        RaftMutex_unlock(_accessMutex);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1878,7 +1937,7 @@ void DeviceManager::registerForDeviceStatusChange(RaftDeviceStatusChangeCB statu
 uint32_t DeviceManager::getStaticDeviceListFrozen(RaftDevice** pDevices, uint32_t maxDevices, bool onlyOnline, 
         bool* pDeviceOnlineArray) const
 {
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return 0;
     
     uint32_t numDevices = 0;
@@ -1903,7 +1962,7 @@ uint32_t DeviceManager::getStaticDeviceListFrozen(RaftDevice** pDevices, uint32_
 /// @return pointer to device if found
 RaftDevice* DeviceManager::getDevice(RaftDeviceID deviceID) const
 {
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return nullptr;
     for (auto& devRec : _staticDeviceList)
     {
@@ -1934,7 +1993,7 @@ RaftDevice* DeviceManager::getDevice(const String& deviceStr, bool tryConfigName
     }
     
     // Try to match the device string to a configured device name
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return nullptr;
     for (auto& devRec : _staticDeviceList)
     {
@@ -1967,7 +2026,7 @@ RaftDevice* DeviceManager::getDevice(const String& deviceStr, bool tryConfigName
 void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddrStatus& addrAndStatus)
 {
     // Obtain a lock & make a copy of the device status change callbacks
-    if (!RaftMutex_lock(_accessMutex, 5))
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
         return;
     std::vector<RaftDeviceStatusChangeCB> statusChangeCallbacks(_requestedDeviceStatusChangeCBList.begin(), _requestedDeviceStatusChangeCBList.end());
     RaftMutex_unlock(_accessMutex);
@@ -2382,7 +2441,7 @@ RaftRetCode DeviceManager::apiDevManListDevs(const String &reqStr, String &respS
     };
 
     // Static devices
-    if (RaftMutex_lock(_accessMutex, 5))
+    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
     {
         for (auto& devRec : _staticDeviceList)
         {

@@ -44,6 +44,7 @@ public:
 
         // Wifi STA
         wifiSTAScanThreshold = getAuthModeFromStr(configPrefixed.getString("wifiSTAScanThreshold", "WPA2_PSK").c_str());
+        wifiSTAConnectBySignal = configPrefixed.getBool("wifiSTAConnectBySignal", true);
 
         // Wifi AP
         wifiAPAuthMode = getAuthModeFromStr(configPrefixed.getString("wifiAPAuthMode", "WPA2_PSK").c_str());
@@ -90,6 +91,11 @@ public:
 
     // Wifi STA
     wifi_auth_mode_t wifiSTAScanThreshold = WIFI_AUTH_WPA2_PSK;
+
+    // Wifi STA AP selection: true scans all channels and joins the strongest AP
+    // with the configured SSID; false uses ESP-IDF's fast scan, which joins the
+    // first matching AP found (possibly a weak one on a multi-AP network)
+    bool wifiSTAConnectBySignal = true;
 
     // Wifi AP
     wifi_auth_mode_t wifiAPAuthMode = WIFI_AUTH_WPA2_PSK;

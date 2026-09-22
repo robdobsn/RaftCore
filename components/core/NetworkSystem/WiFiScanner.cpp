@@ -28,112 +28,125 @@ WiFiScanner::~WiFiScanner()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Start scan
+// Start scan (main task)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool WiFiScanner::scanStart()
 {
-    _scanInProgress = true;
-    return esp_wifi_scan_start(NULL, false) == ESP_OK;
-}
+    // Pick up a completion that happened since the last loop()
+    loop();
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Start complete - called by WiFi event handler
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // A scan is already running - report its status rather than restarting it
+    if (_scanState == ScanState::SCANNING)
+        return true;
 
-void WiFiScanner::scanComplete()
-{
-    _scanInProgress = false;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get results JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool WiFiScanner::getResultsJSON(String& json)
-{
-    // Check if in progress
-    if (_scanInProgress)
+    // A scan has only just completed - report its (fresh) results rather than scanning again.
+    // A client connected over WiFi gets no response while the radio is scanning so may re-send
+    // the start request - the repeats are all delivered at the moment the scan completes
+    if ((_scanState == ScanState::DONE) && !Raft::isTimeout(millis(), _scanEndMs, MIN_RESCAN_INTERVAL_MS))
     {
-        // Return scan in progress
-        json = "\"scanInProgress\":1";
-        return false;
+        LOG_I(MODULE_PREFIX, "scanStart ignored - scan %d completed %dms ago", (int)_scanId, (int)(millis() - _scanEndMs));
+        return true;
     }
 
-    // Empty list
-    json = "\"wifi\":[]";
+    // New scan
+    _scanId++;
+    _scanStartMs = millis();
+    _scanEndMs = _scanStartMs;
+    _scanErrStr = "";
+    _completionPending = false;
 
-    // Get results
-    WiFiScanResultList results;
-    if (getScanResults(results))
+    // State is set before starting as the scan-done event (on the sys_evt task) may occur before
+    // esp_wifi_scan_start returns
+    _scanState = ScanState::SCANNING;
+    esp_err_t err = esp_wifi_scan_start(NULL, false);
+    if (err != ESP_OK)
     {
-        json = "\"wifi\":[";
-        for (int i = 0; i < results.size(); i++)
-        {
-            if (i > 0)
-                json += ",";
-            String entry = "{";
-            RaftJson::appendStringField(entry, "ssid", results[i].ssid.c_str());
-            RaftJson::appendRawField(entry, "rssi", String(results[i].rssi).c_str());
-            RaftJson::appendRawField(entry, "ch1", String(results[i].primaryChannel).c_str());
-            RaftJson::appendRawField(entry, "ch2", String(results[i].secondaryChannel).c_str());
-            RaftJson::appendStringField(entry, "auth", getAuthModeString(results[i].authMode).c_str());
-            RaftJson::appendStringField(entry, "bssid", results[i].bssid.c_str());
-            RaftJson::appendStringField(entry, "pair", getCipherString(results[i].pairwiseCipher).c_str());
-            RaftJson::appendStringField(entry, "group", getCipherString(results[i].groupCipher).c_str());
-            entry += "}";
-            json += entry;
-        }
-        json += "]";
+        _scanState = ScanState::FAILED;
+        _scanErrStr = (err == ESP_ERR_WIFI_STATE) ? "busy (STA connecting)" : esp_err_to_name(err);
+        LOG_W(MODULE_PREFIX, "scanStart failed %s (%d)", esp_err_to_name(err), err);
+        return false;
     }
     return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get scan results
+// Scan complete - called by WiFi event handler (sys_evt task)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool WiFiScanner::getScanResults(WiFiScanResultList& results)
+void WiFiScanner::scanComplete(bool success, uint16_t numFound)
 {
-    // Check if in progress
-    if (_scanInProgress)
-        return false;
+    _completionSuccess.store(success, std::memory_order_relaxed);
+    _completionNumFound.store(numFound, std::memory_order_relaxed);
+    _completionPending.store(true, std::memory_order_release);
+}
 
-    // Get scan results
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Abandon scan (main task)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void WiFiScanner::scanAbandon()
+{
+    _completionPending = false;
+    if (_scanState != ScanState::SCANNING)
+        return;
+    _scanState = ScanState::FAILED;
+    _scanEndMs = millis();
+    _scanErrStr = "abandoned";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Loop (main task) - handle scan completion
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void WiFiScanner::loop()
+{
+    if (!_completionPending.exchange(false, std::memory_order_acquire))
+        return;
+
+    // Ignore completions that are not for a scan we started (e.g. after an abandon)
+    if (_scanState != ScanState::SCANNING)
+        return;
+    _scanEndMs = millis();
+    if (!_completionSuccess.load(std::memory_order_relaxed))
+    {
+        _scanState = ScanState::FAILED;
+        _scanErrStr = "aborted";
+        return;
+    }
+    collectResults(_completionNumFound.load(std::memory_order_relaxed));
+    _scanState = ScanState::DONE;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Collect results from the driver into the cache and compare with the previous scan
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void WiFiScanner::collectResults(uint16_t numFound)
+{
+    // Get records - esp_wifi_scan_get_ap_records returns the number copied in num and frees the
+    // driver's list (so it must only be called once per scan)
     uint16_t num = MAX_SCAN_LIST_SIZE;
     wifi_ap_record_t *pRecords = (wifi_ap_record_t *)malloc(num * sizeof(wifi_ap_record_t));
     if (pRecords == NULL)
     {
-        LOG_E(MODULE_PREFIX, "getScanResults malloc failed");
-        return false;
+        LOG_E(MODULE_PREFIX, "collectResults malloc failed");
+        esp_wifi_clear_ap_list();
+        num = 0;
     }
-    if (esp_wifi_scan_get_ap_records(&num, pRecords) != ESP_OK)
+    else if (esp_wifi_scan_get_ap_records(&num, pRecords) != ESP_OK)
     {
-        LOG_E(MODULE_PREFIX, "getScanResults esp_wifi_scan_get_ap_records failed");
-        free(pRecords);
-        return false;
-    }
-    uint16_t wifi_count = 0;
-    if (esp_wifi_scan_get_ap_num(&wifi_count) != ESP_OK)
-    {
-        LOG_E(MODULE_PREFIX, "getScanResults esp_wifi_scan_get_ap_num failed");
-        free(pRecords);
-        return false;
-    }
-    if (wifi_count == 0)
-    {
-        LOG_E(MODULE_PREFIX, "getScanResults no records");
-        free(pRecords);
-        return false;
+        LOG_E(MODULE_PREFIX, "collectResults esp_wifi_scan_get_ap_records failed");
+        num = 0;
     }
 
-    // Process results
-    for (int i = 0; (i < wifi_count) && (i < MAX_SCAN_LIST_SIZE); i++)
+    // Build the new list, marking BSSIDs not seen in the previous scan
+    WiFiScanResultList newResults;
+    newResults.reserve(num);
+    uint16_t numNew = 0;
+    for (uint32_t i = 0; (i < num) && (i < MAX_SCAN_LIST_SIZE); i++)
     {
-        // Get record
-        wifi_ap_record_t *pRecord = &pRecords[i];
-
-        // Create WiFiScanResult
+        const wifi_ap_record_t *pRecord = &pRecords[i];
         static const uint32_t SSID_MAX_LEN = 32;
         WiFiScanResult result;
         result.ssid = String(pRecord->ssid, SSID_MAX_LEN);
@@ -144,31 +157,128 @@ bool WiFiScanner::getScanResults(WiFiScanResultList& results)
         result.authMode = pRecord->authmode;
         result.pairwiseCipher = pRecord->pairwise_cipher;
         result.groupCipher = pRecord->group_cipher;
-        results.push_back(result);
+        result.isNew = true;
+        for (const WiFiScanResult& prev : _results)
+        {
+            if (prev.bssid == result.bssid)
+            {
+                result.isNew = false;
+                break;
+            }
+        }
+        if (result.isNew)
+            numNew++;
+        newResults.push_back(result);
+    }
+    free(pRecords);
+
+    // Count previous BSSIDs no longer present
+    uint16_t numLost = 0;
+    for (const WiFiScanResult& prev : _results)
+    {
+        bool found = false;
+        for (const WiFiScanResult& cur : newResults)
+        {
+            if (cur.bssid == prev.bssid)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            numLost++;
     }
 
-    // Free memory
-    free(pRecords);
-    return true;
+    // On the first scan everything is new but there is nothing to compare with
+    _numNew = _hasPreviousResults ? numNew : 0;
+    _numLost = _hasPreviousResults ? numLost : 0;
+    if (!_hasPreviousResults)
+    {
+        for (WiFiScanResult& result : newResults)
+            result.isNew = false;
+    }
+    _hasPreviousResults = true;
+    _numFound = numFound;
+    _results.swap(newResults);
 }
 
-    // uint16_t number = DEFAULT_SCAN_LIST_SIZE;
-    // wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];
-    // uint16_t ap_count = 0;
-    // memset(ap_info, 0, sizeof(ap_info));
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get status JSON (main task)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
-    // ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
-    // LOG_I(MODULE_PREFIX, "Total APs scanned = %u", ap_count);
-    // for (int i = 0; (i < DEFAULT_SCAN_LIST_SIZE) && (i < ap_count); i++) {
-    //     LOG_I(MODULE_PREFIX, "SSID \t\t%s", ap_info[i].ssid);
-    //     LOG_I(MODULE_PREFIX, "RSSI \t\t%d", ap_info[i].rssi);
-    //     print_auth_mode(ap_info[i].authmode);
-    //     if (ap_info[i].authmode != WIFI_AUTH_WEP) {
-    //         print_cipher_type(ap_info[i].pairwise_cipher, ap_info[i].group_cipher);
-    //     }
-    //     LOG_I(MODULE_PREFIX, "Channel \t\t%d\n", ap_info[i].primary);
-    // }
+String WiFiScanner::getStatusJSON()
+{
+    // Pick up a completion that happened since the last loop()
+    loop();
+
+    uint32_t nowMs = millis();
+    String json = R"("scan":{"state":")" + String(getScanStateStr(_scanState)) + R"(","id":)" + String(_scanId);
+    if (_scanState == ScanState::SCANNING)
+    {
+        json += R"(,"elapsedMs":)" + String(nowMs - _scanStartMs);
+    }
+    else if (_scanState != ScanState::IDLE)
+    {
+        json += R"(,"durMs":)" + String(_scanEndMs - _scanStartMs);
+        json += R"(,"ageMs":)" + String(nowMs - _scanEndMs);
+    }
+    if (_scanState == ScanState::FAILED)
+        json += R"(,"err":")" + _scanErrStr + R"(")";
+    if (_hasPreviousResults)
+    {
+        json += R"(,"count":)" + String((uint32_t)_results.size());
+        json += R"(,"found":)" + String(_numFound);
+        json += R"(,"new":)" + String(_numNew);
+        json += R"(,"lost":)" + String(_numLost);
+    }
+    json += "}";
+    return json;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get status and results JSON (main task)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String WiFiScanner::getResultsJSON()
+{
+    String json = getStatusJSON() + R"(,"wifi":[)";
+    for (uint32_t i = 0; i < _results.size(); i++)
+    {
+        const WiFiScanResult& result = _results[i];
+        if (i > 0)
+            json += ",";
+        String entry = "{";
+        RaftJson::appendStringField(entry, "ssid", result.ssid.c_str());
+        RaftJson::appendRawField(entry, "rssi", String(result.rssi).c_str());
+        RaftJson::appendRawField(entry, "ch1", String(result.primaryChannel).c_str());
+        RaftJson::appendRawField(entry, "ch2", String(result.secondaryChannel).c_str());
+        RaftJson::appendStringField(entry, "auth", getAuthModeString(result.authMode).c_str());
+        RaftJson::appendStringField(entry, "bssid", result.bssid.c_str());
+        RaftJson::appendStringField(entry, "pair", getCipherString(result.pairwiseCipher).c_str());
+        RaftJson::appendStringField(entry, "group", getCipherString(result.groupCipher).c_str());
+        RaftJson::appendRawField(entry, "new", result.isNew ? "1" : "0");
+        entry += "}";
+        json += entry;
+    }
+    json += "]";
+    return json;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Scan state string
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const char* WiFiScanner::getScanStateStr(ScanState state)
+{
+    switch (state)
+    {
+        case ScanState::IDLE: return "idle";
+        case ScanState::SCANNING: return "scanning";
+        case ScanState::DONE: return "done";
+        case ScanState::FAILED: return "failed";
+    }
+    return "unknown";
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Convert auth mode to string

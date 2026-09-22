@@ -10,12 +10,23 @@
 #pragma once
 
 #include <queue>
+#include <atomic>
 #include "RaftThreading.h"
+
+// Notes on thread-safety:
+// - put/get/peek/clear block for up to maxMsToWait (default DEFAULT_MAX_MS_TO_WAIT) to obtain the queue mutex
+//   and return false if the mutex could not be obtained - so a false return does NOT necessarily mean
+//   full (put) or empty (get/peek) and the result must always be checked
+// - count() and canAcceptData() are lock-free and never fail (the value may be stale by the time it is used)
+// - the critical sections are short (one element copy) so the default wait is only hit if something is badly wrong
 
 template<typename ElemT>
 class ThreadSafeQueue
 {
 public:
+    // Default max time to wait for the queue mutex
+    static const uint32_t DEFAULT_MAX_MS_TO_WAIT = 10;
+
     ThreadSafeQueue(uint32_t maxLen = DEFAULT_MAX_QUEUE_LEN)
     {
         // Mutex for ThreadSafeQueue
@@ -28,12 +39,16 @@ public:
         RaftMutex_destroy(_queueMutex);
     }
 
+    // Not copyable (owns a mutex)
+    ThreadSafeQueue(const ThreadSafeQueue&) = delete;
+    ThreadSafeQueue& operator=(const ThreadSafeQueue&) = delete;
+
     void setMaxLen(uint32_t maxLen)
     {
         _maxLen = maxLen;
     }
 
-    bool put(const ElemT& elem, uint32_t maxMsToWait = 0)
+    [[nodiscard]] bool put(const ElemT& elem, uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
     {
         // Get mutex
         if (RaftMutex_lock(_queueMutex, maxMsToWait))
@@ -48,6 +63,7 @@ public:
 
             // Queue up the item
             _queue.push(elem);
+            _count = _queue.size();
 
             // Return mutex
             RaftMutex_unlock(_queueMutex);
@@ -56,8 +72,12 @@ public:
         return false;
     }
 
-    bool get(ElemT& elem, uint32_t maxMsToWait = 0)
+    [[nodiscard]] bool get(ElemT& elem, uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
     {
+        // Avoid taking the mutex if empty
+        if (_count == 0)
+            return false;
+
         // Get Mutex
         if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
@@ -71,6 +91,7 @@ public:
             // read the item and remove
             elem = _queue.front();
             _queue.pop();
+            _count = _queue.size();
 
             // Return mutex
             RaftMutex_unlock(_queueMutex);
@@ -79,8 +100,12 @@ public:
         return false;
     }
 
-    bool peek(ElemT& elem, uint32_t maxMsToWait = 0)
+    [[nodiscard]] bool peek(ElemT& elem, uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
     {
+        // Avoid taking the mutex if empty
+        if (_count == 0)
+            return false;
+
         // Get Mutex
         if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
@@ -101,29 +126,48 @@ public:
         return false;
     }
 
-    void clear(uint32_t maxMsToWait = 0)
+    // Remove the front item without copying it (e.g. after a successful peek by the only consumer)
+    [[nodiscard]] bool pop(uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
+    {
+        // Get Mutex
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
+        {
+            bool removed = !_queue.empty();
+            if (removed)
+            {
+                _queue.pop();
+                _count = _queue.size();
+            }
+
+            // Return mutex
+            RaftMutex_unlock(_queueMutex);
+            return removed;
+        }
+        return false;
+    }
+
+    // Returns false if the queue mutex could not be obtained (queue not cleared)
+    bool clear(uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
     {
         if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
             // Clear queue
             while(!_queue.empty())
                 _queue.pop();
+            _count = 0;
 
             // Return mutex
             RaftMutex_unlock(_queueMutex);
+            return true;
         }
+        return false;
     }
 
+    // Lock-free (maxMsToWait is unused and retained for backward compatibility)
     uint32_t count(uint32_t maxMsToWait = 0)
     {
-        if (RaftMutex_lock(_queueMutex, maxMsToWait))
-        {
-            int qSize = _queue.size();
-            // Return mutex
-            RaftMutex_unlock(_queueMutex);
-            return qSize;
-        }
-        return 0;
+        (void)maxMsToWait;
+        return _count;
     }
 
     uint32_t maxLen()
@@ -131,16 +175,20 @@ public:
         return _maxLen;
     }
 
+    // Lock-free
     bool canAcceptData()
     {
-        return _queue.size() < _maxLen;
+        return _count < _maxLen;
     }
 
 private:
     std::queue<ElemT> _queue;
-    static const uint16_t DEFAULT_MAX_QUEUE_LEN = 50;
-    uint16_t _maxLen = DEFAULT_MAX_QUEUE_LEN;
-    static const uint16_t DEFAULT_MAX_MS_TO_WAIT = 1;
+    static const uint32_t DEFAULT_MAX_QUEUE_LEN = 50;
+    std::atomic<uint32_t> _maxLen{DEFAULT_MAX_QUEUE_LEN};
+
+    // Count of items in queue (mirrors _queue.size() and is updated under the mutex)
+    std::atomic<uint32_t> _count{0};
+
     // Mutex for queue
     RaftMutex _queueMutex;
 };

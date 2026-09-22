@@ -12,6 +12,7 @@
 #include "CommsChannelMsg.h"
 #include "RaftArduino.h"
 #include "RaftUtils.h"
+#include "RaftMainTask.h"
 
 // TODO - decide on enabling this - or maybe it needs to be more sophisticated?
 // the idea is to avoid swamping the outbound queue with publish messages that end up either
@@ -48,6 +49,9 @@
 CommsChannelManager::CommsChannelManager(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
 {
+    // Reserve space for channels so that the vector is not normally reallocated when a channel is registered
+    // since inboundHandleMsg() may be indexing the vector from another task (e.g. BLE host task)
+    _commsChannelVec.reserve(COMMS_CHANNELS_RESERVE_COUNT);
 }
 
 CommsChannelManager::~CommsChannelManager()
@@ -80,6 +84,10 @@ void CommsChannelManager::loop()
         CommsChannel* pChannel = _commsChannelVec[channelID];
         if (!pChannel)
             continue;
+
+        // Ensure protocol codec exists - codecs are only ever created on the main loop task
+        // (inbound messages from other tasks are just queued and don't need the codec)
+        ensureProtocolCodecExists(channelID);
 
         // Peek message from outbound queue
         CommsChannelMsg msg;
@@ -282,10 +290,8 @@ bool CommsChannelManager::inboundCanAccept(uint32_t channelID)
     if (!pChannel)
         return false;
 
-    // Ensure we have a handler
-    ensureProtocolCodecExists(channelID);
-
-    // Check validity
+    // Note that the protocol codec is not needed here (and must not be created here as this
+    // may be called from a task other than the main loop task)
     return pChannel->inboundCanAccept();
 }
 
@@ -318,10 +324,8 @@ void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const uint8_t* pM
                 msgLen);
 #endif
 
-    // Ensure we have a handler for this msg
-    ensureProtocolCodecExists(channelID);
-
-    // Handle the message
+    // Handle the message - this only queues the message so the protocol codec is not needed here
+    // (and must not be created here as this may be called from a task other than the main loop task)
     pChannel->handleRxData(pMsg, msgLen);
 }
 
@@ -354,10 +358,8 @@ void CommsChannelManager::inboundHandleMsgVec(uint32_t channelID, const SpiramAw
                 msg.size());
 #endif
 
-    // Ensure we have a handler for this msg
-    ensureProtocolCodecExists(channelID);
-
-    // Handle the message
+    // Handle the message - this only queues the message so the protocol codec is not needed here
+    // (and must not be created here as this may be called from a task other than the main loop task)
     pChannel->handleRxData(msg);
 }
 
@@ -419,6 +421,10 @@ bool CommsChannelManager::outboundCanAccept(uint32_t channelID, CommsMsgTypeCode
 
 CommsCoreRetCode CommsChannelManager::outboundHandleMsg(CommsChannelMsg& msg)
 {
+    // Outbound messages must be sent from the main task - publish messages are encoded and sent inline
+    // and the channels' send paths (e.g. web sockets) are not thread safe
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "outboundHandleMsg");
+
     // Ret code
     CommsCoreRetCode retcode = COMMS_CORE_RET_FAIL;
 
@@ -470,10 +476,9 @@ uint32_t CommsChannelManager::inboundMsgBlockMax(uint32_t channelID, uint32_t de
     if (channelID >= _commsChannelVec.size())
         return defaultSize;
 
-    // Ensure we have a handler
-    ensureProtocolCodecExists(channelID);
-
     // Check validity
+    if (!_commsChannelVec[channelID])
+        return defaultSize;
     uint32_t blockMax = _commsChannelVec[channelID]->inboundMsgBlockMax();
 #ifdef DEBUG_INBOUND_BLOCK_MAX
     LOG_I(MODULE_PREFIX, "inboundMsgBlockMax channelID %d %d", channelID, blockMax);
@@ -491,10 +496,9 @@ uint32_t CommsChannelManager::outboundMsgBlockMax(uint32_t channelID, uint32_t d
     if (channelID >= _commsChannelVec.size())
         return defaultSize;
 
-    // Ensure we have a handler
-    ensureProtocolCodecExists(channelID);
-
     // Check validity
+    if (!_commsChannelVec[channelID])
+        return defaultSize;
     uint32_t blockMax = _commsChannelVec[channelID]->outboundMsgBlockMax();
 #ifdef DEBUG_OUTBOUND_BLOCK_MAX
     LOG_I(MODULE_PREFIX, "outboundMsgBlockMax channelID %d %d", channelID, blockMax);
@@ -623,8 +627,12 @@ void CommsChannelManager::ensureProtocolCodecExists(uint32_t channelID)
         }
     }
 
-    // Debug
-    LOG_W(MODULE_PREFIX, "No suitable codec found for protocol %s map entries %d", channelProtocol.c_str(), (int)_protocolCodecFactoryList.size());
+    // Warn (throttled as this is called from loop())
+    if (Raft::isTimeout(millis(), _noCodecWarnLastMs, NO_CODEC_WARN_INTERVAL_MS) || (_noCodecWarnLastMs == 0))
+    {
+        _noCodecWarnLastMs = millis();
+        LOG_W(MODULE_PREFIX, "No suitable codec found for protocol %s map entries %d", channelProtocol.c_str(), (int)_protocolCodecFactoryList.size());
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

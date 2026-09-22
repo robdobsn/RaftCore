@@ -38,6 +38,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class RaftJson
 /// @brief JSON on-demand parser and field extractor
+/// @note Thread safety: a RaftJson object is NOT thread-safe. The getters parse directly from the source
+///       string so an object whose source can be changed (setSourceStr, setJsonDoc, chained documents
+///       and derived classes such as RaftJsonNVS) must only be accessed from one task. In particular the
+///       system configuration (SysManager/SysTypeManager/SysMod config) is owned by the main task - other
+///       tasks (event handlers, BLE host task callbacks, worker tasks) must not read config directly and
+///       should instead use copies of values taken on the main task (e.g. during setup()).
 class RaftJson : public RaftJsonIF
 {
 public:

@@ -32,7 +32,11 @@ CommsChannel::CommsChannel(const char* pSourceProtocolName,
             :
             _settings(pSettings ? *pSettings : CommsChannelSettings()),
 #ifdef COMMS_CHANNEL_USE_INBOUND_QUEUE
-            _inboundQueue(_settings.inboundBlockLen),
+            // The maximum number of messages in the inbound queue is inboundQueueCountMax
+            // Note that, until Sept 2026, inboundBlockLen (a number of bytes) was used for this by mistake which
+            // gave a very deep queue (1200 messages by default). A channel which has no way to apply back-pressure
+            // to the sender and isn't fed from the main loop (e.g. BLE) should set inboundQueueCountMax explicitly
+            _inboundQueue(_settings.inboundQueueCountMax),
 #endif
             _outboundQueue(_settings.outboundQueueMaxLen)
 {
@@ -114,10 +118,8 @@ if (_pProtocolCodec)
 void CommsChannel::inboundQueueAdd(const uint8_t* pMsg, uint32_t msgLen)
 {
     ProtocolRawMsg msg(pMsg, msgLen);
-#if defined(DEBUG_COMMS_CHANNEL) || defined(WARN_ON_INBOUND_QUEUE_FULL)
-    bool addedOk = 
-#endif
-    _inboundQueue.put(msg, 10);
+    bool addedOk = _inboundQueue.put(msg, 10);
+    (void)addedOk;
     if (_inboundQPeak < _inboundQueue.count())
         _inboundQPeak = _inboundQueue.count();
 #ifdef DEBUG_COMMS_CHANNEL
@@ -136,10 +138,8 @@ void CommsChannel::inboundQueueAdd(const uint8_t* pMsg, uint32_t msgLen)
 void CommsChannel::inboundQueueAdd(const SpiramAwareUint8Vector& inMsg)
 {
     ProtocolRawMsg msg(inMsg);
-#if defined(DEBUG_COMMS_CHANNEL) || defined(WARN_ON_INBOUND_QUEUE_FULL)
-    bool addedOk = 
-#endif
-    _inboundQueue.put(msg, 10);
+    bool addedOk = _inboundQueue.put(msg, 10);
+    (void)addedOk;
     if (_inboundQPeak < _inboundQueue.count())
         _inboundQPeak = _inboundQueue.count();
 #ifdef DEBUG_COMMS_CHANNEL
@@ -166,14 +166,16 @@ bool CommsChannel::processInboundQueue()
 #ifndef COMMS_CHANNEL_USE_INBOUND_QUEUE
     return false;
 #else
-    // Peek queue
-    ProtocolRawMsg msg;
-    bool msgAvailable = _inboundQueue.peek(msg);
-    if (!msgAvailable || !_pProtocolCodec)
+    // Check there is a codec and that it can handle more data
+    // (this is the only consumer of the queue so there is no need to peek before get)
+    if (!_pProtocolCodec || !_pProtocolCodec->readyForRxData())
         return false;
 
-    // Check if protocol codec can handle more data
-    if (!_pProtocolCodec->readyForRxData())
+    // Get from the queue - the message must only be processed if it was actually removed
+    // as the producer (e.g. BLE host task) may hold the queue mutex and otherwise the
+    // same message would be processed again on the next loop
+    ProtocolRawMsg msg;
+    if (!_inboundQueue.get(msg))
         return false;
 
     // Add data to codec
@@ -185,9 +187,6 @@ bool CommsChannel::processInboundQueue()
                 _pProtocolCodec ? _pProtocolCodec->getChannelID() : -1, 
                 _pProtocolCodec ? _pProtocolCodec->getProtocolName() : "NULL");
 #endif
-
-    // Remove message from queue
-    _inboundQueue.get(msg);
     return true;
 #endif
 }
@@ -204,7 +203,11 @@ void CommsChannel::addTxMsgToProtocolCodec(CommsChannelMsg& msg)
 
 void CommsChannel::outboundQueueAdd(CommsChannelMsg& msg)
 {
-    _outboundQueue.put(msg);
+    if (!_outboundQueue.put(msg))
+    {
+        LOG_W(MODULE_PREFIX, "outboundQueueAdd FAILED (full or busy) count %d max %d",
+                    (int)_outboundQueue.count(), (int)_outboundQueue.maxLen());
+    }
     if (_outboundQPeak < _outboundQueue.count())
         _outboundQPeak = _outboundQueue.count();
 

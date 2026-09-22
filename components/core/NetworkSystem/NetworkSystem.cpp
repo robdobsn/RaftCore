@@ -28,6 +28,7 @@
 #include "PlatformUtils.h"
 #include "RaftArduino.h"
 #include "RaftSystemTime.h"
+#include "RaftMainTask.h"
 #include "esp_idf_version.h"
 
 #include "mdns.h"
@@ -93,6 +94,28 @@ volatile bool NetworkSystem::_sntpSyncPendingNotify = false;
 
 NetworkSystem::NetworkSystem()
 {
+    RaftMutex_init(_connInfoMutex);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Connection info strings - these are written in event handlers (sys_evt task) and read on the main task
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String NetworkSystem::getConnInfoStr(const String& connInfoStr) const
+{
+    if (!RaftMutex_lock(_connInfoMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return "";
+    String retStr = connInfoStr;
+    RaftMutex_unlock(_connInfoMutex);
+    return retStr;
+}
+
+void NetworkSystem::setConnInfoStr(String& connInfoStr, const String& newValue)
+{
+    if (!RaftMutex_lock(_connInfoMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return;
+    connInfoStr = newValue;
+    RaftMutex_unlock(_connInfoMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -195,11 +218,10 @@ void NetworkSystem::loop()
         RaftSystemTime::notifyChanged("sntp");
     }
 
-    if (_pendingWiFiDisconnectWarn)
+    if (_pendingWiFiDisconnectWarn.exchange(false))
     {
-        _pendingWiFiDisconnectWarn = false;
         LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d",
-                _pendingWiFiDisconnectWarnRetries);
+                _pendingWiFiDisconnectWarnRetries.load());
     }
 
     // Get WiFi RSSI value if connected
@@ -207,7 +229,7 @@ void NetworkSystem::loop()
     if (Raft::isTimeout(millis(), _wifiRSSILastMs, WIFI_RSSI_CHECK_MS))
     {
         _wifiRSSILastMs = millis();
-        _wifiRSSI = 0;
+        int8_t wifiRSSI = 0;
         if (isWifiStaConnectedWithIP())
         {
 #ifdef DEBUG_RSSI_GET_TIME
@@ -215,24 +237,28 @@ void NetworkSystem::loop()
 #endif
             wifi_ap_record_t ap;
             esp_err_t rslt = esp_wifi_sta_get_ap_info(&ap);
-            _wifiRSSI = ap.rssi;
+            wifiRSSI = ap.rssi;
 #ifdef DEBUG_RSSI_GET_TIME
             uint64_t endUs = micros();
             LOG_I(MODULE_PREFIX, "loop get RSSI %d us", (int)(endUs - startUs));
 #endif
             if (rslt != ESP_OK)
             {
-                _wifiRSSI = 0;
+                wifiRSSI = 0;
                 // Debug
 #ifdef DEBUG_RSSI_GET_TIME
                 LOG_W(MODULE_PREFIX, "loop get RSSI failed %s", esp_err_to_name(rslt));
 #endif
             }
         }
+        _wifiRSSI = wifiRSSI;
     }
 
+    // Collect completed WiFi scan results promptly
+    _wifiScanner.loop();
+
     // Handle deferred mDNS setup
-    if (_mdnsSetupPending && Raft::isTimeout(millis(), _mdnsSetupPendingMs, MDNS_SETUP_DELAY_MS))
+    if (_mdnsSetupPending && Raft::isTimeout(millis(), _mdnsSetupPendingMs.load(), MDNS_SETUP_DELAY_MS))
     {
         _mdnsSetupPending = false;
         setupMDNS();
@@ -343,6 +369,11 @@ String NetworkSystem::getSettingsJSON(bool includeBraces) const
 /// @return String JSON connection state
 String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool apInfo, bool ethInfo, bool useBeforePauseValue) const
 {
+    // Get copies of connection info (this is written in event handlers on another task)
+    String wifiStaSSID = getConnInfoStr(_wifiStaSSID);
+    String wifiIPV4Addr = getConnInfoStr(_wifiIPV4Addr);
+    int wifiRSSI = _wifiRSSI;
+
     // Get the status JSON
     String jsonStr = R"("hostname":")" + _hostname + R"(")";
     if (staInfo && _networkSettings.enableWifiSTAMode)
@@ -350,25 +381,27 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
         bool wifiStaConnWithIP = isWifiStaConnectedWithIP();
-        if (useBeforePauseValue)
+        // The value before pause is only relevant while paused (if WiFi has never been paused it is false)
+        if (useBeforePauseValue && isPaused())
             wifiStaConnWithIP = _wifiStaConnWithIPBeforePause;
-        String ssidToUse = wifiStaConnWithIP ? _wifiStaSSID : _wifiStaSSIDConnectingTo;
+        String ssidToUse = wifiStaConnWithIP ? wifiStaSSID : _wifiStaSSIDConnectingTo;
         jsonStr += R"("wifiSTA":{"conn":)" + String(wifiStaConnWithIP) + 
                             R"(,"SSID":")" + ssidToUse + R"(")";
         if (wifiStaConnWithIP)
         {
             jsonStr += R"(,"MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") + 
-                        R"(","RSSI":)" + String(_wifiRSSI) + 
-                        R"(,"IP":")" + _wifiIPV4Addr + R"(")";
+                        R"(","RSSI":)" + String(wifiRSSI) +
+                        R"(,"IP":")" + wifiIPV4Addr + R"(")";
         }
         else
         {
             jsonStr += R"(,"MAC":")" + getSystemMACAddressStr(ESP_MAC_WIFI_STA, ":") + R"(")";
         }
-        if (isPaused())
+        if (isPaused() && !wifiStaConnWithIP)
         {
-            jsonStr += R"(,"RSSI":)" + String(_wifiRSSI) + 
-            R"(,"IP":")" + _wifiIPV4Addr + R"(")";
+            // (RSSI and IP have already been added above if connected)
+            jsonStr += R"(,"RSSI":)" + String(wifiRSSI) +
+            R"(,"IP":")" + wifiIPV4Addr + R"(")";
         }
         if (isPaused())
         {
@@ -381,8 +414,9 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
         jsonStr += R"("wifiAP":{"SSID":")" + _wifiAPSSID + R"(")";
-        if (_wifiAPClientCount > 0)
-            jsonStr += R"(,"clients":)" + String(_wifiAPClientCount);
+        uint8_t wifiAPClientCount = _wifiAPClientCount;
+        if (wifiAPClientCount > 0)
+            jsonStr += R"(,"clients":)" + String(wifiAPClientCount);
         jsonStr += R"(})";
     }
 #ifdef ETHERNET_IS_ENABLED
@@ -391,8 +425,8 @@ String NetworkSystem::getConnStateJSON(bool includeBraces, bool staInfo, bool ap
         if (!jsonStr.isEmpty())
             jsonStr += R"(,)";
         jsonStr += R"("eth":{"conn":)" + String(isEthConnectedWithIP()) +
-                        R"(,"IP":")" + _ethIPV4Addr +
-                        R"(","MAC":")" + _ethMACAddress + R"(")";
+                        R"(,"IP":")" + getConnInfoStr(_ethIPV4Addr) +
+                        R"(","MAC":")" + getConnInfoStr(_ethMACAddress) + R"(")";
         jsonStr += R"(})";
     }
 #endif
@@ -517,16 +551,24 @@ bool NetworkSystem::startWifi()
         wifi_config_t currentWifiConfig = {0};
 #pragma GCC diagnostic pop
         esp_err_t err = esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
-        if ((err != ESP_OK) || 
-            (currentWifiConfig.sta.threshold.authmode != _networkSettings.wifiSTAScanThreshold))
+        const wifi_scan_method_t scanMethod = getWifiSTAScanMethod();
+        const wifi_sort_method_t sortMethod = getWifiSTASortMethod();
+        if ((err != ESP_OK) ||
+            (currentWifiConfig.sta.threshold.authmode != _networkSettings.wifiSTAScanThreshold) ||
+            (currentWifiConfig.sta.scan_method != scanMethod) ||
+            (currentWifiConfig.sta.sort_method != sortMethod))
         {
-            // Amend config as required
-            LOG_I(MODULE_PREFIX, "startWifi threshold %d set to %d", 
+            // Amend config as required (the stored config may predate these settings)
+            LOG_I(MODULE_PREFIX, "startWifi threshold %d set to %d scanMethod %d set to %d sortMethod %d set to %d",
                         currentWifiConfig.sta.threshold.authmode,
-                        _networkSettings.wifiSTAScanThreshold);
+                        _networkSettings.wifiSTAScanThreshold,
+                        currentWifiConfig.sta.scan_method, scanMethod,
+                        currentWifiConfig.sta.sort_method, sortMethod);
 
             // Set new settings
             currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
+            currentWifiConfig.sta.scan_method = scanMethod;
+            currentWifiConfig.sta.sort_method = sortMethod;
             esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &currentWifiConfig);
 
             // Set SSID we're trying to connect to
@@ -597,6 +639,9 @@ void NetworkSystem::stopWifi()
 
 bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
 {
+    // WiFi control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "configWifiSTA");
+
     // Check valid
     if (!_isSetup)
         return false;
@@ -635,6 +680,8 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
     strlcpy((char *)currentWifiConfig.sta.ssid, ssidUnescaped.c_str(), 32);
     strlcpy((char *)currentWifiConfig.sta.password, pwUnescaped.c_str(), 64);
     currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
+    currentWifiConfig.sta.scan_method = getWifiSTAScanMethod();
+    currentWifiConfig.sta.sort_method = getWifiSTASortMethod();
 
     // esp_wifi_set_config is rejected with ESP_ERR_WIFI_STATE if a connect attempt
     // is currently in progress. Suppress auto-reconnect, issue a disconnect, and
@@ -681,6 +728,9 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
 #if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
 {
+    // WiFi control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "configWifiAP");
+
     // Handle AP mode config
     if (!_networkSettings.enableWifiAPMode)
         return false;
@@ -719,6 +769,9 @@ bool NetworkSystem::configWifiAP(const String& apSSID, const String& apPassword)
 
 esp_err_t NetworkSystem::clearCredentials()
 {
+    // WiFi control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "clearCredentials");
+
     // Check valid
     if (!_networkSettings.enableWifiSTAMode)
         return ESP_ERR_INVALID_STATE;
@@ -728,8 +781,8 @@ esp_err_t NetworkSystem::clearCredentials()
     esp_err_t err = esp_wifi_restore();
     if (err == ESP_OK)
     {
-        _wifiStaSSID.clear();
-        _wifiIPV4Addr.clear();
+        setConnInfoStr(_wifiStaSSID, "");
+        setConnInfoStr(_wifiIPV4Addr, "");
         _wifiStaSSIDConnectingTo.clear();
         LOG_I(MODULE_PREFIX, "apiWifiClear CLEARED WiFi Credentials");
     }
@@ -747,6 +800,9 @@ esp_err_t NetworkSystem::clearCredentials()
 
 void NetworkSystem::pauseWiFi(bool pause)
 {
+    // WiFi control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "pauseWiFi");
+
     // Check if pause or resume
     if (pause)
     {
@@ -756,6 +812,13 @@ void NetworkSystem::pauseWiFi(bool pause)
 
         // Store current connection state
         _wifiStaConnWithIPBeforePause = isWifiStaConnectedWithIP();
+
+        // Set paused BEFORE stopping WiFi since stopping raises a STA_DISCONNECTED event (handled on
+        // the sys_evt task) which must not attempt to reconnect or clear the connection info
+        _isPaused = true;
+
+        // A scan cannot complete while paused
+        _wifiScanner.scanAbandon();
 
         // Stop WiFi
         stopWifi();
@@ -769,17 +832,19 @@ void NetworkSystem::pauseWiFi(bool pause)
         if (!_isPaused)
             return;
 
+        // Clear paused BEFORE starting WiFi so that events raised during start are handled normally
+        _isPaused = false;
+
         // Start WiFi if enabled
         if (_networkSettings.enableWifiSTAMode || _networkSettings.enableWifiAPMode)
         {
-            startWifi();
             _numWifiConnectRetries = 0;
+            startWifi();
 
             // Debug
             LOG_I(MODULE_PREFIX, "pauseWiFi - WiFi reconnect requested");
         }
     }
-    _isPaused = pause;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -788,17 +853,20 @@ void NetworkSystem::pauseWiFi(bool pause)
 
 bool NetworkSystem::wifiScan(bool start, String& jsonResult)
 {
-    // Check for start
-    if (start)
-        return _wifiScanner.scanStart();
+    // WiFi control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "wifiScan");
 
-    // Check for scan completed
-    if (!_wifiScanner.isScanInProgress())
+    // Start returns the scan status (and fails only if the scan could not be started). Results
+    // return the scan status and the cached results of the last completed scan - the status
+    // state indicates whether a scan is in progress, done or failed
+    if (start)
     {
-        // Get results
-        return _wifiScanner.getResultsJSON(jsonResult);
+        bool rslt = _wifiScanner.scanStart();
+        jsonResult = _wifiScanner.getStatusJSON();
+        return rslt;
     }
-    return false;
+    jsonResult = _wifiScanner.getResultsJSON();
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -807,6 +875,9 @@ bool NetworkSystem::wifiScan(bool start, String& jsonResult)
 
 void NetworkSystem::setHostname(const char* hostname)
 {
+    // Network control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "setHostname");
+
     _hostname = hostnameMakeValid(hostname);
 
     // Re-apply hostname to active network interfaces so DHCP hostname is updated
@@ -821,17 +892,14 @@ void NetworkSystem::setHostname(const char* hostname)
         }
 #ifdef ETHERNET_IS_ENABLED
         // Also apply to ethernet interface if available
-        esp_netif_t* pEthNetif = esp_netif_next_unsafe(nullptr);
-        while (pEthNetif)
+        // (the ethernet netif is created with ESP_NETIF_DEFAULT_ETH so has the default key - this
+        // lookup is thread-safe unlike iterating with esp_netif_next_unsafe)
+        esp_netif_t* pEthNetif = esp_netif_get_handle_from_ifkey("ETH_DEF");
+        if (pEthNetif)
         {
-            if (pEthNetif != _pWifiStaNetIf && pEthNetif != _pWifiApNetIf)
-            {
-                esp_netif_set_hostname(pEthNetif, _hostname.c_str());
-                esp_netif_dhcpc_stop(pEthNetif);
-                esp_netif_dhcpc_start(pEthNetif);
-                break;
-            }
-            pEthNetif = esp_netif_next_unsafe(pEthNetif);
+            esp_netif_set_hostname(pEthNetif, _hostname.c_str());
+            esp_netif_dhcpc_stop(pEthNetif);
+            esp_netif_dhcpc_start(pEthNetif);
         }
 #endif
     }
@@ -851,7 +919,9 @@ void NetworkSystem::setHostname(const char* hostname)
         {
             LOG_W(MODULE_PREFIX, "setHostname NetBIOS name too long (%d > %d), clamping to %s", (int)_hostname.length(), (int)netbiosMaxLen, netbiosName.c_str());
         }
-        netbiosns_set_name(netbiosName.c_str());
+        // Only set the name if NetBIOS has been started (it is started in setupMDNS which also sets the name)
+        if (_mdnsIsSetup)
+            setupNetBIOS(netbiosName, false);
     }
 
 #ifdef DEBUG_HOSTNAME_SETTING
@@ -1179,8 +1249,12 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
     switch (eventId)
     {
     case WIFI_EVENT_SCAN_DONE:
-        networkSystem._wifiScanner.scanComplete();
+    {
+        const wifi_event_sta_scan_done_t* pScanDone = (const wifi_event_sta_scan_done_t*)pEventData;
+        networkSystem._wifiScanner.scanComplete(pScanDone && (pScanDone->status == 0),
+                    pScanDone ? pScanDone->number : 0);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi scan done");
+    }
         break;
     case WIFI_EVENT_WIFI_READY:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi ready");
@@ -1196,10 +1270,11 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
     {
         // Get event data and check
         wifi_event_sta_connected_t *pEvent = (wifi_event_sta_connected_t *)pEventData;
-        _wifiStaSSID = String((const char*)(pEvent->ssid),
+        String wifiStaSSID = String((const char*)(pEvent->ssid),
                     pEvent->ssid_len > sizeof(wifi_event_sta_connected_t::ssid) ?
                     sizeof(wifi_event_sta_connected_t::ssid) : pEvent->ssid_len);
-        Raft::trimString(_wifiStaSSID);
+        Raft::trimString(wifiStaSSID);
+        setConnInfoStr(_wifiStaSSID, wifiStaSSID);
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station connected");
         break;
@@ -1238,8 +1313,8 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
         wifi_event_ap_staconnected_t *pEvent = (wifi_event_ap_staconnected_t *)pEventData;
         String macStr = Raft::formatMACAddr(pEvent->mac, ":");
         _wifiAPClientCount++;
-        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP station connected MAC %s aid %d numClients %d", 
-                        macStr.c_str(), pEvent->aid, _wifiAPClientCount);
+        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP station connected MAC %s aid %d numClients %d",
+                        macStr.c_str(), pEvent->aid, _wifiAPClientCount.load());
         break;
     }
     case WIFI_EVENT_AP_STADISCONNECTED:
@@ -1247,9 +1322,10 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
         wifi_event_ap_stadisconnected_t *pEvent = (wifi_event_ap_stadisconnected_t *)pEventData;
         String macStr = Raft::formatMACAddr(pEvent->mac, ":");
         LOG_I(MODULE_PREFIX, "WiFi AP client leave MAC %s aid %d", macStr.c_str(), pEvent->aid);
-        _wifiAPClientCount--;
-        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP station disconnected MAC %s aid %d numClients %d", 
-                        macStr.c_str(), pEvent->aid, _wifiAPClientCount);
+        if (_wifiAPClientCount > 0)
+            _wifiAPClientCount--;
+        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi AP station disconnected MAC %s aid %d numClients %d",
+                        macStr.c_str(), pEvent->aid, _wifiAPClientCount.load());
         break;
     }
     case WIFI_EVENT_AP_PROBEREQRECVED:
@@ -1303,15 +1379,16 @@ void NetworkSystem::ethEventHandler(void *arg, int32_t event_id, void *pEventDat
         esp_eth_handle_t ethHandle = *(esp_eth_handle_t *)pEventData;
         uint8_t mac_addr[6] = {0};
         esp_eth_ioctl(ethHandle, ETH_CMD_G_MAC_ADDR, mac_addr);
-        _ethMACAddress = Raft::formatMACAddr(mac_addr, ":");
+        String ethMACAddress = Raft::formatMACAddr(mac_addr, ":");
+        setConnInfoStr(_ethMACAddress, ethMACAddress);
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_CONNECTED_BIT);
-        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet Link Up HW Addr %s", _ethMACAddress.c_str());
+        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet Link Up HW Addr %s", ethMACAddress.c_str());
         break;
     }
     case ETHERNET_EVENT_DISCONNECTED:
     {
         xEventGroupClearBits(_networkRTOSEventGroup, ETH_CONNECTED_BIT);
-        _ethMACAddress = "";
+        setConnInfoStr(_ethMACAddress, "");
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet Link Down");
         break;
     }
@@ -1343,22 +1420,21 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     {
         // Get IP address string
         sprintf(ipAddrStr, IPSTR, IP2STR(&pEvent->ip_info.ip));
-        _wifiIPV4Addr = ipAddrStr;
+        setConnInfoStr(_wifiIPV4Addr, ipAddrStr);
         _numWifiConnectRetries = 0;
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
-        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", _wifiIPV4Addr.c_str());
+        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", ipAddrStr);
         // Disable WiFi power save to ensure multicast (mDNS) packets are received
         esp_wifi_set_ps(WIFI_PS_NONE);
         // Defer mDNS setup to loop so network stack is fully settled
-        _mdnsSetupPending = true;
-        _mdnsSetupPendingMs = millis();
+        requestMDNSSetup();
         break;
     }
     case IP_EVENT_STA_LOST_IP:
     {
         if (!_isPaused)
-            _wifiIPV4Addr.clear();
+            setConnInfoStr(_wifiIPV4Addr, "");
         xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station lost IP");
         break;
@@ -1378,18 +1454,17 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     {
         // Get IP address string
         sprintf(ipAddrStr, IPSTR, IP2STR(&pEvent->ip_info.ip));
-        _ethIPV4Addr = ipAddrStr;
+        setConnInfoStr(_ethIPV4Addr, ipAddrStr);
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
-        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", _ethIPV4Addr.c_str());
+        LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet got IP %s", ipAddrStr);
         // Defer mDNS setup to loop so network stack is fully settled
-        _mdnsSetupPending = true;
-        _mdnsSetupPendingMs = millis();
+        requestMDNSSetup();
         break;
     }
     case IP_EVENT_ETH_LOST_IP:
     {
-        _ethIPV4Addr = "";
+        setConnInfoStr(_ethIPV4Addr, "");
         xEventGroupClearBits(_networkRTOSEventGroup, ETH_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "Ethernet lost IP");
         break;
@@ -1398,8 +1473,7 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
     case IP_EVENT_PPP_GOT_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP got IP");
         // Defer mDNS setup to loop so network stack is fully settled
-        _mdnsSetupPending = true;
-        _mdnsSetupPendingMs = millis();
+        requestMDNSSetup();
         break;
     case IP_EVENT_PPP_LOST_IP:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "PPP lost IP");
@@ -1427,8 +1501,8 @@ void NetworkSystem::handleWiFiStaDisconnectEvent()
         {
             xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_FAIL_BIT);
         }
-        _wifiIPV4Addr.clear();
-        _wifiStaSSID.clear();
+        setConnInfoStr(_wifiIPV4Addr, "");
+        setConnInfoStr(_wifiStaSSID, "");
     }
     // Clear connected bit
     xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_CONNECTED_BIT);
@@ -1448,7 +1522,8 @@ void NetworkSystem::warnOnWiFiDisconnectIfEthNotConnected()
             ((_numWifiConnectRetries < 1000) && (_numWifiConnectRetries % 100) == 0) ||
             ((_numWifiConnectRetries % 1000) == 0))
         {
-            _pendingWiFiDisconnectWarnRetries = _numWifiConnectRetries;
+            // Data must be written before the flag (which is acted on by the main task)
+            _pendingWiFiDisconnectWarnRetries = _numWifiConnectRetries.load();
             _pendingWiFiDisconnectWarn = true;
         }
     }
@@ -1474,7 +1549,7 @@ void NetworkSystem::setupMDNS()
         return;
 
     // Check if we have an IP address
-    if (_wifiIPV4Addr.isEmpty() && _ethIPV4Addr.isEmpty())
+    if (getConnInfoStr(_wifiIPV4Addr).isEmpty() && getConnInfoStr(_ethIPV4Addr).isEmpty())
         return;
 
     // Set hostname
@@ -1518,12 +1593,57 @@ void NetworkSystem::setupMDNS()
     // Start NetBIOS name service responder so IP scanners (e.g. Advanced IP Scanner,
     // Angry IP Scanner) can discover the device hostname via NBNS queries on UDP port 137
     // NetBIOS name max length is 15 characters; truncate to avoid lwIP assert.
-    netbiosns_init();
     const size_t netbiosMaxLen = 15;
     String netbiosName = _hostname.length() > netbiosMaxLen ? _hostname.substring(0, netbiosMaxLen) : _hostname;
-    netbiosns_set_name(netbiosName.c_str());
+    setupNetBIOS(netbiosName, true);
     LOG_I(MODULE_PREFIX, "NetBIOS name service started, name %s", netbiosName.c_str());
 
     // Mark setup complete so repeated IP events don't re-add the same mDNS service
     _mdnsIsSetup = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Request deferred mDNS setup (called from event handlers on the sys_evt task)
+// The time MUST be written before the flag since the main task acts on the flag
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::requestMDNSSetup()
+{
+    _mdnsSetupPendingMs = millis();
+    _mdnsSetupPending = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Setup NetBIOS name service
+// The netbiosns_xxx functions are part of the lwIP raw API and must be executed
+// in the context of the lwIP tcpip thread
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::setupNetBIOS(const String& netbiosName, bool init)
+{
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    struct NetBIOSSetupInfo
+    {
+        const char* pName;
+        bool init;
+    };
+    NetBIOSSetupInfo setupInfo = { netbiosName.c_str(), init };
+
+    // This call blocks until the function has executed on the tcpip thread (so setupInfo remains valid)
+    esp_err_t err = esp_netif_tcpip_exec([](void* pCtx) -> esp_err_t {
+            NetBIOSSetupInfo* pInfo = (NetBIOSSetupInfo*)pCtx;
+            if (pInfo->init)
+                netbiosns_init();
+            netbiosns_set_name(pInfo->pName);
+            return ESP_OK;
+        }, &setupInfo);
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "setupNetBIOS failed err %s", esp_err_to_name(err));
+    }
+#else
+    if (init)
+        netbiosns_init();
+    netbiosns_set_name(netbiosName.c_str());
+#endif
 }
