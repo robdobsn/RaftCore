@@ -85,6 +85,10 @@ public:
                 double pollFreqHz=1.0,
                 BusRequestCallbackType busReqCallback=NULL, void* pCallbackData=NULL)
     {
+        // Callback task affinity is an opt-in property of one request. A BusRequestInfo can be
+        // reused through set(), so do not let a previous synchronous request change where the new
+        // request's callback runs.
+        _callbackFromBusTask = false;
         _busReqType = reqType;
         _writeData = hwElemReq._writeData;
         _readReqLen = hwElemReq._readReqLen;
@@ -224,6 +228,7 @@ public:
     
     void clear()
     {
+        _callbackFromBusTask = false;
         _pollFreqHz = 1.0;
         _busReqType = BUS_REQ_TYPE_STD;
         _pCallbackData = nullptr;

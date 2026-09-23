@@ -217,7 +217,7 @@ public:
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Discard what has been concluded about every device on the bus, so each is identified again
-    /// @return number of devices whose identification was discarded
+    /// @return number of known devices scheduled for re-identification
     /// @note Devices stay ONLINE - this says "what I decided these were is no longer trustworthy",
     ///       not "they have gone". Polling stops until the scanner re-identifies them, which it does
     ///       on its normal sweep.
@@ -225,7 +225,8 @@ public:
     ///       This exists because the device type table can change after devices have been found.
     ///       Identification happens once, when a device appears, so a type added, overridden or
     ///       suppressed afterwards would otherwise have no effect on anything already on the bus -
-    ///       silently, and until the next power cycle or unplug.
+    ///       silently, and until the next power cycle or unplug. Implementations may perform the
+    ///       clear asynchronously at a safe bus-task boundary.
     virtual uint32_t reIdentifyDevices()
     {
         return 0;

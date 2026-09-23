@@ -54,6 +54,18 @@ DeviceTypeRecords::~DeviceTypeRecords()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the number of extended device type records already registered
+/// @return current record count
+uint32_t DeviceTypeRecords::getNumExtendedDeviceTypeRecords() const
+{
+    if (!RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return 0;
+    const uint32_t count = _extendedDevTypeRecords.size();
+    RaftMutex_unlock(_extDeviceTypeRecordsMutex);
+    return count;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Suppress a device type by name, so it is never matched during identification
 /// @param deviceTypeName name as it appears in the compiled records
 /// @return true if suppressed
@@ -927,7 +939,7 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 #ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
     LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
                 recFound ? "ALREADY PRESENT" : "ADDED OK",
-                devTypeRec.deviceTypeName.c_str(), 
+                devTypeRec.deviceTypeName.c_str(),
                 deviceTypeIndex,
                 devTypeRec.addresses.c_str(), devTypeRec.detectionValues.c_str(),
                 devTypeRec.initValues.c_str(), devTypeRec.pollInfo.c_str());
