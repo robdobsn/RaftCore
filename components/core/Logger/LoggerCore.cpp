@@ -29,8 +29,18 @@
 //                                indefinitely if USB unplugged.
 // Override by defining RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS in the build
 // (e.g. via target_compile_definitions or CFLAGS).
+// Note that a log line is written with a single write (see log() below) and a
+// write that times out abandons the rest of the message, so this is the worst
+// case delay a log call can add to the calling task. Keep it well inside the
+// SysMod loop budget: with 100ms here, logging one status line per 5s from
+// loop() with USB unplugged was enough to overrun a 200ms sensor interval.
 #ifndef RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS
-#define RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS 100
+#define RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS 10
+#endif
+// Size of the stack buffer used to translate LF to CRLF. Longer messages are
+// written in this many bytes at a time (still at most one timeout per message).
+#ifndef RAFT_LOGGER_USB_JTAG_LINE_BUF_SIZE
+#define RAFT_LOGGER_USB_JTAG_LINE_BUF_SIZE 512
 #endif
 #endif
 #endif
@@ -145,22 +155,32 @@ void LOGGING_FUNCTION_DECORATOR LoggerCore::log(esp_log_level_t level, const cha
         // this when CONFIG_LIBC_STDOUT_LINE_ENDING_CRLF is set). Without
         // this, terminals see bare '\n' and lines appear staggered because
         // the cursor never returns to column 0.
+        //
+        // The translation is done into a buffer so the message is written with
+        // a single call: each usb_serial_jtag_write_bytes can block for the
+        // whole timeout when the ring buffer is full (nothing reading the USB
+        // console), so writing the text and the line ending separately doubled
+        // the worst-case delay for the calling task. If a write doesn't
+        // complete then the host isn't draining, so the rest of the message is
+        // dropped rather than paying the timeout again.
         const TickType_t writeTimeoutTicks = pdMS_TO_TICKS(RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS);
-        const char* segStart = msg;
-        const char* p = msg;
-        while (*p)
+        char lineBuf[RAFT_LOGGER_USB_JTAG_LINE_BUF_SIZE];
+        uint32_t outLen = 0;
+        bool writeOk = true;
+        for (const char* p = msg; *p && writeOk; p++)
         {
-            if (*p == '\n')
+            // Keep room for a CRLF pair
+            if (outLen + 2 > sizeof(lineBuf))
             {
-                if (p > segStart)
-                    usb_serial_jtag_write_bytes(segStart, p - segStart, writeTimeoutTicks);
-                usb_serial_jtag_write_bytes("\r\n", 2, writeTimeoutTicks);
-                segStart = p + 1;
+                writeOk = usb_serial_jtag_write_bytes(lineBuf, outLen, writeTimeoutTicks) == (int)outLen;
+                outLen = 0;
             }
-            p++;
+            if (*p == '\n')
+                lineBuf[outLen++] = '\r';
+            lineBuf[outLen++] = *p;
         }
-        if (p > segStart)
-            usb_serial_jtag_write_bytes(segStart, p - segStart, writeTimeoutTicks);
+        if (writeOk && (outLen > 0))
+            usb_serial_jtag_write_bytes(lineBuf, outLen, writeTimeoutTicks);
     }
     else
     {
