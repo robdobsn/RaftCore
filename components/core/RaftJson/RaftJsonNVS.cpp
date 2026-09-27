@@ -31,8 +31,14 @@
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// Statics
-bool RaftJsonNVS::_nvsInitialised = RaftJsonNVS::initNVS(true);
+/// @brief Make sure NVS is initialised, initialising it on first use (see header)
+bool RaftJsonNVS::ensureNVSInitialised()
+{
+    // A function-local static is initialised the first time control passes
+    // through it, whichever translation unit's static initialisers are running
+    static bool nvsInitialised = RaftJsonNVS::initNVS(true);
+    return nvsInitialised;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set new contents for the JSON document
@@ -62,7 +68,9 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
     // Update the document
     updateJsonDoc(pJsonDoc, jsonDocStrLen);
 
-    // Write the value to NVS
+    // Write the value to NVS (initialising it first if this is the earliest use)
+    if (!ensureNVSInitialised())
+        return false;
     uint32_t nvsHandle = 0;
     esp_err_t err = nvs_open(_nvsNamespace.c_str(), NVS_READWRITE, &nvsHandle);
     if (err != ESP_OK)
@@ -174,7 +182,9 @@ void RaftJsonNVS::readJsonDocFromNVS()
 bool RaftJsonNVS::getStrFromNVS(const char* pNamespace, const char* pKey, 
                 std::vector<char, SpiramAwareAllocator<char>>& strVec)
 {
-    // Open NVS
+    // Open NVS (initialising it first if this is the earliest use)
+    if (!ensureNVSInitialised())
+        return false;
     uint32_t nvsHandle = 0;
     esp_err_t err = nvs_open(pNamespace, NVS_READONLY, &nvsHandle);
     if (err != ESP_OK)

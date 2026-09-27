@@ -81,6 +81,20 @@ public:
     static bool initNVS(bool eraseIfCorrupt);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Make sure NVS is initialised, initialising it on first use
+    ///
+    /// Every NVS access goes through this rather than relying on a file-scope
+    /// static initialiser.  A RaftJsonNVS is typically a member of a global
+    /// RaftCoreApp in the application's own translation unit, and C++ gives no
+    /// ordering between static initialisers in different translation units - so
+    /// its constructor could read NVS before the initialiser in this file had
+    /// run.  The read failed silently (no logger yet), the document came up
+    /// empty, and everything later written to NVS was correctly stored but never
+    /// loaded on the next boot.
+    /// @return true if NVS is initialised
+    static bool ensureNVSInitialised();
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get the NVS namespace
     /// @return the NVS namespace
     const String& getNVSNamespace() const
@@ -109,7 +123,6 @@ private:
     uint32_t _jsonMaxlen = 0;
 
     // NVS initialised
-    static bool _nvsInitialised;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get the string value of an NVS entry
