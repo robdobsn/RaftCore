@@ -1229,6 +1229,14 @@ private:
             bool insideString = false;
             while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (numBraces > 0))
             {
+                // Inside a string a backslash escapes the next character - an
+                // escaped quote must not end the string, or the brace count
+                // goes wrong and every key after this element disappears
+                if (insideString && (*pJsonDocPos == '\\') && (pJsonDocPos + 1 < pJsonEnd) && *(pJsonDocPos + 1))
+                {
+                    pJsonDocPos += 2;
+                    continue;
+                }
                 if (*pJsonDocPos == '"')
                 {
                     insideString = !insideString;
