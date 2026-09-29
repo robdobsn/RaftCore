@@ -249,7 +249,7 @@ void RaftDevice::registerForDeviceData(RaftDeviceDataChangeCB dataChangeCB, uint
 {
     // Register with the bus system
     RaftBus* pBus = raftBusSystem.getBusByNumber(_deviceID.getBusNum());
-    RaftBusDevicesIF* pBusDevicesIF = pBus->getBusDevicesIF();
+    RaftBusDevicesIF* pBusDevicesIF = pBus ? pBus->getBusDevicesIF() : nullptr;
     if (pBusDevicesIF)
         pBusDevicesIF->registerForDeviceData(_deviceID.getAddress(), dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo);
 }

@@ -10,6 +10,9 @@
 #include "BusRequestResult.h"
 #include "RaftDeviceConsts.h"
 #include "RaftThreading.h"
+#include "DeviceDataSubscribers.h"
+
+class RaftBusDevicesIF;
 #include <unordered_map>
 
 class APISourceInfo;
@@ -157,67 +160,25 @@ private:
     static const uint32_t DEVICE_LIST_MAX_SIZE = 100;
 
     // Access mutex (mutable to allow locking in const methods)
-    // This protects _staticDeviceList, _requestedDeviceDataChangeCBList and _requestedDeviceStatusChangeCBList
+    // This protects _staticDeviceList, _staticDispatchInstalled and _requestedDeviceStatusChangeCBList
     // It is only ever held for short periods (never while calling a callback or another module) so waiting
     // indefinitely is safe and avoids silently dropping work (e.g. status change callbacks) on contention
     mutable RaftMutex _accessMutex;
     static const uint32_t ACCESS_MUTEX_MAX_WAIT_MS = RAFT_MUTEX_WAIT_FOREVER;
 
-    // Device data change record
-    class DeviceDataChangeRec
-    {
-    public:
-        enum class DataChangeRecType
-        {
-            DEVICE_ID,
-            DEVICE_TYPE_INDEX
-        };
-        
-        DeviceDataChangeRec(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
-                uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo) :
-            recType(DataChangeRecType::DEVICE_ID),
-            deviceID(deviceID),
-            dataChangeCB(dataChangeCB),
-            minTimeBetweenReportsMs(minTimeBetweenReportsMs),
-            pCallbackInfo(pCallbackInfo)
-        {
-        }
+    // Device data subscribers.  A bus (and a static device) holds ONE data
+    // callback per device; DeviceManager owns it and fans each sample out to
+    // every subscriber registered through registerForDeviceData, so two
+    // subscribers to the same device no longer displace each other.
+    DeviceDataSubscribers _deviceDataSubscribers;
 
-        DeviceDataChangeRec(DeviceTypeIndexType deviceTypeIndex, RaftDeviceDataChangeCB dataChangeCB, 
-                uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo) :
-            recType(DataChangeRecType::DEVICE_TYPE_INDEX),
-            deviceTypeIndex(deviceTypeIndex),
-            dataChangeCB(dataChangeCB),
-            minTimeBetweenReportsMs(minTimeBetweenReportsMs),
-            pCallbackInfo(pCallbackInfo)
-        {
-        }
+    /// @brief Install the fan-out as a bus device's single data callback
+    void installBusDataDispatcher(RaftBusDevicesIF& busDevicesIF, BusNumType busNum, BusElemAddrType address);
 
-        /// @brief Check if record matches by device ID
-        bool matches(RaftDeviceID id, RaftDeviceDataChangeCB, const void* cbInfo) const
-        {
-            return recType == DataChangeRecType::DEVICE_ID &&
-                   deviceID == id && pCallbackInfo == cbInfo;
-        }
-
-        /// @brief Check if record matches by device type index
-        bool matches(DeviceTypeIndexType typeIdx, RaftDeviceDataChangeCB, const void* cbInfo) const
-        {
-            return recType == DataChangeRecType::DEVICE_TYPE_INDEX &&
-                   deviceTypeIndex == typeIdx && pCallbackInfo == cbInfo;
-        }
-
-        DataChangeRecType recType;
-        RaftDeviceID deviceID;
-        DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
-        RaftDeviceDataChangeCB dataChangeCB = nullptr;
-        uint32_t minTimeBetweenReportsMs = 1000;
-        uint32_t lastReportTime = 0;
-        const void* pCallbackInfo = nullptr;
-    };
-
-    // Requested device data change callbacks
-    std::list<DeviceDataChangeRec> _requestedDeviceDataChangeCBList;
+    /// @brief Install the fan-out on static devices that have a subscriber and do not have it yet
+    /// @return number installed
+    uint32_t installStaticDataDispatchers();
+    std::vector<RaftDeviceID> _staticDispatchInstalled;
 
     // Requested device status change callbacks
     std::list<RaftDeviceStatusChangeCB> _requestedDeviceStatusChangeCBList;
@@ -319,18 +280,6 @@ private:
     /// @param addrStatus Bus element address and status
     void callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddrStatus& addrStatus);
 
-    // Device data change record temporary
-    struct DeviceDataChangeRecTmp
-    {
-        RaftDevice* pDevice = nullptr;
-        RaftDeviceDataChangeCB dataChangeCB = nullptr;
-        uint32_t minTimeBetweenReportsMs = 1000;
-        const void* pCallbackInfo = nullptr;
-    };
-
-    /// @brief Get device data change temporary records
-    /// @param recList List of temporary records
-    void getDeviceDataChangeRecTmp(std::list<DeviceDataChangeRecTmp>& recList);
 
     /// @brief Post setup helper - register for device data change callbacks
     /// @return number of devices registered for data change callbacks

@@ -236,77 +236,23 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
         if (addrStatus.onlineState != DeviceOnlineState::ONLINE)
             continue;
 
-        // Take a copy of the requested device data change callbacks under the lock (the list may be changed
-        // by registerForDeviceData on another task). This must be taken after the status change callbacks
-        // above as a listener may register for device data from its status change callback (e.g. when a
-        // device is newly identified) and that registration must be passed to the bus below
-        std::vector<DeviceDataChangeRec> requestedDeviceDataChangeCBs;
-        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
-        {
-            requestedDeviceDataChangeCBs.assign(_requestedDeviceDataChangeCBList.begin(), _requestedDeviceDataChangeCBList.end());
-            RaftMutex_unlock(_accessMutex);
-        }
-
-        // Get the devices interface for the bus and if it exists register for device data updates for the deviceID of the bus element with the status change
+        // Own the device's single bus data callback and fan it out to every
+        // subscriber (registerForDeviceData), whenever they register - so a
+        // subscription made after the device came online also takes effect,
+        // and two subscribers to one device both receive its data.  Installed
+        // after the status listeners above, as they may subscribe from there.
         RaftBusDevicesIF* pBusDevicesIF = bus.getBusDevicesIF();
         if (!pBusDevicesIF)
             continue;
+        installBusDataDispatcher(*pBusDevicesIF, bus.getBusNum(), addrStatus.address);
 
-        // Iterate the registered device data change callbacks to see if any match the deviceID or deviceTypeIndex of the bus element with the status change
 #ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
-        bool recordFound = false;
-#endif
-        for (const DeviceDataChangeRec& rec : requestedDeviceDataChangeCBs)
-        {
-            // Check if the record matches the deviceID
-            bool registerForData = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID) && 
-                        (rec.deviceID.getBusNum() == bus.getBusNum()) && 
-                        (rec.deviceID.getAddress() == addrStatus.address);
-            if (registerForData)
-            {
-                // Debug
-#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
-                LOG_I(MODULE_PREFIX, "busElemStatusCB MATCH reg deviceID %s against busElem deviceID %s deviceTypeIndex %u", 
-                    rec.deviceID.toString().c_str(),
-                    RaftDeviceID(bus.getBusNum(), addrStatus.address).toString().c_str(), addrStatus.deviceTypeIndex);
-                recordFound = true;
-#endif
-                pBusDevicesIF->registerForDeviceData(rec.deviceID.getAddress(), rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo);
-                break;
-            }
-
-            // Check if the device is newly identified and if the record matches the deviceTypeIndex
-            bool registerForDataByType = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_TYPE_INDEX) && 
-                        (rec.deviceTypeIndex == addrStatus.deviceTypeIndex) && 
-                        (addrStatus.deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID);
-
-            if (registerForDataByType)
-            {
-#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
-                LOG_I(MODULE_PREFIX, "busElemStatusCB MATCH reg deviceTypeIndex %u against busElem deviceTypeIndex %u", 
-                        rec.deviceTypeIndex, addrStatus.deviceTypeIndex);
-                recordFound = true;
-#endif
-                pBusDevicesIF->registerForDeviceData(addrStatus.address, rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo);
-                break;
-            }
-
-#ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
-            String regTypeInfoStr = (rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID ? String("DEVICE_ID") + " " + rec.deviceID.toString() : String("DEVICE_TYPE_INDEX") + " " + String(rec.deviceTypeIndex));
-            String busElemTypeInfoStr = String("DEVICE_ID") + " " + RaftDeviceID(bus.getBusNum(), addrStatus.address).toString() + " DEVICE_TYPE_INDEX " + String(addrStatus.deviceTypeIndex);
-            LOG_I(MODULE_PREFIX, "busElemStatusCB NO MATCH reg %s busElem %s", regTypeInfoStr.c_str(), busElemTypeInfoStr.c_str());
-#endif
-        }
-
-        // Debug
-#ifdef DEBUG_BUS_ELEMENT_STATUS_CHANGES
-        LOG_I(MODULE_PREFIX, "busElemStatusCB bus %s address %x onlineState %s isNewlyIdentified %s deviceTypeIndex %u numDataChangeCBReqs %d dataChangeCBRequested %s", 
+        LOG_I(MODULE_PREFIX, "busElemStatusCB bus %s address %x onlineState %s isNewlyIdentified %s deviceTypeIndex %u subscribers %d",
                     bus.getBusName().c_str(), addrStatus.address,
-                    BusAddrStatus::getOnlineStateStr(addrStatus.onlineState), 
-                    addrStatus.isNewlyIdentified ? "Y" : "N", 
+                    BusAddrStatus::getOnlineStateStr(addrStatus.onlineState),
+                    addrStatus.isNewlyIdentified ? "Y" : "N",
                     addrStatus.deviceTypeIndex,
-                    requestedDeviceDataChangeCBs.size(),
-                    recordFound ? "Y" : "N");
+                    (int)_deviceDataSubscribers.count());
 #endif
 
         // Dispatch of status-change listeners now happens at the top of
@@ -1690,43 +1636,22 @@ RaftRetCode DeviceManager::apiDevManBusName(const String &reqStr, String &respSt
 void DeviceManager::registerForDeviceData(RaftDeviceID deviceID, RaftDeviceDataChangeCB dataChangeCB, 
         uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo, bool unregister)
 {
-    // Add to requests for device data changes
     if (unregister)
     {
-        // Remove matching record from the list
-        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
-        {
-            _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
-                return rec.matches(deviceID, dataChangeCB, pCallbackInfo);
-            });
-            RaftMutex_unlock(_accessMutex);
-        }
-
-        // Also unregister from the bus (if the device is on a bus) as the callback and callback info may
-        // already have been installed on the bus (which makes data change callbacks on its own task)
-        // Note that this must not be done while holding _accessMutex as it may wait for a callback to complete
-        RaftBus* pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
-        RaftBusDevicesIF* pBusDevicesIF = pBus ? pBus->getBusDevicesIF() : nullptr;
-        if (pBusDevicesIF)
-            pBusDevicesIF->unregisterForDeviceData(deviceID.getAddress(), pCallbackInfo);
-        
+        // Returns only once no call to this subscriber is in progress on another task
+        _deviceDataSubscribers.removeForDevice(deviceID, pCallbackInfo);
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
-        LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceID %s cb callbackInfo %p", 
+        LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceID %s callbackInfo %p", 
                 deviceID.toString().c_str(), pCallbackInfo);
 #endif
         return;
     }
-
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
     LOG_I(MODULE_PREFIX, "registerForDeviceData register deviceID %s callbackInfo %p minTimeBetweenReportsMs %u", 
             deviceID.toString().c_str(), pCallbackInfo, minTimeBetweenReportsMs);
 #endif
-
-    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
-    {
-        _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
-        RaftMutex_unlock(_accessMutex);
-    }
+    _deviceDataSubscribers.addForDevice(deviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo);
+    installStaticDataDispatchers();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1741,52 +1666,20 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
 {
     if (unregister)
     {
-        // Remove matching record from the list
-        if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
-        {
-            _requestedDeviceDataChangeCBList.remove_if([&](const DeviceDataChangeRec& rec) {
-                return rec.matches(deviceTypeIndex, dataChangeCB, pCallbackInfo);
-            });
-            RaftMutex_unlock(_accessMutex);
-        }
-
-        // Also unregister from all buses as the callback and callback info may already have been installed
-        // (per address) on a bus (which makes data change callbacks on its own task)
-        // Registrations on a bus are identified only by the callback info so this is only possible if callback
-        // info was provided - and note that ALL registrations with this callback info are removed from the buses
-        // Note that this must not be done while holding _accessMutex as it may wait for a callback to complete
-        if (pCallbackInfo)
-        {
-            for (RaftBus* pBus : raftBusSystem.getBusList())
-            {
-                RaftBusDevicesIF* pBusDevicesIF = pBus ? pBus->getBusDevicesIF() : nullptr;
-                if (pBusDevicesIF)
-                    pBusDevicesIF->unregisterForDeviceDataAll(pCallbackInfo);
-            }
-        }
-        else
-        {
-            LOG_W(MODULE_PREFIX, "registerForDeviceData unregister deviceTypeIndex %u - no callbackInfo so can't unregister from buses",
-                        deviceTypeIndex);
-        }
+        // Returns only once no call to this subscriber is in progress on another task
+        _deviceDataSubscribers.removeForType(deviceTypeIndex, pCallbackInfo);
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
         LOG_I(MODULE_PREFIX, "registerForDeviceData unregister deviceTypeIndex %u callbackInfo %p", 
                 deviceTypeIndex, pCallbackInfo);
 #endif
         return;
     }
-
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
     LOG_I(MODULE_PREFIX, "registerForDeviceData register deviceTypeIndex %u callbackInfo %p minTimeBetweenReportsMs %u", 
             deviceTypeIndex, pCallbackInfo, minTimeBetweenReportsMs);
-#endif    
-    
-    // Add to requests for device data changes
-    if (RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
-    {
-        _requestedDeviceDataChangeCBList.push_back(DeviceDataChangeRec(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo));
-        RaftMutex_unlock(_accessMutex);
-    }
+#endif
+    _deviceDataSubscribers.addForType(deviceTypeIndex, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo);
+    installStaticDataDispatchers();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1983,48 +1876,59 @@ void DeviceManager::callDeviceStatusChangeCBs(RaftDevice* pDevice, const BusAddr
 /// @return number of devices registered for data change callbacks
 uint32_t DeviceManager::postSetupRegisterDataCBs()
 {
-    // Get mutex
+    return installStaticDataDispatchers();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Install the fan-out as a bus device's single data callback.  Idempotent: the bus replaces its
+/// callback with an identical one (same callback info), so it is safe on every status change.
+/// @param busDevicesIF bus devices interface
+/// @param busNum bus number
+/// @param address device address on the bus
+void DeviceManager::installBusDataDispatcher(RaftBusDevicesIF& busDevicesIF, BusNumType busNum, BusElemAddrType address)
+{
+    const RaftDeviceID deviceID(busNum, address);
+    busDevicesIF.registerForDeviceData(address,
+        [this, deviceID](uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void*) {
+            _deviceDataSubscribers.dispatch(deviceID, deviceTypeIdx, std::move(data), millis());
+        },
+        /*minTimeBetweenReportsMs=*/0, /*pCallbackInfo=*/&_deviceDataSubscribers);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Install the fan-out on static devices that have a subscriber and do not have it yet.  Only
+/// devices with a subscriber: a static device's registerForDeviceData may reach a bus that does not exist.
+/// @return number of static devices newly installed
+uint32_t DeviceManager::installStaticDataDispatchers()
+{
+    std::vector<RaftDevice*> toInstall;
     if (!RaftMutex_lock(_accessMutex, RAFT_MUTEX_WAIT_FOREVER))
         return 0;
-
-    // Create a vector of devices for the device data change callbacks
-    std::vector<DeviceDataChangeRecTmp> deviceListForDataChangeCB;
-    for (auto& rec : _requestedDeviceDataChangeCBList)
+    for (auto& devRec : _staticDeviceList)
     {
-        // Check if the record matches a deviceID or deviceTypeIndex in the static device list
-        RaftDevice* pDevice = nullptr;
-        for (auto& devRec : _staticDeviceList)
-        {
-            if (!devRec.pDevice)
-                continue;
-            if ((rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_ID) && (rec.deviceID == devRec.pDevice->getDeviceID()))
-            {
-                pDevice = devRec.pDevice;
-                break;
-            }
-            else if ((rec.recType == DeviceDataChangeRec::DataChangeRecType::DEVICE_TYPE_INDEX) && (rec.deviceTypeIndex == devRec.pDevice->getDeviceTypeIndex()))
-            {
-                pDevice = devRec.pDevice;
-                break;
-            }
-        }
-        if (!pDevice)
+        if (!devRec.pDevice)
             continue;
-        deviceListForDataChangeCB.push_back({pDevice, rec.dataChangeCB, rec.minTimeBetweenReportsMs, rec.pCallbackInfo});
+        const RaftDeviceID deviceID = devRec.pDevice->getDeviceID();
+        if (std::find(_staticDispatchInstalled.begin(), _staticDispatchInstalled.end(), deviceID) != _staticDispatchInstalled.end())
+            continue;
+        if (!_deviceDataSubscribers.hasSubscriber(deviceID, devRec.pDevice->getDeviceTypeIndex()))
+            continue;
+        _staticDispatchInstalled.push_back(deviceID);
+        toInstall.push_back(devRec.pDevice);
     }
     RaftMutex_unlock(_accessMutex);
 
-    // Handle the found devices - register for device data notifications
-    for (auto& cbRec : deviceListForDataChangeCB)
+    // Outside the lock: a device may call back into DeviceManager
+    for (RaftDevice* pDevice : toInstall)
     {
-        // Register for device data notification from the device
-        cbRec.pDevice->registerForDeviceData(
-            cbRec.dataChangeCB,
-            cbRec.minTimeBetweenReportsMs,
-            cbRec.pCallbackInfo
-        );
+        const RaftDeviceID deviceID = pDevice->getDeviceID();
+        pDevice->registerForDeviceData(
+            [this, deviceID](uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void*) {
+                _deviceDataSubscribers.dispatch(deviceID, deviceTypeIdx, std::move(data), millis());
+            },
+            /*minTimeBetweenReportsMs=*/0, /*pCallbackInfo=*/&_deviceDataSubscribers);
     }
-    return deviceListForDataChangeCB.size();
+    return toInstall.size();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
