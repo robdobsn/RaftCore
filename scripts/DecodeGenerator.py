@@ -527,6 +527,10 @@ class DecodeGenerator:
     def poll_data_bytes(self, dev_type_record):
         # Parse the device type record polling groups record
         poll_info = dev_type_record.get("pollInfo", {})
+        # Externally supplied data ("ext": 1) - not polled, samples are pushed in by other
+        # code, so the size is whatever the record's response format declares
+        if poll_info.get("ext", 0) and not poll_info.get("c", ""):
+            return dev_type_record.get("devInfoJson", {}).get("resp", {}).get("b", 0)
         poll_config_record = poll_info.get("c", "")
         poll_rslt_len = self._get_polling_config_result_len_bytes(poll_config_record)
         # A device that declares a response-integrity trailer is read with the trailer

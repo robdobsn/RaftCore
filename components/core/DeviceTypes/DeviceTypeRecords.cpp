@@ -210,7 +210,17 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
     // Get polling request records
     String pollRequest = pollInfo.getString("c", "");
     if (pollRequest.length() == 0)
+    {
+        // Externally supplied data ("ext": 1) - the device is not polled; its samples are
+        // pushed in by other code via handlePollResult(). Size the result store from the
+        // record's response size (resp.b) so those samples can be held and published.
+        if (pollInfo.getLong("ext", 0) != 0)
+        {
+            pollingInfo.numPollResultsToStore = pollInfo.getLong("s", 1);
+            pollingInfo.pollResultSizeIncTimestamp = pDevTypeRec->pollDataSizeBytes + DevicePollingInfo::POLL_RESULT_TIMESTAMP_SIZE;
+        }
         return;
+    }
 
     // Extract polling info
     std::vector<RaftJson::NameValuePair> pollWriteReadPairs;
