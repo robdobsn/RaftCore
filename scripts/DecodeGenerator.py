@@ -264,9 +264,20 @@ class DecodeGenerator:
         # Get the record time increment "us" field
         record_time_increment_us = poll_resp_meta.get("us", 0)
 
+        # Array attributes (repeat count > 1) - written element-wise as out.<name>[i] = value;
+        array_attrs = {}
+        array_c_names = {}
+        for el in poll_resp_meta.get("a", []):
+            attr_name = el.get("n", "")
+            repeat = self.attr_repeat_count(el)
+            if attr_name != "" and repeat > 1:
+                array_attrs[attr_name] = repeat
+                array_c_names[attr_name] = self.to_valid_c_var_name(attr_name)
+
         # Build sign-extension lines for attributes with signed types stored as float.
         # Custom pseudocode stores raw bitwise-OR results as unsigned values in float fields;
         # attrs with signed underlying types (e.g. "<h" = signed int16) need correction.
+        # Array attributes are corrected element by element.
         sign_ext_lines = []
         for el in poll_resp_meta.get("a", []):
             attr_name = el.get("n", "")
@@ -276,27 +287,48 @@ class DecodeGenerator:
             out_type = el.get("o", "")
             raw_type = el.get("t", "")
             if out_type == "float" and self.is_attr_type_signed(raw_type):
-                # Determine the bit width from the pystruct type
-                pystruct_rec = self.pystruct_map.get(raw_type, None)
+                # Determine the bit width from the pystruct (element) type
+                base_type, repeat = self.parse_attr_type(raw_type)
+                pystruct_rec = self.pystruct_map.get(base_type, None)
                 if pystruct_rec:
                     c_type = pystruct_rec[0]  # e.g. "int16_t"
-                    if c_type == "int8_t":
-                        sign_ext_lines.append(f"if (pOut->{c_var_name} >= 128.0f) pOut->{c_var_name} -= 256.0f;")
-                    elif c_type == "int16_t":
-                        sign_ext_lines.append(f"if (pOut->{c_var_name} >= 32768.0f) pOut->{c_var_name} -= 65536.0f;")
-                    elif c_type == "int32_t":
-                        sign_ext_lines.append(f"if (pOut->{c_var_name} >= 2147483648.0f) pOut->{c_var_name} -= 4294967296.0f;")
+                    limits = {"int8_t": ("128.0f", "256.0f"), "int16_t": ("32768.0f", "65536.0f"),
+                              "int32_t": ("2147483648.0f", "4294967296.0f")}
+                    if c_type in limits:
+                        sign_bit, span = limits[c_type]
+                        if repeat > 1:
+                            sign_ext_lines.append(f"for (int __s = 0; __s < {repeat}; __s++) "
+                                                  f"if (pOut->{c_var_name}[__s] >= {sign_bit}) pOut->{c_var_name}[__s] -= {span};")
+                        else:
+                            sign_ext_lines.append(f"if (pOut->{c_var_name} >= {sign_bit}) pOut->{c_var_name} -= {span};")
+
+        # Array elements a decode does not write in a sample are zero - clear them at the start
+        # of each sample (the output struct is not otherwise cleared)
+        zero_array_lines = [f"for (int __z = 0; __z < {count}; __z++) pOut->{array_c_names[name]}[__z] = 0;"
+                            for name, count in array_attrs.items()]
 
         loop_end_lines = sign_ext_lines + [
             "if (++pOut >= pStruct + maxRecCount) break;",
             "timestampUs += " + str(record_time_increment_us) + ";",
             f"pOut->{self.struct_time_var_name} = timestampUs / {self.DECODE_STRUCT_TIMESTAMP_RESOLUTION_US};"
-        ]
-                
+        ] + zero_array_lines
+
+        # Tokenise, then turn array element writes into bounds-checked C++ (an index outside the
+        # array is ignored rather than writing past the output struct)
+        cpp_subs = {"^out.": "pOut->"}
+        tokens = list(pseudocodeHandler.lexer(custom_pseudo_code))
+        self._check_scalar_writes_to_arrays(tokens, array_attrs, custom_fn_metadata.get("n", ""))
+        def array_write_cpp(name, count, idx_tokens, val_tokens):
+            idx_code = pseudocodeHandler.tokens_to_expr(idx_tokens, cpp_subs)
+            val_code = pseudocodeHandler.tokens_to_expr(val_tokens, cpp_subs)
+            return (f"{{ int __ai = ({idx_code}); if ((__ai >= 0) && (__ai < {count})) "
+                    f"pOut->{array_c_names[name]}[__ai] = ({val_code}); }}")
+        tokens = pseudocodeHandler.rewrite_array_writes(tokens, array_attrs, array_write_cpp)
+
         # Generate the C++ code
-        cpp_code = pseudocodeHandler.generate_cpp_code(list(pseudocodeHandler.lexer(custom_pseudo_code)), 
+        cpp_code = pseudocodeHandler.generate_cpp_code(tokens,
                                 {
-                                    "^out.": "pOut->", 
+                                    "^out.": "pOut->",
                                     "next": "\n    ".join(loop_end_lines)
                                 })
 
@@ -317,6 +349,8 @@ class DecodeGenerator:
         extract_code.append("\n" + line_prefix + "    // Custom function\n")
 
         # Add the custom code
+        for zero_line in zero_array_lines:
+            extract_code.append(f"{line_prefix}    {zero_line}\n")
         extract_code.append(f"{line_prefix}    const uint8_t* buf = pBuf;\n")
         extract_code.append("\n".join([f"{line_prefix}    {line}" for line in cpp_code.split("\n")]))
 
@@ -324,6 +358,18 @@ class DecodeGenerator:
         extract_code.append("\n" + line_prefix + "    // Complete loop\n")
         extract_code.append(f"{line_prefix}    pollRecIdx++;\n")
         extract_code.append(line_prefix + "}\n")
+
+    def _check_scalar_writes_to_arrays(self, tokens, array_attrs, fn_name):
+        """Warn (not fail - existing records must keep building) about `out.<name> = ...` where
+        <name> is an array attribute: arrays are written per element as out.<name>[i] = ..."""
+        for idx, (token_type, token_value) in enumerate(tokens):
+            if token_type != "ID" or not isinstance(token_value, str) or not token_value.startswith("out."):
+                continue
+            name = token_value[len("out."):]
+            next_type = tokens[idx + 1][0] if idx + 1 < len(tokens) else ""
+            if name in array_attrs and next_type != "LBRACK":
+                print(f"WARNING: custom decode '{fn_name}' assigns array attribute '{name}' without an index "
+                      f"- use out.{name}[i] = value;")
 
     def gen_attr_extraction_code(self, poll_resp_meta, extract_code, line_prefix):
 
@@ -634,7 +680,8 @@ class DecodeGenerator:
             # divisor: 0 means no division, represent as 1.0f; otherwise use the value
             div_val = f"{float(divisor)}f" if divisor and float(divisor) != 0 else "1.0f"
             add_val = f"{float(addend)}f" if addend and float(addend) != 0 else "0.0f"
-            lines.append(f'    {{"{attr_name}", (uint16_t)offsetof({short_name}, {c_var_name}), {attr_type_enum}, "{fmt_str}", {div_val}, {add_val}}},\n')
+            count = self.attr_repeat_count(el)
+            lines.append(f'    {{"{attr_name}", (uint16_t)offsetof({short_name}, {c_var_name}), {attr_type_enum}, "{fmt_str}", {div_val}, {add_val}, {count}}},\n')
         lines.append("};\n")
         return "".join(lines)
 

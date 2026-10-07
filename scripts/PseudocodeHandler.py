@@ -59,6 +59,81 @@ class PseudocodeHandler:
                 value = float(value) if '.' in value else int(value)
             yield kind, value
 
+    def rewrite_array_writes(self, tokens, array_attrs, write_fn, out_prefix="out."):
+        """Replace each array element write `out.<name>[<idx>] = <val>;` with one RAW token.
+
+        tokens      - token list from lexer()
+        array_attrs - dict of array attribute name -> element count
+        write_fn    - function(name, count, idx_tokens, val_tokens) -> code string for the write
+        Returns the new token list (the statement's SEMI is kept). Raises ValueError for an
+        indexed write to an attribute that is not an array, or an indexed `out.` that is not
+        a simple assignment (reads and compound operators are not supported)."""
+        result = []
+        i = 0
+        num_tokens = len(tokens)
+        while i < num_tokens:
+            token_type, token_value = tokens[i]
+            is_indexed_out = (token_type == "ID" and isinstance(token_value, str) and
+                              token_value.startswith(out_prefix) and
+                              i + 1 < num_tokens and tokens[i + 1][0] == "LBRACK")
+            if not is_indexed_out:
+                result.append(tokens[i])
+                i += 1
+                continue
+
+            name = token_value[len(out_prefix):]
+            if name not in array_attrs:
+                raise ValueError(f"pseudocode writes {token_value}[...] but '{name}' is not an array attribute")
+
+            # Index tokens up to the matching RBRACK
+            depth = 0
+            j = i + 1
+            idx_tokens = []
+            while j < num_tokens:
+                tt = tokens[j][0]
+                if tt == "LBRACK":
+                    depth += 1
+                    if depth == 1:
+                        j += 1
+                        continue
+                elif tt == "RBRACK":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                idx_tokens.append(tokens[j])
+                j += 1
+            if j >= num_tokens or len(idx_tokens) == 0:
+                raise ValueError(f"pseudocode has a malformed index on {token_value}")
+
+            # Must be a simple assignment
+            j += 1
+            if j >= num_tokens or tokens[j][0] != "ASSIGN":
+                raise ValueError(f"pseudocode {token_value}[...] must be a simple assignment (out.{name}[i] = value;)")
+
+            # Value tokens up to the statement's SEMI
+            j += 1
+            val_tokens = []
+            while j < num_tokens and tokens[j][0] != "SEMI":
+                val_tokens.append(tokens[j])
+                j += 1
+            if len(val_tokens) == 0:
+                raise ValueError(f"pseudocode {token_value}[...] = has no value")
+
+            result.append(("RAW", write_fn(name, array_attrs[name], idx_tokens, val_tokens)))
+            i = j
+        return result
+
+    def tokens_to_expr(self, tokens, substitutions={}):
+        """Flatten the tokens of a single expression to code (used for array index/value code)"""
+        code = ""
+        for token_type, token_value in tokens:
+            token_value = str(token_value)
+            if token_type != "RAW":
+                for subs in substitutions:
+                    token_value = re.sub(subs, substitutions[subs], token_value)
+            code += token_value
+        return code
+
     def generate_cpp_code(self, tokens, substitutions={}):
         code = ""
         indent_level = 0
@@ -70,7 +145,10 @@ class PseudocodeHandler:
         i = 0
         while i < len(tokens):
             token_type, token_value = tokens[i]
-            if token_type == "LBRACE":
+            if token_type == "RAW":
+                # Pre-generated code (e.g. an array element write) - emitted verbatim
+                code += token_value
+            elif token_type == "LBRACE":
                 # Add opening brace and increase indentation level
                 code += " {\n"
                 indent_level += 1
