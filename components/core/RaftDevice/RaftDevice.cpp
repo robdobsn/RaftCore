@@ -100,13 +100,38 @@ bool RaftDevice::genBinaryDataMsg(std::vector<uint8_t>& binData,
 {
     // Build length-prefixed payload from the single sample
     std::vector<uint8_t> payload;
-    uint8_t len = sampleData.size() > 255 ? 255 : static_cast<uint8_t>(sampleData.size());
-    payload.reserve(1 + len);
-    payload.push_back(len);
-    payload.insert(payload.end(), sampleData.begin(), sampleData.begin() + len);
+    payload.reserve(lengthPrefixedSampleSize(sampleData.size()));
+    if (!appendLengthPrefixedSample(payload, sampleData.data(), sampleData.size()))
+        return false;
 
     // Delegate to the record builder
     return genBinaryDeviceRecord(binData, busNumber, address, deviceTypeIndex, onlineState, deviceSeqNum, payload);
+}
+
+/// @brief Append one sample with its devbin length prefix (1-byte, or the long-sample escape)
+bool RaftDevice::appendLengthPrefixedSample(std::vector<uint8_t>& payload, const uint8_t* pData, uint32_t len)
+{
+    // A zero-length sample cannot be represented (0 is the long-sample escape) and carries nothing
+    if ((len == 0) || !pData)
+        return false;
+    if (len > DEVBIN_MAX_SAMPLE_LEN)
+    {
+        LOG_W(MODULE_PREFIX, "appendLengthPrefixedSample sample too long %d (max %d) - dropped",
+                (int)len, (int)DEVBIN_MAX_SAMPLE_LEN);
+        return false;
+    }
+    if (len <= DEVBIN_MAX_SHORT_SAMPLE_LEN)
+    {
+        payload.push_back(static_cast<uint8_t>(len));
+    }
+    else
+    {
+        payload.push_back(DEVBIN_LONG_SAMPLE_ESCAPE);
+        payload.push_back((len >> 8) & 0xff);
+        payload.push_back(len & 0xff);
+    }
+    payload.insert(payload.end(), pData, pData + len);
+    return true;
 }
 
 /// @brief Generate a binary device record from a pre-formatted payload (already length-prefixed samples)
@@ -118,8 +143,17 @@ bool RaftDevice::genBinaryDeviceRecord(std::vector<uint8_t>& binData,
     uint8_t deviceSeqNum,
     std::vector<uint8_t> preformattedPayload)
     {
+        // The record length is 16 bits - refuse rather than wrap it (callers split long runs
+        // of samples across records)
+        if (preformattedPayload.size() > DEVBIN_MAX_RECORD_PAYLOAD_LEN)
+        {
+            LOG_W(MODULE_PREFIX, "genBinaryDeviceRecord payload too long %d (max %d) - record dropped",
+                    (int)preformattedPayload.size(), (int)DEVBIN_MAX_RECORD_PAYLOAD_LEN);
+            return false;
+        }
+
         // Reserve space
-        uint32_t msgLen = preformattedPayload.size() + 8;
+        uint32_t msgLen = preformattedPayload.size() + DEVBIN_RECORD_HEADER_LEN;
         const uint32_t origSize = binData.size();
         binData.reserve(origSize + 2 + msgLen);
 

@@ -1,6 +1,32 @@
 # Array Outputs in Custom Decode, and Device Samples Over 255 Bytes — Plan
 
-Status: **Plan only — no code changes yet** (2026-10-05).
+Status (2026-10-07):
+
+- **Part A (array pseudocode) is implemented and merged** (`pseudocode-arrays`).
+- **Part B (long-sample escape) is implemented** on `devbin-long-samples` in RaftCore, RaftI2C,
+  RaftSysMods and raftjs.
+  - Decision: keep the name `DevbinV1Framed`, since the escape is a compatible extension.
+  - The `devbinLongSamples` capability flag is not added.
+  - raftjs unit tests cover the escape. The old-client fail-safe (drop the device record,
+    keep the rest of the frame) was verified against the `main` parser.
+  - **Verified end to end on Axiom018 (2026-10-07)** using RaftCore `DemoDevice`'s new
+    long-sample mode.
+    - Config: `"class": "DemoDevice", "type": "LONGDEMO", "sampleBytes": 320`, a counter plus a
+      159-element int16 sine wave with `vt: "spectrum"`. The Axiom registers `DemoDevice` with
+      the factory; the SysTypes entry is test-only.
+    - Every demo sample arrived escaped (`00 01 42` = 322 bytes) and decoded in raftjs.
+    - The dashboard draws the full 159-bar spectrum, and other devices in the same frames
+      were unaffected.
+    - `DemoDevice` also now publishes from its own device ID. It used to use a fixed
+      address 0, which collided with the first static device.
+  - **Separate raftjs issue found and fixed (2026-10-07):** `handleClientMsgBinary` awaited
+    `getDeviceTypeInfo` for each record, so frames handled while a type-info request was in
+    flight could append samples out of order. The raw frames were in order.
+    - Client messages (binary and JSON) now go through one FIFO queue.
+    - Inside message processing, a type-info lookup waits at most 1.5 s from when the request
+      started, so a lost request no longer holds up later messages.
+    - Covered by unit tests, which fail on the old code. Four live runs on the Axiom showed no
+      out-of-order samples.
 
 Scope: RaftCore, RaftI2C, RaftSysMods (firmware) and raftjs.
 
