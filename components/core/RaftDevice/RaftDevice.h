@@ -202,6 +202,32 @@ public:
         uint8_t deviceSeqNum,
         std::vector<uint8_t> preformattedPayload);
 
+    /// @brief Append one sample with its devbin length prefix to a record payload
+    /// @param payload (out) Record payload (appended to)
+    /// @param pData Sample data
+    /// @param len Sample length in bytes (1..DEVBIN_MAX_SAMPLE_LEN)
+    /// @return true if appended (false for an empty or over-long sample, which is skipped)
+    /// @note Samples up to 255 bytes use a 1-byte length [len][data]. Longer samples use the
+    ///       long-sample escape [0x00][lenHi][lenLo][data] - a compatible extension of the
+    ///       DevbinV1Framed format: a 0 length was never valid, and an older client that does
+    ///       not know the escape stops parsing that device's record there rather than misreading it.
+    static bool appendLengthPrefixedSample(std::vector<uint8_t>& payload, const uint8_t* pData, uint32_t len);
+
+    /// @brief Bytes a sample occupies in a record payload (length prefix + data)
+    static uint32_t lengthPrefixedSampleSize(uint32_t len)
+    {
+        return len + (len > DEVBIN_MAX_SHORT_SAMPLE_LEN ? DEVBIN_LONG_SAMPLE_PREFIX_LEN : 1);
+    }
+
+    // Devbin record limits
+    static constexpr uint32_t DEVBIN_MAX_SHORT_SAMPLE_LEN = 255;        // largest sample with a 1-byte length
+    static constexpr uint32_t DEVBIN_LONG_SAMPLE_ESCAPE = 0;            // length byte that introduces a 2-byte length
+    static constexpr uint32_t DEVBIN_LONG_SAMPLE_PREFIX_LEN = 3;        // escape + 2-byte length
+    static constexpr uint32_t DEVBIN_MAX_SAMPLE_LEN = 65535;
+    static constexpr uint32_t DEVBIN_RECORD_HEADER_LEN = 8;             // status/bus + address + type index + seq
+    static constexpr uint32_t DEVBIN_MAX_RECORD_BODY_LEN = 65535;       // 2-byte record length
+    static constexpr uint32_t DEVBIN_MAX_RECORD_PAYLOAD_LEN = DEVBIN_MAX_RECORD_BODY_LEN - DEVBIN_RECORD_HEADER_LEN;
+
     /// @brief Generate a binary device record from a pre-formatted payload using this device's own
     ///        bus/address (taken from `_deviceID`). Convenience wrapper around the static overload.
     /// @param binData (out) Binary data (appended to)
