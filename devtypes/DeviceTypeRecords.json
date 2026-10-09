@@ -209,8 +209,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "VCNL4040",
-                "desc": "Prox&ALS",
+                "name": "Light Sensor (ambient & proximity)",
+                "desc": "",
                 "manu": "Vishay",
                 "type": "VCNL4040",
                 "clas": ["PROX","LGHT"],
@@ -261,8 +261,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "VEML7700",
-                "desc": "ALS",
+                "name": "Light Sensor (ambient)",
+                "desc": "",
                 "manu": "Vishay",
                 "type": "VEML7700",
                 "clas": ["LGHT"],
@@ -302,8 +302,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "VEML6040",
-                "desc": "RGBW ALS",
+                "name": "Light Sensor (RGBW)",
+                "desc": "",
                 "manu": "Vishay",
                 "type": "VEML6040",
                 "clas": ["LGHT"],
@@ -359,8 +359,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "VL6180",
-                "desc": "ToF",
+                "name": "Distance Sensor",
+                "desc": "",
                 "manu": "ST",
                 "type": "VL6180",
                 "clas": ["DIST"],
@@ -391,23 +391,87 @@
                 }
             }
         },
-        "VL53L4CD": {
-            "_notes": "ToF distance sensor with range 0-1.3m",
+        "VL53L0X": {
+            "_notes": "ToF distance sensor with range up to 2m. Initialization sequence adapted from the Pololu library.",
             "addresses": "0x29",
-            "deviceType": "VL53L4CD",
-            "detectionValues": "0x010F=0xEB&0x0110=0xAA",
-            "initValues": "0x0065A0&0x006E0F&0x006F89&0x007200&0x007300&0x007400&0x007500&0x008740",
+            "deviceType": "VL53L0X",
+            "detectionValues": "0xC0=0xEE&0xC1=0xAA",
+            "initValues": "0x8800&0x440040&0x8001&0xff01&0x0000&0x91=r1&0x0001&0xff00&0x8000&0x0001",
             "pollInfo": {
-                "c": "0x008601=&0x0089=r1&0x0096=r2",
+                "c": "0x14=r12&0x0b01&0x0001",
+                "i": 50,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Distance Sensor",
+                "desc": "",
+                "manu": "ST",
+                "type": "VL53L0X",
+                "clas": ["DIST"],
+                "resp": {
+                    "b": 12,
+                    "a": [
+                        {
+                            "n": "valid",
+                            "t": "B",
+                            "u": "",
+                            "r": [0, 1],
+                            "f": "b",
+                            "o": "bool",
+                            "m": "0x78",
+                            "s": 3,
+                            "vs": false,
+                            "lut": [
+                                {
+                                    "r": "11",
+                                    "v": 1
+                                },
+                                {
+                                    "r": "",
+                                    "v": 0
+                                }
+                            ]
+                        },
+                        {
+                            "n": "status",
+                            "t": "B",
+                            "at": 0,
+                            "r": [0, 255],
+                            "f": "02x",
+                            "vs": false
+                        },
+                        {
+                            "n": "dist",
+                            "at": 10,
+                            "t": ">H",
+                            "u": "mm",
+                            "r": [0, 2000],
+                            "f": "4d",
+                            "o": "uint16",
+                            "vft": "valid"
+                        }
+                    ]
+                }
+            }
+        },
+        "VL53L1X": {
+            "_notes": "ToF distance sensor with extended range up to 4m",
+            "addresses": "0x29",
+            "deviceType": "VL53L1X",
+            "detectionValues": "0x010f=0xEACC",
+            "initValues": "0x002D01&0x0087&0x25012c00=p100&0x0060=p100",
+            "pollInfo": {
+                "c": "0x0089=r1&0x0096=r2",
                 "i": 200,
                 "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "VL53L4CD",
-                "desc": "ToF",
+                "name": "Distance Sensor",
+                "desc": "",
                 "manu": "ST",
-                "type": "VL53L4CD",
+                "type": "VL53L1X",
                 "clas": ["DIST"],
                 "resp": {
                     "b": 3,
@@ -416,7 +480,7 @@
                             "n": "valid",
                             "t": "B",
                             "u": "",
-                            "r": [0,1],
+                            "r": [0, 1],
                             "m": "0x04",
                             "x": "0x04",
                             "s": 2,
@@ -428,7 +492,53 @@
                             "n": "dist",
                             "t": ">H",
                             "u": "mm",
-                            "r": [0,65535],
+                            "r": [0, 4000],
+                            "f": "4d",
+                            "o": "uint16",
+                            "vft": "valid"
+                        }
+                    ]
+                }
+            }
+        },
+        "VL53L4CD": {
+            "_notes": "ToF distance sensor with range 0-1.3m",
+            "addresses": "0x29",
+            "deviceType": "VL53L4CD",
+            "detectionValues": "0x010F=0xEBAA",
+            "initValues": "0x002D0001011102000208000810010100000000FF000F0000000000200B000002142100&0x004e000500000000c8000038ff010008000001cc0701f10500a0008008380000&006c00000f89000000000000000107050606000002c7ff9b000000010000&0x008740=p200&0x008601&0x008780&0x000809&0x000b00&0x00240500&0x006c00000000&0x005e02f2&0x006103a1&008721",
+            "pollInfo": {
+                "c": "0x008601=&0x0089=r1&0x0096=r2",
+                "i": 100,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Distance Sensor",
+                "desc": "",
+                "manu": "ST",
+                "type": "VL53L4CD",
+                "clas": ["DIST"],
+                "resp": {
+                    "b": 3,
+                    "a": [
+                        {
+                            "n": "valid",
+                            "t": "B",
+                            "u": "",
+                            "r": [0, 1],
+                            "m": "0x04",
+                            "x": "0x04",
+                            "s": 2,
+                            "f": "b",
+                            "o": "bool",
+                            "vs": false
+                        },
+                        {
+                            "n": "dist",
+                            "t": ">H",
+                            "u": "mm",
+                            "r": [0, 1000],
                             "f": "3d",
                             "o": "uint16",
                             "vft": "valid"
@@ -450,8 +560,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "MAX30101",
-                "desc": "Prox&ALS",
+                "name": "Heart Sensor",
+                "desc": "Rate and SpO2",
                 "manu": "Vishay",
                 "type": "MAX30101",
                 "clas": ["HRM"],
@@ -482,7 +592,7 @@
                     "us": 40000
                 }
             }
-        },        
+        },
         "ADXL313": {
             "addresses": "0x1d,0x53",
             "deviceType": "ADXL313",
@@ -495,7 +605,7 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "ADXL313",
+                "name": "Accelerometer",
                 "desc": "3-Axis Accel",
                 "manu": "Analog Devices",
                 "type": "ADXL313",
@@ -547,7 +657,7 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "MXC400xXC",
+                "name": "Accelerometer",
                 "desc": "3-Axis Accel",
                 "manu": "Memsic",
                 "type": "MXC400xXC",
@@ -568,7 +678,7 @@
                             "n": "ay",
                             "t": ">h",
                             "u": "g",
-                            "r": [-2.0,2.0],
+                            "r": [-2.0, 2.0],
                             "d": 16384,
                             "f": ".2f",
                             "o": "float"
@@ -577,16 +687,16 @@
                             "n": "az",
                             "t": ">h",
                             "u": "g",
-                            "r": [-2.0,2.0],
+                            "r": [-2.0, 2.0],
                             "d": 16384,
                             "f": ".2f",
                             "o": "float"
                         },
                         {
-                            "n": "temp",
+                            "n": "temperature",
                             "t": "b",
-                            "u": "deg",
-                            "r": [-10,40],
+                            "u": "&deg;C",
+                            "r": [-10, 40],
                             "d": 0.586,
                             "a": 25,
                             "f": ".2f",
@@ -663,11 +773,11 @@
             }
         },
         "LSM6DS": {
-            "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. Two-phase I2C read: first reads FIFO_STATUS1-4 (word count), then reads only the required FIFO data bytes from 0x3E. FIFO_PATTERN (STATUS3/4) used to skip to next aligned group boundary before decoding. Each sample = 6 words (gx,gy,gz,ax,ay,az). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
+            "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. FIFO depth is LIMITED to the watermark (FIFO_CTRL4.STOP_ON_FTH=1, FTH=1020 words via FIFO_CTRL1/2) so DIFF_FIFO can never wrap to 0: with an unlimited depth a host pause of >6.6 s (e.g. an RSAO test-mode or commissioning session) filled the 4096-word FIFO, the count read 0 and the {$0.w12} poll read nothing forever (devdocs/lsm6ds-fifo-full-deadlock.md, 2026-09-11). Two-phase I2C read: first reads FIFO_STATUS1-4 (word count), then reads only the required FIFO data bytes from 0x3E. FIFO_PATTERN (STATUS3/4) used to skip to next aligned group boundary before decoding. Each sample = 6 words (gx,gy,gz,ax,ay,az). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
             "addresses": "0x6a",
             "deviceType": "LSM6DS",
             "detectionValues": "0x0f=0x69,0x6a,0x6c",
-            "initValues": "0x0a00&0x1244&0x1048&0x114c&0x1640&0x0809&0x0630&0x0700&0x0a26",
+            "initValues": "0x0a00&0x1244&0x1048&0x114c&0x1640&0x0809&0x0980&0x06fc&0x0703&0x0a26",
             "pollInfo": {
                 "c": "0x3a=r4&0x3e=r{$0.w12:mask0FFF*2:max240}",
                 "i": 50,
@@ -675,7 +785,7 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "LSM6DS",
+                "name": "Accelerometer & Gyroscope",
                 "desc": "6-Axis IMU",
                 "manu": "ST",
                 "type": "LSM6DS",
@@ -752,34 +862,94 @@
                         "d": 104,
                         "desc": "Sensor ODR (Hz)",
                         "map": {
-                            "12.5": { "w": "0a00&1018&111C&0630&0700&0a0E", "i": 100000, "s": 5 },
-                            "26":   { "w": "0a00&1028&112C&0630&0700&0a16", "i": 100000, "s": 5 },
-                            "52":   { "w": "0a00&1038&113C&0630&0700&0a1E", "i": 50000, "s": 10 },
-                            "104":  { "w": "0a00&1048&114C&0630&0700&0a26", "i": 50000, "s": 20 },
-                            "208":  { "w": "0a00&1058&115C&0630&0700&0a2E", "i": 25000, "s": 30 },
-                            "416":  { "w": "0a00&1068&116C&06c0&0700&0a36", "i": 15000, "s": 50 }
+                            "12.5": {
+                                "w": "0a00&1018&111C&0630&0700&0a0E",
+                                "i": 100000,
+                                "s": 5
+                            },
+                            "26": {
+                                "w": "0a00&1028&112C&0630&0700&0a16",
+                                "i": 100000,
+                                "s": 5
+                            },
+                            "52": {
+                                "w": "0a00&1038&113C&0630&0700&0a1E",
+                                "i": 50000,
+                                "s": 10
+                            },
+                            "104": {
+                                "w": "0a00&1048&114C&0630&0700&0a26",
+                                "i": 50000,
+                                "s": 20
+                            },
+                            "208": {
+                                "w": "0a00&1058&115C&0630&0700&0a2E",
+                                "i": 25000,
+                                "s": 30
+                            },
+                            "416": {
+                                "w": "0a00&1068&116C&06c0&0700&0a36",
+                                "i": 15000,
+                                "s": 50
+                            }
                         }
                     }
                 ]
             }
         },
+        "TMP117": {
+            "_notes": "High-Accuracy Temperature Sensor. Detection: 0x0F (DevID) = 0x0117. Init: 0x01 (Config) = 0x0220 (1s continuous mode, 8 avg). Poll: 0x00 (Temp) = 2 bytes.",
+            "addresses": "0x48-0x4B",
+            "deviceType": "TMP117",
+            "detectionValues": "0x0F=0x0117",
+            "initValues": "0x01=0x0220",
+            "pollInfo": {
+                "c": "0x00=r2",
+                "i": 1000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Temperature Sensor",
+                "desc": "",
+                "manu": "Texas Instruments",
+                "type": "TMP117",
+                "clas": ["TEMP"],
+                "resp": {
+                    "b": 2,
+                    "a": [
+                        {
+                            "n": "temperature",
+                            "t": ">h",
+                            "u": "&deg;C",
+                            "r": [-256, 256],
+                            "d": 128,
+                            "a": 0,
+                            "f": "3.2f",
+                            "o": "float"
+                        }
+                    ]
+                }
+            }
+        },
         "AHT20": {
+            "_notes": "Temperature and humidity sensor. Data format: Status(8bit) + Humidity(20bit) + Temperature(20bit). Conversion: humidity(%) = (H[19:0]/2^20)*100, temp(°C) = (T[19:0]/2^20)*200-50",
             "addresses": "0x38",
             "deviceType": "AHT20",
             "detectionValues": "",
             "initValues": "0xbe0800=",
             "pollInfo": {
                 "c": "=r6&0xac3300=",
-                "i": 5000,
+                "i": 500,
                 "s": 1
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "AHT20",
-                "desc": "Temp&Humid",
+                "name": "Temperature & Humidity Sensor",
+                "desc": "",
                 "manu": "Asair",
                 "type": "AHT20",
-                "clas": ["TEMP","RH"],
+                "clas": ["TEMP", "RH"],
                 "resp": {
                     "b": 6,
                     "a": [
@@ -807,7 +977,7 @@
                             "at": 2,
                             "t": ">I",
                             "u": "&deg;C",
-                            "r": [-40,80],
+                            "r": [-40, 80],
                             "m": "0x000fffff",
                             "d": 5242.88,
                             "a": -50,
@@ -831,8 +1001,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "SHT40",
-                "desc": "Temp&Humid",
+                "name": "Temperature & Humidity Sensor",
+                "desc": "",
                 "manu": "Sensirion",
                 "type": "SHT40",
                 "clas": ["TEMP","RH"],
@@ -864,6 +1034,112 @@
                 }
             }
         },
+        "SGP30": {
+            "_notes": "Gas sensor for IAQ. Detection: 0x0000 = 0x58, 0x00 = config. Init: Send IAQ_INIT and wait 100ms, then poll. Poll: Send MEASURE_IAQ and read 6 bytes (CO2 & TVOC).",
+            "addresses": "0x58",
+            "deviceType": "SGP30",
+            "detectionValues": "0x0000=0x58",
+            "initValues": "0x2003=p100",
+            "pollInfo": {
+                "c": "0x2008=r6",
+                "i": 1000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Gas Sensor (VOC)",
+                "desc": "",
+                "manu": "Sensirion",
+                "type": "SGP30",
+                "clas": ["VOC"],
+                "resp": {
+                    "b": 6,
+                    "a": [
+                        {
+                            "n": "eCO2",
+                            "t": ">H",
+                            "u": "ppm",
+                            "r": [400, 60000],
+                            "f": "5d",
+                            "o": "uint16"
+                        },
+                        {
+                            "n": "VOC",
+                            "t": ">H",
+                            "u": "ppb",
+                            "r": [0, 60000],
+                            "f": "5d",
+                            "o": "uint16"
+                        }
+                    ]
+                },
+                "actions": [
+                    {
+                        "n": "setBaseline",
+                        "t": ">HH",
+                        "w": "201e",
+                        "r": [0, 65535],
+                        "d": 0
+                    },
+                    {
+                        "n": "setHumidity",
+                        "t": ">H",
+                        "w": "2061",
+                        "r": [0, 65535],
+                        "d": 0
+                    }
+                ]
+            }
+        },
+        "SGP40": {
+            "_notes": "Gas sensor for VOC measurements (0-500). Hotplate temp controlled by command 0x59. Init: None needed. Poll: Send 0x2600 + humidity/temp compensation (default to 50%RH=0x8000, 25°C=0x6666), read raw signal (VOC ticks).",
+            "addresses": "0x59",
+            "deviceType": "SGP40",
+            "detectionValues": "",
+            "initValues": "0x260f8000a2666693",
+            "pollInfo": {
+                "c": "=r3&0x260f8000a2666693=",
+                "i": 1000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "SGP40",
+                "desc": "Gas Sensor",
+                "manu": "Sensirion",
+                "type": "SGP40",
+                "clas": ["VOC"],
+                "resp": {
+                    "b": 3,
+                    "a": [
+                        {
+                            "n": "vocTicks",
+                            "t": ">H",
+                            "u": "ticks",
+                            "r": [0, 65535],
+                            "f": "5d",
+                            "o": "uint16"
+                        }
+                    ]
+                },
+                "actions": [
+                    {
+                        "n": "setHumidity",
+                        "t": ">H",
+                        "w": "2601",
+                        "r": [0, 65535],
+                        "d": 32768
+                    },
+                    {
+                        "n": "setTemperature",
+                        "t": ">H",
+                        "w": "2602",
+                        "r": [0, 65535],
+                        "d": 26214
+                    }
+                ]
+            }
+        },
         "MCP9808": {
             "addresses": "0x18-0x1f",
             "deviceType": "MCP9808",
@@ -876,8 +1152,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "MCP9808",
-                "desc": "Temp",
+                "name": "Temperature Sensor",
+                "desc": "",
                 "manu": "Microchip",
                 "type": "MCP9808",
                 "clas": ["TEMP"],
@@ -912,8 +1188,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "LPS25",
-                "desc": "Pressure",
+                "name": "Pressure Sensor",
+                "desc": "",
                 "manu": "ST",
                 "type": "LPS25",
                 "clas": ["PRES","TEMP"],
@@ -955,6 +1231,52 @@
                 }
             }
         },
+        "MPRLS": {
+            "_notes": "Honeywell MPRLS pressure sensor. No detection values, so the record claims any device at 0x18 - it must stay AFTER the MCP9808 and Robotical servo/pump records, which share the address and have detection values.",
+            "addresses": "0x18",
+            "deviceType": "MPRLS",
+            "detectionValues": "",
+            "initValues": "0xAA0000",
+            "pollInfo": {
+                "c": "=r4&0xAA0000",
+                "i": 1000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Pressure Sensor",
+                "desc": "",
+                "manu": "Honeywell",
+                "type": "MPRLS",
+                "clas": ["PRES"],
+                "resp": {
+                    "b": 4,
+                    "a": [
+                        {
+                            "n": "status",
+                            "t": "B",
+                            "r": [0, 255],
+                            "m": "0xff",
+                            "f": "02x",
+                            "o": "uint8",
+                            "vs": false
+                        },
+                        {
+                            "n": "pressure",
+                            "at": 0,
+                            "m": "0x00ffffff",
+                            "t": ">I",
+                            "u": "Pa",
+                            "r": [0, 173],
+                            "a": -21625,
+                            "d": 77.583,
+                            "f": "4.2f",
+                            "o": "float"
+                        }
+                    ]
+                }
+            }
+        },
         "CAP1203": {
             "addresses": "0x28",
             "deviceType": "CAP1203",
@@ -967,8 +1289,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "CAP1203",
-                "desc": "Capacitive Touch x 3",
+                "name": "Capacitive Touch",
+                "desc": "",
                 "manu": "Sparkfun",
                 "type": "CAP1203",
                 "clas": ["TCH"],
@@ -1029,8 +1351,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "CAP1188",
-                "desc": "Capacitive Touch x 8",
+                "name": "Capacitive Touch",
+                "desc": "8 channel",
                 "manu": "Microchip",
                 "type": "CAP1188",
                 "clas": ["TCH"],
@@ -1197,8 +1519,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "Qwiic Button",
-                "desc": "Button",
+                "name": "QWIIC Button",
+                "desc": "",
                 "manu": "Sparkfun",
                 "type": "QwiicButton",
                 "clas": ["BTN"],
@@ -1245,6 +1567,80 @@
                 ]
             }
         },
+        "MAX17048": {
+            "addresses": "0x36",
+            "deviceType": "MAX17048",
+            "detectionValues": "0x08=0b000000000001001x",
+            "initValues": "0x0c9716&=p100&0x14a0d7",
+            "pollInfo": {
+                "c": "0x02=r2&0x04=r2&0x16=r2&0x1a=r1",
+                "i": 1000,
+                "s": 1
+            },
+            "devInfoJson": {
+                "name": "Battery Fuel Gauge",
+                "desc": "",
+                "manu": "Analog Devices",
+                "type": "MAX17048",
+                "clas": ["FUEL", "BATT"],
+                "resp": {
+                    "b": 7,
+                    "a": [
+                        {
+                            "n": "voltage",
+                            "t": ">H",
+                            "u": "V",
+                            "r": [0, 5.12],
+                            "d": 12800,
+                            "f": ".3f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "charge",
+                            "t": ">H",
+                            "u": "%",
+                            "r": [0, 100],
+                            "d": 256,
+                            "f": ".1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "chargeRate",
+                            "t": ">h",
+                            "u": "%/hr",
+                            "r": [-100, 100],
+                            "d": 4.808,
+                            "f": ".1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "status",
+                            "t": "B",
+                            "at": 6,
+                            "r": [0, 255],
+                            "m": "0xff",
+                            "f": "02x",
+                            "o": "uint8",
+                            "vs": false
+                        }
+                    ]
+                },
+                "actions": [
+                    {
+                        "n": "config",
+                        "t": ">H",
+                        "w": "0c",
+                        "f": "B",
+                        "r": [0, 65536],
+                        "d": 38656
+                    },
+                    {
+                        "n": "reset config",
+                        "w": "0c9700"
+                    }
+                ]
+            }
+        },
         "AS5600": {
             "addresses": "0x36",
             "deviceType": "AS5600",
@@ -1256,8 +1652,8 @@
                 "s": 1
             },
             "devInfoJson": {
-                "name": "AS5600",
-                "desc": "Magnetic Encoder",
+                "name": "Magnetic Encoder",
+                "desc": "",
                 "manu": "AMS",
                 "type": "AS5600",
                 "clas": ["ANG"],
@@ -1288,8 +1684,8 @@
                 "s": 1
             },
             "devInfoJson": {
-                "name": "MT6701",
-                "desc": "Magnetic Encoder",
+                "name": "Magnetic Encoder",
+                "desc": "",
                 "manu": "MagnTek",
                 "type": "MT6701",
                 "clas": ["ANG"],
@@ -1321,8 +1717,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "M5 Encoder",
-                "desc": "Rotary encoder",
+                "name": "Rotary Encoder",
+                "desc": "",
                 "manu": "M5Stack",
                 "type": "M5Encoder",
                 "clas": ["ROT"],
@@ -1376,8 +1772,8 @@
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "Gamepad",
-                "desc": "Adafruit Gamepad",
+                "name": "Adafruit Gamepad",
+                "desc": "",
                 "manu": "Adafruit",
                 "type": "Gamepad",
                 "clas": ["GAME"],
@@ -1478,8 +1874,8 @@
             "pollInfo": {},
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "Qwiic LED Stick",
-                "desc": "LEDs",
+                "name": "RGB LED Stick",
+                "desc": "",
                 "manu": "Sparkfun",
                 "type": "QwiicLEDStick",
                 "clas": ["PIX"],
@@ -1518,8 +1914,8 @@
                 "s": 1
             },
             "devInfoJson": {
-                "name": "HX711",
-                "desc": "Force Sensor",
+                "name": "Force Sensor",
+                "desc": "",
                 "manu": "Avia",
                 "type": "HX711",
                 "clas": ["FRCE"],
@@ -1557,8 +1953,8 @@
                 "s": 1
             },
             "devInfoJson": {
-                "name": "BLEBTHome",
-                "desc": "BTHome",
+                "name": "BLE Sensor (BTHome)",
+                "desc": "",
                 "manu": "Allterco",
                 "type": "BLEBTHome",
                 "clas": ["BTHM"],
@@ -1618,35 +2014,338 @@
         },
         "AdafruitSoilSensor": {
             "addresses": "0x36",
+            "_notes": "sensor must be wrapped in heatshrink to produce sensible values. very sensitive to human proximity",
             "deviceType": "AdafruitSoilSensor",
             "detectionValues": "0x0001=p25&=0x55",
             "initValues": "",
             "pollInfo": {
-                "c": "=r2&0x0F10=",
+                "c": "0x0F10=p250&=r2&0x0004=p250&=r4",
                 "i": 1000,
                 "s": 5
             },
             "scanPriority": "high",
             "devInfoJson": {
-                "name": "AdafruitSoilSensor",
-                "desc": "SoilSensor",
+                "name": "Soil Moisture Sensor",
+                "desc": "",
                 "manu": "Adafruit",
                 "type": "AdafruitSoilSensor",
                 "clas": ["SOIL"],
                 "resp": {
-                    "b": 2,
+                    "b": 6,
                     "a": [
                         {
                             "n": "moisture",
-                            "t": "<H",
+                            "t": ">H",
                             "u": "",
                             "r": [0, 65535],
                             "f": "d",
                             "o": "uint16"
+                        },
+                        {
+                            "n": "temperature",
+                            "t": ">I",
+                            "u": "°C",
+                            "r": [-45, 175],
+                            "d": 65535,
+                            "f": ".2f",
+                            "o": "float"
                         }
-
                     ]
                 }
+            }
+        },
+        "SCD30": {
+            "_notes": "Sensirion SCD30 CO2/temperature/humidity. No detection values (unique address 0x61).",
+            "addresses": "0x61",
+            "deviceType": "SCD30",
+            "detectionValues": "",
+            "initValues": "0xd100=p5&=r3&=p5&0x0010000081=p10&0x46000002e3=p10&0x5306000081",
+            "pollInfo": {
+                "c": "0x0202=p5&=r3&0x0202=p5&=r3&0x0300=p5&=r18",
+                "i": 5000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "CO2 Sensor",
+                "desc": "",
+                "manu": "Sensirion",
+                "type": "SCD30",
+                "clas": ["CO2", "TEMP", "RH"],
+                "resp": {
+                    "b": 24,
+                    "a": [
+                        {
+                            "n": "CO2",
+                            "t": ">f",
+                            "at": [6, 7, 9, 10],
+                            "u": "ppm",
+                            "r": [0, 40000],
+                            "f": ".1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "temperature",
+                            "t": ">f",
+                            "at": [12, 13, 15, 16],
+                            "u": "C",
+                            "r": [-40, 125],
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "humidity",
+                            "t": ">f",
+                            "at": [18, 19, 21, 22],
+                            "u": "%RH",
+                            "r": [0, 100],
+                            "f": ".2f",
+                            "o": "float"
+                        }
+                    ]
+                }
+            }
+        },
+        "SCD40": {
+            "_notes": "Sensirion SCD40 CO2/temperature/humidity. No detection values (unique address 0x62).",
+            "addresses": "0x62",
+            "deviceType": "SCD40",
+            "detectionValues": "",
+            "initValues": "0x21b1=",
+            "pollInfo": {
+                "c": "0xec05=r9",
+                "i": 5000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "CO2 Sensor",
+                "desc": "",
+                "manu": "Sensirion",
+                "type": "SCD40",
+                "clas": ["CO2", "TEMP", "RH"],
+                "resp": {
+                    "b": 9,
+                    "a": [
+                        {
+                            "n": "CO2",
+                            "t": ">H",
+                            "u": "ppm",
+                            "r": [0, 40000],
+                            "f": "d",
+                            "o": "uint16"
+                        },
+                        {
+                            "n": "temperature",
+                            "t": ">H",
+                            "u": "°C",
+                            "r": [-45, 175],
+                            "d": 65535,
+                            "a": -45,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "humidity",
+                            "t": ">H",
+                            "u": "%RH",
+                            "r": [0, 100],
+                            "d": 65535,
+                            "f": ".2f",
+                            "o": "float"
+                        }
+                    ],
+                    "c": {
+                        "n": "scd40_calc",
+                        "c": "out.CO2 = buf[0]; out.temperature = -45.0 + (175.0 * buf[1] / 65535.0); out.humidity = (100.0 * buf[2] / 65535.0);"
+                    }
+                },
+                "actions": [
+                    {
+                        "n": "temperatureOffset",
+                        "t": ">H",
+                        "w": "241d",
+                        "r": [0, 65535],
+                        "d": 1498
+                    },
+                    {
+                        "n": "altitude",
+                        "t": ">H",
+                        "w": "2427",
+                        "r": [0, 3000],
+                        "d": 0
+                    },
+                    {
+                        "n": "ambientPressure",
+                        "t": ">H",
+                        "w": "e000",
+                        "r": [700, 1200],
+                        "d": 1013
+                    },
+                    {
+                        "n": "autoCalibration",
+                        "t": ">H",
+                        "w": "2416",
+                        "r": [0, 1],
+                        "d": 1
+                    },
+                    {
+                        "n": "calibrationTarget",
+                        "t": ">H",
+                        "w": "243a",
+                        "r": [0, 65535],
+                        "d": 400
+                    }
+                ]
+            }
+        },
+        "STCC4": {
+            "_notes": "Sensirion STCC4 miniature CO2 sensor (paired with SHT41 for RH/T compensation), fixed address 0x64. Detection is empty (unique address) - the product-ID command cannot be used because the detection path issues a single write+read with no inter-command delay and the STCC4 NACKs that read - so the record claims any device at 0x64. Init: start_continuous_measurement (0x218B). Poll: read_measurement (0xEC05), 1 ms pause, read 12 bytes = CO2/temp/humidity/status words each followed by a CRC byte (skipped via 'at'). CO2 raw = ppm; temperature = -45 + 175*s/65535; humidity = -6 + 125*s/65535. Must never be probed by the RSAO delegated-identification hook (its framed 0x99 command stops the sensor measuring); RaftI2C DeviceIdentMgr only runs that hook for addresses with no standard device-type record. See devdocs/stcc4-identification-notes.md",
+            "addresses": "0x64",
+            "deviceType": "STCC4",
+            "detectionValues": "",
+            "initValues": "0x218b=",
+            "pollInfo": {
+                "c": "0xec05=p1&=r12",
+                "i": 1000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "CO2 Sensor",
+                "desc": "CO2, Temp & Humidity",
+                "manu": "Sensirion",
+                "type": "STCC4",
+                "clas": ["CO2", "TEMP", "RH"],
+                "resp": {
+                    "b": 12,
+                    "a": [
+                        {
+                            "n": "CO2",
+                            "at": 0,
+                            "t": ">H",
+                            "u": "ppm",
+                            "r": [0, 40000],
+                            "f": "d",
+                            "o": "uint16"
+                        },
+                        {
+                            "n": "temperature",
+                            "at": 3,
+                            "t": ">H",
+                            "u": "&deg;C",
+                            "r": [-45, 130],
+                            "d": 374.48571428571427,
+                            "a": -45,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "humidity",
+                            "at": 6,
+                            "t": ">H",
+                            "u": "%",
+                            "r": [0, 100],
+                            "d": 524.28,
+                            "a": -6,
+                            "f": ".1f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "status",
+                            "at": 9,
+                            "t": ">H",
+                            "u": "",
+                            "r": [0, 65535],
+                            "f": "04x",
+                            "o": "uint16",
+                            "vs": false
+                        }
+                    ]
+                }
+            }
+        },
+        "GravityO2": {
+            "_notes": "DFRobot Gravity O2 sensor. No detection values; addresses 0x70-0x73 overlap the usual I2C mux range, so a board with a mux at those addresses must exclude them.",
+            "addresses": "0x70-0x73",
+            "deviceType": "GravityO2",
+            "detectionValues": "",
+            "initValues": "",
+            "pollInfo": {
+                "c": "0x03=r3",
+                "i": 1000,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Oxygen Sensor",
+                "desc": "",
+                "manu": "DFRobot",
+                "type": "GravityO2",
+                "clas": ["O2"],
+                "resp": {
+                    "b": 3,
+                    "a": [
+                        {
+                            "n": "oxygen",
+                            "t": "BBB",
+                            "u": "%",
+                            "r": [0, 100],
+                            "f": ".2f",
+                            "o": "float"
+                        }
+                    ],
+                    "c": {
+                        "n": "gravity_o2_calc",
+                        "c": "float key = 20.9/120.0; float val = key * (buf[0] + (buf[1]/10.0) + (buf[2]/100.0)); out.oxygen = val;"
+                    }
+                },
+                "actions": [
+                    {
+                        "n": "calibrate",
+                        "t": "B",
+                        "w": "08",
+                        "r": [0, 255],
+                        "d": 209
+                    }
+                ]
+            }
+        },
+        "AMG8833": {
+            "addresses": "0x69",
+            "_notes": "default settings on power on: normal (not sleep) mode, 10 frames per second, no interrupt, moving average off",
+            "deviceType": "AMG8833",
+            "detectionValues": "",
+            "initValues": "",
+            "pollInfo": {
+                "c": "0x80=r128",
+                "i": 100,
+                "s": 1
+            },
+            "scanPriority": "high",
+            "devInfoJson": {
+                "name": "Thermal Camera",
+                "desc": "",
+                "manu": "Panasonic",
+                "type": "AMG8833",
+                "clas": ["TCAM"],
+                "resp": {
+                    "b": 128,
+                    "a": [
+                        {
+                            "n": "temperature",
+                            "t": "<h[64]",
+                            "resolution": "8x8",
+                            "u": "&deg;C",
+                            "r": [-55, 125],
+                            "s": -4,
+                            "d": 64,
+                            "f": ".2f",
+                            "o": "float"
+                        }
+                    ]
+                },
+                "actions": []
             }
         },
         "TrillBar": {
@@ -1985,6 +2684,133 @@
                     { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
                     { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
                 ]
+            }
+        },
+        "LTR-329": {
+            "_notes": "Detection effectively matches any device at 0x29 - this record must stay AFTER every other 0x29 record (VL6180, VL53L0X, VL53L1X, VL53L4CD, CAP1188, TrillSquare).",
+            "addresses": "0x29",
+            "deviceType": "LTR-329",
+            "detectionValues": "0x86=A005",
+            "initValues": "0x8002&p20&0x8001",
+            "pollInfo": {
+                "c": "0x88=r4",
+                "i": 100,
+                "s": 1
+            },
+            "devInfoJson": {
+                "name": "Light Sensor (IR and visible)",
+                "desc": "",
+                "manu": "Lite On",
+                "type": "LTR-329",
+                "clas": ["LGHT"],
+                "resp": {
+                    "b": 4,
+                    "a": [
+                        {
+                            "n": "ir",
+                            "t": "<h",
+                            "u": "lux",
+                            "r": [0, 64000],
+                            "f": "d",
+                            "o": "uint16"
+                        },
+                        {
+                            "n": "visible",
+                            "t": "<h",
+                            "u": "lux",
+                            "r": [0, 64000],
+                            "f": "d",
+                            "o": "uint16"
+                        }
+                    ],
+                    "c": {
+                        "n": "ltr329_light_calc",
+                        "c": "int combined = buf[2] + (((uint16_t)buf[3])<<8); out.ir = buf[0] + (((uint16_t)buf[1])<<8); out.visible = combined - out.ir;",
+                        "j": "let combined = buf[2] + (buf[3]<<8); let ir = buf[0] + (buf[1]<<8); attrValues['ir'].push(ir); attrValues['visible'].push(combined-ir);"
+                    }
+                },
+                "actions": []
+            }
+        },
+        "LTR-390": {
+            "addresses": "0x53",
+            "deviceType": "LTR-390",
+            "detectionValues": "0x06=B2",
+            "initValues": "0x0010&0x0440&p20&0x000A",
+            "pollInfo": {
+                "c": "0x0D=r5&0x0002=p100&0x000A",
+                "i": 250,
+                "s": 1
+            },
+            "devInfoJson": {
+                "name": "Light Sensor (UV and visible)",
+                "desc": "",
+                "manu": "Lite On",
+                "type": "LTR-390",
+                "clas": ["LGHT"],
+                "resp": {
+                    "b": 5,
+                    "a": [
+                        {
+                            "n": "ambient",
+                            "t": "<H",
+                            "u": "lux",
+                            "r": [0, 64000],
+                            "d": 1.25,
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "UVI",
+                            "at": 3,
+                            "t": "<H",
+                            "u": "index",
+                            "r": [0, 64000],
+                            "d": 24,
+                            "f": ".3f",
+                            "o": "float"
+                        }
+                    ]
+                },
+                "actions": []
+            }
+        },
+        "M5-Weight": {
+            "addresses": "0x26",
+            "deviceType": "M5-Weight",
+            "detectionValues": "0xFF=26262626",
+            "initValues": "",
+            "pollInfo": {
+                "c": "0x10=r4&0x00=r4",
+                "i": 250,
+                "s": 1
+            },
+            "devInfoJson": {
+                "name": "Weight Sensor",
+                "desc": "",
+                "manu": "M5 Stack",
+                "type": "M5-Weight",
+                "clas": ["WGHT"],
+                "resp": {
+                    "b": 8,
+                    "a": [
+                        {
+                            "n": "weight",
+                            "t": "<f",
+                            "u": "g",
+                            "f": ".2f",
+                            "o": "float"
+                        },
+                        {
+                            "n": "ADC",
+                            "t": "<I",
+                            "u": "",
+                            "f": ".3f",
+                            "o": "int"
+                        }
+                    ]
+                },
+                "actions": []
             }
         }
     }
