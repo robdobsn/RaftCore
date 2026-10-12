@@ -8,6 +8,7 @@
 
 #include "Logger.h"
 #include "LoggerCore.h"
+#include "RaftConsolePort.h"
 #include "RaftArduino.h"
 #include <string.h>
 
@@ -133,12 +134,14 @@ String LoggerCore::getLoggersJSON(bool includeBraces)
     return includeBraces ? "{" + loggersJSON + "}" : loggersJSON;
 }
 
-/// @brief Log
-/// @param level log level
-/// @param tag prefix tag
+/// @brief Write a log message to the console (unless another owner has the
+/// console's port - see RaftConsolePort - in which case it goes to the
+/// claimant's sink, if any)
 /// @param msg message
-void LOGGING_FUNCTION_DECORATOR LoggerCore::log(esp_log_level_t level, const char *tag, const char *msg)
+static void LOGGING_FUNCTION_DECORATOR writeToConsole(const char* msg)
 {
+    if (RaftConsolePort::divert(msg, strlen(msg)))
+        return;
 #ifdef RAFT_LOGGER_USE_USB_JTAG_DIRECT
     // Bypass newlib stdio + VFS and write directly to the USB JTAG ring-buffer
     // driver. The VFS/stdio path flushes one USB packet per newline which caps
@@ -189,6 +192,15 @@ void LOGGING_FUNCTION_DECORATOR LoggerCore::log(esp_log_level_t level, const cha
 #else
     printf("%s", msg);
 #endif
+}
+
+/// @brief Log
+/// @param level log level
+/// @param tag prefix tag
+/// @param msg message
+void LOGGING_FUNCTION_DECORATOR LoggerCore::log(esp_log_level_t level, const char *tag, const char *msg)
+{
+    writeToConsole(msg);
 
     // Log to all loggers (this can be called from any task - see note in header)
     uint32_t numLoggers = _numLoggers;

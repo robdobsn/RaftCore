@@ -99,14 +99,26 @@ public:
         return 0;
     }
 
-    /// @brief Get the latest poll response (non-destructive peek)
+    /// @brief Get the latest poll response if it is new since the previous call (does not drain
+    /// the stored results, but each value is reported once - see PollDataAggregatorIF)
     /// @param dataTimeUs (output) timestamp of the latest data in microseconds
     /// @param data (output) latest poll response data
-    /// @return true if data was available
+    /// @return true if new data was available
     bool getLatestPollResponse(uint64_t& dataTimeUs, std::vector<uint8_t>& data) const
     {
         if (pDataAggregator)
             return pDataAggregator->getLatestValue(dataTimeUs, data);
+        return false;
+    }
+
+    /// @brief Get the latest poll response whether or not it has been read before
+    /// @param dataTimeUs (output) timestamp of the latest data in microseconds
+    /// @param data (output) latest poll response data
+    /// @return true if there is a latest response
+    bool peekLatestPollResponse(uint64_t& dataTimeUs, std::vector<uint8_t>& data) const
+    {
+        if (pDataAggregator)
+            return pDataAggregator->peekLatestValue(dataTimeUs, data);
         return false;
     }
 

@@ -2107,7 +2107,7 @@
             }
         },
         "SCD40": {
-            "_notes": "Sensirion SCD40 CO2/temperature/humidity. No detection values (unique address 0x62).",
+            "_notes": "Sensirion SCD40 CO2/temperature/humidity. No detection values (unique address 0x62). read_measurement (0xEC05) returns three big-endian words, each followed by a CRC byte: CO2 (ppm) at 0, T at 3 (-45 + 175*raw/65535), RH at 6 (100*raw/65535). Standard decode.",
             "addresses": "0x62",
             "deviceType": "SCD40",
             "detectionValues": "",
@@ -2137,28 +2137,26 @@
                         },
                         {
                             "n": "temperature",
+                            "at": 3,
                             "t": ">H",
                             "u": "°C",
                             "r": [-45, 175],
-                            "d": 65535,
+                            "d": 374.4857142857143,
                             "a": -45,
                             "f": ".2f",
                             "o": "float"
                         },
                         {
                             "n": "humidity",
+                            "at": 6,
                             "t": ">H",
                             "u": "%RH",
                             "r": [0, 100],
-                            "d": 65535,
+                            "d": 655.35,
                             "f": ".2f",
                             "o": "float"
                         }
-                    ],
-                    "c": {
-                        "n": "scd40_calc",
-                        "c": "out.CO2 = buf[0]; out.temperature = -45.0 + (175.0 * buf[1] / 65535.0); out.humidity = (100.0 * buf[2] / 65535.0);"
-                    }
+                    ]
                 },
                 "actions": [
                     {

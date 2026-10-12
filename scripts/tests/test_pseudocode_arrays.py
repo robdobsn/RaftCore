@@ -95,6 +95,22 @@ class TestGeneration(unittest.TestCase):
         code = self.gen(REC_SIGNED_FLOAT)
         self.assertIn("for (int __s = 0; __s < 2; __s++) if (pOut->f[__s] >= 32768.0f) pOut->f[__s] -= 65536.0f;", code)
 
+    def test_implicit_next_only_when_absent(self):
+        # No "next" in the code: one is added at the end (the record is reported)
+        self.assertIn("if (++pOut >= pStruct + maxRecCount) break;", self.gen(REC_SINGLE))
+        # "next" already there: none added (one increment per sample, not two)
+        self.assertEqual(self.gen(REC_NEXT).count("if (++pOut >= pStruct + maxRecCount) break;"), 1)
+
+    def test_field_desc_scaling_still_to_apply(self):
+        attrs = [{"n": "t", "t": ">H", "d": 374.5, "a": -45, "o": "float"}]
+        # Standard decode applies d and a itself: nothing left for consumers of the table
+        std = DecodeGenerator(GEN_OPTIONS).get_field_desc_def({"resp": {"b": 2, "a": attrs}}, "S")
+        self.assertIn("1.0f, 0.0f", std)
+        # Custom decode stores what its code writes (raw): the table keeps d and a
+        custom = DecodeGenerator(GEN_OPTIONS).get_field_desc_def(
+            {"resp": {"b": 2, "a": attrs, "c": {"n": "f", "c": "out.t=(buf[0]<<8)|buf[1];"}}}, "C")
+        self.assertIn("374.5f, -45.0f", custom)
+
     def test_field_desc_count(self):
         desc = DecodeGenerator(GEN_OPTIONS).get_field_desc_def(REC_SINGLE["devInfoJson"], "T")
         self.assertIn('{"seq", (uint16_t)offsetof(poll_T, seq), AttrType::Uint8, "", 1.0f, 0.0f, 1}', desc)
@@ -133,8 +149,8 @@ int main() {
     std::vector<uint8_t> b1 = {0, 10, 7, 0x01,0x00, 0xFE,0xFF, 0x2C,0x01, 0x00,0x80};
     poll_SINGLE s1[2] = {};
     s1[0].vals[0] = 555;   // must be overwritten / cleared
-    decode_single(b1.data(), b1.size(), s1, sizeof(s1), 2, st);
-    printf("single %d %d %d %d %d\n", s1[0].seq, s1[0].vals[0], s1[0].vals[1], s1[0].vals[2], s1[0].vals[3]);
+    uint32_t n1 = decode_single(b1.data(), b1.size(), s1, sizeof(s1), 2, st);
+    printf("single %u %d %d %d %d %d\n", n1, s1[0].seq, s1[0].vals[0], s1[0].vals[1], s1[0].vals[2], s1[0].vals[3]);
 
     // Next: 2 samples; sample 0 writes 3 elements, sample 1 writes 1 element
     std::vector<uint8_t> b2 = {0, 10, 2, 3,11,12,13, 1,21,0,0};
@@ -172,7 +188,8 @@ class TestCompiledDecode(unittest.TestCase):
             subprocess.run(["g++", "-std=c++17", "-Wall", "-Werror", "-Wno-unused-variable",
                             "-Wno-unused-but-set-variable", "-o", exe, cpp], check=True)
             out = subprocess.run([exe], check=True, capture_output=True, text=True).stdout.splitlines()
-        self.assertEqual(out[0], "single 7 1 -2 300 -32768")
+        # A decode without "next" gets one at the end, so its one sample is reported
+        self.assertEqual(out[0], "single 1 7 1 -2 300 -32768")
         # Unwritten elements of the second sample are zero, not carried over from the first
         self.assertEqual(out[1], "next 2 | 0 11 12 13 | 1 21 0 0")
         self.assertEqual(out[2], "signed 1 -1.0 2.0")

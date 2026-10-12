@@ -131,6 +131,7 @@ idf_component_register(
     "components/core/LEDPixels/LEDPixelsDevice.cpp"
     "components/core/libb64/cencode.cpp"
     "components/core/Logger/LoggerCore.cpp"
+    "components/core/Logger/RaftConsolePort.cpp"
     "components/core/MiniHDLC/MiniHDLC.cpp"
     "components/core/MQTT/MQTTProtocol.cpp"
     "components/core/MQTT/RaftMQTTClient.cpp"

@@ -313,6 +313,16 @@ class DecodeGenerator:
             f"pOut->{self.struct_time_var_name} = timestampUs / {self.DECODE_STRUCT_TIMESTAMP_RESOLUTION_US};"
         ] + zero_array_lines
 
+        # The generated function only moves on to the next output record at "next" - which a FIFO
+        # decode says once per sample.  A decode that never says it would write every poll into the
+        # first record and report none at all, so one without "next" gets one at the end: one
+        # sample per poll response, the common case.
+        if not any(kind == "NEXT" for kind, _ in pseudocodeHandler.lexer(custom_pseudo_code)):
+            custom_pseudo_code = custom_pseudo_code.rstrip()
+            if not custom_pseudo_code.endswith((";", "}")):
+                custom_pseudo_code += ";"
+            custom_pseudo_code += " next;"
+
         # Tokenise, then turn array element writes into bounds-checked C++ (an index outside the
         # array is ignored rather than writing past the output struct)
         cpp_subs = {"^out.": "pOut->"}
@@ -664,6 +674,14 @@ class DecodeGenerator:
         if len(attrs) == 0:
             return ""
 
+        # The divisor and addend in the table are what is still to be applied to a value read
+        # from the decoded struct.  The standard decode has applied "d" and "a" already (see
+        # gen_attr_extraction_code), so for it they are 1 and 0; a custom decode ("c") stores
+        # whatever its code writes - raw values, for the records that give "d" - so it gets "d"
+        # and "a" as written.  Consumers (RaftROS, DeviceManager::getBusDeviceNamedValue) then
+        # apply the table's values once and are right for both.
+        is_custom_decode = "c" in poll_resp_meta
+
         # Extract short struct name (e.g. "poll_LSM6DS" from "struct poll_LSM6DS")
         short_name = struct_name.replace("struct ", "")
         lines = []
@@ -675,8 +693,8 @@ class DecodeGenerator:
             c_var_name = self.to_valid_c_var_name(attr_name)
             attr_type_enum = self._get_attr_type_enum(el)
             fmt_str = el.get("f", "")
-            divisor = el.get("d", 0)
-            addend = el.get("a", 0)
+            divisor = el.get("d", 0) if is_custom_decode else 0
+            addend = el.get("a", 0) if is_custom_decode else 0
             # divisor: 0 means no division, represent as 1.0f; otherwise use the value
             div_val = f"{float(divisor)}f" if divisor and float(divisor) != 0 else "1.0f"
             add_val = f"{float(addend)}f" if addend and float(addend) != 0 else "0.0f"

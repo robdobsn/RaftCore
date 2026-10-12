@@ -132,17 +132,36 @@ public:
                     uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get latest decoded poll response (non-destructive peek at most recent value)
+    /// @brief Get the latest decoded poll response if one has arrived since the previous call
+    /// (from any caller).  Does not drain the stored results, but each value is reported once,
+    /// so two readers of the same device see it only between them - use
+    /// peekLatestDecodedPollResponse() for the current value regardless.
     /// @param address address of device to get data from
     /// @param pStructOut pointer to structure to receive decoded data
     /// @param structOutSize size of structure (in bytes) to receive decoded data
     /// @param decodeState decode state for this device
-    /// @return true if a value was successfully decoded
+    /// @return true if a new value was successfully decoded
     virtual bool getLatestDecodedPollResponse(BusElemAddrType address,
                     void* pStructOut, uint32_t structOutSize,
                     RaftBusDeviceDecodeState& decodeState) const
     {
         return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the most recent decoded poll response whether or not it has been read before
+    /// (a true peek: it leaves what getLatestDecodedPollResponse() reports untouched)
+    /// @param address address of device to get data from
+    /// @param pStructOut pointer to structure to receive decoded data
+    /// @param structOutSize size of structure (in bytes) to receive decoded data
+    /// @param decodeState decode state for this device
+    /// @return true if a value was successfully decoded
+    virtual bool peekLatestDecodedPollResponse(BusElemAddrType address,
+                    void* pStructOut, uint32_t structOutSize,
+                    RaftBusDeviceDecodeState& decodeState) const
+    {
+        // Buses without a separate peek fall back to the reporting read
+        return getLatestDecodedPollResponse(address, pStructOut, structOutSize, decodeState);
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

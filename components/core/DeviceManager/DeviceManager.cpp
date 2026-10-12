@@ -2153,10 +2153,11 @@ double DeviceManager::getBusDeviceNamedValue(RaftDeviceID deviceID, const String
     uint8_t decodedBuf[devTypeRec.pollStructSize];
     memset(decodedBuf, 0, devTypeRec.pollStructSize);
 
-    // Use non-destructive latest-value path to avoid draining the ring buffer
-    // (which would starve the publish pipeline)
+    // Peek the latest value: neither drains the ring buffer (which would starve the publish
+    // pipeline) nor takes the "new" state another reader of getLatestDecodedPollResponse() uses,
+    // and gives the current value between polls rather than nothing
     RaftBusDeviceDecodeState decodeState;
-    if (!pDevicesIF->getLatestDecodedPollResponse(addr, decodedBuf, devTypeRec.pollStructSize, decodeState))
+    if (!pDevicesIF->peekLatestDecodedPollResponse(addr, decodedBuf, devTypeRec.pollStructSize, decodeState))
         return 0.0;
 
     // Read the value from the decoded buffer at the field's offset
@@ -2174,7 +2175,8 @@ double DeviceManager::getBusDeviceNamedValue(RaftDeviceID deviceID, const String
         case AttrType::Bool:    { rawVal = (*pField) ? 1.0 : 0.0; break; }
     }
 
-    // Apply divisor and addend
+    // Apply what is still to be applied - the field table's divisor and addend are 1 and 0
+    // where the decode has already scaled the value (see DecodeGenerator get_field_desc_def)
     if (pMatchedField->divisor != 0.0f && pMatchedField->divisor != 1.0f)
         rawVal /= pMatchedField->divisor;
     rawVal += pMatchedField->addend;
