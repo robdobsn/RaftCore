@@ -10,6 +10,7 @@
 #include "RaftUtils.h"
 #include "RaftArduino.h"
 #include <cmath>
+#include <cstdio>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -35,7 +36,21 @@ void DemoDevice::setup()
 {
     // Extract demo settings from device config
     _sampleRateMs = deviceConfig.getInt("sampleRateMs", DEFAULT_SAMPLE_RATE_MS);
-    
+    _deviceType = deviceConfig.getString("type", "ACCDEMO");
+    if (_deviceType.length() == 0)
+        _deviceType = "ACCDEMO";
+
+    // Long-sample demo (even size so the wave is whole int16 elements)
+    _sampleBytes = deviceConfig.getInt("sampleBytes", 0);
+    if (_sampleBytes > 0)
+    {
+        if (_sampleBytes < MIN_LONG_SAMPLE_BYTES)
+            _sampleBytes = MIN_LONG_SAMPLE_BYTES;
+        if (_sampleBytes > MAX_LONG_SAMPLE_BYTES)
+            _sampleBytes = MAX_LONG_SAMPLE_BYTES;
+        _sampleBytes &= ~1u;
+    }
+
     // Clamp sample rate to reasonable bounds
     if (_sampleRateMs < MIN_SAMPLE_RATE_MS)
         _sampleRateMs = MIN_SAMPLE_RATE_MS;
@@ -48,7 +63,8 @@ void DemoDevice::setup()
     // Generate initial data
     generateDemoData();
         
-    LOG_I(MODULE_PREFIX, "setup device %s rate=%dms", getDeviceID().toString().c_str(), _sampleRateMs);
+    LOG_I(MODULE_PREFIX, "setup device %s type %s rate=%dms sampleBytes %d", getDeviceID().toString().c_str(),
+                _deviceType.c_str(), _sampleRateMs, _sampleBytes);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,10 +86,14 @@ String DemoDevice::getStatusJSON() const
 {
     // Buffer
     std::vector<uint8_t> data;
-    formDeviceDataResponse(data);
- 
-    // Return JSON in the same format as DevicePower
-    return "{\"0\":{\"x\":\"" + Raft::getHexStr(data.data(), data.size()) + "\",\"_i\":\"" + String(getDeviceTypeIndex()) + "\"}}";
+    if (_sampleBytes > 0)
+        formLongSampleResponse(data);
+    else
+        formDeviceDataResponse(data);
+
+    // Return JSON in the same format as DevicePower (outer key is this device's address)
+    return "{\"" + String(getDeviceID().getAddress()) + "\":{\"x\":\"" + Raft::getHexStr(data.data(), data.size()) +
+            "\",\"_i\":\"" + String(getDeviceTypeIndex()) + "\"}}";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -82,13 +102,17 @@ std::vector<uint8_t> DemoDevice::getStatusBinary() const
 {
     // Get device data
     std::vector<uint8_t> data;
-    formDeviceDataResponse(data);
+    if (_sampleBytes > 0)
+        formLongSampleResponse(data);
+    else
+        formDeviceDataResponse(data);
 
     // Buffer
     std::vector<uint8_t> binBuf;
 
-    // Generate binary device message
-    RaftDevice::genBinaryDataMsg(binBuf, RaftDeviceID::BUS_NUM_DIRECT_CONN, 0, getDeviceTypeIndex(), DeviceOnlineState::ONLINE, 0, data);
+    // Generate binary device message using this device's own bus/address (a fixed address 0
+    // would collide with the first static device)
+    genBinaryDataMsg(binBuf, getDeviceTypeIndex(), DeviceOnlineState::ONLINE, 0, data);
 
     // Return binary data
     return binBuf;
@@ -119,8 +143,12 @@ void DemoDevice::generateDemoData()
 {
     uint32_t currentTimeMs = millis();
     
-    // Generate ACCDEMO-specific data
-    generateACCDEMOData(currentTimeMs);
+    // Long-sample demo just counts samples (the wave is formed from the count and time);
+    // otherwise generate ACCDEMO-specific data
+    if (_sampleBytes > 0)
+        _sampleCount++;
+    else
+        generateACCDEMOData(currentTimeMs);
     
     // Update timestamp
     _dataTimestampMs = currentTimeMs;
@@ -208,6 +236,34 @@ void DemoDevice::formDeviceDataResponse(std::vector<uint8_t>& data) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Form a long-sample demo response: 16-bit ms timestamp, 16-bit sample count, then a
+///        signed 16-bit sine wave across the elements that drifts with the count
+/// @param data (out) Data buffer (2 + _sampleBytes bytes)
+void DemoDevice::formLongSampleResponse(std::vector<uint8_t>& data) const
+{
+    uint32_t numElems = (_sampleBytes - 2) / 2;
+    data.reserve(2 + _sampleBytes);
+
+    // Time of last update (16-bit ms, as the other direct-connect devices)
+    uint16_t timeVal = (uint16_t)(_dataTimestampMs & 0xFFFF);
+    data.push_back((timeVal >> 8) & 0xFF);
+    data.push_back(timeVal & 0xFF);
+
+    // Sample count (big-endian)
+    data.push_back((_sampleCount >> 8) & 0xFF);
+    data.push_back(_sampleCount & 0xFF);
+
+    // One cycle across the elements, phase advancing with the count (little-endian int16)
+    for (uint32_t i = 0; i < numElems; i++)
+    {
+        float phase = 2.0f * M_PI * ((float)i / numElems + _sampleCount * 0.02f);
+        int16_t val = (int16_t)(1000.0f * sinf(phase));
+        data.push_back(val & 0xFF);
+        data.push_back((val >> 8) & 0xFF);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get the device type record for this device so that it can be added to the device type records
 /// @param devTypeRec (out) Device type record
 /// @return true if the device has a device type record
@@ -223,6 +279,31 @@ bool DemoDevice::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
             R"~({"n":"gy","t":">h","u":"deg/s","r":[-2000,2000],"d":100,"f":".2f","o":"float"},)~"
             R"~({"n":"gz","t":">h","u":"deg/s","r":[-2000,2000],"d":100,"f":".2f","o":"float"})~"
             R"~(]}})~";
+
+    // Long-sample demo: counter + sine wave array attribute (shown as a spectrum)
+    if (_sampleBytes > 0)
+    {
+        uint32_t numElems = (_sampleBytes - 2) / 2;
+        char longInfoJson[400];
+        snprintf(longInfoJson, sizeof(longInfoJson),
+                R"~({"name":"Long Sample Demo","desc":"%u-byte samples","manu":"Demo","type":"%s",)~"
+                R"~("resp":{"b":%u,"a":[)~"
+                R"~({"n":"count","t":">H","r":[0,65535],"f":"d","o":"uint16"},)~"
+                R"~({"n":"wave","t":"<h[%u]","r":[-1000,1000],"f":"d","o":"int16","vs":false,"vt":"spectrum"})~"
+                R"~(]}})~",
+                (unsigned)_sampleBytes, _deviceType.c_str(), (unsigned)_sampleBytes, (unsigned)numElems);
+        devTypeRec = DeviceTypeRecordDynamic(
+            getConfiguredDeviceType().c_str(),
+            "",
+            "",
+            "",
+            "",
+            _sampleBytes,
+            longInfoJson,
+            nullptr
+        );
+        return true;
+    }
 
     // Set the device type record
     devTypeRec = DeviceTypeRecordDynamic(

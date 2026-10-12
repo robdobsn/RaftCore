@@ -7,6 +7,7 @@
 
 #include "MsgExchangeHookTest.h"
 #include "DeviceNamesTest.h"
+#include "DeviceDataSubscribersTest.h"
 
 #include "JSON_test_data_large.h"
 #include "JSON_test_data_small.h"
@@ -123,10 +124,38 @@ void testRaftJsonAppendFields()
         printf("testRaftJsonAppendFields FAILED %d tests\n", failCount);
 }
 
+void testRaftJsonEscapedQuoteInObject()
+{
+    printf("Running testRaftJsonEscapedQuoteInObject...\n");
+    int failCount = 0;
+    // An escaped quote inside a nested object must not end the string when
+    // the object's bounds are located - otherwise every key after the object
+    // disappears (a posted setting like this hid a whole SysMod section)
+    const char* doc = "{\"Other\":{\"x\":1,\"s\":\"a\\\"b\"},\"RaftROS\":{\"routerHost\":\"1.2.3.4\"}}";
+    RaftJson json(doc);
+    std::vector<String> keys;
+    json.getKeys("", keys);
+    TEST_ASSERT(keys.size() == 2 && keys[1] == "RaftROS", "testEscapedQuoteKeysAfterObject");
+    TEST_ASSERT(json.getString("RaftROS/routerHost", "") == "1.2.3.4", "testEscapedQuoteLaterValue");
+    TEST_ASSERT(json.getString("Other/s", "") == "a\"b", "testEscapedQuoteValue");
+    TEST_ASSERT(json.getString("Other", "") == "{\"x\":1,\"s\":\"a\\\"b\"}", "testEscapedQuoteObjectText");
+    // An escaped backslash just before the closing quote ends the string normally
+    const char* doc2 = "{\"A\":{\"p\":\"c:\\\\\"},\"B\":2}";
+    RaftJson json2(doc2);
+    TEST_ASSERT(json2.getLong("B", -1) == 2, "testEscapedBackslashBeforeQuote");
+    // The same inside an array
+    const char* doc3 = "{\"A\":[\"q\\\"]\",1],\"B\":3}";
+    RaftJson json3(doc3);
+    TEST_ASSERT(json3.getLong("B", -1) == 3, "testEscapedQuoteInArray");
+    if (failCount == 0)
+        printf("testRaftJsonEscapedQuoteInObject all tests passed\n");
+}
+
 int main()
 {
     testParseIntList();
     testRaftJsonAppendFields();
+    testRaftJsonEscapedQuoteInObject();
 
     int constsAxis = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/axis", 0);
     int minotaur = RaftJson::getLongIm(JSON_test_data_small, JSON_test_data_small+strlen(JSON_test_data_small), "consts/oxis/coo[3]/minotaur[2]", 0);
@@ -384,6 +413,10 @@ int main()
     // Test device names map functionality
     DeviceNamesTest deviceNamesTest;
     deviceNamesTest.runTests();
+
+    // Test device data fan-out (several subscribers per device)
+    DeviceDataSubscribersTest deviceDataSubscribersTest;
+    failCount += deviceDataSubscribersTest.runTests();
 
     // Check failCount
     if (failCount > 0)

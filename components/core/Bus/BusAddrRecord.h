@@ -12,6 +12,7 @@
 #include "DeviceStatus.h"
 #include "RaftBusConsts.h"
 #include "BusAddrStatus.h"
+#include "Logger.h"
 
 /// @brief Full address record for internal bus status management
 /// This is used to track the status of a bus address and to determine when to report changes in status
@@ -66,11 +67,20 @@ public:
             uint32_t failMax = BusAddrStatus::ADDR_RESP_COUNT_FAIL_MAX_DEFAULT);
     
     // Register for data change
-    void registerForDataChange(RaftDeviceDataChangeCB dataChangeCB, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
+    /// @return false if this replaced a different subscriber's callback (identified by pCallbackInfo).
+    /// A bus address holds ONE data callback: register through DeviceManager::registerForDeviceData,
+    /// which owns this slot and fans data out to any number of subscribers.
+    bool registerForDataChange(RaftDeviceDataChangeCB dataChangeCB, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
     {
+        const bool displaced = dataChangeCB && this->dataChangeCB && (this->pCallbackInfo != pCallbackInfo);
+        if (displaced)
+            LOG_W("BusAddrRecord", "address 0x%x: data callback (info %p) replaced by another subscriber (info %p) - "
+                  "register through DeviceManager::registerForDeviceData to share a device",
+                  (unsigned)address, this->pCallbackInfo, pCallbackInfo);
         this->dataChangeCB = dataChangeCB;
         this->pCallbackInfo = pCallbackInfo;
         this->minTimeBetweenReportsMs = minTimeBetweenReportsMs;
+        return !displaced;
     }
 
     // Get device data change callback

@@ -13,6 +13,7 @@
 
 #include "nvs.h"
 #include "ArPreferences.h"
+#include "RaftJsonNVS.h"
 #include "RaftArduino.h"
 #include "Logger.h"
 
@@ -36,6 +37,14 @@ bool ArPreferences::begin(const char *name, bool readOnly)
         return false;
     }
     _readOnly = readOnly;
+    // NVS is initialised on first use rather than at load time (see
+    // RaftJsonNVS::ensureNVSInitialised); an application that reaches NVS
+    // through ArPreferences before any RaftJsonNVS exists still needs it up
+    if (!RaftJsonNVS::ensureNVSInitialised())
+    {
+        LOG_V(MODULE_PREFIX, "begin: NVS not initialised");
+        return false;
+    }
     esp_err_t err = nvs_open(name, readOnly ? NVS_READONLY : NVS_READWRITE, &_handle);
     if (err)
     {

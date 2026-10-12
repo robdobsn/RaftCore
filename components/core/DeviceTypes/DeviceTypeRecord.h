@@ -42,6 +42,7 @@ struct AttrFieldDesc
     const char* fmtStr;     // Format string from resp.a[].f, e.g. ".2f"
     float divisor;          // Divisor from resp.a[].d (1.0 = no division)
     float addend;           // Addend from resp.a[].a (applied after division)
+    uint16_t count;         // Elements in the field (>1 for array attributes; 0 treated as 1)
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

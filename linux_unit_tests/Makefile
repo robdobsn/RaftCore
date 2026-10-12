@@ -69,7 +69,7 @@ OUTPUT = linux_unit_tests
 
 all: $(OUTPUT) test_device_names test_espnow_config
 
-$(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson.h ../components/core/Utils/RaftUtils.h
+$(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson.h ../components/core/Utils/RaftUtils.h ../components/core/DeviceManager/DeviceDataSubscribers.h DeviceDataSubscribersTest.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUT) $(SOURCES)
 
 # Arduino stub object for missing itoa/utoa on Linux

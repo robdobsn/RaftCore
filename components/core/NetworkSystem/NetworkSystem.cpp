@@ -24,6 +24,7 @@
 #include "sdkconfig.h"
 #include "Logger.h"
 #include "NetworkSystem.h"
+#include "RaftJsonNVS.h"
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
 #include "RaftArduino.h"
@@ -490,6 +491,11 @@ bool NetworkSystem::startWifi()
     // Set hostname
     if (_pWifiStaNetIf && !_hostname.isEmpty())
         esp_netif_set_hostname(_pWifiStaNetIf, _hostname.c_str());
+
+    // esp_wifi_init fails with ESP_ERR_NVS_NOT_INITIALIZED unless NVS is up.
+    // It always is when a RaftJsonNVS (e.g. RaftCoreApp's system config) has
+    // been constructed first; this covers an application that has not.
+    RaftJsonNVS::ensureNVSInitialised();
 
     // Setup a config to initialise the WiFi resources
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
