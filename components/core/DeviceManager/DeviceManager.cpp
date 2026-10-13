@@ -1142,6 +1142,11 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     if (retc != RAFT_OK)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
 
+    // A valid deviceID may resolve to no bus (e.g. a directly-connected device such as
+    // power management or LEDs). There is no bus to address so report rather than deref.
+    if (!pBus)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+
     // Data to write and number of bytes to read
     String hexWriteData = jsonParams.getString("hexWr", "");
     int numBytesToRead = jsonParams.getLong("numToRd", 0);
@@ -1320,6 +1325,12 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
     RaftRetCode retc = resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr);
     if (retc != RAFT_OK)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
+
+    // A valid deviceID may resolve to no bus (e.g. a directly-connected device such as
+    // power management or LEDs). Bus poll settings do not apply so report rather than deref.
+    if (!pBus)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+
     BusElemAddrType addr = deviceID.getAddress();
 
     // Check if poll interval is provided
@@ -2305,12 +2316,24 @@ RaftRetCode DeviceManager::apiDevManListDevs(const String &reqStr, String &respS
         RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
         if (!pDevicesIF)
             continue;
+        // Ask for every known address rather than only those currently holding poll responses.
+        // Poll responses are consumed by whatever is streaming device data, so filtering on them
+        // makes an identified, online device vanish from this list whenever its samples have just
+        // been read - and the slower a device polls, the more often it is missing. Measured on an
+        // Axiom while streaming at 10Hz, a 500ms-poll sensor appeared in 7 of 40 consecutive
+        // calls. Identity and online state are the stable facts, so filter on those. Undetected
+        // addresses are still not reported, as documented above.
         std::vector<BusElemAddrType> addresses;
-        pDevicesIF->getDeviceAddresses(addresses, true);
+        pDevicesIF->getDeviceAddresses(addresses, false);
         for (BusElemAddrType addr : addresses)
         {
+            DeviceTypeIndexType deviceTypeIndex = pBus->getDeviceTypeIndex(addr);
+            if (deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID)
+                continue;
+            if (!pBus->isElemResponding(addr))
+                continue;
             RaftDeviceID deviceID(pBus->getBusNum(), addr);
-            appendDev(deviceID, pBus->getDeviceTypeIndex(addr));
+            appendDev(deviceID, deviceTypeIndex);
         }
     }
 
