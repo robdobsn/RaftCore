@@ -29,6 +29,10 @@ public:
     class ObjectIterator;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Destructor (virtual so that implementations can be deleted through a RaftJsonIF pointer)
+    virtual ~RaftJsonIF() = default;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get string value using the member variable JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param pDefaultValue the default value to return if the variable is not found

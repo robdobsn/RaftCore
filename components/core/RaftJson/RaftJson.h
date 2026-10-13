@@ -100,6 +100,42 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Copy constructor
+    /// @note If the source owns a copy of its document the copy gets its own copy of the document, otherwise
+    ///       (e.g. a document in flash memory or a view into another document) the copy references the same
+    ///       document as the source (so the referenced document must remain valid for the lifetime of the copy)
+    RaftJson(const RaftJson& other)
+    {
+        copyFrom(other);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Move constructor
+    /// @note The source is left as a valid empty document
+    RaftJson(RaftJson&& other) noexcept
+    {
+        moveFrom(other);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Copy assignment (see copy constructor)
+    RaftJson& operator=(const RaftJson& other)
+    {
+        if (this != &other)
+            copyFrom(other);
+        return *this;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Move assignment (see move constructor)
+    RaftJson& operator=(RaftJson&& other) noexcept
+    {
+        if (this != &other)
+            moveFrom(other);
+        return *this;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Assignment from string types
     /// @param pJsonStr
     /// @note makes a copy
@@ -990,6 +1026,9 @@ public:
         }
         else
         {
+            // Release any previously owned copy (unless the new source is within it)
+            if (!isWithinOwnedStr(pSourceStr))
+                _jsonStr = JsonStrVec();
             // Reference the source string
             _pSourceStr = pSourceStr;
             _pSourceEnd = pSourceEnd;
@@ -1741,12 +1780,76 @@ private:
     }
 
 private:
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if a pointer is within the copy of the document owned by this object
+    /// @param pStr pointer to check
+    /// @return true if the pointer is within the owned copy
+    bool isWithinOwnedStr(const char* pStr) const
+    {
+        return !_jsonStr.empty() && (pStr >= _jsonStr.data()) && (pStr < _jsonStr.data() + _jsonStr.size());
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Copy document and chaining from another object
+    /// @param other object to copy from
+    void copyFrom(const RaftJson& other)
+    {
+        if (other.isWithinOwnedStr(other._pSourceStr))
+        {
+            // Copy the owned document and reference the copy at the same offsets
+            size_t startOffset = other._pSourceStr - other._jsonStr.data();
+            size_t docLen = other._pSourceEnd - other._pSourceStr;
+            _jsonStr = other._jsonStr;
+            _pSourceStr = _jsonStr.data() + startOffset;
+            _pSourceEnd = _pSourceStr + docLen;
+        }
+        else
+        {
+            // Reference the same (not owned) document
+            _jsonStr = JsonStrVec();
+            _pSourceStr = other._pSourceStr;
+            _pSourceEnd = other._pSourceEnd;
+        }
+        _pChainedRaftJson = other._pChainedRaftJson;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Move document and chaining from another object (leaving it as a valid empty document)
+    /// @param other object to move from
+    void moveFrom(RaftJson& other)
+    {
+        if (other.isWithinOwnedStr(other._pSourceStr))
+        {
+            // Take the owned buffer (pointers are re-derived after the move so this doesn't rely on the
+            // vector keeping its data pointer)
+            size_t startOffset = other._pSourceStr - other._jsonStr.data();
+            size_t docLen = other._pSourceEnd - other._pSourceStr;
+            _jsonStr = std::move(other._jsonStr);
+            _pSourceStr = _jsonStr.data() + startOffset;
+            _pSourceEnd = _pSourceStr + docLen;
+        }
+        else
+        {
+            // Reference the same (not owned) document
+            _jsonStr = JsonStrVec();
+            _pSourceStr = other._pSourceStr;
+            _pSourceEnd = other._pSourceEnd;
+        }
+        _pChainedRaftJson = other._pChainedRaftJson;
+
+        // Leave the source as an empty document
+        other._jsonStr = JsonStrVec();
+        other._pSourceStr = EMPTY_JSON_DOCUMENT;
+        other._pSourceEnd = EMPTY_JSON_DOCUMENT + strlen(EMPTY_JSON_DOCUMENT);
+    }
+
     // JSON document string
 #ifdef USE_RAFT_SPIRAM_AWARE_ALLOCATOR
-    std::vector<char, SpiramAwareAllocator<char>> _jsonStr;
+    typedef std::vector<char, SpiramAwareAllocator<char>> JsonStrVec;
 #else
-    std::vector<char> _jsonStr;
+    typedef std::vector<char> JsonStrVec;
 #endif
+    JsonStrVec _jsonStr;
 
     // Empty JSON document
     static constexpr const char* EMPTY_JSON_DOCUMENT = "{}";
