@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <functional>
+#include <stdint.h>
 #if __has_include("RaftArduino.h")
 #include "RaftArduino.h"
 #else
@@ -59,6 +60,18 @@ public:
     /// @param defaultValue the default value to return if the variable is not found
     /// @return the value of the variable or the default value if not found    
     virtual long getLong(const char* pDataPath, long defaultValue) const = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get 64 bit integer value using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @return the value of the variable or the default value if not found
+    /// @note Use for values which may not fit in a long (32 bits on ESP32) such as 32 bit masks. The default
+    ///       implementation uses getLong so implementations should override this to support 64 bit values
+    virtual int64_t getInt64(const char* pDataPath, int64_t defaultValue) const
+    {
+        return getLong(pDataPath, (long)defaultValue);
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get boolean value using the member variable JSON document

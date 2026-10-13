@@ -69,10 +69,25 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
         }
     }
 
-    // Update the document
-    updateJsonDoc(pJsonDoc, jsonDocStrLen);
+    // Nothing to do if the document is unchanged (avoids wearing the flash)
+    if ((jsonDocStrLen == (uint32_t)(getJsonDocEnd() - getJsonDoc())) && (memcmp(pJsonDoc, getJsonDoc(), jsonDocStrLen) == 0))
+    {
+#ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
+        LOG_I(MODULE_PREFIX, "setJsonDoc unchanged namespace %s len %d", _nvsNamespace.c_str(), jsonDocStrLen);
+#endif
+        return true;
+    }
 
-    // Write the value to NVS (initialising it first if this is the earliest use)
+    // NVS string values are limited in length (including the terminator)
+    if (jsonDocStrLen + 1 > NVS_MAX_STR_VALUE_LEN)
+    {
+        LOG_W(MODULE_PREFIX, "setJsonDoc TOO_LONG for NVS namespace %s len %d (max %d)",
+                    _nvsNamespace.c_str(), jsonDocStrLen, (int)(NVS_MAX_STR_VALUE_LEN - 1));
+        return false;
+    }
+
+    // Write the value to NVS first (initialising it first if this is the earliest use) so that the
+    // document in RAM is only changed (and callbacks only called) if it has been stored
     if (!ensureNVSInitialised())
         return false;
     uint32_t nvsHandle = 0;
@@ -112,6 +127,9 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
 
     // Close NVS
     nvs_close(nvsHandle);
+
+    // Update the document (now that it has been stored)
+    updateJsonDoc(pJsonDoc, jsonDocStrLen);
 
     // Call config change callbacks
     for (int i = 0; i < _jsonChangeCallbacks.size(); i++)

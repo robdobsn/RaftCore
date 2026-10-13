@@ -9,6 +9,8 @@ idf_component_register(SRCS
             "RaftJson_test_copy_move.cpp"
             "RaftJson_test_chained.cpp"
             "RaftJson_test_conversions.cpp"
+            "RaftJson_test_parsing.cpp"
+            "RaftJsonNVS_setdoc_test.cpp"
             "RaftJsonPrefixed_test.cpp"
             "exprCtx_unit_test.cpp"
             "expressions_unit_test.cpp"

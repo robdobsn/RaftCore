@@ -242,7 +242,8 @@ TEST_CASE("test_raftjson_values", "[raftjson_values]")
     TEST_ASSERT_MESSAGE(1234.567 == RaftJson::getDoubleIm(test1234pt567quotes, test1234pt567quotesEnd, "", 1234.567), "getDouble9");
     TEST_ASSERT_MESSAGE(1234 == RaftJson::getLongIm(test1234pt567quotes, test1234pt567quotesEnd, "", 1234), "getLong9");
     TEST_ASSERT_MESSAGE(true == testGetString(testtruequotes, "", "true"), "getString10");
-    TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm(testtruequotes, testtruequotesEnd, "", 1234), "getLong10");
+    // Quoted true and false are treated as booleans (as quoted numbers are treated as numbers)
+    TEST_ASSERT_MESSAGE(1 == RaftJson::getLongIm(testtruequotes, testtruequotesEnd, "", 1234), "getLong10");
     TEST_ASSERT_MESSAGE(true == testGetString(testfalsequotes, "", "false"), "getString11");
     TEST_ASSERT_MESSAGE(0 == RaftJson::getLongIm(testfalsequotes, testfalsequotesEnd, "", 1234), "getLong11");
     TEST_ASSERT_MESSAGE(true == testGetString(testnullquotes, "", "null"), "getString12");

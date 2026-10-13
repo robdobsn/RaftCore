@@ -34,8 +34,12 @@
 #endif
 
 // Treat strings as numbers in JSON documents
-// Change this value to false if you want to treat strings as strings in ALL JSON documents
+// To treat strings as strings in ALL JSON documents define this as false for the whole build (e.g.
+// add_compile_definitions(RAFT_JSON_TREAT_STRINGS_AS_NUMBERS=false)) - it must be the same in every
+// file as RaftJson is header-only
+#ifndef RAFT_JSON_TREAT_STRINGS_AS_NUMBERS
 #define RAFT_JSON_TREAT_STRINGS_AS_NUMBERS true
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class RaftJson
@@ -215,6 +219,16 @@ public:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get 64 bit integer value using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @return the value of the variable or the default value if not found
+    virtual int64_t getInt64(const char* pDataPath, int64_t defaultValue) const override
+    {
+        return getInt64Im(_pSourceStr, _pSourceEnd, pDataPath, defaultValue, _pChainedRaftJson);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get boolean value using the member variable JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found
@@ -319,25 +333,14 @@ public:
             const char* pDataPath, double defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
-        // Locate the element
-        const char* pDocEnd = nullptr;
-        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
-        // Check if we found the element
-        if (!pJsonDocPos)
-            return defaultValue;
-        // Check if it's a boolean or null
-        int retValue = 0;
-        if (RaftJson::isBooleanIm(pJsonDocPos, retValue, pDocEnd))
-            return retValue;
-        if (RaftJson::isNullIm(pJsonDocPos, pDocEnd))
-            return defaultValue;
-        // Check for a string value - if so skip quotes
-        if ((*pJsonDocPos == '"') && RAFT_JSON_TREAT_STRINGS_AS_NUMBERS)
-            pJsonDocPos++;
-        // Convert to double (from a copy so the conversion can't go beyond the end of the document)
+        int boolValue = 0;
         char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
-        getNumberToken(pJsonDocPos, pDocEnd, numBuf, sizeof(numBuf));
-        return strtod(numBuf, NULL);
+        switch (getNumericValue(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, boolValue, numBuf, sizeof(numBuf)))
+        {
+            case NUMERIC_VALUE_BOOL: return boolValue;
+            case NUMERIC_VALUE_TOKEN: return strtod(numBuf, NULL);
+            default: return defaultValue;
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -348,29 +351,48 @@ public:
     /// @param defaultValue the default value to return if the variable is not found
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
     /// @return the value of the variable or the default value if not found
+    /// @note Values with a 0x prefix are hex, otherwise decimal (leading zeros don't mean octal). Values
+    ///       outside the range of long (32 bits on ESP32) are limited to LONG_MIN/LONG_MAX - use getInt64Im
+    ///       for larger values
     static long getLongIm(const char* pJsonDoc, const char* pJsonEnd,
             const char* pDataPath, long defaultValue,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
-        // Locate the element
-        const char* pDocEnd = nullptr;
-        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
-        // Check if we found the element
-        if (!pJsonDocPos)
-            return defaultValue;
-        // Check if it's a boolean or null
-        int retValue = 0;
-        if (RaftJson::isBooleanIm(pJsonDocPos, retValue, pDocEnd))
-            return retValue;
-        if (RaftJson::isNullIm(pJsonDocPos, pDocEnd))
-            return defaultValue;
-        // Check for a string value - if so skip quotes
-        if ((*pJsonDocPos == '"') && RAFT_JSON_TREAT_STRINGS_AS_NUMBERS)
-            pJsonDocPos++;
-        // Convert to long (from a copy so the conversion can't go beyond the end of the document)
+        int boolValue = 0;
         char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
-        getNumberToken(pJsonDocPos, pDocEnd, numBuf, sizeof(numBuf));
-        return strtol(numBuf, NULL, 0);
+        switch (getNumericValue(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, boolValue, numBuf, sizeof(numBuf)))
+        {
+            case NUMERIC_VALUE_BOOL: return boolValue;
+            case NUMERIC_VALUE_TOKEN: return strtol(numBuf, NULL, isHexToken(numBuf) ? 16 : 10);
+            default: return defaultValue;
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief gets a 64 bit integer from a JSON document (immediate - i.e. static function, doc passed in)
+    /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+    /// @return the value of the variable or the default value if not found
+    /// @note Values with a 0x prefix are hex and keep their bit pattern up to 64 bits (so 0xffffffffffffffff
+    ///       is -1 and 32 bit masks can be cast to uint32_t), otherwise decimal (leading zeros don't mean octal)
+    static int64_t getInt64Im(const char* pJsonDoc, const char* pJsonEnd,
+            const char* pDataPath, int64_t defaultValue,
+            const RaftJsonIF* pChainedRaftJson = nullptr)
+    {
+        int boolValue = 0;
+        char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
+        switch (getNumericValue(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, boolValue, numBuf, sizeof(numBuf)))
+        {
+            case NUMERIC_VALUE_BOOL: return boolValue;
+            case NUMERIC_VALUE_TOKEN:
+                if (isHexToken(numBuf))
+                    return (int64_t)strtoull(numBuf, NULL, 16);
+                return strtoll(numBuf, NULL, 10);
+            default: return defaultValue;
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -616,24 +638,38 @@ public:
     static String getJSONFromNVPairs(std::vector<NameValuePair>& nameValuePairs, bool includeOuterBraces)
     {
         // Calculate length for efficiency
-        uint32_t reserveLen = 0;
+        uint32_t reserveLen = 2;
         for (NameValuePair& pair : nameValuePairs)
             reserveLen += 6 + pair.name.length() + pair.value.length();
 
-        // Generate JSON
+        // Generate JSON - names and values are escaped except values which start with [ or { which are
+        // inserted as JSON
         String jsonStr;
         jsonStr.reserve(reserveLen);
+        if (includeOuterBraces)
+            jsonStr += '{';
+        bool isFirst = true;
         for (NameValuePair& pair : nameValuePairs)
         {
-            if (jsonStr.length() > 0)
+            if (!isFirst)
                 jsonStr += ',';
+            isFirst = false;
+            jsonStr += '"';
+            appendEscapedStr(jsonStr, pair.name.c_str(), pair.name.c_str() + pair.name.length());
+            jsonStr += "\":";
             if (pair.value.startsWith("[") || pair.value.startsWith("{"))
-                jsonStr += "\"" + pair.name + "\":" + pair.value;
+            {
+                jsonStr += pair.value;
+            }
             else
-                jsonStr += "\"" + pair.name + "\":\"" + pair.value + "\"";
+            {
+                jsonStr += '"';
+                appendEscapedStr(jsonStr, pair.value.c_str(), pair.value.c_str() + pair.value.length());
+                jsonStr += '"';
+            }
         }
         if (includeOuterBraces)
-            return "{" + jsonStr + "}";
+            jsonStr += '}';
         return jsonStr;
     }
 
@@ -648,13 +684,11 @@ public:
             return;
         if (json.length() > 1)
             json += ',';
-        String escapedValue = value;
-        escapeString(escapedValue);
-        json += "\"";
-        json += name;
+        json += '"';
+        appendEscapedStr(json, name, name + strlen(name));
         json += "\":\"";
-        json += escapedValue;
-        json += "\"";
+        appendEscapedStr(json, value, value + strlen(value));
+        json += '"';
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -668,8 +702,8 @@ public:
             return;
         if (json.length() > 1)
             json += ',';
-        json += "\"";
-        json += name;
+        json += '"';
+        appendEscapedStr(json, name, name + strlen(name));
         json += "\":";
         json += rawJson;
     }
@@ -689,12 +723,24 @@ public:
         if (pPos == pEnd)
             return;
 
-        // Build escaped string - copying runs of unescaped characters in one go
+        // Build escaped string
         String outStr;
         outStr.reserve(strToEsc.length() + 8);
-        outStr.concat(pStr, pPos - pStr);
-        const char* pRunStart = pPos;
-        for (; pPos < pEnd; pPos++)
+        appendEscapedStr(outStr, pStr, pEnd);
+        strToEsc = outStr;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Append a string to a JSON string with characters which are invalid in JSON escaped
+    /// @param outStr : string to append to
+    /// @param pStr : start of string to append
+    /// @param pEnd : end of string to append
+    /// @note Escapes quote, backslash and all control characters (using the short forms where JSON has them)
+    static void appendEscapedStr(String& outStr, const char* pStr, const char* pEnd)
+    {
+        // Copy runs of unescaped characters in one go
+        const char* pRunStart = pStr;
+        for (const char* pPos = pStr; pPos < pEnd; pPos++)
         {
             if (!charNeedsEscape(*pPos))
                 continue;
@@ -722,7 +768,6 @@ public:
             }
         }
         outStr.concat(pRunStart, pEnd - pRunStart);
-        strToEsc = outStr;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -855,9 +900,10 @@ public:
                                 const char* pPairDelim, 
                                 const char* pPairDelimAlt, 
                                 std::vector<NameValuePair>& nameValuePairs) {
-        // Calculate lengths of delimiters for optimization
-        size_t nameValueSepLen = strlen(pNameValueSep);
-        size_t pairDelimLen = strlen(pPairDelim);
+        // Calculate lengths of delimiters for optimization (a null or empty delimiter or separator is not
+        // used - an empty one would otherwise be found at every position so the loop would never advance)
+        size_t nameValueSepLen = pNameValueSep ? strlen(pNameValueSep) : 0;
+        size_t pairDelimLen = pPairDelim ? strlen(pPairDelim) : 0;
         size_t pairDelimAltLen = pPairDelimAlt ? strlen(pPairDelimAlt) : 0;
 
         uint32_t startPos = 0;
@@ -865,8 +911,8 @@ public:
 
         while (startPos < inStr.length()) {
             // Find the next pair delimiter
-            int nextPairDelimPos = inStr.indexOf(pPairDelim, startPos);
-            int nextPairDelimAltPos = pPairDelimAlt ? inStr.indexOf(pPairDelimAlt, startPos) : -1;
+            int nextPairDelimPos = (pairDelimLen > 0) ? inStr.indexOf(pPairDelim, startPos) : -1;
+            int nextPairDelimAltPos = (pairDelimAltLen > 0) ? inStr.indexOf(pPairDelimAlt, startPos) : -1;
 
             if (nextPairDelimPos == -1) nextPairDelimPos = inStr.length();
             if (nextPairDelimAltPos == -1) nextPairDelimAltPos = inStr.length();
@@ -877,7 +923,7 @@ public:
             String pair = inStr.substring(startPos, endPos);
 
             // Find the separator between name and value
-            int sepPos = pair.indexOf(pNameValueSep);
+            int sepPos = (nameValueSepLen > 0) ? pair.indexOf(pNameValueSep) : -1;
             String name, value;
             if (sepPos != -1) {
                 name = pair.substring(0, sepPos);
@@ -1439,6 +1485,72 @@ private:
         }
         // Array not terminated
         return false;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// Kind of value located for conversion to a number
+    enum NumericValueKind
+    {
+        NUMERIC_VALUE_DEFAULT,      // Not found or null - use the default value
+        NUMERIC_VALUE_BOOL,         // true or false (quoted or not)
+        NUMERIC_VALUE_TOKEN         // Number token (from a number or a quoted string)
+    };
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Locate a value and get what is needed to convert it to a number
+    /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+    /// @param boolValue [out] value if the result is NUMERIC_VALUE_BOOL
+    /// @param pNumBuf [out] buffer for the number token if the result is NUMERIC_VALUE_TOKEN
+    /// @param numBufLen size of the number token buffer (including terminator)
+    /// @return kind of value
+    /// @note Quoted strings are treated as numbers (if RAFT_JSON_TREAT_STRINGS_AS_NUMBERS) and so quoted
+    ///       "true" and "false" are treated as booleans (e.g. REST query parameters, which are all strings)
+    static NumericValueKind getNumericValue(const char* pJsonDoc, const char* pJsonEnd,
+            const char* pDataPath, const RaftJsonIF* pChainedRaftJson, int& boolValue,
+            char* pNumBuf, size_t numBufLen)
+    {
+        // Locate the element
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
+        if (!pJsonDocPos)
+            return NUMERIC_VALUE_DEFAULT;
+        // Check if it's a boolean or null
+        if (RaftJson::isBooleanIm(pJsonDocPos, boolValue, pDocEnd))
+            return NUMERIC_VALUE_BOOL;
+        if (RaftJson::isNullIm(pJsonDocPos, pDocEnd))
+            return NUMERIC_VALUE_DEFAULT;
+        // Check for a string value - if so skip quotes and check for a quoted boolean
+        if ((*pJsonDocPos == '"') && RAFT_JSON_TREAT_STRINGS_AS_NUMBERS)
+        {
+            pJsonDocPos++;
+            if (matchLiteral(pJsonDocPos, pDocEnd, "true\""))
+            {
+                boolValue = 1;
+                return NUMERIC_VALUE_BOOL;
+            }
+            if (matchLiteral(pJsonDocPos, pDocEnd, "false\""))
+            {
+                boolValue = 0;
+                return NUMERIC_VALUE_BOOL;
+            }
+        }
+        // Copy the number token (so the conversion can't go beyond the end of the document)
+        getNumberToken(pJsonDocPos, pDocEnd, pNumBuf, numBufLen);
+        return NUMERIC_VALUE_TOKEN;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if a number token is hex (0x or 0X prefix after an optional sign)
+    /// @param pToken the number token
+    /// @return true if hex
+    static bool isHexToken(const char* pToken)
+    {
+        if ((*pToken == '-') || (*pToken == '+'))
+            pToken++;
+        return (pToken[0] == '0') && ((pToken[1] == 'x') || (pToken[1] == 'X'));
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////

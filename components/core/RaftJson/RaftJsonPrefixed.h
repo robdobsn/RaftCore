@@ -62,6 +62,16 @@ public:
         return _raftJsonIF.getLong(getPrefixedDataPath(dataPath).c_str(), defaultValue);
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get 64 bit integer value using the member variable JSON document
+    /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param defaultValue the default value to return if the variable is not found
+    /// @return the value of the variable or the default value if not found
+    virtual int64_t getInt64(const char* pDataPath, int64_t defaultValue) const override final
+    {
+        return _raftJsonIF.getInt64(getPrefixedDataPath(pDataPath).c_str(), defaultValue);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get boolean value using the member variable JSON document
     /// @param pDataPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param defaultValue the default value to return if the variable is not found

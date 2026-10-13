@@ -104,7 +104,10 @@ public:
 
 private:
     // Key name in NVS
-    const char* KEY_NAME_FOR_JSON_DOC = "JSON";
+    static constexpr const char* KEY_NAME_FOR_JSON_DOC = "JSON";
+
+    // Maximum length of an NVS string value including the terminator (ESP-IDF limit)
+    static constexpr uint32_t NVS_MAX_STR_VALUE_LEN = 4000;
 
     // Helpers
     void readJsonDocFromNVS();
