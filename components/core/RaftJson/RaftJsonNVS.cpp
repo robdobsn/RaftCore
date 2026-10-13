@@ -149,19 +149,26 @@ bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
 /// @return void
 void RaftJsonNVS::readJsonDocFromNVS()
 {
-    std::vector<char, SpiramAwareAllocator<char>> jsonDoc;
+    JsonStrVec jsonDoc;
 
     // Read the value from NVS
     if (RaftJsonNVS::getStrFromNVS(_nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC, jsonDoc))
     {
+        // Length excluding terminator
+        uint32_t jsonDocStrLen = jsonDoc.size() > 0 ? jsonDoc.size() - 1 : 0;
 
-        // Update the base class JSON doc (note that this handles 0 length strings)
-        updateJsonDoc(jsonDoc.data(), jsonDoc.size() > 0 ? jsonDoc.size() - 1 : 0);
+        // Take the buffer read from NVS as the document (rather than copying it - which would need
+        // twice the document size while loading). Documents which are too short or too long are
+        // handled (and warned about) by updateJsonDoc
+        if ((jsonDocStrLen >= 2) && ((_jsonMaxlen == 0) || (jsonDocStrLen <= _jsonMaxlen)))
+            setSourceVec(std::move(jsonDoc));
+        else
+            updateJsonDoc(jsonDoc.data(), jsonDocStrLen);
 
 #ifdef DEBUG_NVS_READ_WRITE_OPERATIONS
         // Debug
         LOG_I(MODULE_PREFIX, "readJsonDocFromNVS OK ns %s key %s len %d maxlen %d", 
-                    _nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC, jsonDoc.size(), _jsonMaxlen);
+                    _nvsNamespace.c_str(), KEY_NAME_FOR_JSON_DOC, (int)jsonDocStrLen, _jsonMaxlen);
 #endif
     }
     else

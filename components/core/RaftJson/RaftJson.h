@@ -49,6 +49,13 @@
 class RaftJson : public RaftJsonIF
 {
 public:
+    // Buffer type used for a document owned by a RaftJson object
+#ifdef USE_RAFT_SPIRAM_AWARE_ALLOCATOR
+    typedef std::vector<char, SpiramAwareAllocator<char>> JsonStrVec;
+#else
+    typedef std::vector<char> JsonStrVec;
+#endif
+
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Construct an empty RaftJson object
     RaftJson()
@@ -236,12 +243,7 @@ public:
     ///       the array elements are all integers - any non-integer elements will be converted to 0
     virtual bool getArrayInts(const char *pDataPath, std::vector<int>& intList) const override
     {
-        std::vector<String> strList;
-        if (!getArrayElemsIm(_pSourceStr, _pSourceEnd, pDataPath, strList, _pChainedRaftJson))
-            return false;
-        for (String& str : strList)
-            intList.push_back(str.toInt());
-        return true;
+        return getArrayIntsIm(_pSourceStr, _pSourceEnd, pDataPath, intList, _pChainedRaftJson);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -399,43 +401,42 @@ public:
             const char *pDataPath, std::vector<String>& strList,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
-        // Locate the element
-        const char* pDocEnd = nullptr;
-        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
-        // Check if we found the element
-        if (!pJsonDocPos)
-            return false;
-        // Check if it's an array
-        if (*pJsonDocPos != '[')
-            return false;
-        // Skip over array start
-        pJsonDocPos++;
-        // Iterate over array elements
-        while ((pJsonDocPos < pDocEnd) && *pJsonDocPos)
-        {
-            // Skip whitespace
-            while ((pJsonDocPos < pDocEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
-                pJsonDocPos++;
-            if ((pJsonDocPos >= pDocEnd) || !*pJsonDocPos)
-                break;
-            // Check for end of array
-            if (*pJsonDocPos == ']')
-                return true;
-            // Unexpected closing brace inside array = malformed JSON
-            if (*pJsonDocPos == '}')
-                return false;
-            // Locate element
-            const char* pElemStart = nullptr;
-            const char* pElemEnd = nullptr;
-            const char* prevPos = pJsonDocPos;
-            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd);
-            if (!pJsonDocPos || pJsonDocPos == prevPos)
-                return false;
-            // Add to list
-            strList.push_back(getStringWithoutQuotes(pElemStart, pElemEnd, true));
-        }
-        // Array not terminated
-        return false;
+        return forEachArrayElem(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson,
+            [&strList](const char* pElemStart, const char* pElemEnd)
+            {
+                strList.push_back(getStringWithoutQuotes(pElemStart, pElemEnd, true));
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief gets the elements of an array as integers from the JSON (immediate - i.e. static function, doc passed in)
+    /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
+    /// @param pDataPath the path of the required array in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param intList a vector to which the array elements are appended
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+    /// @return true if the array was found (false if not found, not an array or not terminated)
+    /// @note Elements are converted as base 10 integers - strings without their quotes and other values
+    ///       (e.g. true, null, objects) as 0
+    static bool getArrayIntsIm(const char* pJsonDoc, const char* pJsonEnd,
+            const char *pDataPath, std::vector<int>& intList,
+            const RaftJsonIF* pChainedRaftJson = nullptr)
+    {
+        return forEachArrayElem(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson,
+            [&intList](const char* pElemStart, const char* pElemEnd)
+            {
+                // Strings containing escapes are unescaped first (rare) - otherwise converted in place
+                if ((*pElemStart == '"') && memchr(pElemStart, '\\', pElemEnd - pElemStart))
+                {
+                    intList.push_back(getStringWithoutQuotes(pElemStart, pElemEnd, true).toInt());
+                    return;
+                }
+                if (*pElemStart == '"')
+                    pElemStart++;
+                char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
+                getNumberToken(pElemStart, pElemEnd, numBuf, sizeof(numBuf));
+                intList.push_back(strtol(numBuf, NULL, 10));
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -952,7 +953,10 @@ public:
     /// @return double : JSON doc contents
     virtual double toDouble() const
     {
-        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toDouble();
+        // Converted from a bounded copy of the number (rather than a copy of the whole document)
+        char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
+        getNumberToken(_pSourceStr, _pSourceEnd, numBuf, sizeof(numBuf));
+        return strtod(numBuf, NULL);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -960,7 +964,7 @@ public:
     /// @return long : JSON doc contents
     virtual int toInt() const
     {
-        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toInt();
+        return toLong();
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -968,7 +972,10 @@ public:
     /// @return long : JSON doc contents
     virtual long toLong() const
     {
-        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toInt();
+        // Converted (base 10) from a bounded copy of the number (rather than a copy of the whole document)
+        char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
+        getNumberToken(_pSourceStr, _pSourceEnd, numBuf, sizeof(numBuf));
+        return strtol(numBuf, NULL, 10);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -979,7 +986,7 @@ public:
         int retVal = 0;
         if (isBooleanIm(_pSourceStr, retVal, _pSourceEnd))
             return retVal != 0;
-        return String(_pSourceStr, _pSourceEnd - _pSourceStr).toInt() != 0;
+        return toLong() != 0;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1298,6 +1305,28 @@ public:
 
 protected:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set the document by taking ownership of a buffer (which avoids copying the document)
+    /// @param jsonStr buffer containing the document - a null terminator is added if the last character
+    ///        isn't one (an empty buffer gives an empty document)
+    /// @note Used by derived classes which read the document into a buffer (e.g. from NVS)
+    void setSourceVec(JsonStrVec&& jsonStr)
+    {
+        // Empty buffer gives an empty document
+        if (jsonStr.empty() || ((jsonStr.size() == 1) && (jsonStr[0] == 0)))
+        {
+            setSourceStr(nullptr, false, nullptr);
+            return;
+        }
+        // Ensure terminated
+        if (jsonStr.back() != 0)
+            jsonStr.push_back(0);
+        // Take the buffer and reference it
+        _jsonStr = std::move(jsonStr);
+        _pSourceStr = _jsonStr.data();
+        _pSourceEnd = _pSourceStr + _jsonStr.size() - 1;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate an element in a JSON document using a path
     /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @return the position of the element or nullptr if not found
@@ -1360,6 +1389,56 @@ private:
         if (!pEnd)
             return strncmp(pPos, pLiteral, literalLen) == 0;
         return (pPos <= pEnd) && ((size_t)(pEnd - pPos) >= literalLen) && (memcmp(pPos, pLiteral, literalLen) == 0);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Call a function for each element of an array in a JSON document
+    /// @param pJsonDoc the JSON document (string)
+    /// @param pJsonEnd the end of the JSON document
+    /// @param pDataPath the path of the required array in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
+    /// @param elemFn function called with the bounds of each element
+    /// @return true if the array was found (false if not found, not an array or not terminated)
+    template <typename ElemFn>
+    static bool forEachArrayElem(const char* pJsonDoc, const char* pJsonEnd,
+            const char *pDataPath, const RaftJsonIF* pChainedRaftJson, ElemFn elemFn)
+    {
+        // Locate the element
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
+        // Check if we found the element
+        if (!pJsonDocPos)
+            return false;
+        // Check if it's an array
+        if (*pJsonDocPos != '[')
+            return false;
+        // Skip over array start
+        pJsonDocPos++;
+        // Iterate over array elements
+        while ((pJsonDocPos < pDocEnd) && *pJsonDocPos)
+        {
+            // Skip whitespace
+            while ((pJsonDocPos < pDocEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
+                pJsonDocPos++;
+            if ((pJsonDocPos >= pDocEnd) || !*pJsonDocPos)
+                break;
+            // Check for end of array
+            if (*pJsonDocPos == ']')
+                return true;
+            // Unexpected closing brace inside array = malformed JSON
+            if (*pJsonDocPos == '}')
+                return false;
+            // Locate element
+            const char* pElemStart = nullptr;
+            const char* pElemEnd = nullptr;
+            const char* prevPos = pJsonDocPos;
+            pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd);
+            if (!pJsonDocPos || pJsonDocPos == prevPos)
+                return false;
+            elemFn(pElemStart, pElemEnd);
+        }
+        // Array not terminated
+        return false;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1723,9 +1802,10 @@ private:
                     pJsonDocPos++;
                 if ((pJsonDocPos >= pJsonEnd) || !*pJsonDocPos)
                     return nullptr;
-                // Check for longer of key and path part
-                uint32_t keyLen = (pKeyEnd - pKeyStart) > (pReqdKeyEnd - pReqdKeyStart) ? (pKeyEnd - pKeyStart) : (pReqdKeyEnd - pReqdKeyStart);
-                if (strncmp(pKeyStart, pReqdKeyStart, keyLen) == 0)
+                // Check the key matches the whole of this part of the path (lengths compared first
+                // so most keys are rejected without comparing characters)
+                size_t keyLen = pKeyEnd - pKeyStart;
+                if ((keyLen == (size_t)(pReqdKeyEnd - pReqdKeyStart)) && (memcmp(pKeyStart, pReqdKeyStart, keyLen) == 0))
                     return pJsonDocPos;
             }
             else
@@ -1914,11 +1994,6 @@ private:
     }
 
     // JSON document string
-#ifdef USE_RAFT_SPIRAM_AWARE_ALLOCATOR
-    typedef std::vector<char, SpiramAwareAllocator<char>> JsonStrVec;
-#else
-    typedef std::vector<char> JsonStrVec;
-#endif
     JsonStrVec _jsonStr;
 
     // Empty JSON document
