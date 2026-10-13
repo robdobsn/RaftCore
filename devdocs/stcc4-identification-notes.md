@@ -31,7 +31,9 @@ commands and stops measuring: the product ID stays readable, but `read_measureme
 measurement-start commands then NACK until the sensor is power-cycled.
 
 RaftI2C's `DeviceIdentMgr::identifyDevice` therefore runs address-based identification
-against the standard device-type records first, and only falls back to the delegated hook for
-addresses that have no standard record. The STCC4 has one, so it is never probed. Any change
-to that ordering, or any new record-less device at an address in the probe range, needs to
-keep this in mind.
+against the standard device-type records first, and only falls back to the delegated hook when
+no record **matches** - which includes addresses that have records whose detection failed, not
+only addresses with no record. The STCC4 record has empty detection, so it always matches and
+the STCC4 is never probed. Any change to that ordering, to the STCC4 record's detection (a
+detection check that can fail would expose it to the hook), or any new record-less device at an
+address in the probe range, needs to keep this in mind.

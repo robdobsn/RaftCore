@@ -21,7 +21,7 @@ public:
 
     /// @brief Constructor
     /// @param deviceTypeName 
-    /// @param addresses - comma separated list of addresses (e.g. "0x10,0x11") - ranges are not accepted
+    /// @param addresses - comma separated list of addresses and/or ranges (e.g. "0x10,0x11" or "0x10-0x17")
     /// @param detectionValues 
     /// @param initValues 
     /// @param pollInfo 

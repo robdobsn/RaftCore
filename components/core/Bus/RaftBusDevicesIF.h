@@ -28,15 +28,16 @@ class DeviceStatus;
 typedef bool (*RaftBusTaskServiceFn)(void* pCtx);
 
 /// @brief Verdict returned by a registered new-device identification handler
-/// @note Device-agnostic: the bus has no knowledge of what the handler identifies
-/// - NotMine:  the handler does not own this device; default identification proceeds unchanged
+/// @note Device-agnostic: the bus has no knowledge of what the handler identifies. The handler is
+///       called only after default (address-based) identification found no matching record
+/// - NotMine:  the handler does not own this device; it stays unidentified (and is retried later)
 /// - Handled:  the handler has identified the device and set deviceStatus.deviceTypeIndex to a
 ///             valid device-type index. The bus completes the device status (init + polling +
 ///             data aggregator) from that index using the standard device-type records, so the
 ///             handler stays device-agnostic and the existing polling/decode pipeline is reused.
-///             Default address-based identification is skipped.
 /// - Deferred: the device is not yet ready to identify (e.g. mid-arbitration); leave it
-///             unidentified and unpolled for now and retry on a later scan
+///             unidentified and unpolled for now - identification of an online but unidentified
+///             device is retried periodically
 enum class RaftDeviceIdentVerdict
 {
     NotMine,
@@ -223,10 +224,12 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Register a handler invoked before default identification for newly-detected devices
+    /// @brief Register a handler invoked for newly-detected devices that no device type record matched
     /// @param newDeviceIdentFn handler function (nullptr to clear)
     /// @param pCtx opaque context passed to the handler
-    /// @note Generic/device-agnostic: the handler decides whether it owns a device and may fully
+    /// @note Called after default (address-based) identification, only when no record matched - which
+    ///       includes addresses that have records whose detection failed, so probes must be safe for any device.
+    ///       Generic/device-agnostic: the handler decides whether it owns a device and may fully
     ///       populate its DeviceStatus (verdict Handled), decline (NotMine) or defer (Deferred).
     virtual void registerNewDeviceIdentHandler(RaftNewDeviceIdentFn newDeviceIdentFn, void* pCtx)
     {

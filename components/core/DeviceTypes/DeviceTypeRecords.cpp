@@ -512,15 +512,23 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
     int readIdx = readStrLC.indexOf("r");
     if (readIdx >= 0)
     {
-        // Compute length
+        // Compute length - a zero or missing length would be an empty check that matches anything
         uint32_t lenBytes = strtol(readStrLC.c_str() + readIdx + 1, NULL, 10);
+        if (lenBytes == 0)
+            return false;
+
         // Extract the read data
         readDataMask.resize(lenBytes);
         readDataCheck.resize(lenBytes);
-        for (int i = readIdx + 1; i < readStrLC.length(); i++)
+
+        // Fill the same elements as before (indices readIdx to length-2) but only those within the
+        // vectors - the loop runs over the string while the vectors are sized from the number in it,
+        // so e.g. "r1p50" or "0x60=r1" previously wrote past the end of the heap allocation
+        const int lastIdx = (int)readStrLC.length() - 2;
+        for (int i = readIdx; (i <= lastIdx) && (i < (int)lenBytes); i++)
         {
-            readDataMask[i - 1] = maskToZeros ? 0xff : 0;
-            readDataCheck[i - 1] = 0;
+            readDataMask[i] = maskToZeros ? 0xff : 0;
+            readDataCheck[i] = 0;
         }
         return true;
     }
