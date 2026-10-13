@@ -185,7 +185,32 @@ public:
     {
         return _raftJsonIF.getChainedRaftJson();
     }
-    
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Locate an element in a JSON document using a path
+    /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @return the position of the element or nullptr if not found
+    /// @note This allows a RaftJsonPrefixed to be used as a chained document
+    virtual const char* locateElementByPath(const char* pPath) const override final
+    {
+        if (!pPath)
+            return nullptr;
+        return _raftJsonIF.locateElementByPath(getPrefixedDataPath(pPath).c_str());
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Locate an element in a JSON document using a path and get the end of the document it is in
+    /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param pDocEnd [out] end of the document containing the element (which may be a chained document)
+    /// @return the position of the element or nullptr if not found
+    virtual const char* locateElementAndDocEnd(const char* pPath, const char*& pDocEnd) const override final
+    {
+        pDocEnd = nullptr;
+        if (!pPath)
+            return nullptr;
+        return _raftJsonIF.locateElementAndDocEnd(getPrefixedDataPath(pPath).c_str(), pDocEnd);
+    }
+
 private:
     // Get prefixed data path
     String getPrefixedDataPath(const char* pDataPath) const

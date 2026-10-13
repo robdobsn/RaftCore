@@ -199,4 +199,17 @@ public:
     {
         return nullptr;
     }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Locate an element in a JSON document using a path and get the end of the document it is in
+    /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param pDocEnd [out] end of the document containing the element (which may be a chained document)
+    /// @return the position of the element or nullptr if not found
+    /// @note Implementations which support chaining must override this so that the end of the document
+    ///       where the element was actually found is returned
+    virtual const char* locateElementAndDocEnd(const char* pPath, const char*& pDocEnd) const
+    {
+        pDocEnd = getJsonDocEnd();
+        return locateElementByPath(pPath);
+    }
 };

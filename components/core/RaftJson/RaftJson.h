@@ -65,7 +65,7 @@ public:
     RaftJson(const char* pJsonStr, bool makeCopy = true, const char* pJsonEnd = nullptr, RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Store the source string
-        setSourceStr(pJsonStr, makeCopy, pJsonEnd ? pJsonEnd : pJsonStr + strlen(pJsonStr));
+        setSourceStr(pJsonStr, makeCopy, pJsonEnd ? pJsonEnd : strEnd(pJsonStr));
         _pChainedRaftJson = pChainedRaftJson;
     }
 
@@ -141,8 +141,8 @@ public:
     /// @note makes a copy
     RaftJson& operator=(const char* pJsonStr)
     {
-        // Store the source string
-        setSourceStr(pJsonStr, true, pJsonStr + strlen(pJsonStr));
+        // Store the source string (null gives an empty document)
+        setSourceStr(pJsonStr, true, strEnd(pJsonStr));
         return *this;
     }
     RaftJson& operator=(const String& jsonStr)
@@ -159,8 +159,11 @@ public:
     }
     virtual bool setJsonDoc(const char* pJsonDoc) override
     {
+        // Check valid
+        if (!pJsonDoc)
+            return false;
         // Store the source string
-        setSourceStr(pJsonDoc, true, pJsonDoc + strlen(pJsonDoc));
+        setSourceStr(pJsonDoc, true, strEnd(pJsonDoc));
         return true;
     }
 
@@ -289,15 +292,13 @@ public:
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
-        const char* pJsonDocPos = pJsonDoc;
-        bool foundInChainedDoc = false;
-        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
         const char* pElemStart = nullptr;
         const char* pElemEnd = nullptr;
-        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
         if (!RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd))
             return defaultValue;
         // Get string without quotes
@@ -317,23 +318,24 @@ public:
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
-        const char* pJsonDocPos = pJsonDoc;
-        bool foundInChainedDoc = false;
-        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
         // Check if it's a boolean or null
         int retValue = 0;
-        if (RaftJson::isBooleanIm(pJsonDocPos, retValue))
+        if (RaftJson::isBooleanIm(pJsonDocPos, retValue, pDocEnd))
             return retValue;
-        if (RaftJson::isNullIm(pJsonDocPos))
+        if (RaftJson::isNullIm(pJsonDocPos, pDocEnd))
             return defaultValue;
         // Check for a string value - if so skip quotes
         if ((*pJsonDocPos == '"') && RAFT_JSON_TREAT_STRINGS_AS_NUMBERS)
             pJsonDocPos++;
-        // Convert to double
-        return strtod(pJsonDocPos, NULL);
+        // Convert to double (from a copy so the conversion can't go beyond the end of the document)
+        char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
+        getNumberToken(pJsonDocPos, pDocEnd, numBuf, sizeof(numBuf));
+        return strtod(numBuf, NULL);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -349,23 +351,24 @@ public:
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
-        const char* pJsonDocPos = pJsonDoc;
-        bool foundInChainedDoc = false;        
-        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
         // Check if we found the element
         if (!pJsonDocPos)
             return defaultValue;
         // Check if it's a boolean or null
         int retValue = 0;
-        if (RaftJson::isBooleanIm(pJsonDocPos, retValue))
+        if (RaftJson::isBooleanIm(pJsonDocPos, retValue, pDocEnd))
             return retValue;
-        if (RaftJson::isNullIm(pJsonDocPos))
+        if (RaftJson::isNullIm(pJsonDocPos, pDocEnd))
             return defaultValue;
         // Check for a string value - if so skip quotes
         if ((*pJsonDocPos == '"') && RAFT_JSON_TREAT_STRINGS_AS_NUMBERS)
             pJsonDocPos++;
-        // Convert to long
-        return strtol(pJsonDocPos, NULL, 0);
+        // Convert to long (from a copy so the conversion can't go beyond the end of the document)
+        char numBuf[MAX_NUMBER_TOKEN_LEN + 1];
+        getNumberToken(pJsonDocPos, pDocEnd, numBuf, sizeof(numBuf));
+        return strtol(numBuf, NULL, 0);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -391,15 +394,14 @@ public:
     /// @param pDataPath the path of the required array in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param strList a vector which is filled with the array elements
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
-    /// @return true if the array was found
+    /// @return true if the array was found (false if not found, not an array or not terminated)
     static bool getArrayElemsIm(const char* pJsonDoc, const char* pJsonEnd,
             const char *pDataPath, std::vector<String>& strList,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
-        const char* pJsonDocPos = pJsonDoc;
-        bool foundInChainedDoc = false;
-        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -409,12 +411,13 @@ public:
         // Skip over array start
         pJsonDocPos++;
         // Iterate over array elements
-        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
-        while (*pJsonDocPos && (pJsonDocPos < pDocEnd))
+        while ((pJsonDocPos < pDocEnd) && *pJsonDocPos)
         {
             // Skip whitespace
-            while (*pJsonDocPos && (pJsonDocPos < pDocEnd) && (*pJsonDocPos <= ' '))
+            while ((pJsonDocPos < pDocEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
+            if ((pJsonDocPos >= pDocEnd) || !*pJsonDocPos)
+                break;
             // Check for end of array
             if (*pJsonDocPos == ']')
                 return true;
@@ -431,7 +434,8 @@ public:
             // Add to list
             strList.push_back(getStringWithoutQuotes(pElemStart, pElemEnd, true));
         }
-        return true;
+        // Array not terminated
+        return false;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -441,15 +445,14 @@ public:
     /// @param pDataPath the path of the required object in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param keysVector a vector which is filled with the keys
     /// @param pChainRaftJson a chained RaftJson object to use if the key is not found in this object
-    /// @return true if the object was found
+    /// @return true if the object was found (false if not found, not an object or not terminated)
     static bool getKeysIm(const char* pJsonDoc, const char* pJsonEnd,
             const char *pDataPath, std::vector<String>& keysVector,
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
-        const char* pJsonDocPos = pJsonDoc;
-        bool foundInChainedDoc = false;
-        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
         // Check if we found the element
         if (!pJsonDocPos)
             return false;
@@ -459,12 +462,13 @@ public:
         // Skip over object start
         pJsonDocPos++;
         // Iterate over object elements
-        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
-        while (*pJsonDocPos && (pJsonDocPos < pDocEnd))
+        while ((pJsonDocPos < pDocEnd) && *pJsonDocPos)
         {
             // Skip whitespace
-            while (*pJsonDocPos && (pJsonDocPos < pDocEnd) && (*pJsonDocPos <= ' '))
+            while ((pJsonDocPos < pDocEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
+            if ((pJsonDocPos >= pDocEnd) || !*pJsonDocPos)
+                break;
             // Check for end of object
             if (*pJsonDocPos == '}')
                 return true;
@@ -483,24 +487,24 @@ public:
             if (!pJsonDocPos)
                 return false;
         }
-        return true;
+        // Object not terminated
+        return false;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Check if element at the current position in a JSON document is a boolean value (static)
     /// @param pJsonDocPos the current position in the JSON document
     /// @param retValue the value of the boolean
+    /// @param pJsonEnd the end of the JSON document (nullptr if the document is null-terminated)
     /// @return true if the element is a boolean
-    static bool isBooleanIm(const char* pJsonDocPos, int &retValue)
+    static bool isBooleanIm(const char* pJsonDocPos, int &retValue, const char* pJsonEnd = nullptr)
     {
-        if (!pJsonDocPos)
-            return false;
-        if (strncmp(pJsonDocPos, "true", 4) == 0)
+        if (matchLiteral(pJsonDocPos, pJsonEnd, "true"))
         {
             retValue = 1;
             return true;
         }
-        if (strncmp(pJsonDocPos, "false", 5) == 0)
+        if (matchLiteral(pJsonDocPos, pJsonEnd, "false"))
         {
             retValue = 0;
             return true;
@@ -511,16 +515,11 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Check if element at the current position in a JSON document is a null value (static)
     /// @param pJsonDocPos the current position in the JSON document
+    /// @param pJsonEnd the end of the JSON document (nullptr if the document is null-terminated)
     /// @return true if the element is a null
-    static bool isNullIm(const char* pJsonDocPos)
+    static bool isNullIm(const char* pJsonDocPos, const char* pJsonEnd = nullptr)
     {
-        if (!pJsonDocPos)
-            return false;
-        if (strncmp(pJsonDocPos, "null", 4) == 0)
-        {
-            return true;
-        }
-        return false;
+        return matchLiteral(pJsonDocPos, pJsonEnd, "null");
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -536,9 +535,8 @@ public:
             const RaftJsonIF* pChainedRaftJson = nullptr)
     {
         // Locate the element
-        const char* pJsonDocPos = pJsonDoc;
-        bool foundInChainedDoc = false;
-        pJsonDocPos = RaftJson::locateElemByPath(pJsonDocPos, pJsonEnd, pDataPath, pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        const char* pJsonDocPos = RaftJson::locateElemByPath(pJsonDoc, pJsonEnd, pDataPath, pChainedRaftJson, pDocEnd);
         // Check if we found the element
         if (!pJsonDocPos)
             return RAFT_JSON_UNDEFINED;
@@ -546,18 +544,19 @@ public:
         if (*pJsonDocPos == '{')
             return RAFT_JSON_OBJECT;
         // Check if it's an array
-        const char* pDocEnd = (foundInChainedDoc && pChainedRaftJson) ? pChainedRaftJson->getJsonDocEnd() : pJsonEnd;
         if (*pJsonDocPos == '[')
         {
             // Skip over array start
             pJsonDocPos++;
             // Iterate over array elements
             arrayLen = 0;
-            while (*pJsonDocPos && (pJsonDocPos < pDocEnd))
+            while ((pJsonDocPos < pDocEnd) && *pJsonDocPos)
             {
                 // Skip whitespace
-                while (*pJsonDocPos && (pJsonDocPos < pDocEnd) && (*pJsonDocPos <= ' '))
+                while ((pJsonDocPos < pDocEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
                     pJsonDocPos++;
+                if ((pJsonDocPos >= pDocEnd) || !*pJsonDocPos)
+                    break;
                 // Check for end of array
                 if (*pJsonDocPos == ']')
                     return RAFT_JSON_ARRAY;
@@ -581,10 +580,10 @@ public:
             return RAFT_JSON_STRING;
         // Check if it's a boolean
         int retValue = 0;
-        if (RaftJson::isBooleanIm(pJsonDocPos, retValue))
+        if (RaftJson::isBooleanIm(pJsonDocPos, retValue, pDocEnd))
             return RAFT_JSON_BOOLEAN;
         // Check for null
-        if (RaftJson::isNullIm(pJsonDocPos))
+        if (RaftJson::isNullIm(pJsonDocPos, pDocEnd))
             return RAFT_JSON_NULL;
         // Check if it's a number (including negative numbers)
         if (((*pJsonDocPos >= '0') && (*pJsonDocPos <= '9')) || (*pJsonDocPos == '-'))
@@ -919,8 +918,8 @@ public:
     /// @return const char* : Start of element
     const char* getElemStart(const char* pDataPath)
     {
-        bool foundInChainedDoc = false;
-        return locateElemByPath(_pSourceStr, _pSourceEnd, pDataPath, _pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        return locateElemByPath(_pSourceStr, _pSourceEnd, pDataPath, _pChainedRaftJson, pDocEnd);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -978,7 +977,7 @@ public:
     virtual bool toBool() const
     {
         int retVal = 0;
-        if (isBooleanIm(_pSourceStr, retVal))
+        if (isBooleanIm(_pSourceStr, retVal, _pSourceEnd))
             return retVal != 0;
         return String(_pSourceStr, _pSourceEnd - _pSourceStr).toInt() != 0;
     }
@@ -1006,20 +1005,25 @@ public:
     /// @param pSourceEnd end of source string (location of null character or arbitrary location within the valid string bounds)
     void setSourceStr(const char* pSourceStr, bool makeCopy, const char* pSourceEnd)
     {
-        // Check valid
-        if (!pSourceStr || !pSourceEnd)
+        // A null source gives an empty document
+        if (!pSourceStr || !pSourceEnd || (pSourceEnd < pSourceStr))
+        {
+            _jsonStr = JsonStrVec();
+            _pSourceStr = EMPTY_JSON_DOCUMENT;
+            _pSourceEnd = EMPTY_JSON_DOCUMENT + strlen(EMPTY_JSON_DOCUMENT);
             return;
+        }
 
         // Make copy if required
         if (makeCopy)
         {
-#ifdef USE_RAFT_SPIRAM_AWARE_ALLOCATOR
-            _jsonStr = std::vector<char, SpiramAwareAllocator<char>>(pSourceStr, pSourceEnd + 1);
-            _jsonStr[pSourceEnd - pSourceStr] = 0;
-#else
-            _jsonStr = std::vector<char>(pSourceStr, pSourceEnd + 1);
-            _jsonStr[pSourceEnd - pSourceStr] = 0;
-#endif
+            // Copy only the source range (which may not be null-terminated) and add a terminator
+            // (the new copy is built before being assigned so the source may be within the existing copy)
+            JsonStrVec newStr;
+            newStr.reserve(pSourceEnd - pSourceStr + 1);
+            newStr.assign(pSourceStr, pSourceEnd);
+            newStr.push_back(0);
+            _jsonStr = std::move(newStr);
             // Reference the copy
             _pSourceStr = _jsonStr.data();
             _pSourceEnd = _pSourceStr + (_jsonStr.size() - 1);
@@ -1049,8 +1053,9 @@ public:
         }
 
         ArrayIterator begin() const {
-            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
-            return ArrayIterator(pStart, _pJsonDoc->getJsonDocEnd());
+            const char* pDocEnd = nullptr;
+            const char* pStart = _pJsonDoc->locateElementAndDocEnd(_path.c_str(), pDocEnd);
+            return ArrayIterator(pStart, pDocEnd);
         }
 
         ArrayIterator end() const {
@@ -1084,16 +1089,16 @@ public:
         /// @param pElemEnd [out] end of element at index
         /// @return number of elements walked (index + 1 if the element at index was found)
         size_t locateArrayElem(size_t index, const char*& pElemStart, const char*& pElemEnd) const {
-            const char* pCurrent = _pJsonDoc->locateElementByPath(_path.c_str());
-            const char* pDocEnd = _pJsonDoc->getJsonDocEnd();
-            if (!pCurrent || (*pCurrent != '['))
+            const char* pDocEnd = nullptr;
+            const char* pCurrent = _pJsonDoc->locateElementAndDocEnd(_path.c_str(), pDocEnd);
+            if (!pCurrent || (pCurrent >= pDocEnd) || (*pCurrent != '['))
                 return 0;
             pCurrent++;
 
             size_t count = 0;
             while (pCurrent && (pCurrent < pDocEnd)) {
                 skipWhitespace(pCurrent, pDocEnd);
-                if (!*pCurrent || (*pCurrent == ']') || (*pCurrent == '}'))
+                if ((pCurrent >= pDocEnd) || !*pCurrent || (*pCurrent == ']') || (*pCurrent == '}'))
                     break;
                 const char* pNext = locateElementBounds(pCurrent, pDocEnd, pElemStart, pElemEnd);
                 if (!pNext || (pNext == pCurrent))
@@ -1125,12 +1130,12 @@ public:
         ArrayIterator(const char* pStart, const char* pEnd)
             : _pDocEnd(pEnd)
         {
-            if (!pStart || (pStart == pEnd) || (*pStart != '['))
+            if (!pStart || (pStart >= pEnd) || (*pStart != '['))
                 return;
             // Move past the opening bracket of the array
             const char* pPos = pStart + 1;
             skipWhitespace(pPos, _pDocEnd);
-            if (!*pPos || (*pPos == ']') || (*pPos == '}'))
+            if ((pPos >= _pDocEnd) || !*pPos || (*pPos == ']') || (*pPos == '}'))
                 return;
             _pCurrent = pPos;
             _atEnd = false;
@@ -1147,7 +1152,7 @@ public:
             const char* pNext = locateElementBounds(_pCurrent, _pDocEnd, pElemStart, pElemEnd);
             if (pNext)
                 skipWhitespace(pNext, _pDocEnd);
-            if (!pNext || (pNext == _pCurrent) || !*pNext || (*pNext == ']') || (*pNext == '}'))
+            if (!pNext || (pNext == _pCurrent) || (pNext >= _pDocEnd) || !*pNext || (*pNext == ']') || (*pNext == '}'))
             {
                 setAtEnd();
                 return *this;
@@ -1199,8 +1204,9 @@ public:
         }
 
         ObjectIterator begin() const {
-            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
-            return ObjectIterator(pStart, _pJsonDoc->getJsonDocEnd());
+            const char* pDocEnd = nullptr;
+            const char* pStart = _pJsonDoc->locateElementAndDocEnd(_path.c_str(), pDocEnd);
+            return ObjectIterator(pStart, pDocEnd);
         }
 
         ObjectIterator end() const {
@@ -1224,12 +1230,12 @@ public:
         ObjectIterator(const char* pStart, const char* pEnd)
             : _pDocEnd(pEnd)
         {
-            if (!pStart || (pStart == pEnd) || (*pStart != '{'))
+            if (!pStart || (pStart >= pEnd) || (*pStart != '{'))
                 return;
             // Move past the opening brace of the object
             const char* pPos = pStart + 1;
             skipWhitespace(pPos, _pDocEnd);
-            if (*pPos != '"')
+            if ((pPos >= _pDocEnd) || (*pPos != '"'))
                 return;
             _pCurrent = pPos;
             _atEnd = false;
@@ -1246,7 +1252,7 @@ public:
                 pNext = locateElementBounds(pNext, _pDocEnd, pElemStart, pElemEnd);
             if (pNext)
                 skipWhitespace(pNext, _pDocEnd);
-            if (!pNext || (pNext == _pCurrent) || (*pNext != '"'))
+            if (!pNext || (pNext == _pCurrent) || (pNext >= _pDocEnd) || (*pNext != '"'))
             {
                 setAtEnd();
                 return *this;
@@ -1297,8 +1303,18 @@ protected:
     /// @return the position of the element or nullptr if not found
     virtual const char* locateElementByPath(const char* pPath) const override
     {
-        bool foundInChainedDoc = false;
-        return locateElemByPath(_pSourceStr, _pSourceEnd, pPath, _pChainedRaftJson, foundInChainedDoc);
+        const char* pDocEnd = nullptr;
+        return locateElemByPath(_pSourceStr, _pSourceEnd, pPath, _pChainedRaftJson, pDocEnd);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Locate an element in a JSON document using a path and get the end of the document it is in
+    /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
+    /// @param pDocEnd [out] end of the document containing the element (which may be a chained document)
+    /// @return the position of the element or nullptr if not found
+    virtual const char* locateElementAndDocEnd(const char* pPath, const char*& pDocEnd) const override
+    {
+        return locateElemByPath(_pSourceStr, _pSourceEnd, pPath, _pChainedRaftJson, pDocEnd);
     }
 
 private:
@@ -1319,6 +1335,51 @@ private:
     static bool charNeedsEscape(char ch)
     {
         return (ch == '"') || (ch == '\\') || ((uint8_t)ch < 0x20);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the end of a null-terminated string
+    /// @param pStr the string (may be null)
+    /// @return pointer to the terminator (or nullptr if pStr is null)
+    static const char* strEnd(const char* pStr)
+    {
+        return pStr ? pStr + strlen(pStr) : nullptr;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check for a literal (e.g. true, false or null) at a position in a JSON document
+    /// @param pPos the position in the JSON document
+    /// @param pEnd end of the JSON document (nullptr if the document is null-terminated)
+    /// @param pLiteral the literal to match
+    /// @return true if the literal is at the position (and entirely within the document)
+    static bool matchLiteral(const char* pPos, const char* pEnd, const char* pLiteral)
+    {
+        if (!pPos)
+            return false;
+        size_t literalLen = strlen(pLiteral);
+        if (!pEnd)
+            return strncmp(pPos, pLiteral, literalLen) == 0;
+        return (pPos <= pEnd) && ((size_t)(pEnd - pPos) >= literalLen) && (memcmp(pPos, pLiteral, literalLen) == 0);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Copy a number token from a JSON document into a null-terminated buffer
+    /// @param pPos the position of the number in the JSON document
+    /// @param pEnd end of the JSON document
+    /// @param pBuf buffer to copy into
+    /// @param bufLen size of buffer (including terminator)
+    /// @note The token ends at the end of the document, a delimiter or whitespace - this ensures that strtol and
+    ///       strtod don't read beyond the end of the document
+    static void getNumberToken(const char* pPos, const char* pEnd, char* pBuf, size_t bufLen)
+    {
+        size_t len = 0;
+        // Leading whitespace (e.g. in a string treated as a number)
+        while ((pPos < pEnd) && *pPos && (*pPos <= ' '))
+            pPos++;
+        while ((pPos < pEnd) && *pPos && (len + 1 < bufLen) && (*pPos > ' ') &&
+                    (*pPos != ',') && (*pPos != '}') && (*pPos != ']') && (*pPos != '"'))
+            pBuf[len++] = *pPos++;
+        pBuf[len] = 0;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1390,22 +1451,26 @@ private:
     static const char* locateStringElement(const char* pJsonDocPos, const char* pJsonEnd,
             const char*& pElemStart, const char*& pElemEnd, bool includeQuotes = false)
     {
+        // Check valid
+        if (pJsonDocPos >= pJsonEnd)
+            return nullptr;
+
         // Skip quote if at start of string
-        if (!includeQuotes && (*pJsonDocPos == '"') && (pJsonDocPos < pJsonEnd))
+        if (!includeQuotes && (*pJsonDocPos == '"'))
             pJsonDocPos++;
 
         // Find end of string - a backslash escapes the next character only (so "\\" ends in a
         // literal backslash and the following quote closes the string)
         pElemStart = pJsonDocPos;
         bool isEscaped = false;
-        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (isEscaped || (*pJsonDocPos != '"')))
+        while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && (isEscaped || (*pJsonDocPos != '"')))
         {
             isEscaped = !isEscaped && (*pJsonDocPos == '\\');
             pJsonDocPos++;
         }
 
         // Return string start and end
-        if (*pJsonDocPos == '"')
+        if ((pJsonDocPos < pJsonEnd) && (*pJsonDocPos == '"'))
         {
             pElemEnd = includeQuotes ? pJsonDocPos + 1 : pJsonDocPos;
             return pJsonDocPos + 1;
@@ -1423,9 +1488,9 @@ private:
     static const char* locateElementBounds(const char* pJsonDocPos, const char* pJsonEnd, const char*& pElemStart, const char*& pElemEnd)
     {
         // Skip whitespace, commas and colons
-        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',') || (*pJsonDocPos == ':')))
+        while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',') || (*pJsonDocPos == ':')))
             pJsonDocPos++;
-        if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
+        if ((pJsonDocPos >= pJsonEnd) || !*pJsonDocPos)
             return nullptr;
         pElemStart = pJsonDocPos;
             
@@ -1442,7 +1507,7 @@ private:
             pJsonDocPos++;
             // Skip to end of object
             bool insideString = false;
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (numBraces > 0))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && (numBraces > 0))
             {
                 // Inside a string a backslash escapes the next character - an
                 // escaped quote must not end the string, or the brace count
@@ -1483,10 +1548,11 @@ private:
                 pJsonDocPos++;
 #ifdef DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
                 LOG_I("RaftJson", "locateElementBounds LOOPING idx %d ch <<<%c>>>", 
-                        pJsonDocPos-pElemStart, *pJsonDocPos ? *pJsonDocPos : '~');
+                        pJsonDocPos-pElemStart, ((pJsonDocPos < pJsonEnd) && *pJsonDocPos) ? *pJsonDocPos : '~');
 #endif            
             }
-            if ((numBraces > 0) && (!*pJsonDocPos))
+            // Not closed before the end of the document
+            if (numBraces > 0)
             {
 #ifdef DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
                 LOG_I("RaftJson", "locateElementBounds obj unexpectedly reached end of document pJsonDocPos %p", pJsonDocPos);
@@ -1495,7 +1561,7 @@ private:
             }
             pElemEnd = pJsonDocPos;
             // Skip whitespace and commas
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
                 pJsonDocPos++;
             return pJsonDocPos;
         }
@@ -1507,12 +1573,12 @@ private:
             // Find end of string - a backslash escapes the next character only
             pJsonDocPos++;
             bool isEscaped = false;
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (isEscaped || (*pJsonDocPos != '"')))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && (isEscaped || (*pJsonDocPos != '"')))
             {
                 isEscaped = !isEscaped && (*pJsonDocPos == '\\');
                 pJsonDocPos++;
             }
-            if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
+            if ((pJsonDocPos >= pJsonEnd) || !*pJsonDocPos)
             {
 #ifdef DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
                 LOG_I("RaftJson", "locateElementBounds str unexpectedly reached end of document pJsonDocPos %p", pJsonDocPos);
@@ -1525,7 +1591,7 @@ private:
                 pElemEnd = pJsonDocPos + 1;
             pJsonDocPos++;
             // Skip whitespace and commas
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
                 pJsonDocPos++;
             return pJsonDocPos;
         }
@@ -1535,13 +1601,13 @@ private:
             LOG_I("RaftJson", "locateElementBounds found number pJsonDocPos %p", pJsonDocPos);
 #endif        
             // Find end of element
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos > ' ') && (*pJsonDocPos != ',') && (*pJsonDocPos != '}') && (*pJsonDocPos != ']'))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && (*pJsonDocPos > ' ') && (*pJsonDocPos != ',') && (*pJsonDocPos != '}') && (*pJsonDocPos != ']'))
                 pJsonDocPos++;
             pElemEnd = pJsonDocPos;
             // Skip whitespace and commas
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ',')))
                 pJsonDocPos++;
-            if (!*pJsonDocPos)
+            if ((pJsonDocPos >= pJsonEnd) || !*pJsonDocPos)
             {
 #ifdef DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
                 LOG_I("RaftJson", "locateElementBounds num unexpectedly reached end of document pJsonDocPos %p", pJsonDocPos);
@@ -1570,8 +1636,10 @@ private:
         if (!pReqdKey || !*pReqdKey || (*pReqdKey == '/'))
         {
             // Skip any whitespace
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
+            if ((pJsonDocPos >= pJsonEnd) || !*pJsonDocPos)
+                return nullptr;
 
 #ifdef DEBUG_JSON_BY_SPECIFIC_PATH_PART
         if (strcmp(pReqdKey, DEBUG_JSON_BY_SPECIFIC_PATH_PART) == 0)
@@ -1587,9 +1655,9 @@ private:
         }
 
         // Skip any whitespace
-        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
+        while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
             pJsonDocPos++;
-        if ((*pJsonDocPos != '{') && (*pJsonDocPos != '['))
+        if ((pJsonDocPos >= pJsonEnd) || ((*pJsonDocPos != '{') && (*pJsonDocPos != '[')))
             return nullptr;
 
         // Check for the type of element - object or array
@@ -1628,12 +1696,12 @@ private:
         // Skip over elements until we get to the one we want
         const char* pKeyStart = pJsonDocPos;
         const char* pKeyEnd = nullptr;
-        while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
+        while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos)
         {
             // Skip whitespace
-            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
+            while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && (*pJsonDocPos <= ' '))
                 pJsonDocPos++;
-            if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
+            if ((pJsonDocPos >= pJsonEnd) || !*pJsonDocPos)
                 return nullptr;
 
             // Check for the end of the object or array (this also handles empty ones)
@@ -1651,9 +1719,9 @@ private:
                 if (!pJsonDocPos)
                     return nullptr;
                 // Skip over any whitespace and colons
-                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ':')))
+                while ((pJsonDocPos < pJsonEnd) && *pJsonDocPos && ((*pJsonDocPos <= ' ') || (*pJsonDocPos == ':')))
                     pJsonDocPos++;
-                if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
+                if ((pJsonDocPos >= pJsonEnd) || !*pJsonDocPos)
                     return nullptr;
                 // Check for longer of key and path part
                 uint32_t keyLen = (pKeyEnd - pKeyStart) > (pReqdKeyEnd - pReqdKeyStart) ? (pKeyEnd - pKeyStart) : (pReqdKeyEnd - pReqdKeyStart);
@@ -1684,15 +1752,15 @@ private:
     /// @param pJsonEnd the end of the JSON document
     /// @param pPath the path of the required variable in XPath-like syntax (e.g. "a/b/c[0]/d")
     /// @param pChainedRaftJson a chained RaftJson object to use if the key is not found in this object
-    /// @param foundInChainedDoc [out] set to true if the element was found in the chained document
+    /// @param pFoundDocEnd [out] end of the document the element was found in (which may be a chained document)
     /// @return the position of the element or nullptr if not found
     static const char* locateElemByPath(const char* pJsonDocPos, const char* pJsonEnd, 
                 const char* pPath,
                 const RaftJsonIF* pChainedRaftJson,
-                bool& foundInChainedDoc)
+                const char*& pFoundDocEnd)
     {
         // Check valid
-        foundInChainedDoc = false;
+        pFoundDocEnd = pJsonEnd;
         if (!pPath || !pJsonDocPos || !pJsonEnd)
             return nullptr;
 
@@ -1727,14 +1795,16 @@ private:
                 LOG_I(RAFT_JSON_PREFIX, "locateElemByPath path %s not found, chainedPtr %p originalDoc %s", 
                             pPath, pChainedRaftJson, pOriginalDoc ? pOriginalDoc : "null");
 #endif
-                // Handle chained documents searching with the original path
-                const char* pFoundLocation = pChainedRaftJson ? pChainedRaftJson->locateElementByPath(pPath) : nullptr;
-                if (pFoundLocation)
-                {
-                    foundInChainedDoc = true;
-                    return pFoundLocation;
-                }
-                return nullptr;
+                // Handle chained documents searching with the original path (the chained document
+                // provides the end of whichever document in its own chain the element was found in)
+                if (!pChainedRaftJson)
+                    return nullptr;
+                const char* pChainedDocEnd = nullptr;
+                const char* pFoundLocation = pChainedRaftJson->locateElementAndDocEnd(pPath, pChainedDocEnd);
+                if (!pFoundLocation)
+                    return nullptr;
+                pFoundDocEnd = pChainedDocEnd ? pChainedDocEnd : pChainedRaftJson->getJsonDocEnd();
+                return pFoundLocation;
             }
 
             // Check if we're at the end of the path
@@ -1853,6 +1923,9 @@ private:
 
     // Empty JSON document
     static constexpr const char* EMPTY_JSON_DOCUMENT = "{}";
+
+    // Maximum length of a number token (longer numbers are truncated when converted)
+    static constexpr size_t MAX_NUMBER_TOKEN_LEN = 40;
 
     // Copy of pointer to JSON string
     // Note this pointer should NEVER be deleted by this object

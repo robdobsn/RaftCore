@@ -48,6 +48,10 @@ bool RaftJsonNVS::ensureNVSInitialised()
 ///       Implementations that store to NVS or similar may persist the new JSON document
 bool RaftJsonNVS::setJsonDoc(const char* pJsonDoc)
 {
+    // Check valid
+    if (!pJsonDoc)
+        return false;
+
     // Set json doc
     uint32_t jsonDocStrLen = strlen(pJsonDoc);
 
