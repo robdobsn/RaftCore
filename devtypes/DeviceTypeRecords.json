@@ -2689,7 +2689,7 @@
             "addresses": "0x29",
             "deviceType": "LTR-329",
             "detectionValues": "0x86=0b1010XXXX&0x87=0x05",
-            "initValues": "0x8002&p20&0x8001",
+            "initValues": "0x8002&=p20&0x8001",
             "pollInfo": {
                 "c": "0x88=r4",
                 "i": 100,
@@ -2734,7 +2734,7 @@
             "addresses": "0x53",
             "deviceType": "LTR-390",
             "detectionValues": "0x06=0b1011XXXX",
-            "initValues": "0x0010&0x0440&p20&0x000A",
+            "initValues": "0x0010&0x0440&=p20&0x000A",
             "pollInfo": {
                 "c": "0x0D=r5&0x0002=p100&0x000A",
                 "i": 250,
