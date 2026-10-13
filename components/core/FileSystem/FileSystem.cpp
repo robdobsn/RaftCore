@@ -1496,6 +1496,9 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
         .data_io_default_level = 0,
 #endif
         .max_transfer_sz = 4000,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+        .dma_burst_size = 0,
+#endif
         .flags = 0,
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 2, 0)

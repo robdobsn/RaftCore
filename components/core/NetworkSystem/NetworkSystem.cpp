@@ -221,8 +221,8 @@ void NetworkSystem::loop()
 
     if (_pendingWiFiDisconnectWarn.exchange(false))
     {
-        LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d",
-                _pendingWiFiDisconnectWarnRetries.load());
+        LOG_W(MODULE_PREFIX, "WiFi disconnected, retry to connect to the AP retries %d reason %d",
+                _pendingWiFiDisconnectWarnRetries.load(), _lastWiFiDisconnectReason.load());
     }
 
     // Get WiFi RSSI value if connected
@@ -257,6 +257,18 @@ void NetworkSystem::loop()
 
     // Collect completed WiFi scan results promptly
     _wifiScanner.loop();
+
+    // Resume auto-reconnect once a scan that paused it has finished (or taken too long)
+    if (_reconnectPausedForScan)
+    {
+        if (_wifiScanner.isScanInProgress() && Raft::isTimeout(millis(), _reconnectPausedForScanMs, SCAN_RECONNECT_PAUSE_MAX_MS))
+        {
+            LOG_W(MODULE_PREFIX, "loop WiFi scan timed out - resuming reconnect");
+            _wifiScanner.scanAbandon();
+        }
+        if (!_wifiScanner.isScanInProgress())
+            resumeReconnectAfterScan();
+    }
 
     // Handle deferred mDNS setup
     if (_mdnsSetupPending && Raft::isTimeout(millis(), _mdnsSetupPendingMs.load(), MDNS_SETUP_DELAY_MS))
@@ -692,6 +704,8 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
     // esp_wifi_set_config is rejected with ESP_ERR_WIFI_STATE if a connect attempt
     // is currently in progress. Suppress auto-reconnect, issue a disconnect, and
     // wait briefly for STA to become idle before applying the new configuration.
+    // (this takes over from any reconnect pause for a scan - the connect below resumes it)
+    _reconnectPausedForScan = false;
     _suppressWifiAutoReconnect = true;
     esp_err_t discErr = esp_wifi_disconnect();
     if ((discErr != ESP_OK) && (discErr != ESP_ERR_WIFI_NOT_STARTED) && (discErr != ESP_ERR_WIFI_NOT_CONNECT))
@@ -867,12 +881,47 @@ bool NetworkSystem::wifiScan(bool start, String& jsonResult)
     // state indicates whether a scan is in progress, done or failed
     if (start)
     {
-        bool rslt = _wifiScanner.scanStart();
+        // When the STA isn't connected it is continually retrying the connection and a connection
+        // attempt prevents scanning - so pause auto-reconnect, stop the attempt and scan (retrying
+        // while the attempt finishes). Reconnecting resumes in loop() when the scan finishes.
+        // When connected the scan runs alongside the connection.
+        uint32_t busyRetryMs = 0;
+        if (_isSetup && !_wifiScanner.isScanInProgress() && !_reconnectPausedForScan && !_isPaused &&
+                    _networkSettings.enableWifiSTAMode && !(xEventGroupGetBits(_networkRTOSEventGroup) & WIFI_STA_CONNECTED_BIT))
+        {
+            _reconnectPausedForScan = true;
+            _reconnectPausedForScanMs = millis();
+            _suppressWifiAutoReconnect = true;
+            esp_err_t discErr = esp_wifi_disconnect();
+            if ((discErr != ESP_OK) && (discErr != ESP_ERR_WIFI_NOT_STARTED) && (discErr != ESP_ERR_WIFI_NOT_CONNECT))
+            {
+                LOG_W(MODULE_PREFIX, "wifiScan pre-disconnect err %s (%d)", esp_err_to_name(discErr), discErr);
+            }
+            busyRetryMs = SCAN_START_BUSY_RETRY_MS;
+            LOG_I(MODULE_PREFIX, "wifiScan STA not connected - reconnect paused for scan");
+        }
+        bool rslt = _wifiScanner.scanStart(busyRetryMs);
+        if (_reconnectPausedForScan && !_wifiScanner.isScanInProgress())
+            resumeReconnectAfterScan();
         jsonResult = _wifiScanner.getStatusJSON();
         return rslt;
     }
     jsonResult = _wifiScanner.getResultsJSON();
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Resume auto-reconnect after a scan (main task)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::resumeReconnectAfterScan()
+{
+    _reconnectPausedForScan = false;
+    _suppressWifiAutoReconnect = false;
+    if (_isPaused)
+        return;
+    esp_err_t connErr = esp_wifi_connect();
+    LOG_I(MODULE_PREFIX, "resumeReconnectAfterScan connect %s", esp_err_to_name(connErr));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1018,6 +1067,9 @@ bool NetworkSystem::startEthernet()
             .data7_io_num = -1,
             .data_io_default_level = 0,
             .max_transfer_sz = 0,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+            .dma_burst_size = 0,
+#endif
             .flags = 0,
             .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
             .intr_flags = 0
@@ -1287,7 +1339,9 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
     }
     case WIFI_EVENT_STA_DISCONNECTED:
     {
-        // Handle disconnect
+        // Record the reason (shown in the disconnect warning) and handle disconnect
+        if (pEventData)
+            _lastWiFiDisconnectReason = ((const wifi_event_sta_disconnected_t*)pEventData)->reason;
         handleWiFiStaDisconnectEvent();
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station disconnected");
         break;

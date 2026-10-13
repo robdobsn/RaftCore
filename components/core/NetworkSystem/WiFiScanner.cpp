@@ -31,7 +31,7 @@ WiFiScanner::~WiFiScanner()
 // Start scan (main task)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool WiFiScanner::scanStart()
+bool WiFiScanner::scanStart(uint32_t busyRetryMs)
 {
     // Pick up a completion that happened since the last loop()
     loop();
@@ -59,7 +59,13 @@ bool WiFiScanner::scanStart()
     // State is set before starting as the scan-done event (on the sys_evt task) may occur before
     // esp_wifi_scan_start returns
     _scanState = ScanState::SCANNING;
+    static const uint32_t BUSY_RETRY_DELAY_MS = 20;
     esp_err_t err = esp_wifi_scan_start(NULL, false);
+    while ((err == ESP_ERR_WIFI_STATE) && (busyRetryMs > 0) && !Raft::isTimeout(millis(), _scanStartMs, busyRetryMs))
+    {
+        vTaskDelay(pdMS_TO_TICKS(BUSY_RETRY_DELAY_MS));
+        err = esp_wifi_scan_start(NULL, false);
+    }
     if (err != ESP_OK)
     {
         _scanState = ScanState::FAILED;

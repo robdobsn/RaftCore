@@ -29,7 +29,9 @@ public:
     // Start a scan (main task). Returns false if the scan could not be started (the reason is
     // reported in the status). A start request while a scan is in progress, or within
     // MIN_RESCAN_INTERVAL_MS of a scan completing, is not an error and doesn't start a new scan.
-    bool scanStart();
+    // @param busyRetryMs time to keep retrying while the driver is busy (ESP_ERR_WIFI_STATE - e.g. a
+    //        connection attempt is still finishing after esp_wifi_disconnect), 0 to not retry
+    bool scanStart(uint32_t busyRetryMs = 0);
 
     // Service (main task) - collects the results of a completed scan promptly, as the driver's
     // list may be replaced by a later (e.g. connection) scan

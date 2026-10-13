@@ -178,6 +178,7 @@ private:
     uint32_t _lastReconnAttemptMs = 0;
     std::atomic<bool> _pendingWiFiDisconnectWarn{false};
     std::atomic<int> _pendingWiFiDisconnectWarnRetries{0};
+    std::atomic<int> _lastWiFiDisconnectReason{0};
 
     // WiFi event handler instances
     esp_event_handler_instance_t _wifiEventHandlerInstance = nullptr;
@@ -186,6 +187,14 @@ private:
 
     // Suppress auto-reconnect while a new STA config is being applied
     std::atomic<bool> _suppressWifiAutoReconnect{false};
+
+    // Auto-reconnect is paused while a scan runs when the STA isn't connected (a connection attempt
+    // in progress prevents scanning) - main task only
+    bool _reconnectPausedForScan = false;
+    uint32_t _reconnectPausedForScanMs = 0;
+    static const uint32_t SCAN_RECONNECT_PAUSE_MAX_MS = 15000;
+    static const uint32_t SCAN_START_BUSY_RETRY_MS = 2000;
+    void resumeReconnectAfterScan();
 
     // Retry max, -1 means try forever
     static const int WIFI_CONNECT_MAX_RETRY = -1;
