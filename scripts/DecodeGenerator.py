@@ -514,9 +514,10 @@ class DecodeGenerator:
             if "s" in el and el["s"] != 0:
                 bitshift = el["s"]
                 if bitshift > 0:
-                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} <<= {bitshift};\n")
+                    # Match RaftJS: positive shifts are logical right shifts of a uint32 value.
+                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} = (uint32_t)__{attr_name} >> {bitshift & 31};\n")
                 elif bitshift < 0:
-                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} >>= {-bitshift};\n")
+                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} = (int32_t)((uint32_t)__{attr_name} << {(-bitshift) & 31});\n")
 
             # Generate code to store the value to the struct
             extract_code.append(f"{line_prefix}        {elem_ind}{store_target} = __{attr_name};\n")
