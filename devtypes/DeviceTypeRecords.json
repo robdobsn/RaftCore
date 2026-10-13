@@ -2685,10 +2685,10 @@
             }
         },
         "LTR-329": {
-            "_notes": "Detection effectively matches any device at 0x29 - this record must stay AFTER every other 0x29 record (VL6180, VL53L0X, VL53L1X, VL53L4CD, CAP1188, TrillSquare).",
+            "_notes": "Detection per datasheet DS86-2014-0006: PART_ID (0x86) part number 0xA (revision nibble ignored), MANUFAC_ID (0x87) 0x05.",
             "addresses": "0x29",
             "deviceType": "LTR-329",
-            "detectionValues": "0x86=A005",
+            "detectionValues": "0x86=0b1010XXXX&0x87=0x05",
             "initValues": "0x8002&p20&0x8001",
             "pollInfo": {
                 "c": "0x88=r4",
@@ -2733,7 +2733,7 @@
         "LTR-390": {
             "addresses": "0x53",
             "deviceType": "LTR-390",
-            "detectionValues": "0x06=B2",
+            "detectionValues": "0x06=0b1011XXXX",
             "initValues": "0x0010&0x0440&p20&0x000A",
             "pollInfo": {
                 "c": "0x0D=r5&0x0002=p100&0x000A",
@@ -2776,7 +2776,7 @@
         "M5-Weight": {
             "addresses": "0x26",
             "deviceType": "M5-Weight",
-            "detectionValues": "0xFF=26262626",
+            "detectionValues": "0xFF=0x26",
             "initValues": "",
             "pollInfo": {
                 "c": "0x10=r4&0x00=r4",

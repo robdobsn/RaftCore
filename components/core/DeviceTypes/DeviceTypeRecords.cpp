@@ -10,6 +10,7 @@
 #include "BusRequestInfo.h"
 #include "PollReadLenExpr.h"
 #include "RaftJson.h"
+#include <cctype>
 
 // #define DEBUG_DEVICE_INFO_RECORDS
 // #define DEBUG_POLL_REQUEST_REQS
@@ -580,6 +581,22 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
         }
         return true;
     }
+
+    // Otherwise the only valid content is an optional pause (pNN), as in a write-then-pause step
+    // such as "0x00FF=p25", which deliberately has nothing to read or check. Anything else (e.g.
+    // "A005", a hex value missing its 0x prefix) is an error - accepting it as an empty check would
+    // make detection match any device that ACKs the write
+    for (uint32_t i = 0; i < readStrLC.length(); i++)
+    {
+        if (readStrLC[i] == 'p')
+        {
+            while ((i + 1 < readStrLC.length()) && isdigit(readStrLC[i + 1]))
+                i++;
+            continue;
+        }
+        if (!isspace(readStrLC[i]))
+            return false;
+    }
     return true;
 }
 
@@ -657,12 +674,13 @@ uint32_t DeviceTypeRecords::extractBarAccessMs(const String& readStr)
 /// @brief Get detection records
 /// @param deviceType device type
 /// @param detectionRecs (out) detection records
-void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, std::vector<DeviceDetectionRec>& detectionRecs)
+/// @return false if any detection value is invalid (detectionRecs is then empty and the record must not match)
+bool DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, std::vector<DeviceDetectionRec>& detectionRecs)
 {
     // Clear initially
     detectionRecs.clear();
     if (!pDevTypeRec)
-        return;
+        return false;
 
     // Get the detection values
     String detectionValues = pDevTypeRec->detectionValues;
@@ -672,13 +690,20 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
     RaftJson::extractNameValues(detectionValues, "=", "&", ";", detectionWriteReadPairs);
 
     // Convert to detection records
+    // An invalid entry invalidates the whole record rather than being skipped - skipping it would
+    // leave fewer checks (or none) and so make the record easier to match, not harder
     for (const auto& detectionNameValue : detectionWriteReadPairs)
     {
         DeviceDetectionRec detectionRec;
-        if (!extractBufferDataFromHexStr(detectionNameValue.name, detectionRec.writeData))
-            continue;
-        if (!extractCheckInfoFromHexStr(detectionNameValue.value, detectionRec.checkValues, true))
-            continue;
+        if (!extractBufferDataFromHexStr(detectionNameValue.name, detectionRec.writeData) ||
+            !extractCheckInfoFromHexStr(detectionNameValue.value, detectionRec.checkValues, true))
+        {
+            LOG_W(MODULE_PREFIX, "getDetectionRecs %s invalid detection value %s=%s",
+                        pDevTypeRec->deviceType ? pDevTypeRec->deviceType : "?",
+                        detectionNameValue.name.c_str(), detectionNameValue.value.c_str());
+            detectionRecs.clear();
+            return false;
+        }
         detectionRec.pauseAfterSendMs = extractBarAccessMs(detectionNameValue.value);
         detectionRecs.push_back(detectionRec);
     }
@@ -686,6 +711,7 @@ void DeviceTypeRecords::getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, st
 #ifdef DEBUG_DEVICE_INFO_RECORDS
     LOG_I(MODULE_PREFIX, "getDetectionRecs %d recs detectionStr %s", detectionRecs.size(), detectionValues.c_str());
 #endif
+    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

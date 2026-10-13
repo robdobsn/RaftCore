@@ -81,7 +81,8 @@ public:
     /// @brief Get detection records
     /// @param pDevTypeRec device type record
     /// @param detectionRecs (out) detection records
-    void getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, std::vector<DeviceDetectionRec>& detectionRecs);
+    /// @return false if any detection value is invalid (detectionRecs is then empty and the record must not match)
+    bool getDetectionRecs(const DeviceTypeRecord* pDevTypeRec, std::vector<DeviceDetectionRec>& detectionRecs);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get initialisation bus requests
