@@ -5,6 +5,7 @@ idf_component_register(SRCS
             "RaftJson_test_no_path.cpp"
             "RaftJson_test_nv_pairs.cpp"
             "RaftJson_test_values.cpp"
+            "RaftJson_test_edge_cases.cpp"
             "RaftJsonPrefixed_test.cpp"
             "exprCtx_unit_test.cpp"
             "expressions_unit_test.cpp"

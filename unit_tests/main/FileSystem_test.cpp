@@ -21,7 +21,7 @@ TEST_CASE("file_system_test", "[filesystem]")
     String respStr;
     TEST_ASSERT_TRUE(fileSystem.getFilesJSON("", "", "/", respStr));
 
-    const char* expectedFilesJson = "{\"req\":\"\",\"rslt\":\"ok\",\"fsName\":\"local\",\"fsBase\":\"/local\",\"diskSize\":524288,\"diskUsed\":8192,\"folder\":\"/local/\",\"files\":[{\"name\":\"testFile.txt\",\"size\":65}]}";
+    const char* expectedFilesJson = "{\"req\":\"\",\"rslt\":\"ok\",\"fsName\":\"local\",\"fsBase\":\"/local\",\"diskSize\":524288,\"diskUsed\":8192,\"folder\":\"/local/\",\"files\":[{\"name\":\"testFile.txt\",\"size\":65,\"isDir\":0}]}";
     // LOG_I("FileSystemTest", "file_system_test getFilesJson %s", respStr.c_str());
     TEST_ASSERT_EQUAL_STRING(expectedFilesJson, respStr.c_str());
 

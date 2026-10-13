@@ -14,6 +14,8 @@
 #include <vector>
 #include <string>
 #include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 #include <limits.h>
 #include "RaftJsonIF.h"
 
@@ -523,11 +525,15 @@ public:
                 // Check for end of array
                 if (*pJsonDocPos == ']')
                     return RAFT_JSON_ARRAY;
+                // Unexpected closing brace inside array = malformed JSON
+                if (*pJsonDocPos == '}')
+                    return RAFT_JSON_UNDEFINED;
                 // Locate element
                 const char* pElemStart = nullptr;
                 const char* pElemEnd = nullptr;
+                const char* pPrevPos = pJsonDocPos;
                 pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pDocEnd, pElemStart, pElemEnd);
-                if (!pJsonDocPos)
+                if (!pJsonDocPos || (pJsonDocPos == pPrevPos))
                     return RAFT_JSON_UNDEFINED;
                 // Count elements
                 arrayLen++;
@@ -635,23 +641,143 @@ public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Escape a string
     /// @param strToEsc : string in which to replace characters which are invalid in JSON
+    /// @note Escapes quote, backslash and all control characters (using the short forms where JSON has them)
     static void escapeString(String& strToEsc)
     {
-        // Replace characters which are invalid in JSON
-        strToEsc.replace("\\", "\\\\");
-        strToEsc.replace("\"", "\\\"");
-        strToEsc.replace("\n", "\\n");
+        // Check if anything needs escaping (the common case is nothing does)
+        const char* pStr = strToEsc.c_str();
+        const char* pEnd = pStr + strToEsc.length();
+        const char* pPos = pStr;
+        while ((pPos < pEnd) && !charNeedsEscape(*pPos))
+            pPos++;
+        if (pPos == pEnd)
+            return;
+
+        // Build escaped string - copying runs of unescaped characters in one go
+        String outStr;
+        outStr.reserve(strToEsc.length() + 8);
+        outStr.concat(pStr, pPos - pStr);
+        const char* pRunStart = pPos;
+        for (; pPos < pEnd; pPos++)
+        {
+            if (!charNeedsEscape(*pPos))
+                continue;
+            outStr.concat(pRunStart, pPos - pRunStart);
+            pRunStart = pPos + 1;
+            outStr += '\\';
+            switch (*pPos)
+            {
+                case '"': outStr += '"'; break;
+                case '\\': outStr += '\\'; break;
+                case '\b': outStr += 'b'; break;
+                case '\f': outStr += 'f'; break;
+                case '\n': outStr += 'n'; break;
+                case '\r': outStr += 'r'; break;
+                case '\t': outStr += 't'; break;
+                default:
+                {
+                    static const char HEX_DIGITS[] = "0123456789abcdef";
+                    uint8_t ch = (uint8_t)*pPos;
+                    outStr += "u00";
+                    outStr += HEX_DIGITS[ch >> 4];
+                    outStr += HEX_DIGITS[ch & 0x0f];
+                    break;
+                }
+            }
+        }
+        outStr.concat(pRunStart, pEnd - pRunStart);
+        strToEsc = outStr;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Unescape a string
-    /// @param strToUnEsc : string in which to restore characters which are invalid in JSON
+    /// @param strToUnEsc : string in which to restore characters which are escaped in JSON
     static void unescapeString(String& strToUnEsc)
     {
-        // Replace characters which are invalid in JSON
-        strToUnEsc.replace("\\\"", "\"");
-        strToUnEsc.replace("\\\\", "\\");
-        strToUnEsc.replace("\\n", "\n");
+        // Nothing to do if there are no escapes
+        if (strToUnEsc.indexOf('\\') < 0)
+            return;
+        String outStr = unescapeStr(strToUnEsc.c_str(), strToUnEsc.c_str() + strToUnEsc.length());
+        strToUnEsc = outStr;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Unescape a JSON string (contents between the quotes)
+    /// @param pStr : start of escaped string
+    /// @param pEnd : end of escaped string
+    /// @return unescaped string
+    /// @note Handles \" \\ \/ \b \f \n \r \t and \uXXXX (including surrogate pairs) which is converted to UTF-8.
+    ///       Unknown or incomplete escapes (and \u0000) are left unchanged.
+    static String unescapeStr(const char* pStr, const char* pEnd)
+    {
+        String outStr;
+        outStr.reserve(pEnd - pStr);
+        const char* pRunStart = pStr;
+        while (pStr < pEnd)
+        {
+            if ((*pStr != '\\') || (pStr + 1 >= pEnd))
+            {
+                pStr++;
+                continue;
+            }
+
+            // Copy the run of characters before the escape
+            outStr.concat(pRunStart, pStr - pRunStart);
+            char escCh = pStr[1];
+            const char* pEscStart = pStr;
+            pStr += 2;
+            switch (escCh)
+            {
+                case '"': outStr += '"'; break;
+                case '\\': outStr += '\\'; break;
+                case '/': outStr += '/'; break;
+                case 'b': outStr += '\b'; break;
+                case 'f': outStr += '\f'; break;
+                case 'n': outStr += '\n'; break;
+                case 'r': outStr += '\r'; break;
+                case 't': outStr += '\t'; break;
+                case 'u':
+                {
+                    uint32_t codePoint = 0;
+                    if (!parseHex4(pStr, pEnd, codePoint) || (codePoint == 0))
+                    {
+                        // Leave as-is
+                        outStr.concat(pEscStart, 2);
+                        break;
+                    }
+                    pStr += 4;
+                    // Combine surrogate pair
+                    if ((codePoint >= 0xD800) && (codePoint <= 0xDBFF))
+                    {
+                        uint32_t lowSurrogate = 0;
+                        if ((pStr + 6 <= pEnd) && (pStr[0] == '\\') && (pStr[1] == 'u') &&
+                                parseHex4(pStr + 2, pEnd, lowSurrogate) &&
+                                (lowSurrogate >= 0xDC00) && (lowSurrogate <= 0xDFFF))
+                        {
+                            codePoint = 0x10000 + ((codePoint - 0xD800) << 10) + (lowSurrogate - 0xDC00);
+                            pStr += 6;
+                        }
+                        else
+                        {
+                            codePoint = 0xFFFD;
+                        }
+                    }
+                    else if ((codePoint >= 0xDC00) && (codePoint <= 0xDFFF))
+                    {
+                        codePoint = 0xFFFD;
+                    }
+                    appendUTF8(outStr, codePoint);
+                    break;
+                }
+                default:
+                    // Unknown escape - leave as-is
+                    outStr.concat(pEscStart, 2);
+                    break;
+            }
+            pRunStart = pStr;
+        }
+        outStr.concat(pRunStart, pEnd - pRunStart);
+        return outStr;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -892,65 +1018,56 @@ public:
             return ArrayIterator(nullptr, nullptr);
         }
 
+        /// @brief Get array element by index
+        /// @param index index of element
+        /// @return element (or an empty document if the index is out of range or the path isn't an array)
+        /// @note Each call scans from the start of the document so avoid in loops - use the iterator instead
         RaftJson operator[](size_t index) const {
-            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
-            const char* pCurrent = pStart;
-            const char* pDocEnd = _pJsonDoc->getJsonDocEnd();
-            if (pCurrent && *pCurrent == '[') {
-                pCurrent++;  // Move past the '['
-                skipWhitespace(pCurrent, pDocEnd);
-            }
-
-            size_t currentIndex = 0;
-            while (pCurrent && pCurrent < pDocEnd && *pCurrent != ']') {
-                if (currentIndex == index) {
-                    // Find the bounds of the current element
-                    const char* pElemEnd = nullptr;
-                    locateElementBounds(pCurrent, pDocEnd, pCurrent, pElemEnd);
-                    return RaftJson(pCurrent, false, pElemEnd);
-                }
-
-                // Move to next element
-                const char* pElemEnd = nullptr;
-                pCurrent = locateElementBounds(pCurrent, pDocEnd, pCurrent, pElemEnd);
-                skipWhitespace(pCurrent, pDocEnd);
-                if (*pCurrent == ',') {
-                    pCurrent++;
-                    skipWhitespace(pCurrent, pDocEnd);
-                }
-                currentIndex++;
-            }
-            return RaftJson();
+            const char* pElemStart = nullptr;
+            const char* pElemEnd = nullptr;
+            if ((index == SIZE_MAX) || (locateArrayElem(index, pElemStart, pElemEnd) != index + 1))
+                return RaftJson();
+            return RaftJson(pElemStart, false, pElemEnd);
         }
 
+        /// @brief Get number of elements in the array
+        /// @return number of elements (0 if the path isn't an array)
         size_t size() const {
-            const char* pStart = _pJsonDoc->locateElementByPath(_path.c_str());
-            const char* pCurrent = pStart;
+            const char* pElemStart = nullptr;
+            const char* pElemEnd = nullptr;
+            return locateArrayElem(SIZE_MAX, pElemStart, pElemEnd);
+        }
+
+    private:
+        /// @brief Walk the array elements up to the one at the required index
+        /// @param index index of required element (SIZE_MAX to walk the entire array)
+        /// @param pElemStart [out] start of element at index
+        /// @param pElemEnd [out] end of element at index
+        /// @return number of elements walked (index + 1 if the element at index was found)
+        size_t locateArrayElem(size_t index, const char*& pElemStart, const char*& pElemEnd) const {
+            const char* pCurrent = _pJsonDoc->locateElementByPath(_path.c_str());
             const char* pDocEnd = _pJsonDoc->getJsonDocEnd();
-            if (pCurrent && *pCurrent == '[') {
-                pCurrent++;  // Move past the '['
-                skipWhitespace(pCurrent, pDocEnd);
-            } else {
-                return 0; // Not a valid array
-            }
+            if (!pCurrent || (*pCurrent != '['))
+                return 0;
+            pCurrent++;
 
             size_t count = 0;
-            while (pCurrent && pCurrent < pDocEnd && *pCurrent != ']') {
-                // Find the end of the current element
-                const char* pElemEnd = nullptr;
-                pCurrent = locateElementBounds(pCurrent, pDocEnd, pCurrent, pElemEnd);
-                if (!pCurrent || pCurrent >= pDocEnd) {
-                    break;
-                }
-                count++;
+            while (pCurrent && (pCurrent < pDocEnd)) {
                 skipWhitespace(pCurrent, pDocEnd);
-                if (*pCurrent == ',') {
-                    pCurrent++;
-                    skipWhitespace(pCurrent, pDocEnd);
-                }
+                if (!*pCurrent || (*pCurrent == ']') || (*pCurrent == '}'))
+                    break;
+                const char* pNext = locateElementBounds(pCurrent, pDocEnd, pElemStart, pElemEnd);
+                if (!pNext || (pNext == pCurrent))
+                    break;
+                count++;
+                if (count > index)
+                    break;
+                pCurrent = pNext;
             }
             return count;
-        }        
+        }
+
+    public:
         
     private:
         const RaftJsonIF* _pJsonDoc;
@@ -965,69 +1082,68 @@ public:
     class ArrayIterator {
     public:
         // Construct the iterator with a pointer to the JSON document and the start of the array
+        // Anything other than a non-empty array gives an iterator equal to end()
         ArrayIterator(const char* pStart, const char* pEnd)
-            : _pStart(pStart), _pCurrent(pStart), _pDocEnd(pEnd), _atEnd(pStart == nullptr || pStart == pEnd) 
+            : _pDocEnd(pEnd)
         {
-            if (_pCurrent && *_pCurrent == '[') 
-            {
-                // Move past the opening bracket of the array
-                _pCurrent++;
-                skipWhitespace(_pCurrent, _pDocEnd);
-                if (*_pCurrent == ']') 
-                {
-                    _atEnd = true; // Handle empty array
-                }
-            }
+            if (!pStart || (pStart == pEnd) || (*pStart != '['))
+                return;
+            // Move past the opening bracket of the array
+            const char* pPos = pStart + 1;
+            skipWhitespace(pPos, _pDocEnd);
+            if (!*pPos || (*pPos == ']') || (*pPos == '}'))
+                return;
+            _pCurrent = pPos;
+            _atEnd = false;
         }
 
         // Move to the next element in the array
-        ArrayIterator& operator++() 
+        ArrayIterator& operator++()
         {
-            if (!_atEnd && _pCurrent) 
+            if (_atEnd || !_pCurrent)
+                return *this;
+            // Find the bounds of the current element (this skips trailing whitespace and comma)
+            const char* pElemStart = nullptr;
+            const char* pElemEnd = nullptr;
+            const char* pNext = locateElementBounds(_pCurrent, _pDocEnd, pElemStart, pElemEnd);
+            if (pNext)
+                skipWhitespace(pNext, _pDocEnd);
+            if (!pNext || (pNext == _pCurrent) || !*pNext || (*pNext == ']') || (*pNext == '}'))
             {
-                const char* pElemEnd = nullptr;
-                // Find the bounds of the current element
-                _pCurrent = locateElementBounds(_pCurrent, _pDocEnd, _pCurrent, pElemEnd);
-                if (!_pCurrent)
-                {
-                    _atEnd = true;
-                    return *this;
-                }
-                skipWhitespace(_pCurrent, _pDocEnd);
-                if (*_pCurrent == ']') 
-                {
-                    _atEnd = true;
-                    _pCurrent = nullptr;
-                }
-                else if (*_pCurrent == ',') 
-                {
-                    _pCurrent++;
-                    skipWhitespace(_pCurrent, _pDocEnd);
-                }
+                setAtEnd();
+                return *this;
             }
+            _pCurrent = pNext;
             return *this;
         }
 
         // Access the element the iterator points to
-        RaftJson operator*() const 
+        RaftJson operator*() const
         {
+            if (!_pCurrent)
+                return RaftJson();
+            const char* pElemStart = nullptr;
             const char* pElemEnd = nullptr;
-            const char* pElemStart = _pCurrent;
-            locateElementBounds(_pCurrent, _pDocEnd, pElemStart, pElemEnd);
+            if (!locateElementBounds(_pCurrent, _pDocEnd, pElemStart, pElemEnd) || !pElemEnd)
+                return RaftJson();
             return RaftJson(pElemStart, false, pElemEnd);
         }
 
         // Compare two iterators
-        bool operator!=(const ArrayIterator& other) const 
+        bool operator!=(const ArrayIterator& other) const
         {
             return _pCurrent != other._pCurrent || _atEnd != other._atEnd;
         }
 
     private:
-        const char* _pStart = nullptr;
+        void setAtEnd()
+        {
+            _atEnd = true;
+            _pCurrent = nullptr;
+        }
         const char* _pCurrent = nullptr;
         const char* _pDocEnd = nullptr;
-        bool _atEnd = false;
+        bool _atEnd = true;
     };
 
     // Forward definition of iterator
@@ -1064,73 +1180,60 @@ public:
 
     class ObjectIterator {
     public:
+        // Construct the iterator with a pointer to the JSON document and the start of the object
+        // Anything other than a non-empty object gives an iterator equal to end()
         ObjectIterator(const char* pStart, const char* pEnd)
-            : _pCurrent(pStart), _pDocEnd(pEnd), _atEnd(pStart == nullptr || pStart == pEnd)
+            : _pDocEnd(pEnd)
         {
-            if (_pCurrent && *_pCurrent == '{') {
-                _pCurrent++;
-                skipWhitespace(_pCurrent, _pDocEnd);
-                if (*_pCurrent == '}') {
-                    _atEnd = true; // Handle empty object
-                }
-            }
+            if (!pStart || (pStart == pEnd) || (*pStart != '{'))
+                return;
+            // Move past the opening brace of the object
+            const char* pPos = pStart + 1;
+            skipWhitespace(pPos, _pDocEnd);
+            if (*pPos != '"')
+                return;
+            _pCurrent = pPos;
+            _atEnd = false;
         }
 
         ObjectIterator& operator++() {
-            if (!_atEnd && _pCurrent) 
+            if (_atEnd || !_pCurrent)
+                return *this;
+            // Find the bounds of the key and then the value (these skip whitespace, colon and comma)
+            const char* pElemStart = nullptr;
+            const char* pElemEnd = nullptr;
+            const char* pNext = locateElementBounds(_pCurrent, _pDocEnd, pElemStart, pElemEnd);
+            if (pNext)
+                pNext = locateElementBounds(pNext, _pDocEnd, pElemStart, pElemEnd);
+            if (pNext)
+                skipWhitespace(pNext, _pDocEnd);
+            if (!pNext || (pNext == _pCurrent) || (*pNext != '"'))
             {
-                const char* pElemEnd = nullptr;
-                // Find the bounds of the key
-                _pCurrent = locateElementBounds(_pCurrent, _pDocEnd, _pCurrent, pElemEnd);
-                if (!_pCurrent)
-                {
-                    _atEnd = true;
-                    return *this;
-                }
-                skipWhitespace(_pCurrent, _pDocEnd);
-                if (*_pCurrent == ':')
-                {
-                    _pCurrent++;
-                }
-                // Find the bounds of the value
-                _pCurrent = locateElementBounds(_pCurrent, _pDocEnd, _pCurrent, pElemEnd);
-                if (!_pCurrent)
-                {
-                    _atEnd = true;
-                    return *this;
-                }
-                skipWhitespace(_pCurrent, _pDocEnd);
-                if (*_pCurrent == '}') 
-                {
-                    _atEnd = true;
-                    _pCurrent = nullptr;
-                }
-                else if (*_pCurrent == ',') 
-                {
-                    _pCurrent++;
-                    skipWhitespace(_pCurrent, _pDocEnd);
-                }
+                setAtEnd();
+                return *this;
             }
+            _pCurrent = pNext;
             return *this;
         }
 
         std::pair<String, RaftJson> operator*() const {
+            if (!_pCurrent)
+                return {String(), RaftJson()};
+
             // Locate key
             const char* pKeyStart = nullptr;
             const char* pKeyEnd = nullptr;
             const char* pJsonDocPos = locateStringElement(_pCurrent, _pDocEnd, pKeyStart, pKeyEnd, false);
-            String key;
-            if (pJsonDocPos)
-                key = String(pKeyStart, pKeyEnd - pKeyStart);
+            if (!pJsonDocPos)
+                return {String(), RaftJson()};
+            String key(pKeyStart, pKeyEnd - pKeyStart);
 
-            // Find value
-            skipWhitespace(pJsonDocPos, _pDocEnd);
-            if (*pJsonDocPos == ':')
-                pJsonDocPos++;
-            skipWhitespace(pJsonDocPos, _pDocEnd);
+            // Find value (locateElementBounds skips whitespace and the colon)
+            const char* pValueStart = nullptr;
             const char* pValueEnd = nullptr;
-            locateElementBounds(pJsonDocPos, _pDocEnd, pJsonDocPos, pValueEnd);
-            return {key, RaftJson(pJsonDocPos, false, pValueEnd)};
+            if (!locateElementBounds(pJsonDocPos, _pDocEnd, pValueStart, pValueEnd) || !pValueEnd)
+                return {key, RaftJson()};
+            return {key, RaftJson(pValueStart, false, pValueEnd)};
         }
 
         bool operator!=(const ObjectIterator& other) const {
@@ -1138,10 +1241,15 @@ public:
         }
 
     private:
-        const char* _pCurrent;
-        const char* _pDocEnd;
-        bool _atEnd;
-    };    
+        void setAtEnd()
+        {
+            _atEnd = true;
+            _pCurrent = nullptr;
+        }
+        const char* _pCurrent = nullptr;
+        const char* _pDocEnd = nullptr;
+        bool _atEnd = true;
+    };
 
 protected:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1166,6 +1274,73 @@ private:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Check if a character must be escaped in a JSON string
+    /// @param ch the character
+    /// @return true if the character must be escaped
+    static bool charNeedsEscape(char ch)
+    {
+        return (ch == '"') || (ch == '\\') || ((uint8_t)ch < 0x20);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Parse 4 hex digits (as used in a \uXXXX escape)
+    /// @param pStr start of hex digits
+    /// @param pEnd end of string
+    /// @param value [out] parsed value
+    /// @return true if 4 valid hex digits were found
+    static bool parseHex4(const char* pStr, const char* pEnd, uint32_t& value)
+    {
+        if (pStr + 4 > pEnd)
+            return false;
+        value = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            char ch = pStr[i];
+            uint32_t digit = 0;
+            if ((ch >= '0') && (ch <= '9'))
+                digit = ch - '0';
+            else if ((ch >= 'a') && (ch <= 'f'))
+                digit = ch - 'a' + 10;
+            else if ((ch >= 'A') && (ch <= 'F'))
+                digit = ch - 'A' + 10;
+            else
+                return false;
+            value = (value << 4) | digit;
+        }
+        return true;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Append a unicode code point to a string as UTF-8
+    /// @param outStr string to append to
+    /// @param codePoint unicode code point
+    static void appendUTF8(String& outStr, uint32_t codePoint)
+    {
+        if (codePoint < 0x80)
+        {
+            outStr += (char)codePoint;
+        }
+        else if (codePoint < 0x800)
+        {
+            outStr += (char)(0xC0 | (codePoint >> 6));
+            outStr += (char)(0x80 | (codePoint & 0x3F));
+        }
+        else if (codePoint < 0x10000)
+        {
+            outStr += (char)(0xE0 | (codePoint >> 12));
+            outStr += (char)(0x80 | ((codePoint >> 6) & 0x3F));
+            outStr += (char)(0x80 | (codePoint & 0x3F));
+        }
+        else
+        {
+            outStr += (char)(0xF0 | (codePoint >> 18));
+            outStr += (char)(0x80 | ((codePoint >> 12) & 0x3F));
+            outStr += (char)(0x80 | ((codePoint >> 6) & 0x3F));
+            outStr += (char)(0x80 | (codePoint & 0x3F));
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Locate a string element from the current position in a JSON document
     /// @param pJsonDocPos the current position in the JSON document
     /// @param pJsonEnd the end of the JSON document
@@ -1180,12 +1355,13 @@ private:
         if (!includeQuotes && (*pJsonDocPos == '"') && (pJsonDocPos < pJsonEnd))
             pJsonDocPos++;
 
-        // Find end of string
+        // Find end of string - a backslash escapes the next character only (so "\\" ends in a
+        // literal backslash and the following quote closes the string)
         pElemStart = pJsonDocPos;
         bool isEscaped = false;
         while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (isEscaped || (*pJsonDocPos != '"')))
         {
-            isEscaped = (*pJsonDocPos == '\\');
+            isEscaped = !isEscaped && (*pJsonDocPos == '\\');
             pJsonDocPos++;
         }
 
@@ -1289,12 +1465,12 @@ private:
 #ifdef DEBUG_JSON_LOCATE_ELEMENT_BOUNDS
             LOG_I("RaftJson", "locateElementBounds found string pJsonDocPos %p", pJsonDocPos);
 #endif
-            // Find end of string
+            // Find end of string - a backslash escapes the next character only
             pJsonDocPos++;
             bool isEscaped = false;
             while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (isEscaped || (*pJsonDocPos != '"')))
             {
-                isEscaped = (*pJsonDocPos == '\\');
+                isEscaped = !isEscaped && (*pJsonDocPos == '\\');
                 pJsonDocPos++;
             }
             if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
@@ -1415,13 +1591,21 @@ private:
         const char* pKeyEnd = nullptr;
         while (*pJsonDocPos && (pJsonDocPos < pJsonEnd))
         {
+            // Skip whitespace
+            while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
+                pJsonDocPos++;
+            if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
+                return nullptr;
+
+            // Check for the end of the object or array (this also handles empty ones)
+            if ((*pJsonDocPos == '}') || (*pJsonDocPos == ']'))
+                return nullptr;
+
             // Check for object - in which case what comes first is the key
             if (isObject)
             {
-                // Skip to start of key
-                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos != '"'))
-                    pJsonDocPos++;
-                if (!*pJsonDocPos || (pJsonDocPos >= pJsonEnd))
+                // Key must be a string
+                if (*pJsonDocPos != '"')
                     return nullptr;
                 // Extract key string
                 pJsonDocPos = locateStringElement(pJsonDocPos, pJsonEnd, pKeyStart, pKeyEnd, false);
@@ -1436,29 +1620,20 @@ private:
                 uint32_t keyLen = (pKeyEnd - pKeyStart) > (pReqdKeyEnd - pReqdKeyStart) ? (pKeyEnd - pKeyStart) : (pReqdKeyEnd - pReqdKeyStart);
                 if (strncmp(pKeyStart, pReqdKeyStart, keyLen) == 0)
                     return pJsonDocPos;
-                // Skip whitespace
-                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) && (*pJsonDocPos <= ' '))
-                    pJsonDocPos++;
             }
             else
             {
                 if (arrayIdx == elemCount)
                     return pJsonDocPos;
                 elemCount++;
-                // Skip whitespace
-                while (*pJsonDocPos && (pJsonDocPos < pJsonEnd) &&(*pJsonDocPos <= ' '))
-                    pJsonDocPos++;
             }
 
             // Skip to end of element
             const char* pElemEnd = nullptr;
             const char* pElemStart = nullptr;
+            const char* pPrevPos = pJsonDocPos;
             pJsonDocPos = RaftJson::locateElementBounds(pJsonDocPos, pJsonEnd, pElemStart, pElemEnd);
-            if (!pJsonDocPos)
-                return nullptr;
-
-            // Check if we've reached the end of the object or array
-            if ((*pJsonDocPos == '}') || (*pJsonDocPos == ']'))
+            if (!pJsonDocPos || (pJsonDocPos == pPrevPos))
                 return nullptr;
         }
         return nullptr;
@@ -1559,12 +1734,10 @@ private:
         // Check if string end bounds is a quote
         if ((pElemEnd > pElemStart) && (*(pElemEnd-1) == '"'))
             pElemEnd--;
-        // Return string without quotes
-        String retStr = String(pElemStart, pElemEnd - pElemStart);
-        if (unescape && isString)
-            unescapeString(retStr);
-        return retStr;
-
+        // Return string without quotes (unescaping directly from the document if required)
+        if (unescape && isString && memchr(pElemStart, '\\', pElemEnd - pElemStart))
+            return unescapeStr(pElemStart, pElemEnd);
+        return String(pElemStart, pElemEnd - pElemStart);
     }
 
 private:

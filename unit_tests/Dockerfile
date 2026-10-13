@@ -1,7 +1,9 @@
-# The ESP-IDF version is NOT set in this file
-# It is set by ESP_IDF_VERSION in systypes/unittest/features.cmake and is supplied when the image is
-# built by "raft build" - so this Dockerfile can't be built directly with "docker build"
-ARG ESP_IDF_VERSION
+# The ESP-IDF version is normally set by ESP_IDF_VERSION in systypes/Common/features.cmake (and can be
+# overridden for a SysType in systypes/<SysType>/features.cmake) and is supplied as a build-arg when the
+# image is built by "raft build", which overrides the default below.
+# The default (kept in step with features.cmake) lets "docker build" work standalone and keeps
+# Docker's InvalidDefaultArgInFrom lint quiet.
+ARG ESP_IDF_VERSION=v6.1
 FROM espressif/idf:${ESP_IDF_VERSION}
 WORKDIR /project
 # Install dependencies required for Node.js install
