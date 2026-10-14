@@ -79,6 +79,9 @@ public:
 
         // mDNS
         enableMDNS = configPrefixed.getBool("enableMDNS", true);
+
+        // WiFi diagnostics and link options (see WiFiDiagnostics::setOptions())
+        wifiDiagJSON = configPrefixed.getString("wifiDiag", "");
     }
 
     // Enables
@@ -123,6 +126,9 @@ public:
 
     // NTP
     String ntpServer;
+
+    // WiFi diagnostics and link options JSON (see WiFiDiagnostics::setOptions())
+    String wifiDiagJSON;
     String timezone;
 
     // mDNS

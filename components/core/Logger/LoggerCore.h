@@ -25,6 +25,9 @@ public:
     std::vector<LoggerBase*> getLoggers();
     String getLoggersJSON(bool includeBraces);
 
+    // Write a message to the console (also used for ESP-IDF log output)
+    static void LOGGING_FUNCTION_DECORATOR writeToConsole(const char* msg);
+
 private:
     // Loggers are held in a fixed array with an atomic count since log() can be called from any task
     // (and at any time, including while loggers are being added on the main task)

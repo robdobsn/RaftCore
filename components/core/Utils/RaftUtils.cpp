@@ -1503,6 +1503,7 @@ const char* Raft::getRetCodeStr(RaftRetCode retc)
         case RAFT_BUS_PENDING: return "BUS_PENDING";
         case RAFT_BUS_HW_TIME_OUT: return "BUS_HW_TIME_OUT";
         case RAFT_BUS_ACK_ERROR: return "BUS_ACK_ERROR";
+        case RAFT_RESP_DEFERRED: return "RESP_DEFERRED";
         case RAFT_BUS_ARB_LOST: return "BUS_ARB_LOST";
         case RAFT_BUS_SW_TIME_OUT: return "BUS_SW_TIME_OUT";
         case RAFT_BUS_INVALID: return "BUS_INVALID";

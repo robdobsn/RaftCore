@@ -10,6 +10,7 @@
 #include "Logger.h"
 #include "RaftUtils.h"
 #include "RestAPIEndpointManager.h"
+#include "RaftMainTask.h"
 
 // Warn
 #define WARN_ON_NON_MATCHING_ENDPOINTS
@@ -169,11 +170,76 @@ RaftRetCode RestAPIEndpointManager::handleApiRequest(const char *requestStr, Str
 
     // Call endpoint
     String reqStr(requestStr);
-    pEndpoint->callbackMain(reqStr, retStr, sourceInfo);
+    RaftRetCode retc = pEndpoint->callbackMain(reqStr, retStr, sourceInfo);
 #ifdef DEBUG_HANDLE_API_REQUEST_AND_RESPONSE
-    LOG_W(MODULE_PREFIX, "handleApiRequest %s resp %s channelID %d", requestStr, retStr.c_str(), sourceInfo.channelID);
+    LOG_W(MODULE_PREFIX, "handleApiRequest %s resp %s channelID %d retc %s", requestStr, retStr.c_str(), 
+                sourceInfo.channelID, Raft::getRetCodeStr(retc));
 #endif
-    return RAFT_OK;
+
+    // A deferred response is reported to the transport (which must deliver the response later), any other
+    // result is reported as OK (as the response, which may be an error response, is in retStr)
+    return (retc == RAFT_RESP_DEFERRED) ? RAFT_RESP_DEFERRED : RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle an API request from a caller which is able to deliver the response later
+/// @param requestStr request string
+/// @param retStr (out) response (if not deferred)
+/// @param sourceInfo source info of the request (deferral fields are set by this function)
+/// @param deliveryFn function called (on the main task) with the response if it is deferred
+/// @return RAFT_RESP_DEFERRED if the response will be delivered via deliveryFn, otherwise RAFT_OK (or an error
+///         if the API is not found) with the response in retStr
+RaftRetCode RestAPIEndpointManager::handleApiRequestDeferrable(const char *requestStr, String &retStr, 
+            APISourceInfo sourceInfo, RestAPIDeferredResponses::DeliveryFn deliveryFn)
+{
+    // Allow the endpoint to defer its response
+    sourceInfo.canDefer = true;
+    sourceInfo.deferToken = _deferredResponses.allocToken();
+    RaftRetCode retc = handleApiRequest(requestStr, retStr, sourceInfo);
+    if (retc != RAFT_RESP_DEFERRED)
+        return retc;
+
+    // Bind delivery (this delivers immediately if the endpoint has already completed the request)
+    if (!_deferredResponses.bindDelivery(sourceInfo.deferToken, deliveryFn))
+    {
+        // The endpoint reported a deferred response without having deferred it
+        Raft::setJsonErrorResult(requestStr, retStr, "deferFailed");
+        return RAFT_OK;
+    }
+    return RAFT_RESP_DEFERRED;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Defer the response to a request (call from a handler which cannot respond before returning)
+/// @param reqStr request string
+/// @param sourceInfo source info of the request
+/// @param timeoutMs time allowed for completeDeferred() before a timeout response is sent (0 = default)
+/// @param timeoutFn optional function called if the request times out
+/// @return RAFT_RESP_DEFERRED if deferred (return this from the handler) or an error in which case the handler
+///         must respond before returning
+RaftRetCode RestAPIEndpointManager::deferResponse(const char* reqStr, const APISourceInfo& sourceInfo, 
+            uint32_t timeoutMs, RestAPIDeferredResponses::TimeoutFn timeoutFn)
+{
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "deferResponse");
+    return _deferredResponses.defer(reqStr, sourceInfo, timeoutMs, timeoutFn);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Complete a deferred request
+/// @param deferToken token of the request (from APISourceInfo::deferToken)
+/// @param respStr response
+/// @return true if the request was pending (false if not - e.g. it has already timed out)
+bool RestAPIEndpointManager::completeDeferred(uint32_t deferToken, const String& respStr)
+{
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "completeDeferred");
+    return _deferredResponses.complete(deferToken, respStr);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Service deferred response timeouts (call on the main task)
+void RestAPIEndpointManager::loop()
+{
+    _deferredResponses.loop();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -25,6 +25,7 @@
 #include "Logger.h"
 #include "NetworkSystem.h"
 #include "RaftJsonNVS.h"
+#include "RaftJson.h"
 #include "RaftUtils.h"
 #include "PlatformUtils.h"
 #include "RaftArduino.h"
@@ -183,6 +184,14 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
     {
         // Start Wifi
         startWifi();
+
+        // WiFi diagnostics and link options from config
+        if (_networkSettings.wifiDiagJSON.length() > 0)
+        {
+            String errStr;
+            if (!_wifiDiagnostics.setOptions(RaftJson(_networkSettings.wifiDiagJSON), errStr))
+                LOG_W(MODULE_PREFIX, "setup wifiDiag options invalid %s", errStr.c_str());
+        }
     }
 
 #ifdef ETHERNET_IS_ENABLED
@@ -257,6 +266,9 @@ void NetworkSystem::loop()
 
     // Collect completed WiFi scan results promptly
     _wifiScanner.loop();
+
+    // WiFi diagnostics
+    _wifiDiagnostics.loop(_pWifiStaNetIf, isWifiStaConnectedWithIP());
 
     // Resume auto-reconnect once a scan that paused it has finished (or taken too long)
     if (_reconnectPausedForScan)
@@ -1303,6 +1315,9 @@ bool NetworkSystem::startEthernet()
 
 void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventData)
 {
+    // Diagnostics
+    _wifiDiagnostics.onWiFiEvent(eventId, pEventData);
+
     // Check event id
     switch (eventId)
     {
@@ -1485,8 +1500,9 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", ipAddrStr);
-        // Disable WiFi power save to ensure multicast (mDNS) packets are received
-        esp_wifi_set_ps(WIFI_PS_NONE);
+        // Apply link options - this disables WiFi power save (unless configured otherwise) to ensure
+        // multicast (mDNS) packets are received
+        _wifiDiagnostics.onGotIP();
         // Defer mDNS setup to loop so network stack is fully settled
         requestMDNSSetup();
         break;
@@ -1496,6 +1512,7 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         if (!_isPaused)
             setConnInfoStr(_wifiIPV4Addr, "");
         xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
+        _wifiDiagnostics.onLostIP();
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station lost IP");
         break;
     }

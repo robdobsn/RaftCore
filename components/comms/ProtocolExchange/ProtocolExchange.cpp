@@ -214,13 +214,41 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
         debugRICRESTMessage(cmdMsg, ricRESTReqMsg);
 #endif
 
+        // A numbered request can have its response deferred (sent after the handler has returned) as the
+        // client matches the response to the request by message number
+        RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
+        uint32_t channelID = cmdMsg.getChannelID();
+        uint32_t msgNum = cmdMsg.getMsgNumber();
+        bool canDefer = pRestAPIEndpointManager && (msgNum != 0);
+
+        // Ignore a request which is a resend (by the client) of a request whose response is still deferred
+        if (canDefer && pRestAPIEndpointManager->getDeferredResponses().isPending(channelID, msgNum))
+        {
+#ifdef DEBUG_DEFERRED_RESPONSES
+            LOG_I(MODULE_PREFIX, "processEndpointMsg ignoring resend channelID %d msgNum %d", channelID, msgNum);
+#endif
+            return true;
+        }
+
+        // Source info
+        APISourceInfo sourceInfo(channelID);
+        if (canDefer)
+        {
+            sourceInfo.msgProtocol = protocol;
+            sourceInfo.msgNum = msgNum;
+            sourceInfo.canDefer = true;
+            sourceInfo.deferToken = pRestAPIEndpointManager->getDeferredResponses().allocToken();
+        }
+
         // Check elemCode of message
         String respMsg;
+        RaftRetCode retc = RAFT_OK;
         switch(ricRESTReqMsg.getElemCode())
         {
             case RICRESTMsg::RICREST_ELEM_CODE_URL:
             {
-                rslt = processRICRESTURL(ricRESTReqMsg, respMsg, APISourceInfo(cmdMsg.getChannelID())) == RAFT_OK;
+                retc = processRICRESTURL(ricRESTReqMsg, respMsg, sourceInfo);
+                rslt = (retc == RAFT_OK) || (retc == RAFT_RESP_DEFERRED);
                 if (!rslt && respMsg.isEmpty())
                 {
                     Raft::setJsonErrorResult(ricRESTReqMsg.getReq().c_str(), respMsg, "API not found");
@@ -239,13 +267,43 @@ bool ProtocolExchange::processEndpointMsg(CommsChannelMsg &cmdMsg)
             }
             case RICRESTMsg::RICREST_ELEM_CODE_COMMAND_FRAME:
             {
-                rslt = processRICRESTCmdFrame(ricRESTReqMsg, respMsg, cmdMsg) == RAFT_OK;
+                retc = processRICRESTCmdFrame(ricRESTReqMsg, respMsg, cmdMsg, sourceInfo);
+                rslt = (retc == RAFT_OK) || (retc == RAFT_RESP_DEFERRED);
                 break;
             }
             case RICRESTMsg::RICREST_ELEM_CODE_FILEBLOCK:
             {
                 rslt = processRICRESTFileStreamBlock(ricRESTReqMsg, respMsg, cmdMsg) == RAFT_OK;;
                 break;
+            }
+        }
+
+        // Check for deferred response - the response is sent when the handler completes the request (or the
+        // request times out) using the message number of the request
+        if (retc == RAFT_RESP_DEFERRED)
+        {
+            CommsMsgProtocol msgProtocol = cmdMsg.getProtocol();
+            bool isBound = canDefer && pRestAPIEndpointManager->getDeferredResponses().bindDelivery(sourceInfo.deferToken,
+                    [this, channelID, msgProtocol, msgNum](const String& deferredRespStr)
+                    {
+                        if (!getCommsCore())
+                            return;
+                        CommsChannelMsg deferredRespMsg;
+                        RICRESTMsg::encode(deferredRespStr, deferredRespMsg, RICRESTMsg::RICREST_ELEM_CODE_CMDRESPJSON);
+                        deferredRespMsg.setAsResponse(channelID, msgProtocol, msgNum, MSG_TYPE_RESPONSE);
+                        getCommsCore()->outboundHandleMsg(deferredRespMsg);
+#ifdef DEBUG_DEFERRED_RESPONSES
+                        LOG_I(MODULE_PREFIX, "deferred response sent channelID %d msgNum %d resp %s", 
+                                    channelID, msgNum, deferredRespStr.c_str());
+#endif
+                    });
+
+            // A handler which reports a deferred response without having deferred it is an error - respond now
+            if (!isBound && respMsg.isEmpty())
+            {
+                LOG_W(MODULE_PREFIX, "processEndpointMsg response deferred but not registered %s", 
+                            ricRESTReqMsg.getReq().c_str());
+                Raft::setJsonErrorResult(ricRESTReqMsg.getReq().c_str(), respMsg, "deferFailed");
             }
         }
 
@@ -402,7 +460,7 @@ RaftRetCode ProtocolExchange::processRICRESTCmdRespJSON(RICRESTMsg& ricRESTReqMs
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
-                const CommsChannelMsg &endpointMsg)
+                const CommsChannelMsg &endpointMsg, const APISourceInfo& sourceInfo)
 {
     // Handle command frames
     RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
@@ -414,7 +472,7 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
 
     // Handle non-file-stream messages
     if (fileStreamMsgType == FileStreamBase::FILE_STREAM_MSG_TYPE_NONE)
-        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, endpointMsg);
+        return processRICRESTNonFileStream(cmdName, ricRESTReqMsg, respMsg, sourceInfo);
 
     // ChannelID
     uint32_t channelID = endpointMsg.getChannelID();
@@ -545,7 +603,7 @@ RaftRetCode ProtocolExchange::processRICRESTFileStreamBlock(const RICRESTMsg& ri
 
 RaftRetCode ProtocolExchange::processRICRESTNonFileStream(const String& cmdName, 
                 RICRESTMsg& ricRESTReqMsg, String& respMsg, 
-                const CommsChannelMsg &endpointMsg)
+                const APISourceInfo& sourceInfo)
 {
     // Convert to REST API query string - it won't necessarily be a valid query string for external use
     // but works fine for internal use
@@ -556,8 +614,7 @@ RaftRetCode ProtocolExchange::processRICRESTNonFileStream(const String& cmdName,
 
     // Handle via standard REST API
     if (getRestAPIEndpointManager())
-        return getRestAPIEndpointManager()->handleApiRequest(reqStr.c_str(), 
-                            respMsg, APISourceInfo(endpointMsg.getChannelID()));
+        return getRestAPIEndpointManager()->handleApiRequest(reqStr.c_str(), respMsg, sourceInfo);
     return RAFT_INVALID_OBJECT;
 }
 

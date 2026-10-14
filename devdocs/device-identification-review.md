@@ -1299,3 +1299,287 @@ Open: confirm which of the candidates above to schedule after `cmdraw`/`cmdjson`
 - **Concurrency:** concurrent `cmdraw` reads should overlap rather than serialise, so the concurrent p50 should
   approach the sequential p50.
 - **Error paths:** they should never time out.
+
+### 13.9 Slice 1 implemented and tested (2026-10-14, branch `feature/deferred-responses`)
+
+**Implementation (RaftCore):**
+- **`RAFT_RESP_DEFERRED`** return code.
+- **`APISourceInfo`:** adds `msgProtocol`, `msgNum`, `canDefer` and `deferToken`.
+- **`RestAPIDeferredResponses`** (header-only registry):
+  - `defer` / `bindDelivery` / `complete` / `cancel` / `isPending` / `loop`;
+  - default timeout 1 s, maximum 60 s, up to 16 pending;
+  - a delivered response is removed from the registry before the delivery function runs, so delivery can safely call back into the registry;
+  - statistics.
+- **`RestAPIEndpointManager`:**
+  - `deferResponse()` and `completeDeferred()`, both checked to run on the main task;
+  - `loop()`, which `SysManager::loop()` calls;
+  - `handleApiRequest()` passes `RAFT_RESP_DEFERRED` through and otherwise still returns `RAFT_OK`.
+- **`ProtocolExchange`:**
+  - numbered RICREST URL and command-frame requests are deferrable;
+  - a resend of a request that is still pending is ignored;
+  - the deferred response is sent as a `MSG_TYPE_RESPONSE` carrying the original message number;
+  - the raw command-frame path (MQTT) is unchanged and does not defer.
+- **`cmdraw` reads** defer when the transport allows it:
+  - the bus result callback (on the main task) completes the request with `rdData` or the bus error;
+  - if the request can't be queued it is cancelled and an immediate error is returned;
+  - HTTP and the console still use the immediate (waiting) path until slices 2 and 3.
+- **Stats:** `sysmoddebug/RestAPI` returns the registry statistics.
+
+**Testing:**
+- **Unit tests** (`unit_tests/main/RestAPIDeferredResponses_test.cpp`, run on the FeatherS3): 14 new tests, 106/106 pass in total. They found one real bug before hardware testing: a response that completed before the delivery function was bound was delivered from freed storage. Fixed by passing the response by value.
+- **Integration** (`deftest.js`, raftjs over WebSocket plus HTTP): 14/14 checks pass.
+  - sequential and concurrent reads;
+  - NACK and bad-slot reads return `BUS_ACK_ERROR` with no timeouts;
+  - forced 1 ms timeouts produce timeout responses, and the late completions are rejected;
+  - a duplicate frame (same message number) gets exactly one response;
+  - a client disconnecting with a response pending is harmless;
+  - write-only `cmdraw`, `listdevs` and `v` are unaffected;
+  - HTTP still works via the immediate path;
+  - the JSON command-frame form defers too.
+- **Soak:** 2000 mixed requests while `devjson` streams at 10 Hz. Every request got a correct response or a correct bus error, with nothing pending at the end. Heap returned to its starting level, and there were no panics or main-task check errors.
+- **Not exercised on hardware:** the 16-entry capacity limit. Completions take only a few ms, so the most ever pending at once was 5; the limit is covered by unit tests.
+
+**Main-loop effect** (1 s stats windows, 200 sequential reads, interleaved A/B runs):
+
+| Per window | `main` (blocking) | Deferred | `v` control |
+|---|---|---|---|
+| CommsMan worst pass, p50 / max | 13.9–14.8 / 16.6 ms | 6.2 / 7.0 ms (a second run gave 5–8 ms) | 2–4 ms |
+| Main-loop max, p50 | 17.1–17.3 ms | 9.1 ms | 6.6–8.6 ms |
+| NACK reads: CommsMan max | 28–36 ms | 5.9 ms | — |
+| NACK reads: main-loop max | 41–51 ms | ~27 ms (all in DevMan, see below) | — |
+
+**Client-side latency** is unchanged (cmdraw p50 ~51 ms, dominated by the network). Concurrent-request latency can't show the overlap, because raftjs sends at most one queued message per 50 ms tick.
+
+**Findings for follow-up:**
+1. **NACK stall in DevMan.** After a NACKed read, `DeviceManager::loop()` (the RaftI2C main-task bus loop) takes ~24–26 ms. This is not caused by deferral: it was hidden inside the larger stall in the blocking build. Instrument `BusI2C::loop()` (scanner, status manager, multiplexers, power controller, accessor) to find it.
+2. **WiFi drop-outs.** The FeatherS3 twice stayed "WiFi connected" (RSSI about -75) while not answering ARP, with both firmware versions. A reset recovered it both times. Long network tests need a reachability check, and the board's WiFi power-save setting is worth checking.
+3. **Command-frame request strings.** These include `cmdName=...` in the query string. This is existing behaviour of the frame-to-URL conversion and only shows in the `req` echo.
+
+### 13.10 Slice 2 implemented and tested (2026-10-14, RaftWebServer branch `feature/deferred-responses`)
+
+**Implementation:**
+- **`RaftWebServerRestEndpoint`** gains two optional hooks: `restApiDeferAllocToken` and `restApiDeferBind`.
+  `WebServer::restAPIMatchEndpoint` fills them from RaftCore's deferred-response registry.
+- **`RaftWebResponderRestAPI`:**
+  - **GET requests:** the handler is called from `loop()` (before any headers are sent), with deferral allowed.
+  - **While a response is pending:** neither the headers nor `responseAvailable()` are offered, and receiving
+    continues so a client disconnect is still detected.
+  - **On completion:** the headers (with the real `Content-Length`) and the body are sent.
+  - **Completion lookup:** by token over a list of live responders. A responder deleted on disconnect simply
+    misses, so the late completion is a no-op.
+  - **POST and multipart:** unchanged (not deferred).
+
+**Testing:**
+- **Integration** (`deftest.js`): 20/20 checks pass. The six HTTP checks are:
+  - reads are deferred;
+  - bus errors are returned;
+  - a timeout gives HTTP 200 with `{"rslt":"fail","error":"timeout"}`;
+  - 6 concurrent requests all complete;
+  - a client disconnecting while pending is harmless;
+  - `Content-Length` matches the body.
+- **Regression of other HTTP paths:**
+  - multipart `fileupload` with read-back matches;
+  - `filedelete` works;
+  - OTA `espFwUpdate` (POST multipart, 1.3 MB) works;
+  - a large GET (`filelist`) works.
+- **Connection limit (not caused by deferral):** both `main` and slice 2 reset some connections at 10 or more
+  concurrent HTTP connections, including for plain `v`. This is a follow-up item.
+
+**Benchmark** (interleaved, 2 runs per build, ping 9–16 ms; p50 of per-1 s windows):
+
+| Measure | `main` | Slice 2 | Control |
+|---|---|---|---|
+| HTTP `cmdraw`: WebServer worst pass | 18.6–18.9 ms | 9.0–9.9 ms | 7.7–8.8 ms (HTTP `v`) |
+| HTTP `cmdraw`: main-loop max | 21.9–22.0 ms | 12.2–12.6 ms | 10.3–10.9 ms |
+| WS `cmdraw`: CommsMan worst pass | 14.8–15.8 ms | 5.8–5.9 ms | 3.1–3.5 ms |
+| WS `cmdraw`: main-loop max | 17.6–18.6 ms | 8.7 ms | 7.1–8.3 ms |
+| NACK reads: CommsMan worst pass | 26.5–41.7 ms (max 75) | 5.8–6.0 ms | — |
+| NACK reads: main-loop max | 27.5–44.5 ms (max 88) | 17–23 ms (the DevMan NACK stall, §13.9) | — |
+| Error-path reads timing out | 7/40 | 0/40 | — |
+
+Client-side latency is unchanged: it is dominated by the network and by raftjs pacing.
+
+### 13.11 Slice 3 implemented and tested (2026-10-14, RaftCore and RaftSysMods branches `feature/deferred-responses`)
+
+**Implementation:**
+- **RaftCore helper:** `RestAPIEndpointManager::handleApiRequestDeferrable(reqStr, retStr, sourceInfo, deliveryFn)`.
+  - It allocates a token, allows deferral and calls the handler.
+  - If the handler defers, the helper binds `deliveryFn` and returns `RAFT_RESP_DEFERRED`. Otherwise the
+    response is in `retStr` as before.
+  - Callers that have no request identity of their own use this helper, so binding is not repeated at each
+    call site.
+- **`SerialConsole`:** a deferred response is printed (with the line ending) when it completes. The
+  response includes `"req"`, so a reply printed later can still be matched to its command.
+- **`LoggerRaftRemote`** (remote-control TCP socket):
+  - A deferred response is sent only if the client that made the request is still connected. A connection
+    counter, incremented on each accept, is captured with the request.
+  - Loggers are never deleted at runtime (`LoggerCore::clearLoggers()` only resets the count), so capturing
+    `this` is safe.
+- **`CommandFile`:** commands may be deferred, and the response is discarded as before. A `.api` file
+  therefore never blocks on a bus read.
+- **Not changed:** the MQTT `RAWCMDFRAME` path in `ProtocolExchange` is still not deferrable. It falls back
+  to the blocking `cmdraw` path.
+
+**Testing** (FeatherS3, test SysType with `LogManager`/RaftRemote on port 8080 and `CommandFile` enabled):
+- **Serial console** (typed commands):
+  - a read returns `rdData` 68;
+  - an empty address returns `BUS_ACK_ERROR`;
+  - `timeoutMs=1` returns `timeout`;
+  - a write-only command and `v` respond immediately;
+  - two pipelined reads (MPU6050 and APDS-9960 ID `ab`) each get their own response.
+
+  The registry counters show 5 deferred and 1 timeout.
+- **Remote TCP socket:**
+  - read, bus error (`BUS_SW_TIME_OUT` for the empty address) and timeout all work;
+  - a client that disconnects with a request in flight, and then a fresh connection, both work;
+  - the device stays healthy.
+- **CommandFile:** a `.api` file with a 3-repeat read, an APDS-9960 read and a NACK read gives 5 deferred and
+  5 completed, with no timeouts.
+- **Regression:** `deftest.js` passes 20/20.
+- **Benchmark** (`stall.js`): CommsMan worst pass during WS `cmdraw` is about 6–7 ms, in line with slice 2.
+  The NACK main-loop max of about 27 ms is the known DevMan stall (§13.9). HTTP figures vary with WiFi
+  (HTTP `v` control 9–12 ms in this run).
+
+### 13.12 Slice 4: `cmdjson` on the deferral mechanism (2026-10-14, RaftCore and RaftI2C branches `feature/deferred-responses`)
+
+**Before:** `cmdjson` for a bus device called `sendCmdToDevice()`, which on the main task only queued the
+request. The response `ok` meant "queued". Data read with `numToRd` was dropped, and bus errors were never
+reported.
+
+**Implementation:**
+- **RaftCore `RaftBusDevicesIF::sendCmdToDeviceAsync(deviceID, cmdJSON, resultFn)`:** a new virtual function.
+  It returns `RAFT_OK` if the command is queued, and `resultFn` is then called with the `BusRequestResult` on
+  the main task. The default returns `RAFT_NOT_IMPLEMENTED`, so other buses are unaffected and fall back to
+  the old path.
+- **RaftI2C `DeviceIdentMgr`:**
+  - Implements `sendCmdToDeviceAsync()` via the bus worker queue (the same queue as `cmdraw`). It returns
+    `RAFT_BUSY` if the queue is full.
+  - The `hexWr`/`numToRd` parsing is shared with `sendCmdToDevice()` (`cmdJSONToHWElemReq()`).
+  - `sendCmdToDevice()` itself is unchanged; Axiom `DevicePower` calls it from its own task.
+- **`DeviceManager::apiDevManCmdJson`** takes the `APISourceInfo`. A body that addresses a bus device (not
+  a static device) and has `numToRd` is deferred when the transport allows it. `timeoutMs` comes from the
+  request, or from the body.
+- **Shared response format:** `formBusCmdResponse()` builds the response (`rdData` or the bus error) for both
+  `cmdraw` and `cmdjson`.
+- **Unchanged:**
+  - static devices (e.g. MotorControl) still handle `cmdjson` themselves;
+  - non-deferring transports keep the old behaviour.
+- **Writes are deferred too** (decision 2026-10-14), for both `cmdraw` and `cmdjson`:
+  - `ok` now means the write completed on the bus, and a NACK reports the bus error. Before, `ok` only meant
+    the write was queued.
+  - The main loop still never waits; only the reply to the client comes after the bus transaction.
+  - `rdData` is included only when data was read.
+
+**Testing:**
+- **HTTP, serial console and WebSocket:**
+  - reads return `rdData` (MPU6050 `68`, APDS-9960 `ab`);
+  - a NACK returns `BUS_ACK_ERROR`;
+  - `timeoutMs=1`, in the body or in the URL, returns `timeout`;
+  - a write returns `ok`, and a write to an empty address returns `BUS_ACK_ERROR` (or `BUS_SW_TIME_OUT`);
+  - a device off the bus or missing returns `failNoDeviceSpecified`.
+- **`deftest.js`:** T16 and T17 were added, and T8 now checks writes (`ok`, and a bus error for an empty address).
+  All 23 checks pass in repeated runs.
+- **Test robustness fixes:**
+  - **T6** (duplicate msgNum) now sends the duplicate in the same WebSocket message. As two separate
+    messages, WiFi could delay the copy until after the read completed, when it is correctly handled as a
+    new request.
+  - **T2** accepts any `BUS_` error for NACK reads. The I2C driver sometimes reports `BUS_SW_TIME_OUT`.
+
+### 13.13 The "NACK stall": present devices dropping offline after a NACKed write (2026-10-14, RaftI2C)
+
+**Symptom:**
+- During `cmdraw` reads of an absent address, the main loop took about 25–40 ms per pass, with peaks to 67 ms.
+  This was attributed to DevMan in §13.9.
+- The present devices also briefly dropped out of `listdevs`.
+
+**Investigation:**
+- **The stall only appears when no host is reading the USB serial console.** With `raft m` attached, the NACK
+  phase measured about 10 ms, the same as normal reads. Without a reader, each log line blocks the logging task.
+- **The logging came from devices going offline and online.** In one capture the MPU6050 was re-identified 21
+  times, with RaftROS publisher detach and attach each time. These status callbacks log on the main task.
+- **Why the devices went offline:** every transaction straight after a NACKed write failed with
+  `BUS_ACK_ERROR`, whatever its address (59 out of 59 in one capture). Polls of the MPU6050 and APDS-9960 were
+  among them. Three failed polls in a row take a device offline.
+- **Which NACKs cause it:** only a write with data bytes queued after the address, as in `hexWr`, with or
+  without a read. For such a write the ESP32-S3 I2C engine stops after the address NACK. Only the START command
+  is marked done, the STOP is never executed, and the data is left in the TX FIFO.
+- **Which NACKs don't:** address-only probes (the scanner) and read-only accesses. Their commands, including
+  the STOP, all complete.
+- **What did not help:**
+  - resetting the state machine (`fsm_rst`);
+  - a full `reinitI2CModule()`;
+  - FIFO resets, which already happen on every access (`txfifo_cnt` is 0 after them);
+  - a STOP-only command sequence, which the engine does not execute.
+- **What did help:** a completed START…STOP sequence on the bus restores it.
+- **Earlier test runs hid the problem:** when a scanner probe happened to run between the NACK and the next
+  poll, that probe took the failure without anyone noticing.
+
+**Fix (`RaftI2CCentral::access`):**
+- If an access fails without executing all of its commands, it is followed at once by an address-only probe
+  of the same address. All of the probe's commands, including the STOP, are executed, and its result is ignored.
+  This costs about 150 µs, and only after such a failure. A `busResync` count is added to the I2C stats.
+- An access whose ISR saw a NACK, but which ended by software time-out, now returns `BUS_ACK_ERROR` instead of
+  `BUS_SW_TIME_OUT`.
+
+**Results** (FeatherS3, nothing reading the console):
+
+| Measure | Before | After |
+|---|---|---|
+| Device offline/online cycles per 100 NACKed `cmdraw` reads | 7–9 | 0 (also 0 for 100 write-only NACKs) |
+| Main-loop max during NACK reads (p50 per 1 s window) | 27–38 ms (peaks 38–67 ms) | 9–10 ms (normal reads: 9 ms) |
+| NACKs reported as `BUS_SW_TIME_OUT` | 1–3 per 100 | 0 |
+
+**New check:** `deftest.js` T18 sends 40 NACKed writes and checks that both present devices are listed after
+each one. Without the fix it fails, with a device missing 4 and 11 times out of 40; with the fix it passes. All
+24 checks pass.
+
+**Follow-ups:**
+1. **Logging can block the main task.** Logging on the main task blocks while no host reads the USB-Serial-JTAG
+   console. Any burst of logging (device churn, errors) then stalls the main loop. Consider a non-blocking or
+   drop-on-full console when no host is connected, or keeping per-event logs off the main task.
+2. **The ESP-IDF I2C central** (`RaftI2CCentral_ESPIDF`, used when `I2C_USE_ESP_IDF` is defined) was not checked
+   for the same issue.
+3. **Exact line behaviour:** what the bus does after the aborted write (no STOP) has not been confirmed with a
+   logic analyser. The fix is based on observed behaviour.
+
+### 13.14 Console logging stalls the calling task when no host is reading (2026-10-14, RaftCore and RaftSysMods)
+
+**Problem:**
+- Console output goes straight to the USB-Serial-JTAG driver's TX ring buffer, with a 10 ms write timeout.
+  The ring buffer is a byte buffer, and a write waits until the whole line fits.
+- With no host reading the port, the buffer fills and stays full. Every log line then blocks its caller (often
+  the main task) for the full 10 ms and is dropped.
+- The rest of a message was already dropped after one timeout, but the next message waited again. So a burst of
+  N lines cost about N × 10 ms. This is how the device churn in §13.13 turned into 25–67 ms main-loop stalls.
+- The same write code was duplicated in RaftCore (`LoggerCore`, Raft `LOG_x`) and in RaftSysMods
+  (SerialConsole's `esp_log` hook, `ESP_LOGx`).
+
+**Measured on the FeatherS3**, with a temporary endpoint logging 20 lines on the main task and no reader:
+- 10 lines of 80 bytes took 100 ms just after boot;
+- 400-byte lines took about 10.1 ms each.
+
+**Fix:**
+- **"Not draining" state in `LoggerCore`:** when a console write times out, later writes are made with no wait
+  and dropped if there isn't space. The first write that succeeds clears the state, so a host that starts
+  reading again gets back-pressure as before.
+- **One write path:** SerialConsole's `esp_log` hook now calls `LoggerCore::writeToConsole()`, which is public
+  and static, so both paths share this handling.
+
+**Results:**
+
+| Case | Before | After |
+|---|---|---|
+| No reader, 400-byte lines | ~10.1 ms per line | ~0.25 ms per line (worst line 0.66 ms) |
+| Reader closes, then a 200-line burst | ~10 ms per line | one 10.5 ms wait (when the buffer fills), then ~0.13 ms per line |
+| Reader attached, 1000 × 200-byte lines | — | all 1000 received complete, 0.24 ms per line |
+| Reader attached after a period without one | — | all lines received from the first one |
+
+**Regression:** `deftest.js` passes 24/24, and the stall benchmark is unchanged.
+
+**Notes:**
+- **One wait per transition:** the switch to "not draining" still costs one 10 ms wait when the buffer first
+  fills.
+- **Partly-full buffer:** a short line that fits into the space left in a nearly full buffer succeeds, clears
+  the state, and the next longer line can then wait once more. The free space only shrinks while nothing is
+  reading, so this happens a bounded number of times.
+- **SerialConsole's own writes** (`putStr` and response frames) already use a 1-tick timeout and are unchanged.

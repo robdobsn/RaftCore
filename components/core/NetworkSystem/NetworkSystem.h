@@ -19,6 +19,7 @@
 #include "nvs_flash.h"
 #include "RaftArduino.h"
 #include "WiFiScanner.h"
+#include "WiFiDiagnostics.h"
 #include "NetworkSettings.h"
 #include "sdkconfig.h"
 #include "RaftThreading.h"
@@ -55,6 +56,12 @@ public:
 
     // Setup 
     bool setup(const NetworkSettings& networkSettings);
+
+    // WiFi station link diagnostics and runtime link options
+    WiFiDiagnostics& getWiFiDiagnostics()
+    {
+        return _wifiDiagnostics;
+    }
 
     // Service
     void loop();
@@ -219,6 +226,9 @@ private:
 
     // WiFi Scanner
     WiFiScanner _wifiScanner;
+
+    // WiFi diagnostics
+    WiFiDiagnostics _wifiDiagnostics;
 
     // ESP netif objects
     esp_netif_t* _pWifiStaNetIf = nullptr;
