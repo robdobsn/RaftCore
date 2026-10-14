@@ -1484,3 +1484,102 @@ reported.
     messages, WiFi could delay the copy until after the read completed, when it is correctly handled as a
     new request.
   - **T2** accepts any `BUS_` error for NACK reads. The I2C driver sometimes reports `BUS_SW_TIME_OUT`.
+
+### 13.13 The "NACK stall": present devices dropping offline after a NACKed write (2026-10-14, RaftI2C)
+
+**Symptom:**
+- During `cmdraw` reads of an absent address, the main loop took about 25–40 ms per pass, with peaks to 67 ms.
+  This was attributed to DevMan in §13.9.
+- The present devices also briefly dropped out of `listdevs`.
+
+**Investigation:**
+- **The stall only appears when no host is reading the USB serial console.** With `raft m` attached, the NACK
+  phase measured about 10 ms, the same as normal reads. Without a reader, each log line blocks the logging task.
+- **The logging came from devices going offline and online.** In one capture the MPU6050 was re-identified 21
+  times, with RaftROS publisher detach and attach each time. These status callbacks log on the main task.
+- **Why the devices went offline:** every transaction straight after a NACKed write failed with
+  `BUS_ACK_ERROR`, whatever its address (59 out of 59 in one capture). Polls of the MPU6050 and APDS-9960 were
+  among them. Three failed polls in a row take a device offline.
+- **Which NACKs cause it:** only a write with data bytes queued after the address, as in `hexWr`, with or
+  without a read. For such a write the ESP32-S3 I2C engine stops after the address NACK. Only the START command
+  is marked done, the STOP is never executed, and the data is left in the TX FIFO.
+- **Which NACKs don't:** address-only probes (the scanner) and read-only accesses. Their commands, including
+  the STOP, all complete.
+- **What did not help:**
+  - resetting the state machine (`fsm_rst`);
+  - a full `reinitI2CModule()`;
+  - FIFO resets, which already happen on every access (`txfifo_cnt` is 0 after them);
+  - a STOP-only command sequence, which the engine does not execute.
+- **What did help:** a completed START…STOP sequence on the bus restores it.
+- **Earlier test runs hid the problem:** when a scanner probe happened to run between the NACK and the next
+  poll, that probe took the failure without anyone noticing.
+
+**Fix (`RaftI2CCentral::access`):**
+- If an access fails without executing all of its commands, it is followed at once by an address-only probe
+  of the same address. All of the probe's commands, including the STOP, are executed, and its result is ignored.
+  This costs about 150 µs, and only after such a failure. A `busResync` count is added to the I2C stats.
+- An access whose ISR saw a NACK, but which ended by software time-out, now returns `BUS_ACK_ERROR` instead of
+  `BUS_SW_TIME_OUT`.
+
+**Results** (FeatherS3, nothing reading the console):
+
+| Measure | Before | After |
+|---|---|---|
+| Device offline/online cycles per 100 NACKed `cmdraw` reads | 7–9 | 0 (also 0 for 100 write-only NACKs) |
+| Main-loop max during NACK reads (p50 per 1 s window) | 27–38 ms (peaks 38–67 ms) | 9–10 ms (normal reads: 9 ms) |
+| NACKs reported as `BUS_SW_TIME_OUT` | 1–3 per 100 | 0 |
+
+**New check:** `deftest.js` T18 sends 40 NACKed writes and checks that both present devices are listed after
+each one. Without the fix it fails, with a device missing 4 and 11 times out of 40; with the fix it passes. All
+24 checks pass.
+
+**Follow-ups:**
+1. **Logging can block the main task.** Logging on the main task blocks while no host reads the USB-Serial-JTAG
+   console. Any burst of logging (device churn, errors) then stalls the main loop. Consider a non-blocking or
+   drop-on-full console when no host is connected, or keeping per-event logs off the main task.
+2. **The ESP-IDF I2C central** (`RaftI2CCentral_ESPIDF`, used when `I2C_USE_ESP_IDF` is defined) was not checked
+   for the same issue.
+3. **Exact line behaviour:** what the bus does after the aborted write (no STOP) has not been confirmed with a
+   logic analyser. The fix is based on observed behaviour.
+
+### 13.14 Console logging stalls the calling task when no host is reading (2026-10-14, RaftCore and RaftSysMods)
+
+**Problem:**
+- Console output goes straight to the USB-Serial-JTAG driver's TX ring buffer, with a 10 ms write timeout.
+  The ring buffer is a byte buffer, and a write waits until the whole line fits.
+- With no host reading the port, the buffer fills and stays full. Every log line then blocks its caller (often
+  the main task) for the full 10 ms and is dropped.
+- The rest of a message was already dropped after one timeout, but the next message waited again. So a burst of
+  N lines cost about N × 10 ms. This is how the device churn in §13.13 turned into 25–67 ms main-loop stalls.
+- The same write code was duplicated in RaftCore (`LoggerCore`, Raft `LOG_x`) and in RaftSysMods
+  (SerialConsole's `esp_log` hook, `ESP_LOGx`).
+
+**Measured on the FeatherS3**, with a temporary endpoint logging 20 lines on the main task and no reader:
+- 10 lines of 80 bytes took 100 ms just after boot;
+- 400-byte lines took about 10.1 ms each.
+
+**Fix:**
+- **"Not draining" state in `LoggerCore`:** when a console write times out, later writes are made with no wait
+  and dropped if there isn't space. The first write that succeeds clears the state, so a host that starts
+  reading again gets back-pressure as before.
+- **One write path:** SerialConsole's `esp_log` hook now calls `LoggerCore::writeToConsole()`, which is public
+  and static, so both paths share this handling.
+
+**Results:**
+
+| Case | Before | After |
+|---|---|---|
+| No reader, 400-byte lines | ~10.1 ms per line | ~0.25 ms per line (worst line 0.66 ms) |
+| Reader closes, then a 200-line burst | ~10 ms per line | one 10.5 ms wait (when the buffer fills), then ~0.13 ms per line |
+| Reader attached, 1000 × 200-byte lines | — | all 1000 received complete, 0.24 ms per line |
+| Reader attached after a period without one | — | all lines received from the first one |
+
+**Regression:** `deftest.js` passes 24/24, and the stall benchmark is unchanged.
+
+**Notes:**
+- **One wait per transition:** the switch to "not draining" still costs one 10 ms wait when the buffer first
+  fills.
+- **Partly-full buffer:** a short line that fits into the space left in a nearly full buffer succeeds, clears
+  the state, and the next longer line can then wait once more. The free space only shrinks while nothing is
+  reading, so this happens a bounded number of times.
+- **SerialConsole's own writes** (`putStr` and response frames) already use a 1-tick timeout and are unchanged.

@@ -141,6 +141,16 @@ async function connect() { const c = new RaftConnector(async () => sysType()); a
     const after = await stats();
     check('T17 HTTP cmdjson concurrent reads deferred and answered', tally(rs)['rdData=68'] === 4 && after.def - before.def === 4 && after.pend === 0, { tally: tally(rs), def: after.def - before.def });
   }
+  if (run('T18')) { // NACKed writes to an absent device must not disturb polling of present devices (bus resync after a NACK)
+    let missing = 0; const nacks = {};
+    for (let i = 0; i < 40; i++) {
+      const r = await send('devman/cmdraw?deviceid=1_50&hexWr=00&numToRd=1'); nacks[outcome(r)] = (nacks[outcome(r)] || 0) + 1;
+      const ld = await http('devman/listdevs').catch(() => null);
+      const ids = ld && ld.devices ? ld.devices.map(d => d.deviceid) : [];
+      if (!ids.includes('1_68') || !ids.includes('1_39')) missing++;
+    }
+    check('T18 present devices stay online during NACKed writes to an absent address', missing === 0 && nacks['BUS_ACK_ERROR'] === 40, { nacks, listdevsMissingDevice: missing });
+  }
   const sEnd = await stats();
   console.log('STATS start', JSON.stringify(s0)); console.log('STATS end  ', JSON.stringify(sEnd));
   console.log(fails === 0 ? 'ALL PASSED' : `${fails} FAILED`);

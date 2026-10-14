@@ -134,11 +134,35 @@ String LoggerCore::getLoggersJSON(bool includeBraces)
     return includeBraces ? "{" + loggersJSON + "}" : loggersJSON;
 }
 
+#ifdef RAFT_LOGGER_USE_USB_JTAG_DIRECT
+// Set when a write to the USB JTAG console has timed out, which means the host isn't reading (e.g. no terminal has
+// the port open) and the driver's Tx ring buffer is full. Until a write succeeds again, writes are made without 
+// waiting (and dropped if there isn't space) - otherwise every message logged while nothing is reading stalls the
+// calling task (often the main task) for the whole write timeout
+static std::atomic<bool> s_usbJtagNotDraining{false};
+
+/// @brief Write to the USB JTAG console
+/// @param buf data to write
+/// @param len length of data
+/// @return true if all of the data was written
+static bool LOGGING_FUNCTION_DECORATOR usbJtagConsoleWrite(const char* buf, uint32_t len)
+{
+    bool notDraining = s_usbJtagNotDraining.load(std::memory_order_relaxed);
+    const TickType_t writeTimeoutTicks = notDraining ? 0 : pdMS_TO_TICKS(RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS);
+    bool writeOk = usb_serial_jtag_write_bytes(buf, len, writeTimeoutTicks) == (int)len;
+    if (writeOk == notDraining)
+        s_usbJtagNotDraining.store(!writeOk, std::memory_order_relaxed);
+    return writeOk;
+}
+#endif
+
 /// @brief Write a log message to the console (unless another owner has the
 /// console's port - see RaftConsolePort - in which case it goes to the
 /// claimant's sink, if any)
 /// @param msg message
-static void LOGGING_FUNCTION_DECORATOR writeToConsole(const char* msg)
+/// @note Also used for ESP-IDF log output (see the SerialConsole SysMod) so that all console output shares
+///       the same handling when the host isn't reading
+void LOGGING_FUNCTION_DECORATOR LoggerCore::writeToConsole(const char* msg)
 {
     if (RaftConsolePort::divert(msg, strlen(msg)))
         return;
@@ -160,13 +184,12 @@ static void LOGGING_FUNCTION_DECORATOR writeToConsole(const char* msg)
         // the cursor never returns to column 0.
         //
         // The translation is done into a buffer so the message is written with
-        // a single call: each usb_serial_jtag_write_bytes can block for the
-        // whole timeout when the ring buffer is full (nothing reading the USB
-        // console), so writing the text and the line ending separately doubled
-        // the worst-case delay for the calling task. If a write doesn't
-        // complete then the host isn't draining, so the rest of the message is
-        // dropped rather than paying the timeout again.
-        const TickType_t writeTimeoutTicks = pdMS_TO_TICKS(RAFT_LOGGER_USB_JTAG_WRITE_TIMEOUT_MS);
+        // a single call: each write can block for the whole timeout when the 
+        // ring buffer is full (nothing reading the USB console), so writing the
+        // text and the line ending separately doubled the worst-case delay for
+        // the calling task. If a write doesn't complete then the host isn't 
+        // draining, so the rest of the message is dropped rather than paying 
+        // the timeout again (and later messages don't wait - see above)
         char lineBuf[RAFT_LOGGER_USB_JTAG_LINE_BUF_SIZE];
         uint32_t outLen = 0;
         bool writeOk = true;
@@ -175,7 +198,7 @@ static void LOGGING_FUNCTION_DECORATOR writeToConsole(const char* msg)
             // Keep room for a CRLF pair
             if (outLen + 2 > sizeof(lineBuf))
             {
-                writeOk = usb_serial_jtag_write_bytes(lineBuf, outLen, writeTimeoutTicks) == (int)outLen;
+                writeOk = usbJtagConsoleWrite(lineBuf, outLen);
                 outLen = 0;
             }
             if (*p == '\n')
@@ -183,7 +206,7 @@ static void LOGGING_FUNCTION_DECORATOR writeToConsole(const char* msg)
             lineBuf[outLen++] = *p;
         }
         if (writeOk && (outLen > 0))
-            usb_serial_jtag_write_bytes(lineBuf, outLen, writeTimeoutTicks);
+            usbJtagConsoleWrite(lineBuf, outLen);
     }
     else
     {

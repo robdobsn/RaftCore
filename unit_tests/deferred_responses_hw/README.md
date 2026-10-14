@@ -83,13 +83,14 @@ cd ~/Documents/rdev/raft/RaftCore/unit_tests/deferred_responses_hw
 # cmdjson read from a bus device (body URL-encoded) -> "rdData":"68"
 curl "http://$IP/api/devman/cmdjson?body=%7B%22device%22%3A%221_68%22%2C%22hexWr%22%3A%2275%22%2C%22numToRd%22%3A1%7D"
 
-# Full integration test (23 checks: WebSocket and HTTP)
+# Full integration test (24 checks: WebSocket and HTTP)
 ./run.sh deftest.js 192.168.86.52
 #   reads, error paths, concurrency, capacity, forced timeouts, duplicate frames (same msgNum),
 #   client disconnect while pending, unaffected commands, command-frame form,
 #   HTTP: deferred reads, errors, timeout (200 + JSON), concurrency, disconnect, Content-Length,
 #   writes report the bus result (ok or bus error),
-#   cmdjson: WebSocket reads (data, bus error, timeout), writes (ok, bus error), concurrent HTTP reads
+#   cmdjson: WebSocket reads (data, bus error, timeout), writes (ok, bus error), concurrent HTTP reads,
+#   present devices stay online during NACKed writes to an absent address (needs the RaftI2C bus resync fix)
 
 # Concurrent HTTP requests (note the server's connection limit - resets appear at about 10 concurrent connections,
 # with or without deferral)
@@ -139,6 +140,10 @@ curl "http://$IP/api/sysmoddebug/RestAPI"    # def and cmpl both +3
 
 **Main-loop effect** (`stall.js`, compared with a RaftCore `main` build): the CommsMan worst case per 1 s
 window during `cmdraw` reads falls from about 14–17 ms to 5–8 ms, close to the `v` control.
+
+**Serial console attached or not.** Run the benchmarks with nothing reading the USB serial port (close `raft m`).
+When no host is reading, each log line written to the console blocks the logging task for a while. A burst of
+logging on the main task then shows up as a main-loop stall that disappears when a monitor is attached.
 
 **Network noise.** WiFi latency on the bench can vary a lot. Compare builds with interleaved runs, and use
 the `v` command latency as the network reference.
