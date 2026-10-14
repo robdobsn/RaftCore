@@ -355,6 +355,10 @@ void SysManager::loop()
         _sysmodListDirty = false;
     }
 
+    // Service deferred REST API responses (timeouts)
+    if (_pRestAPIEndpointManager)
+        _pRestAPIEndpointManager->loop();
+
     // Check if supervisor is enabled
     if (_supervisorEnable)
     {        
@@ -624,6 +628,10 @@ String SysManager::getDebugJSON(const char* sysModName) const
     // Check if it is the SysManager's own stats that are wanted
     if (strcasecmp(sysModName, "SysMan") == 0)
         return _supervisorStats.getSummaryString();
+
+    // REST API deferred response stats
+    if ((strcasecmp(sysModName, "RestAPI") == 0) && _pRestAPIEndpointManager)
+        return _pRestAPIEndpointManager->getDeferredResponses().getStatsJSON();
 
 #ifdef DEBUG_USING_GLOBAL_VALUES
     // Check for global debug values

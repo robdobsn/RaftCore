@@ -10,6 +10,7 @@
 #pragma once
 #include <list>
 #include "RestAPIEndpoint.h"
+#include "RestAPIDeferredResponses.h"
 #include "RaftJson.h"
 
 // Collection of endpoints
@@ -68,6 +69,28 @@ public:
     /// @param sourceInfo Source of the request
     /// @return RaftRetCode
     RaftRetCode handleApiRequest(const char *requestStr, String &retStr, const APISourceInfo& sourceInfo);
+
+    // Handle an API request from a caller which is able to deliver the response later
+    // If the endpoint responds immediately the response is in retStr (and RAFT_OK is returned), otherwise
+    // RAFT_RESP_DEFERRED is returned and the response is later passed to deliveryFn (on the main task)
+    RaftRetCode handleApiRequestDeferrable(const char *requestStr, String &retStr, APISourceInfo sourceInfo,
+                    RestAPIDeferredResponses::DeliveryFn deliveryFn);
+
+    // Deferred responses
+    // A handler which cannot respond immediately calls deferResponse() and returns its result (RAFT_RESP_DEFERRED
+    // if the response has been deferred). It later calls completeDeferred() with the response. Deferral is only
+    // possible when the transport has set sourceInfo.canDefer - if deferResponse() fails the handler must respond
+    // before returning. All of these must be called on the main task.
+    RaftRetCode deferResponse(const char* reqStr, const APISourceInfo& sourceInfo, uint32_t timeoutMs = 0,
+                    RestAPIDeferredResponses::TimeoutFn timeoutFn = nullptr);
+    bool completeDeferred(uint32_t deferToken, const String& respStr);
+    RestAPIDeferredResponses& getDeferredResponses()
+    {
+        return _deferredResponses;
+    }
+
+    // Service (call on the main task) - handles deferred response timeouts
+    void loop();
 
     /// @brief Get matching endpoint definition for REST API request
     /// @param requestStr Request string
@@ -155,6 +178,9 @@ public:
 private:
     /// @brief List of endpoints
     std::list<RestAPIEndpoint> _endpointsList;
+
+    // Deferred responses
+    RestAPIDeferredResponses _deferredResponses;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RestAPI";

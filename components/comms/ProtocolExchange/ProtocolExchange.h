@@ -78,10 +78,10 @@ private:
     RaftRetCode processRICRESTCmdRespJSON(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
                 const APISourceInfo& sourceInfo);
     RaftRetCode processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, String& respMsg, 
-                        const CommsChannelMsg &endpointMsg);
+                        const CommsChannelMsg &endpointMsg, const APISourceInfo& sourceInfo);
     RaftRetCode processRICRESTFileStreamBlock(const RICRESTMsg& ricRESTReqMsg, String& respMsg, CommsChannelMsg &cmdMsg);
     RaftRetCode processRICRESTNonFileStream(const String& cmdName, RICRESTMsg& ricRESTReqMsg, String& respMsg, 
-                const CommsChannelMsg &endpointMsg);
+                const APISourceInfo& sourceInfo);
 
     // File/stream session handling
     FileStreamSession* findFileStreamSession(uint32_t streamID, const char* fileStreamName, uint32_t channelID);

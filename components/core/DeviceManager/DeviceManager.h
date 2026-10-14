@@ -229,7 +229,8 @@ private:
     RaftRetCode apiDevManTypeInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
     /// @brief Handle devman/cmdraw
-    RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+                const APISourceInfo& sourceInfo);
 
     /// @brief Handle devman/cmdjson
     RaftRetCode apiDevManCmdJson(const String &reqStr, String &respStr, const RaftJson& jsonParams);
