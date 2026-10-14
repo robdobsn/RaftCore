@@ -264,6 +264,7 @@ private:
     static const uint32_t CMDID_CMDRAW_BASE = 0x43520000;
     uint32_t _cmdRawInFlightCmdId = 0;
     volatile bool _cmdRawResultReady = false;
+    RaftRetCode _cmdRawResult = RAFT_OK;
     std::vector<uint8_t> _cmdRawReadData;
 
     /// @brief Get device list frozen

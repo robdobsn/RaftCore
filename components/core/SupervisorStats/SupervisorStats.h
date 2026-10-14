@@ -54,9 +54,19 @@ public:
 
     // Clear stats
     void clear();
-    String getSummaryString() const;
+
+    // Get summary of the most recently calculated period (it remains available until the next calculate()
+    // as the stats are cleared at the start of each period)
+    String getSummaryString() const
+    {
+        return _lastSummaryStr;
+    }
 
 private:
+    // Summary of the most recently calculated period
+    String _lastSummaryStr = "{}";
+    String formatSummaryString() const;
+
 
     // Module info
     class ModInfo
@@ -99,7 +109,7 @@ private:
             uint64_t loopTime = Raft::timeElapsed(micros(), _lastLoopStartMicros);
             _loopTimeAvgSum += loopTime;
             _loopTimeAvgCount++;
-            if (_loopTimeMin > loopTime)
+            if ((_loopTimeAvgCount == 1) || (_loopTimeMin > loopTime))
                 _loopTimeMin = loopTime;
             if (_loopTimeMax < loopTime)
                 _loopTimeMax = loopTime;

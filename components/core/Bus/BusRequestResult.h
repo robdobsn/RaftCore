@@ -20,14 +20,21 @@ public:
         clear();
     }
 
-    BusRequestResult(uint32_t address, uint32_t cmdId, const uint8_t *pBuf, uint32_t len, bool ok, 
+    BusRequestResult(uint32_t address, uint32_t cmdId, const uint8_t *pBuf, uint32_t len, bool ok,
+                    BusRequestCallbackType callback, void *callbackParam)
+        : BusRequestResult(address, cmdId, pBuf, len, ok ? RAFT_OK : RAFT_BUS_PENDING, callback, callbackParam)
+    {
+    }
+
+    /// @brief Construct with the actual result code so a failure reason can be reported to the requester
+    BusRequestResult(uint32_t address, uint32_t cmdId, const uint8_t *pBuf, uint32_t len, RaftRetCode result,
                     BusRequestCallbackType callback, void *callbackParam)
     {
         _address = address;
         uint32_t bytesToCopy = (len <= RESPONSE_BUFFER_MAX_BYTES) ? len : RESPONSE_BUFFER_MAX_BYTES;
-        if (bytesToCopy > 0)
+        if (pBuf && (bytesToCopy > 0))
             _respBuf.assign(pBuf, pBuf+bytesToCopy);
-        _result = ok ? RAFT_OK : RAFT_BUS_PENDING;
+        _result = result;
         _callback = callback;
         _callbackParam = callbackParam;
         _cmdId = cmdId;

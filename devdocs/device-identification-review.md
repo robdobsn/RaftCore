@@ -505,10 +505,10 @@ The branch's suppression is a reasonable *user-facing* concept ("don't detect VC
 
 #### Other branch items
 
-- **`setCallbackFromBusTask`** is correct and necessary. Three gaps remain:
-  - the lost-callback paths (I12) are unchanged;
-  - the contract for callbacks that run under the bus-owner lock should be documented;
-  - `DeviceIdentMgr::sendCmdToDevice` still special-cases the main task instead of using the flag.
+- **`setCallbackFromBusTask`** fixed a real problem on the branch's base (reads could never complete), but
+  `main` has since solved that differently (`36b0dc3`, servicing the bus loop while waiting). Both are
+  blocking designs and are superseded by deferred REST responses (§13), so the branch's version should not
+  be merged. The lost-callback paths (I12) remain, and become a prerequisite for §13.
 - **The `extractMaskAndDataFromHexStr` fix** bounds the writes correctly. Its justification for preserving
   the fill pattern ("all forty compiled profiles were detected and polled against this behaviour") does not
   hold up:
@@ -599,8 +599,10 @@ on every change lets the bus re-identify exactly the affected addresses without 
    - the `rN` overflow bound (C1);
    - `appendRawField`;
    - the null-bus guards;
-   - the `cmdraw` mutex and `setCallbackFromBusTask`, together with the RaftI2C counterpart;
    - the `listdevs` filter.
+
+   (Done on `main` 2026-10-13: C1, C2, `appendRawField`, null-bus guards and the `listdevs` filter. The
+   branch's `cmdraw` changes — `setCallbackFromBusTask` and the mutex — are **not** to be taken; see §13.)
 2. **One grammar, one parser, validated.** Replace `extractBufferDataFromHexStr`,
    `extractMaskAndDataFromHexStr` and `extractReadDataSize` with a tokenizer that produces typed operations:
    `Write{bytes}`, `Read{n|expr}`, `Check{alts:[{mask,value}]}` and `Pause{ms}`.
@@ -685,7 +687,8 @@ on every change lets the bus re-identify exactly the affected addresses without 
 7. **Init outcome** (I11). `processDeviceInit` reports NACKs. Retry it, then set `InitFailed` with backoff
    and do not publish the type. Add `reinitDevice(addr)`.
 8. **Callback guarantee** (I12). Every consumed request with a callback gets a `BusRequestResult` carrying
-   an error code. Let `sendCmdToDevice` use `setCallbackFromBusTask`.
+   an error code. This is a prerequisite for deferred REST responses (§13). `sendCmdToDevice` should move to
+   the deferred-response mechanism rather than waiting on any task.
 9. **Multi-consumer deletions and data** (I13). Use per-consumer cursors, or make deletions purely a status
    event.
 10. **Keep per-device overrides** (`devconfig` settings) on `BusAddrRecord`, separately from `DeviceStatus`,
@@ -843,13 +846,14 @@ product constraint.
 ## 10. Suggested sequencing
 
 1. **Phase 0: land the safe fixes.**
-   - Cherry-pick the RaftCore and RaftI2C branch fixes listed in §9.1 RaftCore item 1. Land the RaftCore
-     and RaftI2C `cmdraw` changes together: RaftCore `cmdraw` no longer pumps the bus loop, so it depends on
-     RaftI2C honouring `setCallbackFromBusTask`.
-   - Fix the LTR and M5-Weight data.
+   - Cherry-pick the RaftCore and RaftI2C branch fixes listed in §9.1 RaftCore item 1 (done 2026-10-13,
+     except the branch's `cmdraw` changes, which are superseded by §13).
+   - Fix the LTR and M5-Weight data (done 2026-10-13).
    - Pin the Raft libraries in Axiom `main`.
    - Upstream the RaftROS AutoPub type-change handling.
-2. **Phase 1: correctness of the existing mechanism.**
+2. **Phase 0b: non-blocking REST responses (§13).** Deferred responses for all transports, then `cmdraw`
+   and `cmdjson` moved onto them. Requires RaftI2C I12 first.
+3. **Phase 1: correctness of the existing mechanism.**
    - the I1/I2 mux and slot fixes;
    - I5/I7 poll scheduling;
    - I6 aggregator width;
@@ -858,18 +862,18 @@ product constraint.
    - the generator overlap/shadow warnings and C6;
    - turning debug logging off;
    - the documentation fixes.
-3. **Phase 2: the grammar.** A single validated parser with shared test vectors, used by both the C++ and
+4. **Phase 2: the grammar.** A single validated parser with shared test vectors, used by both the C++ and
    the Python generator.
-4. **Phase 3: identification model.**
+5. **Phase 3: identification model.**
    - per-record identification state and scheduler (this replaces the global 3 s retry);
    - `IdentEvent`;
    - table generation;
    - per-record `IdentPolicy`;
    - `AllKnown` vs `IdentCandidates`;
    - runtime metadata parity (`probeOnly`, `deviceTypeId`) and the generated RSAO registry.
-5. **Phase 4: re-identification.** `requestReIdentify` with `StaleGeneration` and make-before-break. Update
+6. **Phase 4: re-identification.** `requestReIdentify` with `StaleGeneration` and make-before-break. Update
    the consumers (DataLogger, DevicePower, VL53LxCX, raftjs cache invalidation).
-6. **Phase 5: the device library on the new primitives.**
+7. **Phase 5: the device library on the new primitives.**
    - suppression becomes `setIdentPolicyByName`;
    - replacement uses `RecSource::Base`;
    - no explicit `reIdentifyDevices()` calls;
@@ -900,9 +904,11 @@ product constraint.
    (A1).
 6. **Library capacity varies by build.** The 20 extended slots are shared with static devices (e.g. Axiom's
    direct-connected devices). `devlib` reports `maxRecords`, but users will not expect the limit to vary.
-7. **Other buses ignore `setCallbackFromBusTask`.** RaftCore's `cmdraw` read path depends on the bus
-   honouring it, and any bus implementation other than RaftI2C ignores it, so `cmdraw` reads will time out
-   on those buses.
+7. **The branch's `cmdraw` changes conflict with `main` and with §13.** The device-library branch replaces
+   `main`'s `cmdraw` wait (which services the bus loop itself) with `setCallbackFromBusTask` plus a mutex. Both
+   are blocking designs and are superseded by deferred responses (§13), so those commits (RaftCore
+   `53b3ff4`, `d83c6a9` (cmdraw part), `e2b3bd3`, `6d29eb3`; RaftI2C `8dc1ebf`) should be dropped from the
+   branch before it merges.
 
 ---
 
@@ -1045,3 +1051,251 @@ are affected. No poll strings are affected.
 **Required alongside the fix: Axiom's `AxiomDevTypes/DeviceTypeRecords.json`** carries the same three
 bad values. With the parser fix, and without the matching data fix, genuine LTR-329, LTR-390 and
 M5-Weight devices would stop being identified on Axiom.
+
+---
+
+## 13. Design decision: non-blocking (deferred) REST responses
+
+Status: **agreed direction (option B), not yet implemented.** Reviewed 2026-10-13.
+
+### 13.1 Problem
+
+`devman/cmdraw` with `numToRd > 0` (and `DeviceIdentMgr::sendCmdToDevice`, behind `devman/cmdjson`) waits
+inside the REST handler for the bus result. **Every transport runs REST handlers on the main task:**
+- WebSocket, BLE and serial RICSerial via `CommsChannelManager::loop` → `ProtocolExchange`;
+- HTTP via `WebServer::loop` → `RaftWebConnManager::serviceConnections`;
+- console and remote-debug lines in their SysMod loops.
+
+So any wait stalls all communications, publishing and other SysMods.
+
+How the blocking approaches have evolved:
+- **`b43d8de` (Aug 2026):** waited on a `volatile` flag. This could never complete on the main task.
+- **`36b0dc3` (Sep 2026, current `main`):** services the bus loop itself while it waits. This works (20/20 reads
+  measured on the FeatherS3 over WebSocket and HTTP, 24–78 ms), but it only works on the main task, it
+  re-enters the bus loop from inside a REST handler, and it still blocks.
+- **The device-library branch:** delivers the callback on the bus task and adds a mutex. This works from any
+  task, but the callback runs under the bus-owner lock, it needs every bus implementation to support it, and
+  it still blocks (up to 500 ms).
+
+**Decision:** the handler must not wait. It returns "pending", and the response is sent when the result
+arrives.
+
+### 13.2 Options considered
+
+- **A. Acknowledge now, deliver the result as a `msgKey` report message.** Not chosen: every client would need
+  new matching code, and HTTP and the console still need separate handling.
+- **B. Deferred response that keeps the request's identity.** **Chosen.** raftjs already matches responses by
+  message number, out of order, with up to 255 outstanding (`RaftMsgHandler.ts`), so existing calls such as
+  `sendRICRESTURL` and `cmdRawWriteRead` keep working with no client change. It is a general mechanism that
+  any slow endpoint can use.
+- **C. Start then poll** (like `wifiscan/start` and `wifiscan/results`). Not needed, because B covers HTTP
+  (§13.4).
+- **Bus-task callback or loop servicing.** Rejected because both still block.
+
+### 13.3 Core mechanism (RaftCore)
+
+1. **A pending return code.** Add `RAFT_RESP_DEFERRED` to `RaftRetCode`; do not reuse `RAFT_BUS_PENDING`.
+2. **Request context.** Extend `APISourceInfo` (currently just `channelID`) so a handler can complete the
+   request later:
+   - `protocol` and `msgNum` (for RICSerial / RICFrame);
+   - `canDefer` (false by default; set by transports that support completion);
+   - `deferToken` (non-zero, monotonically increasing, never reused).
+3. **Completion API.** A handler that has `canDefer` returns `RAFT_RESP_DEFERRED` with an empty response,
+   keeps the context (or token), and later calls
+   `restAPIEndpointManager.completeDeferred(ctx, respJson)`. This must be called on the main task (enforce with
+   `RAFT_CHECK_MAIN_TASK`). Results from other tasks must be queued to the main task first, the same rule as
+   `sendBufOnChannel`.
+4. **Per-transport completion.** Each transport registers how to deliver a completed response, keyed by
+   channel or token (see §13.4).
+5. **Deferred timeout.** The framework sweeps pending requests on the main task and completes each one with
+   `{"rslt":"fail","error":"timeout"}` after a per-endpoint limit. The default should be about 1 s, so the reply
+   always arrives inside raftjs's 2 s retry window.
+6. **Duplicate requests.** raftjs resends a request it hasn't had an answer to within 2 s. If the same
+   channel and message number arrive while the original is still pending, ignore the repeat rather than
+   running it again (`cmdraw` writes to hardware). Together with item 5 this means repeats should not occur.
+7. **`handleApiRequest`** must stop discarding the handler's return code. It returns `RAFT_RESP_DEFERRED`, and
+   callers that cannot defer simply never set `canDefer`.
+
+### 13.4 Every caller and transport
+
+| Caller / transport | How the deferred response is delivered | Change needed |
+|---|---|---|
+| **RICSerial over WebSocket, BLE and serial** (raftjs, WebUI, apps) | `ProtocolExchange` already sends nothing when the response is empty (`ProtocolExchange.cpp:252-266`). Completion builds `CommsChannelMsg`, calls `setAsResponse(channelID, protocol, msgNum, MSG_TYPE_RESPONSE)` (already exists, `CommsChannelMsg.h:110`), encodes as `CMDRESPJSON` and calls `outboundHandleMsg` | Pass protocol and msgNum in `APISourceInfo`; do not convert a deferred return into "API not found" (`:224`) |
+| **Bridged RICSerial** (CommandSerial to a downstream device) | Bridging forwards frames with the inner message number unchanged, and raftjs matches the inner number | None |
+| **HTTP** (curl, `raft fs` / `raft ota`, scripts) | **Feasible.** `RaftWebConnection` polls the responder every main-loop pass, keeps an active responder open without blocking, and refreshes its idle timer while active. The 5-minute connection cap is the backstop. Change `RaftWebResponderRestAPI` to: (a) call the handler from `loop()` once the body is complete, for **all** methods, instead of inside `getContentLength()` (GET) or after the headers have already gone (POST); (b) while pending, report "no headers or response yet" (`isStdHeaderRequired()` / `responseAvailable()` false) and keep `readyToReceiveData()` true so a client disconnect is still detected; (c) on completion, set the response string so the next pass sends the headers with the real `Content-Length`, then the body. Add `RaftWebConnManager::completeDeferredResponse(token, resp)`, which scans its 12 connection slots by token like `sendBufOnChannel`. A disconnected client's responder is deleted, so a late completion just misses | Responder rework (also fixes today's POST behaviour of sending `200` before the handler runs, and the `!=` body-length check that can stall). HTTP requests all share one channel ID, so match by token, not channel. Cap concurrent deferred HTTP requests (return 503 above the cap) so slow requests cannot use up the connection slots; check `CONFIG_LWIP_MAX_SOCKETS` against `numConnSlots` |
+| **SerialConsole ASCII** (`raft m`, Axiom `request_ascii`) | Completion prints the JSON line to the console. The reply includes `"req"`, so line-oriented clients can still match it | Console registers a completion that calls `putStr` |
+| **LoggerRaftRemote** (raft CLI remote debug, channel 20006) | Same as the console, sent over the remote socket if it is still connected | Register a completion |
+| **CommandFile / CmdsAtStart** | The response is ignored today | Allow deferral. If a command sequence must wait for completion, add an optional completion callback to its state machine (never a blocking wait) |
+| **MQTT (RICJSON)** | The response is discarded today | None (fire and forget) |
+| **Internal `handleApiRequest` callers** (e.g. RaftROS `onConsoleLine`) | They discard the response | None; `canDefer` stays false |
+| **FileStreamSession stream start** | Uses the handler's return code | These endpoints do not defer |
+| **`SysManager::sendCmdJSON`** | Goes to SysMod `receiveCmdJSON`, not the REST API | Unaffected |
+
+**RaftROS:**
+- The firmware does not call `cmdraw` or `cmdjson`. Its own endpoints (`ros`, `rosstat`) are synchronous,
+  and `onConsoleLine` discards responses. Its service registry already has a deferred outcome
+  (`AutoPubServiceRegistry.h:52-56`).
+- There is **no host-side RICSerial or WebSocket ROS bridge**: the host variant is Zenoh-only and its tools
+  use HTTP. So RaftROS needs no change for B.
+- If a host bridge is ever written, it must match responses by message number, as raftjs does.
+
+**Other clients:**
+- **raftjs:** no change.
+- **Axiom `tests/hardware/serial_protocol.py` (`request_framed`):** already matches by message number. It
+  should drop stale frames for a number when that request times out, so a late reply can't be paired with a
+  reused number.
+- **SandBot `serial_telemetry.py`:** ignores responses.
+- **raft CLI (Rust `raftcli`):** uses the console, remote debug and HTTP, all covered above.
+
+### 13.5 `cmdraw` and `cmdjson` on the new mechanism
+
+- **`cmdraw` with `numToRd > 0`:**
+  - Queue the bus request as now, carrying the deferred context (or token) as the callback data, so several
+    requests can be pending at once in place of today's single `_cmdRawInFlightCmdId`.
+  - Return `RAFT_RESP_DEFERRED`.
+  - The result callback already runs on the main task, from `BusAccessor::loop()`. It completes the deferred
+    response with `rdData`, or with the bus error once I12 is fixed.
+  - No waiting, no bus-loop servicing, no cross-task shared buffer.
+- **Write-only `cmdraw`:** replies immediately, as now.
+- **`timeoutMs`:** becomes the deferred timeout, capped at about 1 s.
+- **`DeviceIdentMgr::sendCmdToDevice` (`cmdjson`):** moves to the same pattern, removing its special case
+  for waiting on the main task.
+- **Prerequisite: RaftI2C I12.** Every path that consumes a queued request must invoke its callback with a
+  result code: paused-drop, barred, BUSY, slot-enable failure, length mismatch and response-queue full.
+  Otherwise the deferred response only completes by timeout.
+
+### 13.6 Work items and order
+
+1. **RaftI2C I12:** guarantee a callback for every queued request.
+2. **RaftCore:**
+   - the `RAFT_RESP_DEFERRED` return code;
+   - the extended `APISourceInfo`;
+   - the deferred registry with timeout sweep and completion API;
+   - `handleApiRequest` returning the handler's code;
+   - `ProtocolExchange` support (pass msgNum and protocol, send on completion, ignore repeats);
+   - unit tests.
+3. **RaftWebServer:** `RaftWebResponderRestAPI` rework and `completeDeferredResponse`; deferred-request cap;
+   check `CONFIG_LWIP_MAX_SOCKETS`.
+4. **RaftSysMods:** SerialConsole, LoggerRaftRemote and CommandFile completion handling.
+5. **DeviceManager:** `cmdraw` and `cmdjson` moved to deferred responses. Remove `_cmdRawInFlightCmdId`,
+   `_cmdRawResultReady` and the bus-loop servicing.
+6. **Clients:** harden Axiom `serial_protocol.py`; document deferred behaviour in the wiki (REST API page and a
+   "writing slow endpoints" note).
+7. **Device-library branch:** drop its `cmdraw` / `setCallbackFromBusTask` commits (§11 item 7).
+8. **Verification on the FeatherS3** with raftjs (WebSocket), curl (HTTP) and the console:
+   - `cmdraw` reads succeed;
+   - the handler returns in well under 1 ms;
+   - several reads can be in flight at once;
+   - a client disconnect while pending is handled cleanly;
+   - a forced bus error returns its error code, not a timeout;
+   - the main loop's timing statistics show no stall.
+
+### 13.7 Decisions and open points
+
+Decided (2026-10-13):
+- **Timeout and error reporting use the Raft JSON convention** on every transport, including HTTP: the
+  response is `{"req":"...","rslt":"fail","error":"timeout"}` (HTTP status 200). No HTTP status codes are
+  needed, so the responder does not need a configurable status.
+- **Timeouts:** the framework has a **default deferred timeout** (about 1 s, inside raftjs's 2 s retry
+  window). An endpoint can **override it**, for operations with a known longer duration or a known issue. The
+  value is set when the handler defers (e.g. `deferResponse(ctx, timeoutMs)`), so it can depend on the
+  request. An override longer than 2 s must be paired with a longer `msgTimeoutMs` in the raftjs call, or
+  raftjs will resend the request, and the framework will ignore the repeat.
+- **Single final result only.** Deferral suits operations that produce one result after a delay. Operations
+  with intermediate or progressive results stay on their existing patterns: `wifiscan` start-then-poll,
+  publish topics, file streaming.
+
+**Prior art:** RaftROS already implements this pattern for ROS services. `AutoPubServiceRegistry.h` has
+outcomes `Replied`/`Deferred`/`Refused`, a token, `complete(token)`, a deadline sweep each loop pass, and
+`svcDeferred`/`svcTimedOut` stats. The RaftCore REST version should follow the same shape.
+
+**Important:** deferral only removes a wait from the main task if the work itself moves too. Completion has to
+come from a callback, a loop()-driven state machine or a worker task. Simply returning "deferred" around an
+existing blocking call achieves nothing.
+
+**Other existing endpoints that would benefit** (survey 2026-10-13; the top entries checked in code):
+
+| Priority | Endpoint | Today | With deferral |
+|---|---|---|---|
+| 1 | `espFwUpdate` (RaftSysMods ESPOTAUpdate) | After the last block, waits with `vTaskDelay(10)` for the OTA worker queue to drain, **up to 15 s on the main task** (`OTA_COMPLETION_WAIT_MAX_MS`) | Complete when the worker finishes verifying. Needs a long timeout override |
+| 2 | `rsao/arb` (Axiom RSAO) | Returns `"queued":true`; the client must poll `rsao/status`. Takes tens of seconds | Complete with the arbitration outcome. Needs a long timeout override (raftjs `msgTimeoutMs` to match) |
+| 3 | `devman/cmdraw`, `devman/cmdjson` | See §13.5. `cmdjson` on the main task queues the command with no callback, so the bus result and any read data are **dropped** | Complete from the bus result callback |
+| 4 | `vl53/detect`, `init`, `start`, `stop` (Axiom VL53LxCX) | Queued to a worker task; the result is only visible through `vl53/status` (the init firmware upload takes seconds) | Complete when the worker finishes the command |
+| 5 | `datalog?action=start` (Axiom DataLogger) | Loops up to 10 × `vTaskDelay(500)` waiting for devices to be identified: **up to 5 s on the main task** | loop()-driven wait, then complete |
+| 6 | `rsao/cmd/...` (Axiom RSAO test mode) | `SCAN`, `RST`, `TPOLL` run synchronously on the main task for long or caller-chosen times | Move to a worker or bus-task service, then complete |
+| 7 | `w/<ssid>/<pw>` (WiFi STA set) | Retry loop of up to 2 s on the main task, then replies before the connection outcome is known | Complete with connected/IP or failed. Useful over BLE, serial or the AP; a client on the STA link may lose its channel |
+| 8 | `reformatfs`, `filehash` (FileManager) | Synchronous format or whole-file CRC; can take seconds | Worker or chunked loop(), then complete (format's reply must still go out before the restart) |
+| 9 | `power/fg/*` (Axiom DevicePower) | Up to ~40 ms of delays; writes are queued with results ignored, and the reply says only "sent" | Complete with the outcome (and the new SOC for quickstart) |
+| 10 | `ros/set`, `ros/clear` (RaftROS) | Replies `"applied":"next loop pass"`; the client polls `ros` | Optionally complete when applied or when the session is ready |
+| 11 | MotorControl `home` (and opt-in motion completion) | Queued; the outcome is not reported | Opt-in completion (e.g. `wait=1`), since motion is normally streamed |
+
+**Not suitable for deferral:**
+- **Progressive or streaming:** `wifiscan`, `subscription`, `log/*`, `devman/demo`, `datalog simulate`.
+- **The reply must go out before the channel or device goes away:** `reset`, `blerestart`, `bledisconnect`,
+  `wc`, `power/off`, `console/settings?baud=`.
+- **Already fast synchronous getters and setters.**
+
+Open: confirm which of the candidates above to schedule after `cmdraw`/`cmdjson`. `espFwUpdate`, `rsao/arb`,
+`vl53/*` and `datalog start` look like the most valuable next ones.
+
+### 13.8 Preparatory work done and benchmark baseline (2026-10-13/14)
+
+**Changes** (uncommitted on `main` at the time of writing):
+
+- **RaftI2C (I12):** every queued (non-polling, non-scan) request now gets its callback with a result code.
+  - **`BusI2C::i2cSendAsync`** reports early failures with their own codes: address barred or invalid, bus-owner
+    lock busy (`BUSY`), slot-enable failure, and no I2C driver (`BUS_NOT_INIT`).
+  - **`BusAccessor::processRequestQueue`** reports a request dropped because the bus is paused
+    (`BUS_NOT_READY`).
+  - **`BusAccessor::handleResponse`** reports a NACK or short read (`BUS_ACK_ERROR` / `BUS_INCOMPLETE`, with no
+    data) instead of dropping it.
+  - **Unchanged:** polling results (only complete polls are reported, with the OK/pending result as before).
+  - **Not covered:** a full response queue still cannot be reported through the queue. It is counted in the
+    bus stats; the deferred-response timeout will cover it.
+- **RaftCore:**
+  - **`BusRequestResult`** has a constructor taking the actual `RaftRetCode` (the old `bool` form is kept).
+  - **`cmdraw`** returns the bus error code (e.g. `{"rslt":"fail","error":"BUS_ACK_ERROR"}`) instead of an empty
+    `rdData`.
+  - **`SupervisorStats`:** `sysmoddebug/SysMan` now returns the last period's loop statistics. Previously it
+    always returned `{}`, because the summary was cleared straight after being logged. `minUs` is no longer
+    stuck at 0.
+
+**Benchmark method:**
+- **Client:** a raftjs script (`bench.js`; Node 20 in the `raftbuilder` image) on the host, using the
+  FeatherS3 (MPU6050 at 0x68, APDS9960 at 0x39) over WiFi.
+- **Phases:**
+  - idle;
+  - `devjson` streaming at 10 Hz;
+  - 100 sequential `cmdraw` reads while streaming;
+  - 10 bursts of 5 concurrent `cmdraw` reads while streaming;
+  - error paths: a read from an empty address (`1_50`), a bad slot (`1_168`), and a write-only command to an
+    empty address;
+  - HTTP `cmdraw` / `listdevs` / `v`;
+  - WebSocket `listdevs` / `v`.
+- **Device-side main-loop statistics** come from `sysmoddebug/SysMan` with `sysman?interval=5`.
+- **WiFi latency varies a lot on this bench** (ping 8–240 ms between runs). Interleave A/B runs, check ping
+  before each run, and use the WebSocket/HTTP `v` latency as the network-only reference. Device-side loop
+  statistics are not affected by the network.
+
+**Results** (quiet-network runs, ping about 9 ms):
+
+| Metric | Before I12 | After I12 |
+|---|---|---|
+| WS `v` p50 (network reference) | 51 ms | 51 ms |
+| `cmdraw` read p50 / p95, sequential while streaming | 50 / 65 ms | 52 / 81 ms |
+| 100 sequential `cmdraw` reads | 5.07 s | 5.35 s |
+| 5 concurrent `cmdraw` reads, p50 / p95 | 158 / ~260 ms | 155 / ~290 ms (requests are serialised by the blocking handler) |
+| HTTP `cmdraw` / `listdevs` / `v` p50 | 50 / 40 / 39 ms | 50 / 39 / 38 ms |
+| `cmdraw` read, empty address | `readTimeout` 10/10 | `BUS_ACK_ERROR` 10/10 |
+| `cmdraw` read, bad slot | `readTimeout` 10/10 | `BUS_ACK_ERROR` 9/10 (the remainder are the 20 ms cap) |
+| Main loop, idle avg / max | ~1.7 ms / 9–19 ms | similar |
+| Main loop max during the `cmdraw` burst | 16–20 ms (CommsMan up to 14 ms: the blocking wait) | similar |
+
+**What deferred responses (§13) should improve against this baseline:**
+- **The main loop no longer blocks:**
+  - CommsMan and WebServer `slowUs` during `cmdraw` bursts should drop to the cost of queuing the request;
+  - the main-loop maximum during bursts should match the streaming-only value;
+  - the gaps between publishes during bursts should shrink.
+- **Concurrency:** concurrent `cmdraw` reads should overlap rather than serialise, so the concurrent p50 should
+  approach the sequential p50.
+- **Error paths:** they should never time out.

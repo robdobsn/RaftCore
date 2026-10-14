@@ -1220,6 +1220,8 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
         }
         if (!_cmdRawResultReady)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "readTimeout");
+        if (_cmdRawResult != RAFT_OK)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, Raft::getRetCodeStr(_cmdRawResult));
         String hexRead;
         Raft::getHexStrFromBytes(_cmdRawReadData.data(), _cmdRawReadData.size(), hexRead);
         String otherJson = "\"rdData\":\"" + hexRead + "\"";
@@ -2403,6 +2405,7 @@ void DeviceManager::cmdResultReportCallback(BusRequestResult& reqResult)
             _cmdRawReadData.assign(reqResult.getReadData(), reqResult.getReadData() + reqResult.getReadDataLen());
         else
             _cmdRawReadData.clear();
+        _cmdRawResult = reqResult.getResult();
         _cmdRawResultReady = true;
     }
 #ifdef DEBUG_CMD_RESULT_CALLBACK

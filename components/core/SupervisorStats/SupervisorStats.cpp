@@ -110,13 +110,16 @@ void SupervisorStats::calculate()
 
     // Calculate slowest modules
     _summaryInfo.updateSlowestModules(_moduleList);
+
+    // Format the summary now as the underlying timers are cleared at the start of the next period
+    _lastSummaryStr = formatSummaryString();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get summary string
+// Format summary string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String SupervisorStats::getSummaryString() const
+String SupervisorStats::formatSummaryString() const
 {
     // Average loop time
     String outerLoopStr;
