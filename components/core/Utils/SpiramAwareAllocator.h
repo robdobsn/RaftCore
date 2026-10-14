@@ -19,7 +19,12 @@
 #include "esp_idf_version.h"
 #endif
 
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+// PSRAM support (CONFIG_SPIRAM in ESP-IDF 5+, CONFIG_ESP32_SPIRAM_SUPPORT in earlier versions)
+#if defined(CONFIG_SPIRAM) || defined(CONFIG_ESP32_SPIRAM_SUPPORT)
+#define RAFT_SPIRAM_AWARE_ALLOC_USE_SPIRAM
+#endif
+
+#ifdef RAFT_SPIRAM_AWARE_ALLOC_USE_SPIRAM
 
 #include "sdkconfig.h"
 #include "esp_heap_caps.h"
@@ -57,7 +62,7 @@ public:
     T* allocate(size_type n, const void* = 0)
     {
 
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#ifdef RAFT_SPIRAM_AWARE_ALLOC_USE_SPIRAM
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
         if (esp_spiram_get_chip_size() != ESP_SPIRAM_SIZE_INVALID)
         {
@@ -103,7 +108,7 @@ public:
 
     static uint32_t max_allocatable()
     {
-#ifdef CONFIG_ESP32_SPIRAM_SUPPORT
+#ifdef RAFT_SPIRAM_AWARE_ALLOC_USE_SPIRAM
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
         if (esp_spiram_get_chip_size() != ESP_SPIRAM_SIZE_INVALID)
             return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);

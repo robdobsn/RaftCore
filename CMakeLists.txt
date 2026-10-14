@@ -138,6 +138,7 @@ idf_component_register(
     "components/core/NamedValueProvider/NamedValueProvider.cpp"
     "components/core/NetworkSystem/NetworkSystem.cpp"
     "components/core/NetworkSystem/WiFiScanner.cpp"
+    "components/core/NetworkSystem/WiFiDiagnostics.cpp"
     "components/core/RaftCoreApp/RaftCoreApp.cpp"
     "components/core/RaftDevice/RaftDevice.cpp"
     "components/core/RaftJson/RaftJsonNVS.cpp"
