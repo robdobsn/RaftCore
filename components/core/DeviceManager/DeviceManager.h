@@ -233,7 +233,11 @@ private:
                 const APISourceInfo& sourceInfo);
 
     /// @brief Handle devman/cmdjson
-    RaftRetCode apiDevManCmdJson(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManCmdJson(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+                const APISourceInfo& sourceInfo);
+
+    /// @brief Form the response to a command sent to a bus device (read data or bus error)
+    static void formBusCmdResponse(const char* reqStr, BusRequestResult& reqResult, String& respStr);
 
 #ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
     /// @brief Handle devman/demo

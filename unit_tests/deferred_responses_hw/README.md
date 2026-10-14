@@ -3,7 +3,8 @@
 How to see deferred REST responses (devdocs/device-identification-review.md §13) working on a real
 device, over HTTP (curl) and over WebSocket (raftjs).
 
-**Coverage (slices 1 to 3).** Requests are deferred when they arrive:
+**Coverage (slices 1 to 4).** `devman/cmdraw` commands (reads and writes), and `devman/cmdjson` commands to bus
+devices (slice 4, which also needs the RaftI2C `feature/deferred-responses` branch), are deferred when they arrive:
 - over RICSerial transports (WebSocket, BLE and serial frames, e.g. raftjs), which is slice 1, in RaftCore;
 - as HTTP GET requests, which is slice 2. This needs the RaftWebServer `feature/deferred-responses` branch
   in `raftdevlibs` as well;
@@ -79,11 +80,16 @@ cd ~/Documents/rdev/raft/RaftCore/unit_tests/deferred_responses_hw
 # A read with a deliberately short timeout -> {"rslt":"fail","error":"timeout"}, tout and unk increase
 ./run.sh try.js 192.168.86.52 "devman/cmdraw?deviceid=1_68&hexWr=75&numToRd=1&timeoutMs=1"
 
-# Full integration test (20 checks: WebSocket and HTTP)
+# cmdjson read from a bus device (body URL-encoded) -> "rdData":"68"
+curl "http://$IP/api/devman/cmdjson?body=%7B%22device%22%3A%221_68%22%2C%22hexWr%22%3A%2275%22%2C%22numToRd%22%3A1%7D"
+
+# Full integration test (23 checks: WebSocket and HTTP)
 ./run.sh deftest.js 192.168.86.52
 #   reads, error paths, concurrency, capacity, forced timeouts, duplicate frames (same msgNum),
 #   client disconnect while pending, unaffected commands, command-frame form,
-#   HTTP: deferred reads, errors, timeout (200 + JSON), concurrency, disconnect, Content-Length
+#   HTTP: deferred reads, errors, timeout (200 + JSON), concurrency, disconnect, Content-Length,
+#   writes report the bus result (ok or bus error),
+#   cmdjson: WebSocket reads (data, bus error, timeout), writes (ok, bus error), concurrent HTTP reads
 
 # Concurrent HTTP requests (note the server's connection limit - resets appear at about 10 concurrent connections,
 # with or without deferral)
@@ -127,7 +133,9 @@ curl "http://$IP/api/sysmoddebug/RestAPI"    # def and cmpl both +3
 | `cmdraw` read | curl | `rdData` / bus error | `def` and `cmpl` +1 |
 | `cmdraw` read | serial console / TCP socket | `rdData` / bus error (printed when available) | `def` and `cmpl` +1 |
 | `cmdraw` read in a `.api` file | `filerun/<file>.api` | discarded | `def` and `cmpl` +1 |
-| `cmdraw` write only (no `numToRd`) | either | `ok` immediately | unchanged |
+| `cmdraw` write only (no `numToRd`) | any | `ok` when written / bus error (e.g. empty address) | `def` and `cmpl` +1 |
+| `cmdjson` with `numToRd` (bus device) | any | `rdData` / bus error / `timeout` | `def` and `cmpl` (or `tout`) +1 |
+| `cmdjson` without `numToRd` (bus device) | any | `ok` when written / bus error | `def` and `cmpl` +1 |
 
 **Main-loop effect** (`stall.js`, compared with a RaftCore `main` build): the CommsMan worst case per 1 s
 window during `cmdraw` reads falls from about 14–17 ms to 5–8 ms, close to the `v` control.

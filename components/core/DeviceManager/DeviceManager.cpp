@@ -905,7 +905,7 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
     if (cmdName.equalsIgnoreCase("cmdraw"))
         return apiDevManCmdRaw(reqStr, respStr, jsonParams, sourceInfo);
     if (cmdName.equalsIgnoreCase("cmdjson"))
-        return apiDevManCmdJson(reqStr, respStr, jsonParams);
+        return apiDevManCmdJson(reqStr, respStr, jsonParams, sourceInfo);
 #ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
     if (cmdName.equalsIgnoreCase("demo"))
         return apiDevManDemo(reqStr, respStr, jsonParams);
@@ -1128,9 +1128,9 @@ RaftRetCode DeviceManager::resolveDeviceIDAndBus(const RaftJson& jsonParams, Raf
 /// @param reqStr request string containing the command and parameters
 /// @param respStr (out) response string to be filled with the result
 /// @param jsonParams JSON object containing the parameters for the command, expected to have ("bus" and "addr") or "deviceid", "hexWr", and "numToRd" fields
-/// @param sourceInfo source of the request (a read is responded to later if the transport supports deferred responses)
+/// @param sourceInfo source of the request (responded to when the bus transaction completes if the transport supports deferred responses)
 /// @return RaftRetCode indicating success or failure of the operation, with the response containing the result of the command if successful
-///         or RAFT_RESP_DEFERRED if the response will be sent when the read completes
+///         or RAFT_RESP_DEFERRED if the response will be sent when the bus transaction completes
 RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
             const APISourceInfo& sourceInfo)
 {
@@ -1164,16 +1164,17 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     // Generation-stamped cmdId (used for read-back matching)
     static uint32_t cmdRawGeneration = 0;
 
-    // A read is responded to when the bus result arrives (rather than waiting here) if the transport
-    // supports deferred responses. The bus result callback is made on the main task (from the bus loop()).
+    // The response is sent when the bus result arrives (rather than waiting here) if the transport supports
+    // deferred responses - so the response reports the actual result of a write as well as the data read.
+    // The bus result callback is made on the main task (from the bus loop()).
     RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
-    if ((numBytesToRead > 0) && sourceInfo.canDefer && pRestAPIEndpointManager)
+    if (sourceInfo.canDefer && pRestAPIEndpointManager)
     {
-        // Defer the response (timeoutMs is the time allowed for the read, 0 = default)
+        // Defer the response (timeoutMs is the time allowed for the bus transaction, 0 = default)
         uint32_t timeoutMs = jsonParams.getLong("timeoutMs", 0);
         if (pRestAPIEndpointManager->deferResponse(reqStr.c_str(), sourceInfo, timeoutMs) == RAFT_RESP_DEFERRED)
         {
-            // Bus request which completes the deferred response with the read data or the bus error
+            // Bus request which completes the deferred response with the result (and any data read) or the bus error
             uint32_t deferToken = sourceInfo.deferToken;
             String reqStrCopy = reqStr;
             uint32_t cmdId = CMDID_CMDRAW_BASE + (++cmdRawGeneration & 0xFFFF);
@@ -1183,18 +1184,7 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
                     [pRestAPIEndpointManager, deferToken, reqStrCopy](void* /*pCallbackData*/, BusRequestResult& reqResult)
                         {
                             String deferredRespStr;
-                            if (reqResult.isResultOk())
-                            {
-                                String hexRead;
-                                Raft::getHexStrFromBytes(reqResult.getReadData(), reqResult.getReadDataLen(), hexRead);
-                                String otherJson = "\"rdData\":\"" + hexRead + "\"";
-                                Raft::setJsonBoolResult(reqStrCopy.c_str(), deferredRespStr, true, otherJson.c_str());
-                            }
-                            else
-                            {
-                                Raft::setJsonErrorResult(reqStrCopy.c_str(), deferredRespStr, 
-                                            Raft::getRetCodeStr(reqResult.getResult()));
-                            }
+                            formBusCmdResponse(reqStrCopy.c_str(), reqResult, deferredRespStr);
                             pRestAPIEndpointManager->completeDeferred(deferToken, deferredRespStr);
                         },
                     nullptr);
@@ -1288,19 +1278,91 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Form the response to a command sent to a bus device
+/// @param reqStr request string
+/// @param reqResult result of the bus request
+/// @param respStr (out) response - ok (with the data read as "rdData" hex if a read was requested) or the bus error
+void DeviceManager::formBusCmdResponse(const char* reqStr, BusRequestResult& reqResult, String& respStr)
+{
+    if (reqResult.isResultOk() && (reqResult.getReadDataLen() == 0))
+    {
+        Raft::setJsonBoolResult(reqStr, respStr, true);
+    }
+    else if (reqResult.isResultOk())
+    {
+        String hexRead;
+        Raft::getHexStrFromBytes(reqResult.getReadData(), reqResult.getReadDataLen(), hexRead);
+        String otherJson = "\"rdData\":\"" + hexRead + "\"";
+        Raft::setJsonBoolResult(reqStr, respStr, true, otherJson.c_str());
+    }
+    else
+    {
+        Raft::setJsonErrorResult(reqStr, respStr, Raft::getRetCodeStr(reqResult.getResult()));
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief REST API endpoint for sending JSON command to device
 /// @param reqStr request string containing the command and parameters
 /// @param respStr (out) response string to be filled with the result
 /// @param jsonParams JSON object containing the parameters for the command, expected to have a "body" field with the JSON command
 /// @return RaftRetCode indicating success or failure of the operation, with the response containing the result of the command if successful
+/// @param sourceInfo source of the request (a bus command is responded to later if the transport supports deferred responses)
 /// @note the body is sent to the device as-is and is expected to contain a "device" field to route the command to the correct device. 
-///       The response is a boolean indicating whether the command was successfully sent to the device, and any result from the command execution 
-///       would be expected to be obtained via other means (e.g. device data updates, separate API calls, etc.)
-RaftRetCode DeviceManager::apiDevManCmdJson(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+///       If the body is for a bus device (and the transport supports deferred responses) then the response is sent when the 
+///       bus request completes and contains the result (with the data read as "rdData" if "numToRd" is specified) or the bus error.
+///       Otherwise the response is a boolean indicating whether the command was successfully sent to the device, and any result 
+///       from the command execution would be expected to be obtained via other means (e.g. device data updates, separate API calls, etc.)
+RaftRetCode DeviceManager::apiDevManCmdJson(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+            const APISourceInfo& sourceInfo)
 {
     String cmdJSON = jsonParams.getString("body", "");
     if (cmdJSON.length() == 0)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failMissingBody");
+
+    // A command to a bus device is responded to when the bus result arrives if the transport supports deferred 
+    // responses - so the response reports the actual result (the result callback is made on the main task)
+    RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
+    RaftJson cmdJsonObj(cmdJSON);
+    if (sourceInfo.canDefer && pRestAPIEndpointManager)
+    {
+        // Only bus devices (static devices handle commands themselves)
+        RaftDeviceID deviceID;
+        RaftBus* pBus = nullptr;
+        String errorStr;
+        RaftBusDevicesIF* pDevicesIF = nullptr;
+        if ((resolveDeviceIDAndBus(cmdJsonObj, deviceID, pBus, errorStr) == RAFT_OK) && pBus && !getDevice(deviceID))
+            pDevicesIF = pBus->getBusDevicesIF();
+
+        // Defer the response (timeoutMs is the time allowed for the bus transaction, 0 = default)
+        uint32_t timeoutMs = jsonParams.getLong("timeoutMs", cmdJsonObj.getLong("timeoutMs", 0));
+        if (pDevicesIF && (pRestAPIEndpointManager->deferResponse(reqStr.c_str(), sourceInfo, timeoutMs) == RAFT_RESP_DEFERRED))
+        {
+            // Send the command - the result completes the deferred response
+            uint32_t deferToken = sourceInfo.deferToken;
+            String reqStrCopy = reqStr;
+            RaftRetCode sendRslt = pDevicesIF->sendCmdToDeviceAsync(deviceID, cmdJSON.c_str(),
+                    [pRestAPIEndpointManager, deferToken, reqStrCopy](BusRequestResult& reqResult)
+                        {
+                            String deferredRespStr;
+                            formBusCmdResponse(reqStrCopy.c_str(), reqResult, deferredRespStr);
+                            pRestAPIEndpointManager->completeDeferred(deferToken, deferredRespStr);
+                        });
+#ifdef DEBUG_DEVMAN_API
+            LOG_I(MODULE_PREFIX, "apiDevMan cmdjson deferred token %d sendRslt %s cmdJSON %s", 
+                        deferToken, Raft::getRetCodeStr(sendRslt), cmdJSON.c_str());
+#endif
+            if (sendRslt == RAFT_OK)
+                return RAFT_RESP_DEFERRED;
+
+            // Not sent so respond now (or continue with the immediate path if the bus doesn't support this)
+            pRestAPIEndpointManager->getDeferredResponses().cancel(deferToken);
+            if (sendRslt == RAFT_BUSY)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusQueueFull");
+            if (sendRslt != RAFT_NOT_IMPLEMENTED)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, Raft::getRetCodeStr(sendRslt));
+        }
+    }
 
     RaftRetCode retc = receiveCmdJSON(cmdJSON.c_str());
 

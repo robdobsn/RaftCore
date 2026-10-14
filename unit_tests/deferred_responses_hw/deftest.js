@@ -31,7 +31,8 @@ async function connect() { const c = new RaftConnector(async () => sysType()); a
     for (let i = 0; i < 10; i++) nack.push(await send('devman/cmdraw?deviceid=1_50&hexWr=00&numToRd=1'));
     const nackMs = Date.now() - t0; t0 = Date.now();
     for (let i = 0; i < 10; i++) slot.push(await send('devman/cmdraw?deviceid=1_168&hexWr=75&numToRd=1'));
-    check('T2 NACK reads return BUS_ACK_ERROR (no timeouts)', tally(nack)['BUS_ACK_ERROR'] === 10, { tally: tally(nack), totalMs: nackMs });
+    // The I2C driver may report a NACK as BUS_SW_TIME_OUT rather than BUS_ACK_ERROR - either is a bus error (not a deferral timeout)
+    check('T2 NACK reads return a bus error (no timeouts)', nack.every(r => r && r.error && r.error.startsWith('BUS_')), { tally: tally(nack), totalMs: nackMs });
     check('T2 bad-slot reads return a bus error (no timeouts)', !tally(slot)['timeout'] && !tally(slot)['readTimeout'] && !tally(slot)['null(clientTimeout)'], { tally: tally(slot), totalMs: Date.now() - t0 });
   }
   if (run('T3')) { // concurrency overlaps
@@ -61,7 +62,10 @@ async function connect() { const c = new RaftConnector(async () => sysType()); a
       const cmd = new TextEncoder().encode(READ); const payload = new Uint8Array(cmd.length + 2); payload[0] = 0; payload.set(cmd, 1); payload[payload.length - 1] = 0;
       const frame = new Uint8Array(payload.length + 2); frame[0] = msgNum; frame[1] = (0 << 6) | 2; frame.set(payload, 2);
       const enc = mh._miniHDLC.encode(frame);
-      await ch.sendTxMsg(enc, false); await ch.sendTxMsg(enc, false); // back-to-back duplicate
+      // Duplicate in the same WebSocket message so both arrive while the first is pending (separate messages can be
+      // delayed by WiFi until after the read has completed, and a request which is no longer pending is handled again)
+      const dup = new Uint8Array(enc.length * 2); dup.set(enc, 0); dup.set(enc, enc.length);
+      await ch.sendTxMsg(dup, false);
     }
     await sleep(500); mh._handleResponseMessages = orig;
     const counts = [201, 202, 203].map(n => seen.filter(s => s.rxMsgNum === n).length);
@@ -73,9 +77,14 @@ async function connect() { const c = new RaftConnector(async () => sysType()); a
     await sleep(800); const st = await stats(); const v = await http('v');
     check('T7 device healthy after client vanished with pending response', v.rslt === 'ok' && st.pend === 0, { pend: st.pend, ver: v.SystemVersion });
   }
-  if (run('T8')) { // unaffected commands
-    const wo = await send('devman/cmdraw?deviceid=1_68&hexWr=6b01'); const ld = await send('devman/listdevs'); const vv = await send('v');
-    check('T8 write-only cmdraw immediate ok, listdevs and v unaffected', wo && wo.rslt === 'ok' && ld && Array.isArray(ld.devices) && vv && vv.rslt === 'ok', { wo, devs: ld && ld.devices });
+  if (run('T8')) { // writes are deferred and report the bus result, other commands unaffected
+    const before = await stats();
+    const wo = await send('devman/cmdraw?deviceid=1_68&hexWr=6b01'); const woNack = await send('devman/cmdraw?deviceid=1_50&hexWr=00');
+    const after = await stats();
+    const ld = await send('devman/listdevs'); const vv = await send('v'); const after2 = await stats();
+    check('T8 write-only cmdraw deferred: ok (no rdData) and NACK reports a bus error', wo && wo.rslt === 'ok' && wo.rdData === undefined && woNack && woNack.error && woNack.error.startsWith('BUS_') && after.def - before.def === 2,
+          { wo, woNack: outcome(woNack), def: after.def - before.def });
+    check('T8 listdevs and v unaffected (not deferred)', ld && Array.isArray(ld.devices) && vv && vv.rslt === 'ok' && after2.def === after.def, { devs: ld && ld.devices });
   }
   if (run('T9')) { // HTTP reads are deferred
     const before = await stats(); const rs = []; for (let i = 0; i < 10; i++) rs.push(await http(READ)); const after = await stats();
@@ -108,6 +117,29 @@ async function connect() { const c = new RaftConnector(async () => sysType()); a
     const r = await mh.sendRICRESTCmdFrame('{"cmdName":"devman/cmdraw","deviceid":"1_68","hexWr":"75","numToRd":1}');
     const after = await stats();
     check('T10 command-frame cmdraw deferred and answered', r && r.rdData === '68' && after.def - before.def === 1, { r });
+  }
+  if (run('T16')) { // cmdjson read deferred over WebSocket (data, bus error, timeout) and write-only immediate
+    const cj = b => 'devman/cmdjson?body=' + encodeURIComponent(JSON.stringify(b));
+    const before = await stats();
+    const rd = await send(cj({ device: '1_68', hexWr: '75', numToRd: 1 }));
+    const rd2 = await send(cj({ device: '1_39', hexWr: '92', numToRd: 1 }));
+    const nack = await send(cj({ device: '1_50', hexWr: '00', numToRd: 1 }));
+    const tmo = await send(cj({ device: '1_68', hexWr: '75', numToRd: 1, timeoutMs: 1 }));
+    const after = await stats();
+    const wr = await send(cj({ device: '1_68', hexWr: '6B00' }));
+    const wrNack = await send(cj({ device: '1_50', hexWr: '00' }));
+    const after2 = await stats();
+    check('T16 WS cmdjson reads deferred: rdData, bus error, timeout', rd && rd.rdData === '68' && rd2 && rd2.rdData === 'ab' && nack && nack.error === 'BUS_ACK_ERROR' && tmo && tmo.error === 'timeout' && after.def - before.def === 4,
+          { rd: outcome(rd), rd2: outcome(rd2), nack: outcome(nack), tmo: outcome(tmo), def: after.def - before.def });
+    check('T16 WS cmdjson write-only deferred: ok and NACK reports a bus error', wr && wr.rslt === 'ok' && wr.rdData === undefined && wrNack && wrNack.error && wrNack.error.startsWith('BUS_') && after2.def - after.def === 2,
+          { wr: outcome(wr), wrNack: outcome(wrNack), def: after2.def - after.def });
+  }
+  if (run('T17')) { // cmdjson over HTTP, concurrent
+    const cj = b => 'devman/cmdjson?body=' + encodeURIComponent(JSON.stringify(b));
+    const before = await stats();
+    const rs = await Promise.all([...Array(4)].map(() => http(cj({ device: '1_68', hexWr: '75', numToRd: 1 })).catch(() => null)));
+    const after = await stats();
+    check('T17 HTTP cmdjson concurrent reads deferred and answered', tally(rs)['rdData=68'] === 4 && after.def - before.def === 4 && after.pend === 0, { tally: tally(rs), def: after.def - before.def });
   }
   const sEnd = await stats();
   console.log('STATS start', JSON.stringify(s0)); console.log('STATS end  ', JSON.stringify(sEnd));

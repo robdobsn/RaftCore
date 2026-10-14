@@ -10,13 +10,19 @@
 
 #include <stdint.h>
 #include <vector>
+#include <functional>
 #include "RaftBusConsts.h"
 #include "RaftArduino.h"
 #include "RaftDeviceConsts.h"
 #include "DevicePollingInfo.h"
 
-// Forward declaration (full definition not needed by the interface)
+// Forward declarations (full definitions not needed by the interface)
 class DeviceStatus;
+class BusRequestResult;
+
+/// @brief Function called with the result of a command sent to a device with sendCmdToDeviceAsync()
+/// @param result result of the bus request (including any data read)
+typedef std::function<void(BusRequestResult& result)> RaftBusCmdResultFn;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Handler serviced on the bus task for application work that drives the bus
@@ -220,6 +226,20 @@ public:
     ///       - "numToRd": number of bytes to read from the device (optional)
     virtual RaftRetCode sendCmdToDevice(RaftDeviceID deviceID, const char* cmdJSON, String* respMsg)
     {
+        return RaftRetCode::RAFT_NOT_IMPLEMENTED;
+    }
+
+    /// @brief Send command to device on bus and get the result later (does not wait)
+    /// @param deviceID ID of the device
+    /// @param cmdJSON Command JSON string (as for sendCmdToDevice())
+    /// @param resultFn function called with the result (on the main task) - only called if RAFT_OK is returned
+    /// @return RAFT_OK if the command is queued, RAFT_NOT_IMPLEMENTED if the bus does not support this, otherwise
+    ///         an error code (e.g. RAFT_BUSY if the bus request queue is full)
+    virtual RaftRetCode sendCmdToDeviceAsync(RaftDeviceID deviceID, const char* cmdJSON, RaftBusCmdResultFn resultFn)
+    {
+        (void)deviceID;
+        (void)cmdJSON;
+        (void)resultFn;
         return RaftRetCode::RAFT_NOT_IMPLEMENTED;
     }
 

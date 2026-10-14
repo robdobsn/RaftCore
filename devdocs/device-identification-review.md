@@ -1439,3 +1439,48 @@ Client-side latency is unchanged: it is dominated by the network and by raftjs p
 - **Benchmark** (`stall.js`): CommsMan worst pass during WS `cmdraw` is about 6–7 ms, in line with slice 2.
   The NACK main-loop max of about 27 ms is the known DevMan stall (§13.9). HTTP figures vary with WiFi
   (HTTP `v` control 9–12 ms in this run).
+
+### 13.12 Slice 4: `cmdjson` on the deferral mechanism (2026-10-14, RaftCore and RaftI2C branches `feature/deferred-responses`)
+
+**Before:** `cmdjson` for a bus device called `sendCmdToDevice()`, which on the main task only queued the
+request. The response `ok` meant "queued". Data read with `numToRd` was dropped, and bus errors were never
+reported.
+
+**Implementation:**
+- **RaftCore `RaftBusDevicesIF::sendCmdToDeviceAsync(deviceID, cmdJSON, resultFn)`:** a new virtual function.
+  It returns `RAFT_OK` if the command is queued, and `resultFn` is then called with the `BusRequestResult` on
+  the main task. The default returns `RAFT_NOT_IMPLEMENTED`, so other buses are unaffected and fall back to
+  the old path.
+- **RaftI2C `DeviceIdentMgr`:**
+  - Implements `sendCmdToDeviceAsync()` via the bus worker queue (the same queue as `cmdraw`). It returns
+    `RAFT_BUSY` if the queue is full.
+  - The `hexWr`/`numToRd` parsing is shared with `sendCmdToDevice()` (`cmdJSONToHWElemReq()`).
+  - `sendCmdToDevice()` itself is unchanged; Axiom `DevicePower` calls it from its own task.
+- **`DeviceManager::apiDevManCmdJson`** takes the `APISourceInfo`. A body that addresses a bus device (not
+  a static device) and has `numToRd` is deferred when the transport allows it. `timeoutMs` comes from the
+  request, or from the body.
+- **Shared response format:** `formBusCmdResponse()` builds the response (`rdData` or the bus error) for both
+  `cmdraw` and `cmdjson`.
+- **Unchanged:**
+  - static devices (e.g. MotorControl) still handle `cmdjson` themselves;
+  - non-deferring transports keep the old behaviour.
+- **Writes are deferred too** (decision 2026-10-14), for both `cmdraw` and `cmdjson`:
+  - `ok` now means the write completed on the bus, and a NACK reports the bus error. Before, `ok` only meant
+    the write was queued.
+  - The main loop still never waits; only the reply to the client comes after the bus transaction.
+  - `rdData` is included only when data was read.
+
+**Testing:**
+- **HTTP, serial console and WebSocket:**
+  - reads return `rdData` (MPU6050 `68`, APDS-9960 `ab`);
+  - a NACK returns `BUS_ACK_ERROR`;
+  - `timeoutMs=1`, in the body or in the URL, returns `timeout`;
+  - a write returns `ok`, and a write to an empty address returns `BUS_ACK_ERROR` (or `BUS_SW_TIME_OUT`);
+  - a device off the bus or missing returns `failNoDeviceSpecified`.
+- **`deftest.js`:** T16 and T17 were added, and T8 now checks writes (`ok`, and a bus error for an empty address).
+  All 23 checks pass in repeated runs.
+- **Test robustness fixes:**
+  - **T6** (duplicate msgNum) now sends the duplicate in the same WebSocket message. As two separate
+    messages, WiFi could delay the copy until after the read completed, when it is correctly handled as a
+    new request.
+  - **T2** accepts any `BUS_` error for NACK reads. The I2C driver sometimes reports `BUS_SW_TIME_OUT`.
