@@ -45,6 +45,16 @@ public:
     // Abandon scan - called when a scan can no longer complete (e.g. WiFi paused) (main task)
     void scanAbandon();
 
+    // Scan state, ID of the current/last scan and the results of the last completed scan (main task)
+    ScanState getScanState() const
+    {
+        return _scanState;
+    }
+    uint32_t getScanId() const
+    {
+        return _scanId;
+    }
+
     // Check if scan is in progress
     bool isScanInProgress() const
     {
@@ -73,6 +83,12 @@ public:
 
     // Define WiFiScanResultList
     typedef std::vector<WiFiScanResult> WiFiScanResultList;
+
+    // Get the results of the last completed scan (main task)
+    const WiFiScanResultList& getResults() const
+    {
+        return _results;
+    }
 
 private:
     // State and timing - main task only

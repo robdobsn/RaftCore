@@ -10,6 +10,7 @@
 #include "RaftArduino.h"
 #include "Logger.h"
 #include "ProtocolExchange.h"
+#include "FileSystem.h"
 #include "CommsChannelMsg.h"
 #include "RestAPIEndpointManager.h"
 #include "ProtocolRICSerial.h"
@@ -165,8 +166,9 @@ void ProtocolExchange::addCommsChannels(CommsCoreIF& commsCore)
 
 bool ProtocolExchange::canProcessEndpointMsg()
 {
-    // Check if we can process the message 
-    return true;
+    // Hold off processing received messages (e.g. file upload blocks) while the file system is pacing writes - the
+    // messages stay queued and file transfer flow control slows the sender
+    return !fileSystem.isWriteHoldoffActive();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

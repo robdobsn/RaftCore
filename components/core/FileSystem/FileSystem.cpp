@@ -1093,8 +1093,22 @@ uint32_t FileSystem::fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeL
     if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
-    // Read
+    // Write (and record slow writes)
+    uint64_t startUs = micros();
     uint32_t lenWritten = fwrite((char*)pBuf, 1, writeLen, pFile);
+    uint32_t elapsedUs = micros() - startUs;
+    if (elapsedUs > SLOW_WRITE_THRESHOLD_US)
+    {
+        _slowWriteCount.fetch_add(1, std::memory_order_relaxed);
+        _slowWriteMs.fetch_add(elapsedUs / 1000, std::memory_order_relaxed);
+
+        // Hold off writers which can wait so that slow writes take at most the configured fraction of the time
+        if (_writePacingMaxStallPct > 0)
+        {
+            uint32_t holdoffMs = (elapsedUs / 1000) * (100 - _writePacingMaxStallPct) / _writePacingMaxStallPct;
+            _writeHoldoffUntilMs.store(millis() + holdoffMs, std::memory_order_relaxed);
+        }
+    }
 
     // Release mutex
     RaftMutex_unlock(_fileSysMutex);

@@ -46,6 +46,9 @@ public:
         wifiSTAScanThreshold = getAuthModeFromStr(configPrefixed.getString("wifiSTAScanThreshold", "WPA2_PSK").c_str());
         wifiSTAConnectBySignal = configPrefixed.getBool("wifiSTAConnectBySignal", true);
 
+        // Maximum WiFi TX power (0 = ESP-IDF default)
+        wifiTxPowerDbm = configPrefixed.getLong("wifiTxPowerDbm", 0);
+
         // Wifi AP
         wifiAPAuthMode = getAuthModeFromStr(configPrefixed.getString("wifiAPAuthMode", "WPA2_PSK").c_str());
         wifiAPMaxConn = configPrefixed.getLong("wifiAPMaxConn", 4);
@@ -99,6 +102,11 @@ public:
     // with the configured SSID; false uses ESP-IDF's fast scan, which joins the
     // first matching AP found (possibly a weak one on a multi-AP network)
     bool wifiSTAConnectBySignal = true;
+
+    // Maximum WiFi TX power in dBm (2..20, 0 = ESP-IDF default). Some boards need this limited as their transmit
+    // signal is poor at full power (e.g. an AP can't decode the frames - seen as connections which fail or which
+    // stay associated but pass no data)
+    int wifiTxPowerDbm = 0;
 
     // Wifi AP
     wifi_auth_mode_t wifiAPAuthMode = WIFI_AUTH_WPA2_PSK;

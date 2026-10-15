@@ -32,6 +32,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "NetworkSystem.h"
+#include "FileSystem.h"
 #endif // ESP_PLATFORM
 
 // Settings
@@ -413,8 +414,9 @@ void SysManager::loop()
             // Check if the SysMod slow check is enabled
             if (_reportSlowSysMod)
             {
-                // Start time
+                // Start time (and count of slow file system writes to attribute a slow loop)
                 uint64_t sysModExecStartUs = micros();
+                uint32_t fsSlowWritesAtStart = fileSystem.getSlowWriteCount();
 
                 // Call the SysMod's loop method to allow code inside the module to run
                 _supervisorStats.execStarted(_loopCurModIdx);
@@ -423,10 +425,7 @@ void SysManager::loop()
 
                 uint64_t sysModLoopUs = micros() - sysModExecStartUs;
                 if (sysModLoopUs > _slowSysModThresholdUs)
-                {
-                    LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %" PRIu64 "ms", 
-                                _sysModLoopVector[_loopCurModIdx]->modName(), sysModLoopUs/1000);
-                }
+                    slowSysModRecord(_loopCurModIdx, sysModLoopUs, fileSystem.getSlowWriteCount() != fsSlowWritesAtStart);
             }
             else
             {
@@ -452,6 +451,10 @@ void SysManager::loop()
 
     // Debug
     // LOG_D(MODULE_PREFIX, "loop module %s", sysModInfo._pSysMod->modName());
+
+    // Report slow SysMods
+    if (_reportSlowSysMod)
+        slowSysModReportsService();
 
     // Check system restart pending
     if (_systemRestartPending)
@@ -625,9 +628,22 @@ String SysManager::getStatusJSON(const char* sysModName) const
 /// @return JSON string
 String SysManager::getDebugJSON(const char* sysModName) const
 {
-    // Check if it is the SysManager's own stats that are wanted
+    // Check if it is the SysManager's own stats that are wanted - with the slow SysMod and slow file system
+    // write counts (since startup) added
     if (strcasecmp(sysModName, "SysMan") == 0)
-        return _supervisorStats.getSummaryString();
+    {
+        String statsJSON = _supervisorStats.getSummaryString();
+        int closeIdx = statsJSON.lastIndexOf('}');
+        if (closeIdx > 0)
+        {
+            char slowJSON[160];
+            snprintf(slowJSON, sizeof(slowJSON), R"(,"slow":{"n":%u,"maxMs":%u,"maxMod":"%s","fsSlowWrites":%u,"fsSlowWriteMs":%u})",
+                        (unsigned)_slowSysModTotalCount, (unsigned)(_slowSysModMaxUs / 1000), _slowSysModMaxName.c_str(),
+                        (unsigned)fileSystem.getSlowWriteCount(), (unsigned)fileSystem.getSlowWriteMs());
+            statsJSON = statsJSON.substring(0, closeIdx) + slowJSON + "}";
+        }
+        return statsJSON;
+    }
 
     // REST API deferred response stats
     if ((strcasecmp(sysModName, "RestAPI") == 0) && _pRestAPIEndpointManager)
@@ -1639,4 +1655,64 @@ void SysManager::systemRestartNow()
 #else
     LOG_I(MODULE_PREFIX, "------------------------- System restart ------------------------------");
 #endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Record a slow SysMod loop
+/// @param sysModIdx index of the SysMod in the loop list
+/// @param loopUs duration of the loop
+/// @param fsSlowWriteDuringLoop true if a slow file system write (e.g. a flash erase) occurred during the loop
+void SysManager::slowSysModRecord(uint32_t sysModIdx, uint32_t loopUs, bool fsSlowWriteDuringLoop)
+{
+    if (sysModIdx >= _sysModLoopVector.size())
+        return;
+    if (_slowSysModReports.size() != _sysModLoopVector.size())
+        _slowSysModReports.resize(_sysModLoopVector.size());
+
+    // Totals
+    _slowSysModTotalCount++;
+    if (loopUs > _slowSysModMaxUs)
+    {
+        _slowSysModMaxUs = loopUs;
+        _slowSysModMaxName = _sysModLoopVector[sysModIdx]->modName();
+    }
+
+    // Report the first slow loop immediately and count others until the end of the reporting interval
+    SlowSysModReport& report = _slowSysModReports[sysModIdx];
+    if (!report.reportOpen)
+    {
+        LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW took %dms%s", _sysModLoopVector[sysModIdx]->modName(),
+                    (int)(loopUs / 1000), fsSlowWriteDuringLoop ? " (slow file system write)" : "");
+        report.reportOpen = true;
+        report.reportStartMs = millis();
+        report.count = 0;
+        report.maxUs = 0;
+        report.fsSlowWritesAtStart = fileSystem.getSlowWriteCount();
+        return;
+    }
+    report.count++;
+    if (loopUs > report.maxUs)
+        report.maxUs = loopUs;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Report slow SysMod loops counted during the reporting interval
+void SysManager::slowSysModReportsService()
+{
+    for (uint32_t i = 0; i < _slowSysModReports.size(); i++)
+    {
+        SlowSysModReport& report = _slowSysModReports[i];
+        if (!report.reportOpen || !Raft::isTimeout(millis(), report.reportStartMs, SLOW_SYS_MOD_REPORT_INTERVAL_MS))
+            continue;
+        report.reportOpen = false;
+        if ((report.count == 0) || (i >= _sysModLoopVector.size()))
+            continue;
+        uint32_t fsSlowWrites = fileSystem.getSlowWriteCount() - report.fsSlowWritesAtStart;
+        char fsStr[50] = "";
+        if (fsSlowWrites > 0)
+            snprintf(fsStr, sizeof(fsStr), " (%d slow file system writes)", (int)fsSlowWrites);
+        LOG_W(MODULE_PREFIX, "loop sysMod %s SLOW %d more times in %ds max %dms%s", _sysModLoopVector[i]->modName(),
+                    (int)report.count, (int)(Raft::timeElapsed(millis(), report.reportStartMs) / 1000),
+                    (int)(report.maxUs / 1000), fsStr);
+    }
 }

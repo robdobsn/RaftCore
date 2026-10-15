@@ -185,7 +185,16 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
         // Start Wifi
         startWifi();
 
-        // WiFi diagnostics and link options from config
+        // Maximum TX power (applied before the first connection)
+        if (_networkSettings.wifiTxPowerDbm > 0)
+        {
+            String errStr;
+            String txPwrJSON = "{\"txPwr\":" + String(_networkSettings.wifiTxPowerDbm) + "}";
+            if (!_wifiDiagnostics.setOptions(RaftJson(txPwrJSON), errStr))
+                LOG_W(MODULE_PREFIX, "setup wifiTxPowerDbm %d invalid %s", _networkSettings.wifiTxPowerDbm, errStr.c_str());
+        }
+
+        // WiFi diagnostics and link options from config (these override the settings above)
         if (_networkSettings.wifiDiagJSON.length() > 0)
         {
             String errStr;
@@ -268,7 +277,7 @@ void NetworkSystem::loop()
     _wifiScanner.loop();
 
     // WiFi diagnostics
-    _wifiDiagnostics.loop(_pWifiStaNetIf, isWifiStaConnectedWithIP());
+    _wifiDiagnostics.loop(_pWifiStaNetIf, isWifiStaConnectedWithIP(), _wifiScanner);
 
     // Resume auto-reconnect once a scan that paused it has finished (or taken too long)
     if (_reconnectPausedForScan)

@@ -5,7 +5,10 @@ const ip = process.argv[2]; const only = process.argv[3];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const sysType = () => ({ nameForDialogs: 'T', connectorOptions: { wsSuffix: 'ws', syncTimeOnConnect: false }, setup: () => {},
   subscribeForUpdates: null, stateIsInvalid: () => {}, rxOtherMsgType: () => {} });
-async function http(path) { const r = await fetch(`http://${ip}/api/${path}`); return r.json(); }
+async function http(path) {
+  try { const r = await fetch(`http://${ip}/api/${path}`); return r.json(); }
+  catch (e) { throw new Error(`http ${path} failed: ${e.cause ? (e.cause.code || '') + ' ' + e.cause.message : e.message}`); }
+}
 async function stats() { return (await http('sysmoddebug/RestAPI')).debug; }
 const outcome = r => r ? (r.rdData !== undefined ? 'rdData=' + r.rdData : (r.error || r.rslt)) : 'null(clientTimeout)';
 const tally = rs => rs.reduce((t, r) => { const k = outcome(r); t[k] = (t[k] || 0) + 1; return t; }, {});
