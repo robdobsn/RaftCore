@@ -790,12 +790,13 @@ In practice:
 
 **Current practice.**
 
-- **Worker pass.** Runs about every 5 ms (`loopYieldMs`). Each pass runs, in order:
+- **Worker pass.** The worker sleeps until the next poll is due, a request is queued, or `loopYieldMs`
+  (5 ms) has passed. Each pass runs, in order (since Stage 1 of the improvement plan, 2026-10-15):
   1. the bus-task handler;
-  2. the scanner, if one is pending;
-  3. one queued request;
-  4. mux, power and IO-expander servicing;
-  5. one device poll.
+  2. one queued request;
+  3. mux, power and IO-expander servicing;
+  4. the device polls that are due, earliest due first, within `pollBudgetUs` (2 ms);
+  5. the scanner, if one is pending, at most once per `loopYieldMs`, stopping in time for the next poll.
 - **Identification** runs synchronously inside the scanner's slice. It can include detection pauses (for
   example `p250`), which block the bus for that time.
 
@@ -803,7 +804,8 @@ In practice:
 
 - Should identification be a resumable state machine, like partial polls, so that long detection pauses
   stop blocking the bus?
-- Is "one poll per pass" the right granularity, or should each pass have a time budget?
+- ~~Is "one poll per pass" the right granularity, or should each pass have a time budget?~~ Each pass now has
+  a poll budget (Stage 1).
 
 ---
 

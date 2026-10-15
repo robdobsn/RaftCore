@@ -331,6 +331,49 @@ static void checkDetectionValues(const std::string& catalogue, const std::string
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Poll info defaults and limits
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+static DevicePollingInfo getPollInfoFor(const char* pollInfoJson)
+{
+    DeviceTypeRecord rec;
+    rec.deviceType = "Test";
+    rec.pollInfo = pollInfoJson;
+    rec.pollDataSizeBytes = 2;
+    DevicePollingInfo pollingInfo;
+    deviceTypeRecords.getPollInfo(0x40, &rec, pollingInfo);
+    return pollingInfo;
+}
+
+static void testPollInfoDefaults()
+{
+    printf("Running testPollInfoDefaults...\n");
+
+    // Interval from the record (ms) and number of results
+    DevicePollingInfo info = getPollInfoFor(R"({"c":"0x00=r2","i":50,"s":3})");
+    TEST_ASSERT(info.pollReqs.size() == 1, "one poll request");
+    TEST_ASSERT(info.pollIntervalUs == 50000, "interval from record");
+    TEST_ASSERT(info.numPollResultsToStore == 3, "results from record");
+
+    // Missing interval: the default, not 0 (which would poll on every pass); missing s: 1
+    info = getPollInfoFor(R"({"c":"0x00=r2"})");
+    TEST_ASSERT(info.pollIntervalUs == DevicePollingInfo::POLL_INTERVAL_DEFAULT_US, "missing interval gets default");
+    TEST_ASSERT(info.numPollResultsToStore == 1, "missing s gets 1");
+
+    // Interval below the minimum is clamped; s below 1 is clamped
+    info = getPollInfoFor(R"({"c":"0x00=r2","i":0,"s":0})");
+    TEST_ASSERT(info.pollIntervalUs == DevicePollingInfo::POLL_INTERVAL_MIN_US, "zero interval clamped to minimum");
+    TEST_ASSERT(info.numPollResultsToStore == 1, "zero s clamped to 1");
+    info = getPollInfoFor(R"({"c":"0x00=r2","i":1})");
+    TEST_ASSERT(info.pollIntervalUs == DevicePollingInfo::POLL_INTERVAL_MIN_US, "1ms interval clamped to minimum");
+
+    // Externally supplied records are not polled, but still store at least one result
+    info = getPollInfoFor(R"({"ext":1,"s":0})");
+    TEST_ASSERT(info.pollReqs.size() == 0, "ext record has no poll requests");
+    TEST_ASSERT(info.numPollResultsToStore == 1, "ext record stores at least one result");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Catalogue sweeps
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -379,6 +422,7 @@ static void testCatalogueFile(const char* path)
 int main(int argc, char** argv)
 {
     testExplicitCases();
+    testPollInfoDefaults();
     testBuiltInRecords();
     for (int i = 1; i < argc; i++)
         testCatalogueFile(argv[i]);

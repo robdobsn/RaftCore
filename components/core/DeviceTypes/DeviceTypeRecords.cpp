@@ -195,6 +195,14 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRec
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Number of poll results to store, from a record's poll info ("s", default 1, at least 1)
+static uint32_t getNumPollResultsToStore(const RaftJson& pollInfo)
+{
+    long numResults = pollInfo.getLong("s", 1);
+    return numResults < 1 ? 1 : (uint32_t)numResults;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device polling info
 /// @param addr address
 /// @param pDevTypeRec device type record
@@ -218,7 +226,7 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
         // record's response size (resp.b) so those samples can be held and published.
         if (pollInfo.getLong("ext", 0) != 0)
         {
-            pollingInfo.numPollResultsToStore = pollInfo.getLong("s", 1);
+            pollingInfo.numPollResultsToStore = getNumPollResultsToStore(pollInfo);
             pollingInfo.pollResultSizeIncTimestamp = pDevTypeRec->pollDataSizeBytes + DevicePollingInfo::POLL_RESULT_TIMESTAMP_SIZE;
         }
         return;
@@ -341,10 +349,12 @@ void DeviceTypeRecords::getPollInfo(BusElemAddrType addr, const DeviceTypeRecord
     }
 
     // Get number of polling results to store
-    pollingInfo.numPollResultsToStore = pollInfo.getLong("s", 0);
+    pollingInfo.numPollResultsToStore = getNumPollResultsToStore(pollInfo);
 
-    // Get polling interval
-    pollingInfo.pollIntervalUs = pollInfo.getLong("i", 0) * 1000;
+    // Get polling interval (ms in the record), with a default if missing and clamped to the minimum allowed
+    long pollIntervalMs = pollInfo.getLong("i", -1);
+    pollingInfo.pollIntervalUs = (pollIntervalMs < 0) ? DevicePollingInfo::POLL_INTERVAL_DEFAULT_US :
+                DevicePollingInfo::clampPollIntervalUs((uint64_t)pollIntervalMs * 1000);
 
     // Get bus frequency override for polls (0 = use bus default)
     // Accept both compact key "h" and verbose key "busHz"

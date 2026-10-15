@@ -39,6 +39,17 @@ public:
         return deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID;
     }
 
+    /// @brief Get the time the next poll (or the next step of a split poll) is due
+    /// @param timeNowUs time in us (passed in to aid testing)
+    /// @param dueUs (out) time the next poll or step is due (may be in the past)
+    /// @return false if the device isn't polled
+    bool getNextPollDueUs(uint64_t timeNowUs, uint64_t& dueUs);
+
+    /// @brief Set the poll interval
+    /// @param pollIntervalUs poll interval in us (clamped to the minimum allowed)
+    /// @param timeNowUs time in us (passed in to aid testing)
+    void setPollIntervalUs(uint32_t pollIntervalUs, uint64_t timeNowUs);
+
     /// @brief Get pending ident poll info
     /// @param timeNowUs time in us (passed in to aid testing)
     /// @param pollInfo (out) polling info
@@ -135,32 +146,6 @@ public:
         pDataAggregator = pAggregator;
     }
 
-    // Debug FIFO overrun counter (per-device, cleared on read)
-    void debugIncFifoOverrunCount(uint32_t inc = 1)
-    {
-        _debugFifoOverrunCount += inc;
-    }
-
-    uint32_t debugGetAndClearFifoOverrunCount()
-    {
-        uint32_t count = _debugFifoOverrunCount;
-        _debugFifoOverrunCount = 0;
-        return count;
-    }
-
-    // Debug FIFO full counter (per-device, cleared on read)
-    void debugIncFifoFullCount(uint32_t inc = 1)
-    {
-        _debugFifoFullCount += inc;
-    }
-
-    uint32_t debugGetAndClearFifoFullCount()
-    {
-        uint32_t count = _debugFifoFullCount;
-        _debugFifoFullCount = 0;
-        return count;
-    }
-
     // Device type index
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
@@ -175,12 +160,6 @@ public:
 
     // Per-device publish sequence counter (wrapping uint8)
     uint8_t publishSeqCounter = 0;
-
-    // Debug FIFO overrun counter
-    uint32_t _debugFifoOverrunCount = 0;
-
-    // Debug FIFO full counter
-    uint32_t _debugFifoFullCount = 0;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";    

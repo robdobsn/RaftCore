@@ -63,6 +63,24 @@ static void testIntervals()
     TEST_ASSERT(json.getDouble("rateHz", 0) > 19.9 && json.getDouble("rateHz", 0) < 20.0, "rate");
 }
 
+static void testBusTime()
+{
+    printf("Running testBusTime...\n");
+    DevicePollTimingStats stats;
+    TEST_ASSERT(stats.getMeanBusTimePerPollUs() == 0, "no bus time before a poll");
+    // Two polls: one of 1500us, one split into steps of 1000us and 600us
+    stats.recordPollStart(0, 50 * MS);
+    stats.recordBusTimeUs(1500);
+    stats.recordPollStart(50 * MS, 50 * MS);
+    stats.recordBusTimeUs(1000);
+    stats.recordBusTimeUs(600);
+    TEST_ASSERT(stats.getMeanBusTimePerPollUs() == 1550, "mean bus time per poll covers all steps");
+    RaftJson json(stats.getJson());
+    TEST_ASSERT(json.getLong("busUs", 0) == 1550, "bus time reported");
+    stats.reset();
+    TEST_ASSERT(stats.getMeanBusTimePerPollUs() == 0, "reset clears bus time");
+}
+
 static void testMissedAndBuckets()
 {
     printf("Running testMissedAndBuckets...\n");
@@ -94,29 +112,28 @@ static void testDeviceStatusRecordsFullPollStarts()
     deviceStatus.deviceTypeIndex = 1;
     deviceStatus.deviceIdentPolling.pollIntervalUs = 50 * MS;
     deviceStatus.deviceIdentPolling.pollReqs.push_back(BusRequestInfo("", 0x68));
+    deviceStatus.deviceIdentPolling.pollReqs.push_back(BusRequestInfo("", 0x68));
     DevicePollingInfo pollInfo;
 
-    // First call sets the time base; the poll becomes due just after 50ms later (Raft::isTimeout is strict)
+    // First call starts the schedule; the poll is due one interval later
     uint64_t t = 1000 * MS;
     TEST_ASSERT(!deviceStatus.getPendingIdentPollInfo(t, pollInfo), "not due at first call");
-    TEST_ASSERT(!deviceStatus.getPendingIdentPollInfo(t + 50 * MS, pollInfo), "not due at exactly the interval");
-    TEST_ASSERT(deviceStatus.getPendingIdentPollInfo(t + 50 * MS + 1, pollInfo), "due after interval");
+    TEST_ASSERT(deviceStatus.getPendingIdentPollInfo(t + 50 * MS, pollInfo), "due after interval");
     TEST_ASSERT(deviceStatus.pollTimingStats.getIntervalCount() == 0, "first poll start has no interval");
 
     // A poll split by a 10ms pause: the second step must not count as a poll start
-    deviceStatus.deviceIdentPolling.partialPollNextReqIdx = 1;
-    deviceStatus.deviceIdentPolling.partialPollPauseAfterSendMs = 10;
-    TEST_ASSERT(deviceStatus.getPendingIdentPollInfo(t + 60 * MS + 2, pollInfo), "second step due after pause");
+    std::vector<uint8_t> data = {1};
+    deviceStatus.deviceIdentPolling.recordPartialPollResult(1, t + 50 * MS, data, 10);
+    TEST_ASSERT(deviceStatus.getPendingIdentPollInfo(t + 60 * MS, pollInfo), "second step due after pause");
     TEST_ASSERT(deviceStatus.pollTimingStats.getIntervalCount() == 0, "poll step is not a poll start");
-    deviceStatus.deviceIdentPolling.partialPollNextReqIdx = 0;
+    std::vector<uint8_t> result;
+    deviceStatus.deviceIdentPolling.getPartialPollResultsAndClear(result);
 
-    // Next full poll - its interval is measured from the previous poll start
-    uint64_t nextStart = t + 60 * MS + 2 + 50 * MS + 1;
-    TEST_ASSERT(deviceStatus.getPendingIdentPollInfo(nextStart, pollInfo), "next full poll due");
+    // Next full poll - due on the schedule, and its interval is measured from the previous poll start
+    TEST_ASSERT(deviceStatus.getPendingIdentPollInfo(t + 100 * MS, pollInfo), "next full poll due");
     TEST_ASSERT(deviceStatus.pollTimingStats.getIntervalCount() == 1, "one interval");
     RaftJson json(deviceStatus.pollTimingStats.getJson());
-    // Start to start: 60ms (the 10ms pause is followed by a full interval, as the current scheduler does)
-    TEST_ASSERT(json.getLong("meanUs", 0) == (long)(nextStart - (t + 50 * MS + 1)), "interval is start to start");
+    TEST_ASSERT(json.getLong("meanUs", 0) == 50000, "interval is start to start");
 
     // Clearing the device status resets the statistics
     deviceStatus.clear();
@@ -127,6 +144,7 @@ int main()
 {
     testIntervals();
     testMissedAndBuckets();
+    testBusTime();
     testDeviceStatusRecordsFullPollStarts();
     return testSummary("test_device_poll_timing");
 }

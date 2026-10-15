@@ -1,6 +1,7 @@
 # Device Identification and Device Type Management: Staged Improvement Plan
 
-Status: plan agreed 2026-10-15 (decisions in §8). No code has been changed for this plan.
+Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 and 1 done on the `feature/device-identification`
+branches (2026-10-15).
 
 Companion documents:
 - `device-type-management-principles.md`: the principles (P1–P15) and the canonical terms. Cited as *(P#)*.
@@ -170,7 +171,8 @@ agree to within about 0.5% (raw results: `bench-results/2026-10-15-feathers3-bas
   arrays in `.rodata`. Only the per-address candidate lists (`baseDevTypeIndexByAddr_0x..`, 276 B in total) are
   in RAM. §4's "~2.5 KB DRAM" was wrong; making the tables `const` (Stage 2) saves about 276 B and makes the
   flash placement guaranteed rather than an optimisation.
-- The Stage 0 statistics add 72 B to each bus element's `DeviceStatus` (one per address seen on a bus) and about
+- The Stage 0 statistics add 72 B (84 B since Stage 1 added the bus time per poll) to each bus element's
+  `DeviceStatus` (one per address seen on a bus) and about
   200 B per I2C bus.
 - Extended records were not measured: the bench SysType has none. Stage 2 measures them.
 
@@ -521,6 +523,84 @@ new functions or fields may be added alongside them.
 
 **Aim:** devices are polled at their configured rate, fairly, and a device that has gone away is reported as
 offline (G9).
+
+**Status (2026-10-15): done**, except items 3 and 10 (see below) and I8, which moves to Stage 9. What was done:
+- **Scheduling (items 1–3).** `DevicePollingInfo` holds `nextPollDueUs` and `nextStepDueUs`;
+  `DeviceStatus::getNextPollDueUs()` and `getPendingIdentPollInfo()` keep polls on a fixed phase, restart the
+  schedule (no burst) when a poll is a whole interval late, and time split-poll steps separately (a failed step
+  is retried after its pause, not on every pass). `DevicePollScheduler` (RaftCore, generic over the bus's
+  record type) picks the earliest due record, round robin on ties, and polls only online devices.
+  The tie-break on the selected slot and on bus speed (items 3 and 10) is not done: due times are in
+  microseconds, so exact ties are rare and the bench showed no need. Revisit if mux switching shows up in the
+  Stage 9 measurements.
+- **Worker (items 4, 5).** Polls run earliest due first until `pollBudgetUs` (default 2 ms) is used. The worker
+  sleeps with `ulTaskNotifyTake()` until the next poll is due (at least one tick, at most `loopYieldMs`), and
+  `BusI2C::addRequest()` wakes it. The pass order is now handler, requests, mux/IO, polls, scan: scanning comes
+  last, runs at most once per `loopYieldMs`, and stops in time for the next due poll (but gets at least
+  0.5 ms).
+- **Defaults (item 6).** Missing `i` = 100 ms; any interval (record or `devconfig`) is clamped to at least 2 ms;
+  `s` defaults to 1 and is at least 1 (also for `ext` records, item 9).
+- **Admission (item 7).** `pollLoadPct` in `devman/busstatus`, from each device's measured bus time per poll
+  (`busUs` in its poll timing; estimated from the poll operations until it has been polled). A warning is
+  logged at 70%. Measured polls take 3–4.6 ms each at 100 kHz, about twice the bit-time estimate.
+- **Aggregator (item 8).** `uint32_t` offsets and counts, at least 1 result, at most 32 KB per device,
+  `clear()` resets the latest value.
+- **Device-specific code (item 11)** removed: the LSM6DS FIFO status check in `handlePollResult()` (it ran on
+  every device with 4 or more bytes of data), the LSM6DS debug decode, the FIFO counters in `DeviceStatus`
+  and the FIFO word count in the poll timing debug.
+- **Presence.** I1 (a slot that can't be selected counts as a failed poll), I7 (only online devices are
+  polled; `goingOfflineOnSlot()` and `informBusStuck()` report online devices and then delete them, and erase
+  unreported ones), I2 (`goingOfflineOnSlot()` matches records by slot), I14 (CRC recovery entries are freed
+  when the record is deleted or its identification is cleared), I16 (warning when the address table is full),
+  I15 (debug defines off). **I8 moves to Stage 9:** the scanner visits all addresses of one slot before the
+  next, so clearing a main-bus device's "found" bit lets it be found through a mux slot first (and recorded
+  against that slot) if it comes back mid-sweep. It needs a "does it answer on the main bus too" check.
+- **raftjs R1** (and R3, R7 for R1): type data is resolved by each record's own index; when a device's index
+  changes it switches to the new type's data (the per-device request is made again for its name and role,
+  which are kept); `clearDeviceTypeCaches()` empties the type caches, and `RaftConnector` calls it (through the
+  optional `RaftDeviceMgrIF.clearDeviceTypeCaches`) before each subscribe; a request started before a clear
+  doesn't refill the cache.
+- **Tests.** Host: `test_device_poll_scheduler` (fixed phase, no catch-up burst, split poll timing, interval
+  clamp and change, no drift over 10 s with a 7 ms pass, no starvation, fair overload, EDF order, offline
+  records skipped), poll info defaults in `test_device_type_records`, bus time in `test_device_poll_timing`.
+  On-device (RaftI2C): aggregator limits and `clear()`. raftjs: five decode-by-index tests and a connector
+  test.
+
+**Results** (FeatherS3 bench, as §2.4; raw results `bench-results/2026-10-15-feathers3-stage1.json`):
+
+| Scenario | Device | Configured | Before: polled (max interval) | After: polled (max interval) | After: delivered |
+|---|---|---|---|---|---|
+| defaults | MPU6050 | 20 Hz | 18.48 Hz (71 ms) | 20.00 Hz (54 ms) | 20.04 Hz |
+| defaults | APDS9960 | 10 Hz | 9.50 Hz (116 ms) | 10.00 Hz (104 ms) | 10.02 Hz |
+| all 100 ms | both | 10 Hz | 9.64 Hz (110 ms) | 10.00 Hz (103 ms) | 10.0 Hz |
+| all 50 ms | both | 20 Hz | 18.72 Hz (62 ms) | 20.00 Hz (54 ms) | 20.04 Hz |
+| all 25 ms | both | 40 Hz | 33.47 Hz (38 ms) | 39.99 Hz (34 ms) | 40.07 Hz |
+| all 10 ms | MPU6050 | 100 Hz | **9.65 Hz** (461 ms) | 72.8 Hz (28 ms) | 73.0 Hz |
+| all 10 ms | APDS9960 | 100 Hz | 78.09 Hz (26 ms) | 72.0 Hz (26 ms) | 72.1 Hz |
+| mixed | MPU6050 at 10 ms | 100 Hz | 74.05 Hz (31 ms) | 99.88 Hz (19 ms) | 100.1 Hz |
+| mixed | APDS9960 at 100 ms | 10 Hz | 9.44 Hz (117 ms) | 10.00 Hz (107 ms) | 10.01 Hz |
+
+- Mean intervals are within 0.04% of the configured interval wherever the bus has the capacity. The 95th
+  percentile of the interval error is 2–4 ms (polls take 3–4.6 ms at 100 kHz, so a device that falls due
+  during another's poll waits for it).
+- "All 10 ms" asks for about 85% of the bus in polls alone (`pollLoadPct` reports it, and the warning is
+  logged). The two devices now share what the bus can do evenly (73 and 72 Hz) instead of one being starved.
+- Scanning yields to polling: 444 probes per second at the default rates (baseline 340–590) but 84 per
+  second in "all 10 ms" (baseline 352). Stage 9 sets a minimum scan share.
+- Identification at boot is unchanged within the run-to-run spread (APDS9960 identified at 341–397 ms,
+  MPU6050 at 652–734 ms over six boots; baseline 360–384 and 653–664 ms). The MPU6050's time from seen to
+  online varied from 25 ms to 129 ms between boots (baseline 24 ms in both runs), which depends on where the
+  sweep is when it is first seen. Stage 9 measures it properly.
+- Not tested (needs other hardware): unplugging a mux (I1/I2), a multi-step poll device, three devices.
+
+**Found during Stage 1, not yet fixed:**
+- raftjs processes the devices of a devjson message in an un-awaited `forEach(async ...)`, so devjson records
+  are not serialised the way devbin records are (the handler returns before they are decoded).
+- raftjs `RaftConnector.test.ts` leaves an open handle: run on its own, Jest doesn't exit (the full suite exits
+  because Jest stops its workers).
+- RaftI2C `linux_unit_tests` is stale (it fetches RaftCore from GitHub and uses types that no longer exist).
+  The Stage 1 scheduler logic is in RaftCore so it is tested by RaftCore's suite instead. The RaftI2C on-device
+  tests build against RaftCore `main` from GitHub, so they need a `raftdevlibs` link to test a branch.
 
 **Polling changes (RaftCore `DeviceStatus`, RaftI2C `BusStatusMgr`, `DevicePollingMgr`, `BusI2C`):**
 1. **Due time from the schedule.**
@@ -907,7 +987,11 @@ and the main bus and all slots keep being covered (G8).
      found within a known worst-case time.
    - Each list's sweep visits the addresses of one slot in a row, so the mux is switched once per sweep.
 4. **Fixes to the phases:**
-   - the main-bus "found" bits are cleared when the device goes (part of Stage 1);
+   - the main-bus "found" bits are cleared when the device goes (I8, moved here from Stage 1): before a device
+     found on a slot is recorded there, check that it doesn't also answer on the main bus with the slots
+     disabled, so a main-bus device that returns mid-sweep isn't recorded against a slot;
+   - a minimum scan share while polling is heavy (Stage 1 measured 84 probes per second with the bus 83% busy
+     polling);
    - a mux change rescans only that mux's slots, not the whole bus;
    - the fast mode after `requestScan(fast)` is limited in time.
 5. **Identification is triggered by the scanner but not run inside it.** The scanner reports

@@ -54,7 +54,7 @@ The default devices are the FeatherS3 bench: an MPU6050 at 0x68 and an APDS9960 
 
 For each scenario and device: the configured rate, the firmware's measured poll timing (`firmware`: mean, min and
 max interval, a histogram of the difference from the configured interval and its 95th percentile, missed periods,
-achieved rate), the poll rate error, and the rate delivered to the client. For each scenario: the I2C worker's
+achieved rate, and mean bus time per poll), the poll rate error, and the rate delivered to the client. For each scenario: the firmware's estimate of the bus time polling needs (`pollLoadPct`), the I2C worker's
 busy percentage, passes per second, longest pass, scan probes and poll steps per second, and time per second in
 each part of a pass. Plus identification timing at boot, the main loop statistics, and health checks (the
 WebSocket connection stayed up, so the device didn't reboot; the device list didn't change).

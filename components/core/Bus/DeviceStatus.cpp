@@ -11,47 +11,80 @@
 // #define DEBUG_DEVICE_STATUS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the time the next poll (or the next step of a split poll) is due
+/// @param timeNowUs time in us (passed in to aid testing)
+/// @param dueUs (out) time the next poll or step is due (may be in the past)
+/// @return false if the device isn't polled
+bool DeviceStatus::getNextPollDueUs(uint64_t timeNowUs, uint64_t& dueUs)
+{
+    DevicePollingInfo& polling = deviceIdentPolling;
+    if (polling.pollReqs.size() == 0)
+        return false;
+
+    // The first poll is due one interval after the device is first checked
+    if (!polling.pollScheduleStarted)
+    {
+        polling.nextPollDueUs = timeNowUs + DevicePollingInfo::clampPollIntervalUs(polling.pollIntervalUs);
+        polling.pollScheduleStarted = true;
+    }
+
+    // A poll split by a pause continues when the pause has elapsed
+    dueUs = (polling.partialPollNextReqIdx == 0) ? polling.nextPollDueUs : polling.nextStepDueUs;
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get pending ident poll requests 
 /// @param timeNowUs time in us (passed in to aid testing)
 /// @param pollInfo (out) polling info
 /// @return true if there is a pending request
 bool DeviceStatus::getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo& pollInfo)
 {
-    // Check if this is the very first poll
-    if (deviceIdentPolling.lastPollTimeUs == 0)
+    // Check if a full poll or the next step of a split poll is due
+    uint64_t dueUs = 0;
+    if (!getNextPollDueUs(timeNowUs, dueUs) || (timeNowUs < dueUs))
+        return false;
+
+    DevicePollingInfo& polling = deviceIdentPolling;
+    if (polling.partialPollNextReqIdx == 0)
     {
-        deviceIdentPolling.lastPollTimeUs = timeNowUs;
+        // Start of a full poll
+        uint32_t intervalUs = DevicePollingInfo::clampPollIntervalUs(polling.pollIntervalUs);
+        pollInfo._pollDataResult.clear();
+        pollTimingStats.recordPollStart(timeNowUs, intervalUs);
+
+        // The next poll is due one interval after this one was due, so lateness doesn't accumulate. If this
+        // poll is a whole interval or more late, start again from now rather than polling in a burst to
+        // catch up (the missed period is counted in the poll timing statistics)
+        polling.nextPollDueUs += intervalUs;
+        if (polling.nextPollDueUs <= timeNowUs)
+            polling.nextPollDueUs = timeNowUs + intervalUs;
+    }
+    else
+    {
+        // Next step of a split poll. If the step fails it is retried after the same pause (a successful step
+        // sets the due time for the step after it)
+        polling.nextStepDueUs = timeNowUs + (uint64_t)polling.partialPollPauseAfterSendMs * 1000;
     }
 
-    // Check if time to do full or partial poll (partial poll is when a pause after send has been requested)
-    bool isStartOfPoll = (deviceIdentPolling.partialPollNextReqIdx == 0);
-    uint32_t callIntervalUs = isStartOfPoll ? deviceIdentPolling.pollIntervalUs : deviceIdentPolling.partialPollPauseAfterSendMs * 1000;
-    if (Raft::isTimeout(timeNowUs, deviceIdentPolling.lastPollTimeUs, callIntervalUs))
-    {
-        // Clear the poll result data and record poll timing if this is the start of the poll
-        if (isStartOfPoll)
-        {
-            pollInfo._pollDataResult.clear();
-            if (deviceIdentPolling.pollReqs.size() > 0)
-                pollTimingStats.recordPollStart(timeNowUs, deviceIdentPolling.pollIntervalUs);
-        }
+    // Copy polling info
+    pollInfo = polling;
+    return true;
+}
 
-        // Update timestamp
-        deviceIdentPolling.lastPollTimeUs = timeNowUs;
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set the poll interval
+/// @param pollIntervalUs poll interval in us (clamped to the minimum allowed)
+/// @param timeNowUs time in us (passed in to aid testing)
+void DeviceStatus::setPollIntervalUs(uint32_t pollIntervalUs, uint64_t timeNowUs)
+{
+    DevicePollingInfo& polling = deviceIdentPolling;
+    polling.pollIntervalUs = DevicePollingInfo::clampPollIntervalUs(pollIntervalUs);
 
-        // Check poll requests isn't empty
-        if (deviceIdentPolling.pollReqs.size() == 0)
-            return false;
-
-        // Copy polling info
-        pollInfo = deviceIdentPolling;
-
-        // Return true
-        return true;
-    }
-
-    // Nothing pending
-    return false;
+    // Bring the next poll forward if the new interval is shorter than the time left to it
+    uint64_t dueWithNewIntervalUs = timeNowUs + polling.pollIntervalUs;
+    if (polling.pollScheduleStarted && (polling.nextPollDueUs > dueWithNewIntervalUs))
+        polling.nextPollDueUs = dueWithNewIntervalUs;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

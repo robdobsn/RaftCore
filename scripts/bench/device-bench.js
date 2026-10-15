@@ -183,6 +183,7 @@ async function runScenario(conn, name, intervals) {
     }
     return {
         name, durationS: elapsedS, devices,
+        pollLoadPct: bus && (bus.status.pollLoadPct !== undefined) ? bus.status.pollLoadPct : null,
         activity: {
             windows: activity.length,
             busyPct: summarise(activity.map(a => a.busyPct)),

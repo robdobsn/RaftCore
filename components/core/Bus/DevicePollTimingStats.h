@@ -7,8 +7,9 @@
 // recordPollStart() is called when a full poll of the device starts (not for the later steps of a poll that
 // is split by a pause), so the interval measured is from one poll start to the next. The difference between
 // that interval and the configured interval is recorded in a histogram, so percentiles can be estimated
-// without storing samples (bucket counts saturate at 65535). Kept small (about 72 bytes) so it can always be
-// enabled.
+// without storing samples (bucket counts saturate at 65535). The bus time each poll takes (all its steps) is
+// also recorded, so the share of the bus a device's polling uses can be worked out from measurements. Kept
+// small (about 90 bytes) so it can always be enabled.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +32,7 @@ public:
     /// @param configuredIntervalUs the poll interval the device is configured for
     void recordPollStart(uint64_t timeNowUs, uint32_t configuredIntervalUs)
     {
+        _pollStartCount++;
         if (_started)
         {
             uint64_t intervalUs = timeNowUs - _lastStartUs;
@@ -59,6 +61,20 @@ public:
         _configuredIntervalUs = configuredIntervalUs;
     }
 
+    /// @brief Record the bus time taken by a poll, or by one step of a poll split by a pause
+    /// @param busTimeUs time the poll (or step) occupied the bus, including slot and bus speed changes
+    void recordBusTimeUs(uint32_t busTimeUs)
+    {
+        _sumBusTimeUs += busTimeUs;
+    }
+
+    /// @brief Mean bus time per poll (all its steps)
+    /// @return mean in us, 0 if no poll has been measured
+    uint32_t getMeanBusTimePerPollUs() const
+    {
+        return _pollStartCount ? (uint32_t)(_sumBusTimeUs / _pollStartCount) : 0;
+    }
+
     /// @brief Reset the statistics (the next poll start begins a new measurement)
     void reset()
     {
@@ -73,18 +89,20 @@ public:
 
     /// @brief Get statistics as a JSON object
     /// @return JSON e.g. {"cfgUs":50000,"n":200,"meanUs":51020,"minUs":50100,"maxUs":55300,"p95ErrUs":2000,
-    ///         "missed":0,"rateHz":19.6,"errHist":[...]}. p95ErrUs is the upper bound of the histogram bucket
-    ///         containing the 95th percentile of (actual - configured) interval
+    ///         "missed":0,"rateHz":19.6,"busUs":1650,"errHist":[...]}. p95ErrUs is the upper bound of the
+    ///         histogram bucket containing the 95th percentile of (actual - configured) interval; busUs is the
+    ///         mean bus time per poll
     String getJson() const
     {
         double meanUs = _intervalCount ? (double)_sumIntervalUs / _intervalCount : 0;
         double spanUs = (double)(_lastStartUs - _firstStartUs);
         double rateHz = (spanUs > 0) ? (_intervalCount * 1000000.0 / spanUs) : 0;
-        char buf[200];
+        char buf[220];
         snprintf(buf, sizeof(buf),
-                 R"({"cfgUs":%u,"n":%u,"meanUs":%.0f,"minUs":%u,"maxUs":%u,"p95ErrUs":%ld,"missed":%u,"rateHz":%.2f,"errHist":[)",
+                 R"({"cfgUs":%u,"n":%u,"meanUs":%.0f,"minUs":%u,"maxUs":%u,"p95ErrUs":%ld,"missed":%u,"rateHz":%.2f,"busUs":%u,"errHist":[)",
                  (unsigned)_configuredIntervalUs, (unsigned)_intervalCount, meanUs, (unsigned)_minIntervalUs,
-                 (unsigned)_maxIntervalUs, (long)percentileErrUpperUs(95), (unsigned)_missedPeriods, rateHz);
+                 (unsigned)_maxIntervalUs, (long)percentileErrUpperUs(95), (unsigned)_missedPeriods, rateHz,
+                 (unsigned)getMeanBusTimePerPollUs());
         String json = buf;
         for (uint32_t i = 0; i < NUM_ERR_BUCKETS; i++)
         {
@@ -135,6 +153,8 @@ private:
     uint32_t _minIntervalUs = 0;
     uint32_t _maxIntervalUs = 0;
     uint32_t _missedPeriods = 0;
+    uint64_t _sumBusTimeUs = 0;
+    uint32_t _pollStartCount = 0;
     uint16_t _errHist[NUM_ERR_BUCKETS] = {};     // saturating counts
     bool _started = false;
 };
