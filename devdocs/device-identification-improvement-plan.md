@@ -551,8 +551,9 @@ offline (G9).
   debug log (now a generic hex dump). A search of RaftCore, RaftI2C and RaftSysMods for record names, addresses
   and registers found no other device-specific code. The one remaining tie to a record is in the BLE bus:
   `BLEBusDeviceManager` looks up the `BLEBTHome` record by key and `BLEAdvertDecoder` decodes the BTHome
-  advertising format. That is a protocol decoder for the BLE bus rather than a device, but it binds the bus to one
-  record key (an open question for you to decide).
+  advertising format. That is a protocol decoder for the BLE bus rather than a device. The record key now comes
+  from the BLE bus config (`deviceTypeKey`, default `BLEBTHome`), and if no record has that key BLE devices are
+  not reported (before, a failed lookup left the type index at 0, which is another record).
 - **Presence.** I1 (a slot that can't be selected counts as a failed poll), I7 (only online devices are
   polled; `goingOfflineOnSlot()` and `informBusStuck()` report online devices and then delete them, and erase
   unreported ones), I2 (`goingOfflineOnSlot()` matches records by slot), I14 (CRC recovery entries are freed
