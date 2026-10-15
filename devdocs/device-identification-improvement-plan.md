@@ -599,14 +599,16 @@ offline (G9).
   sweep is when it is first seen. Stage 9 measures it properly.
 - Not tested (needs other hardware): unplugging a mux (I1/I2), a multi-step poll device, three devices.
 
-**Found during Stage 1, not yet fixed:**
-- raftjs processes the devices of a devjson message in an un-awaited `forEach(async ...)`, so devjson records
-  are not serialised the way devbin records are (the handler returns before they are decoded).
-- raftjs `RaftConnector.test.ts` leaves an open handle: run on its own, Jest doesn't exit (the full suite exits
-  because Jest stops its workers).
-- RaftI2C `linux_unit_tests` is stale (it fetches RaftCore from GitHub and uses types that no longer exist).
-  The Stage 1 scheduler logic is in RaftCore so it is tested by RaftCore's suite instead. The RaftI2C on-device
-  tests build against RaftCore `main` from GitHub, so they need a `raftdevlibs` link to test a branch.
+**Found during Stage 1:**
+- Fixed: raftjs processed the devices of a devjson message in an un-awaited `forEach(async ...)`, so devjson
+  records were not serialised the way devbin records are, and the state callback ran before they were
+  decoded. Each device is now awaited in message order.
+- Fixed: raftjs `RaftMsgHandler` re-arms two housekeeping timers for ever, which kept Node processes (tests,
+  scripts) from exiting. They are now unref'd in Node.
+- Left for now (decided 2026-10-15): RaftI2C `linux_unit_tests` is stale (it fetches RaftCore from GitHub and
+  uses types that no longer exist). The Stage 1 scheduler logic is in RaftCore so it is tested by RaftCore's
+  suite instead. The RaftI2C on-device tests build against RaftCore `main` from GitHub, so they need a
+  `raftdevlibs` link to test a branch.
 
 **Polling changes (RaftCore `DeviceStatus`, RaftI2C `BusStatusMgr`, `DevicePollingMgr`, `BusI2C`):**
 1. **Due time from the schedule.**
