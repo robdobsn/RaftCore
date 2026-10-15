@@ -11,6 +11,7 @@
 #include "PollReadLenExpr.h"
 #include "RaftJson.h"
 #include <cctype>
+#include <cstring>
 
 // #define DEBUG_DEVICE_INFO_RECORDS
 // #define DEBUG_POLL_REQUEST_REQS
@@ -533,10 +534,26 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
         return true;
     }
 
-    // Check if readStr starts with 0x
-    else if (readStrLC.indexOf("0x") >= 0)
+    // The kind of value (hex or binary) is decided by its prefix, after any leading whitespace and
+    // optional leading pause (e.g. "p10 0x55"). Searching for "0x" anywhere is wrong because a binary
+    // value contains "0x" wherever a 0 bit is followed by a don't-care bit (e.g. "0b1010xxxx")
+    int valueIdx = 0;
+    while ((valueIdx < (int)readStrLC.length()) && isspace(readStrLC[valueIdx]))
+        valueIdx++;
+    if ((valueIdx < (int)readStrLC.length()) && (readStrLC[valueIdx] == 'p'))
     {
-        int hexIdx = readStrLC.indexOf("0x");
+        valueIdx++;
+        while ((valueIdx < (int)readStrLC.length()) && isdigit(readStrLC[valueIdx]))
+            valueIdx++;
+        while ((valueIdx < (int)readStrLC.length()) && isspace(readStrLC[valueIdx]))
+            valueIdx++;
+    }
+    const char* pValue = readStrLC.c_str() + valueIdx;
+
+    // Check if the value starts with 0x
+    if (strncmp(pValue, "0x", 2) == 0)
+    {
+        int hexIdx = valueIdx;
         // Compute length
         uint32_t lenBytes = (readStrLC.length() - hexIdx - 2 + 1) / 2;
         // Extract the read data
@@ -550,10 +567,10 @@ bool DeviceTypeRecords::extractMaskAndDataFromHexStr(const String& readStr, std:
         return true;
     }
 
-    // Check if readStr starts with 0b 
-    else if (readStrLC.indexOf("0b") >= 0)
+    // Check if the value starts with 0b
+    else if (strncmp(pValue, "0b", 2) == 0)
     {
-        int binIdx = readStrLC.indexOf("0b");
+        int binIdx = valueIdx;
         // Compute length
         uint32_t lenBits = readStrLC.length() - binIdx - 2;
         uint32_t lenBytes = (lenBits + 7) / 8;

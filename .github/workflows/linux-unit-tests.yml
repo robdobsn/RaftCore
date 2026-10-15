@@ -1,0 +1,17 @@
+name: Linux unit tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the gating Linux unit tests
+        run: make -C linux_unit_tests check

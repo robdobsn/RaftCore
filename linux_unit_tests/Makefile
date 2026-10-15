@@ -68,7 +68,15 @@ SOURCES = main.cpp \
 OUTPUT = linux_unit_tests
 
 # test_espnow_config needs RaftSysMods ESPNowManager (not yet on main) - build it explicitly with "make test_espnow_config"
-all: $(OUTPUT) test_device_names
+all: $(OUTPUT) test_device_names test_device_type_records
+
+# Tests that gate automation (CI): each exits non-zero on failure. Extra device type catalogues can be
+# swept too, e.g. make check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tests/TestDevTypeRecs.json"
+DEV_TYPE_CATALOGUES ?=
+.PHONY: check
+check: test_device_names test_device_type_records
+	./test_device_names
+	./test_device_type_records $(DEV_TYPE_CATALOGUES)
 
 $(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson.h ../components/core/Utils/RaftUtils.h ../components/core/DeviceManager/DeviceDataSubscribers.h DeviceDataSubscribersTest.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUT) $(SOURCES)
@@ -98,5 +106,30 @@ test_espnow_config: test_espnow_config.cpp ../../RaftSysMods/components/ESPNowMa
 		../components/core/ArduinoUtils/ArduinoStdlibNonISO.c \
 		arduino_stubs.o
 
+# Device type records test: detection value parsing, checked against every built-in record. The
+# built-in records are generated from the RaftCore catalogue by the real generator script
+DEV_TYPE_GEN_DIR = gen
+DEV_TYPE_CATALOGUE = ../devtypes/DeviceTypeRecords.json
+DEV_TYPE_GEN_HEADER = $(DEV_TYPE_GEN_DIR)/DeviceTypeRecords_generated.h
+
+$(DEV_TYPE_GEN_HEADER): $(DEV_TYPE_CATALOGUE) ../scripts/ProcessDevTypeJsonToC.py ../scripts/DecodeGenerator.py
+	mkdir -p $(DEV_TYPE_GEN_DIR)
+	python3 ../scripts/ProcessDevTypeJsonToC.py $(DEV_TYPE_CATALOGUE) $(DEV_TYPE_GEN_HEADER) \
+		$(DEV_TYPE_GEN_DIR)/DevicePollRecords_generated.h > $(DEV_TYPE_GEN_DIR)/generator.log
+
+test_device_type_records: test_device_type_records.cpp $(DEV_TYPE_GEN_HEADER) \
+		../components/core/DeviceTypes/DeviceTypeRecords.cpp ../components/core/DeviceTypes/DeviceTypeRecords.h
+	$(CC) $(CFLAGS) -I$(DEV_TYPE_GEN_DIR) -I. -I../components/core/ArduinoUtils -I../components/core/RaftJson \
+		-I../components/core/Utils -I../components/core/Bus -I../components/core/DeviceTypes \
+		-I../components/core/RaftDevice -I../components/core/DebugGlobals \
+		-o $@ test_device_type_records.cpp \
+		../components/core/DeviceTypes/DeviceTypeRecords.cpp \
+		../components/core/Utils/RaftUtils.cpp \
+		../components/core/Utils/RaftThreading.cpp \
+		../components/core/Utils/PlatformUtils.cpp \
+		../components/core/ArduinoUtils/ArduinoWString.cpp \
+		../components/core/ArduinoUtils/ArduinoTime.cpp
+
 clean:
-	rm -f $(OUTPUT) test_device_names test_espnow_config arduino_stubs.o
+	rm -f $(OUTPUT) test_device_names test_espnow_config test_device_type_records arduino_stubs.o
+	rm -rf $(DEV_TYPE_GEN_DIR)
