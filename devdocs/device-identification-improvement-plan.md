@@ -547,7 +547,12 @@ offline (G9).
   `clear()` resets the latest value.
 - **Device-specific code (item 11)** removed: the LSM6DS FIFO status check in `handlePollResult()` (it ran on
   every device with 4 or more bytes of data), the LSM6DS debug decode, the FIFO counters in `DeviceStatus`
-  and the FIFO word count in the poll timing debug.
+  the FIFO word count in the poll timing debug, and the LSM6DS FIFO decode in the `getBusElemPollResponses()`
+  debug log (now a generic hex dump). A search of RaftCore, RaftI2C and RaftSysMods for record names, addresses
+  and registers found no other device-specific code. The one remaining tie to a record is in the BLE bus:
+  `BLEBusDeviceManager` looks up the `BLEBTHome` record by key and `BLEAdvertDecoder` decodes the BTHome
+  advertising format. That is a protocol decoder for the BLE bus rather than a device, but it binds the bus to one
+  record key (an open question for you to decide).
 - **Presence.** I1 (a slot that can't be selected counts as a failed poll), I7 (only online devices are
   polled; `goingOfflineOnSlot()` and `informBusStuck()` report online devices and then delete them, and erase
   unreported ones), I2 (`goingOfflineOnSlot()` matches records by slot), I14 (CRC recovery entries are freed
