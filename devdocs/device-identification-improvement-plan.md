@@ -1,6 +1,6 @@
 # Device Identification and Device Type Management: Staged Improvement Plan
 
-Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 and 1 done on the `feature/device-identification`
+Status: plan agreed 2026-10-15 (decisions in §8). Stages 0, 1 and 2 done on the `feature/device-identification`
 branches (2026-10-15).
 
 Companion documents:
@@ -450,13 +450,13 @@ Estimates from the current catalogue sizes, except where marked as measured (§2
 | Idle cost of extended record slots | ~2.2 KB internal (`reserve(20)`) | 4 B × capacity (128 B for 32) | 4 B × capacity (1 KB for 256) |
 | Typical extended record (median `devInfoJson` ~380 B) | ~520 B + 6 heap blocks of overhead | ~480 B, 1 block (internal) | ~480 B, 1 block (PSRAM) |
 | Same, with `devInfoJson` kept in the file | n/a | ~100–150 B | not needed |
-| Suggested default capacity | 20 | 32 records, 16 KB byte budget | 256 records, 256 KB byte budget |
+| Suggested default capacity | 20 | 32 records, 20 KB byte budget (16 KB proposed; measured in Stage 2) | 256 records, 256 KB byte budget |
 | Catalogue index (§3.3) | 0 (generated) | < 1 KB + 2–6 B per record | same, in PSRAM |
 
-Configuration keys (names to be confirmed in Stage 0):
-- `DevMan/typeTable/maxExtendedRecords`
-- `DevMan/typeTable/maxExtendedBytes`
-- `DevMan/typeTable/devInfoInFile`
+Configuration keys (in the DeviceManager config):
+- `typeTable/maxExtendedRecords` (Stage 2)
+- `typeTable/maxExtendedBytes` (Stage 2)
+- `typeTable/devInfoInFile` (with the type file, Stage 6)
 
 ---
 
@@ -685,6 +685,46 @@ load rises. The admission warning (item 7) makes this visible.
 
 **Aim:** base records cost no DRAM, extended records are compact and can use PSRAM, and the limit of 20 is
 raised (G1–G4). Behaviour does not change.
+
+**Status (2026-10-15): done.** What was done:
+- **Generator:** the record array and the address index are `const` (with `const` pointers); a
+  `baseDevTypeIndexByKey` table (record indexes sorted by key, byte order) is emitted; C6 (crash when the
+  first record has no addresses), C11 (`0x` read values counted the prefix) and C12 (addresses above 0x77
+  dropped silently - now a build error) are fixed. Generated output for the RaftCore and Axiom catalogues is
+  unchanged apart from `const` and the new table.
+- **Extended records** (`DeviceTypeRecordPacked`): one allocation per record, `SpiramAwareAllocator`, holding
+  a `DeviceTypeRecord` view whose strings point into the same allocation. A fixed array of record pointers
+  (sized by the limits when the first record is added) and an atomic count published with release semantics:
+  reading by index takes no lock (checked with ThreadSanitizer). Records never change or move.
+- **Lookups:** `getRecord(deviceTypeIndex)` and `getRecord(key, index)` return `const DeviceTypeRecord*` (base
+  records in flash); key lookups are binary searches (extended records first, so a key can be overridden).
+  `getDeviceInfo()` and `getPollDecodeFn()` are wrappers.
+- **Adding:** `addRecord()` returns `Added`, `AlreadyPresent` (same key and content: the existing index),
+  `Conflict` (same key, different content - D17), `Full` (records, bytes or memory) or `Invalid` (no key); the
+  index is `DEVICE_TYPE_INDEX_INVALID` unless added or present. `addExtendedDeviceTypeRecord()` keeps its
+  signature and meaning. DeviceManager logs why a static device's record wasn't added, and the device then
+  has no type (C7: never index 0). "Replaced" is left to Stage 5.
+- **Limits:** `DeviceManager` config `typeTable/maxExtendedRecords` and `typeTable/maxExtendedBytes`, defaults
+  256 / 256 KB with PSRAM and 32 / **20 KB** without. D3 said 16 KB, but a typical record measured 538 B, so
+  16 KB held only 30.
+- **Also fixed:** `DemoDevice` gave its default record a poll data size of 1 (the comment called it a type
+  index) instead of 14.
+- **Tests:** host `test_device_type_table` (lookups of every base record by index and key, add results,
+  limits, byte budget, override of a base key, 256 records added out of key order, reads by index while
+  adding); generator `test_generator_tables.py` (const, key order, C6, C11, C12); on-device
+  `DeviceTypeTable_test` (default limits with and without PSRAM, memory freed) and two DeviceManager tests
+  (static devices of the same type share a record; a conflicting one gets no type).
+
+**Results** (FeatherS3; on-device tests built with and without `CONFIG_SPIRAM`):
+
+| | Without PSRAM | With PSRAM |
+|---|---|---|
+| Base record tables in DRAM | 0 (all 92 table symbols, 3,273 B, in flash; 276 B in DRAM before) | 0 |
+| Typical extended record (538 B packed) | 554 B internal RAM | 548 B PSRAM + 6 B internal RAM |
+| Default limits | 32 records, 20 KB: 32 typical records fit | 256 records, 256 KB: 256 fit (138 KB) |
+| Before (20 records, six `String`s each; estimated in §4, not measured) | about 2.2 KB reserved up front, plus about 520 B and six heap blocks per record | same, in internal RAM |
+
+Identification, `typeinfo` by device and by key, and poll rates on the bench are unchanged.
 
 **Changes:**
 1. **Generator** emits `baseDevTypeRecords[]`, `baseDevTypeCountByAddr[]` and `baseDevTypeIndexByAddr*`
@@ -1124,13 +1164,14 @@ more valuable once Stage 6 lands, and should be decided then.
 
 ## 8. Decisions
 
-All decided on 2026-10-15. Each decision took the recommendation made in this plan.
+All decided on 2026-10-15. Each decision took the recommendation made in this plan. D16 and D18–D24 are
+listed in §9.6 and §10.6; those still open are decided at the stage that needs them.
 
 | # | Question | Decision |
 |---|---|---|
 | D1 | Names for the record sources | **Base** and **extended**, as already used in the code and in principles §2. (Revised 2026-10-15: "built-in"/"runtime" was first agreed, then dropped to avoid renaming code and external APIs.) `DeviceTypeRecordDynamic` keeps its name |
 | D2 | Should an override keep the base record's index? | Yes, if the override is applied before the type table is `Ready`: one key, one current index. A live override (Stage 8) gets a new index, so an index never changes meaning within a session. This refinement is confirmed by D14 (§3.8 rule 1) |
-| D3 | Default capacities and byte budgets | 32 records / 16 KB without PSRAM; 256 records / 256 KB with PSRAM. Confirm against Stage 0 measurements |
+| D3 | Default capacities and byte budgets | 32 records / 16 KB without PSRAM; 256 records / 256 KB with PSRAM. Confirm against Stage 0 measurements. **Stage 2:** a typical record measured 538 B, so the default without PSRAM is 20 KB (32 records) |
 | D4 | Keep `devInfoJson` in the file on boards without PSRAM? | An option, off by default. Enable it on boards that are short of RAM |
 | D5 | First version of "file changed" | Reset first (Stage 6); restart identification without a reset later (Stage 8) |
 | D6 | Can identification wait for ever for a missing or slow source? | No. Wait with a timeout (5 s proposed), then continue with the base records and log it |
@@ -1142,6 +1183,8 @@ All decided on 2026-10-15. Each decision took the recommendation made in this pl
 | D12 | Term for the record identifier | **Device type key** (§3.9). Done 2026-10-15: documentation (principles §2, plan, wiki); `deviceTypeKey` added to the `typeinfo` response; inside the Raft libraries, non-API names (parameters, locals, comments, log text) renamed. Names that are part of an API or contract are unchanged |
 | D13 | What happens to `deviceType` and `devInfoJson.type` in the JSON? | **Revised and done 2026-10-15.** `deviceType` is optional: the generator fills it from the key and fails the build if it differs; the RaftCore catalogue omits it, and generated output is byte-identical. `devInfoJson.type` is **kept permanently** with its current values, because clients identify devices by it; the generator warns about new mismatches. (Originally: remove both, inserting `type` into responses for one release.) |
 | D14 | Adopt the index rules of §3.8? | Yes. Rules 1–3 and 5 go into Stage 7 (rule 1 for live overrides waits for Stage 8). **Rule 4 revised 2026-10-15:** no type table ID in the publish streams; clients clear index-keyed caches on (re)subscribe (see D16) |
+| D15 | Adopt the compatibility policy in §9.1? | **Yes** (decided 2026-10-15) |
+| D17 | Static devices with the same key but different content (C8)? | **Reject the second one** with a clear error, and require a distinct `type` in the configuration. Keys are not changed automatically (decided 2026-10-15) |
 
 ### 8.1 Follow-ups from the decisions
 

@@ -65,6 +65,13 @@ DeviceManager::~DeviceManager()
 /// @brief Setup
 void DeviceManager::setup()
 {
+    // Limits for device type records added at runtime (extended records) - set before any is added
+    // (0 = the default, which depends on whether the board has PSRAM)
+    uint32_t maxExtendedRecords = modConfig().getLong("typeTable/maxExtendedRecords", 0);
+    uint32_t maxExtendedBytes = modConfig().getLong("typeTable/maxExtendedBytes", 0);
+    if (!deviceTypeRecords.setExtendedRecordLimits(maxExtendedRecords, maxExtendedBytes))
+        LOG_W(MODULE_PREFIX, "setup type table limits not applied - records were added before setup");
+
     // Setup buses
     raftBusSystem.setup("Buses", modConfig(),
             std::bind(&DeviceManager::busElemStatusCB, this, std::placeholders::_1, std::placeholders::_2),
@@ -375,9 +382,25 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
             DeviceTypeRecordDynamic devTypeRec;
             if (devRec.pDevice->getDeviceTypeRecord(devTypeRec))
             {
-                // Add the device type record to the device type records
-                uint16_t deviceTypeIndex = 0;
-                deviceTypeRecords.addExtendedDeviceTypeRecord(devTypeRec, deviceTypeIndex);
+                // Add the device type record to the device type records. If it can't be added the device has
+                // no type (never index 0, which is another record)
+                DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+                DeviceTypeRecords::AddResult addResult = deviceTypeRecords.addRecord(devTypeRec, deviceTypeIndex);
+                if (addResult == DeviceTypeRecords::AddResult::Conflict)
+                {
+                    LOG_E(MODULE_PREFIX, "setup device %s type %s differs from an existing type with the same key - "
+                                "give this device a distinct type in its configuration",
+                                devRec.pDevice->getConfiguredDeviceName().c_str(), devTypeRec.deviceTypeName.c_str());
+                }
+                else if ((addResult != DeviceTypeRecords::AddResult::Added) &&
+                            (addResult != DeviceTypeRecords::AddResult::AlreadyPresent))
+                {
+                    DeviceTypeRecords::ExtendedRecordStats stats = deviceTypeRecords.getExtendedRecordStats();
+                    LOG_E(MODULE_PREFIX, "setup device %s type %s not added (%s, %d of %d records, %d of %d bytes)",
+                                devRec.pDevice->getConfiguredDeviceName().c_str(), devTypeRec.deviceTypeName.c_str(),
+                                DeviceTypeRecords::getAddResultStr(addResult), (int)stats.count, (int)stats.maxRecords,
+                                (int)stats.bytesUsed, (int)stats.maxBytes);
+                }
                 devRec.pDevice->setDeviceTypeIndex(deviceTypeIndex);
             }
         }

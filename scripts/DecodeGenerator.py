@@ -97,7 +97,8 @@ class DecodeGenerator:
                     raise ValueError("Invalid polling config record value: " + pc_read_def)
                 pc_len += pc_bit_len // 8
             elif pc_read_def.find("0x") >= 0:
-                pc_len += len(pc_read_def) // 2
+                # Hex digits after the 0x prefix (the prefix itself is not data - C11)
+                pc_len += (len(pc_read_def) - pc_read_def.find("0x") - 2) // 2
             # Check if the value is a read byte count
             elif pc_read_def.find("r") >= 0:
                 r_idx = pc_read_def.find("r")

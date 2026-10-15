@@ -7,11 +7,14 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "DeviceTypeRecords.h"
+#include "DeviceTypeRecordPacked.h"
+#include "PlatformUtils.h"
 #include "BusRequestInfo.h"
 #include "PollReadLenExpr.h"
 #include "RaftJson.h"
 #include <cctype>
 #include <cstring>
+#include <algorithm>
 
 // #define DEBUG_DEVICE_INFO_RECORDS
 // #define DEBUG_POLL_REQUEST_REQS
@@ -34,19 +37,26 @@ static const uint32_t BASE_DEV_TYPE_ARRAY_SIZE = sizeof(baseDevTypeRecords) / si
 DeviceTypeRecords::DeviceTypeRecords()
 {
     // Create mutex
-    RaftMutex_init(_extDeviceTypeRecordsMutex);
-
-    // Initialize atomic bool
-    RaftAtomicBool_init(_extendedRecordsAdded, false);
-
-    // Reserve space for extended device type records (to avoid changing absolute pointer values)
-    _extendedDevTypeRecords.reserve(MAX_EXTENDED_DEV_TYPE_RECORDS);
+    RaftMutex_init(_extRecordsMutex);
 }
 
 DeviceTypeRecords::~DeviceTypeRecords()
 {
+    // Free extended records
+    uint32_t count = _extCount.load(std::memory_order_acquire);
+    for (uint32_t i = 0; i < count; i++)
+        DeviceTypeRecordPacked::destroy(_extRecords[i]);
+    delete[] _extRecords;
+
     // Delete mutex
-    RaftMutex_destroy(_extDeviceTypeRecordsMutex);
+    RaftMutex_destroy(_extRecordsMutex);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Number of base records
+uint32_t DeviceTypeRecords::getNumBaseRecords()
+{
+    return BASE_DEV_TYPE_ARRAY_SIZE;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,26 +72,20 @@ std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(Bus
     // Return value
     std::vector<DeviceTypeIndexType> deviceTypeIndexesForAddr;
 
-    // Check if any of the extended device type records match
-    if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+    // Check if any of the extended device type records match (ext indices continue on from the base indices)
+    uint32_t extCount = _extCount.load(std::memory_order_acquire);
+    for (uint32_t extPos = 0; extPos < extCount; extPos++)
     {
-        // Ext devType indices continue on from the base devType indices
-        DeviceTypeIndexType deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE;
-        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+        std::vector<int> addressList;
+        Raft::parseIntList(_extRecords[extPos]->addresses, addressList, ",");
+        for (int devAddr : addressList)
         {
-            std::vector<int> addressList;
-            Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
-            for (int devAddr : addressList)
+            if (devAddr == (int)addr)
             {
-                if (devAddr == addr)
-                {
-                    deviceTypeIndexesForAddr.push_back(deviceTypeIndex);
-                    break;
-                }
+                deviceTypeIndexesForAddr.push_back(BASE_DEV_TYPE_ARRAY_SIZE + extPos);
+                break;
             }
-            deviceTypeIndex++;
         }
-        RaftMutex_unlock(_extDeviceTypeRecordsMutex);
     }
 
     // Check valid
@@ -113,36 +117,80 @@ std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(Bus
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device type record for a device type index (no copy, no lock)
+/// @param deviceTypeIndex device type index
+/// @return the record, or nullptr if there is none
+const DeviceTypeRecord* DeviceTypeRecords::getRecord(DeviceTypeIndexType deviceTypeIndex) const
+{
+    if (deviceTypeIndex < BASE_DEV_TYPE_ARRAY_SIZE)
+        return &baseDevTypeRecords[deviceTypeIndex];
+    uint32_t extPos = deviceTypeIndex - BASE_DEV_TYPE_ARRAY_SIZE;
+    if (extPos < _extCount.load(std::memory_order_acquire))
+        return _extRecords[extPos];
+    return nullptr;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device type record for a device type key (extended records take precedence)
+/// @param deviceTypeKey device type key
+/// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not found)
+/// @return the record, or nullptr if there is none
+const DeviceTypeRecord* DeviceTypeRecords::getRecord(const char* deviceTypeKey, DeviceTypeIndexType& deviceTypeIndex) const
+{
+    deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (!deviceTypeKey)
+        return nullptr;
+
+    // Extended records first, so a key can be overridden
+    if ((_extCount.load(std::memory_order_acquire) > 0) && RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        int32_t extPos = findExtendedPosByKey(deviceTypeKey);
+        const DeviceTypeRecord* pRec = (extPos >= 0) ? _extRecords[extPos] : nullptr;
+        RaftMutex_unlock(_extRecordsMutex);
+        if (pRec)
+        {
+            deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE + extPos;
+            return pRec;
+        }
+    }
+
+    // Base records - binary search of the generated index sorted by key
+    int32_t lo = 0;
+    int32_t hi = (int32_t)BASE_DEV_TYPE_ARRAY_SIZE - 1;
+    while (lo <= hi)
+    {
+        int32_t mid = (lo + hi) / 2;
+        uint16_t recIdx = baseDevTypeIndexByKey[mid];
+        int cmp = strcmp(baseDevTypeRecords[recIdx].deviceType, deviceTypeKey);
+        if (cmp == 0)
+        {
+            deviceTypeIndex = recIdx;
+            return &baseDevTypeRecords[recIdx];
+        }
+        if (cmp < 0)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return nullptr;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device type for a device type index
 /// @param deviceTypeIndex device type index
 /// @param devTypeRec (out) device type record
 /// @return true if device type found
 bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIndex, DeviceTypeRecord& devTypeRec) const
 {
-    // Check if in range
-    bool isValid = false;
-    if (deviceTypeIndex >= BASE_DEV_TYPE_ARRAY_SIZE)
-    {
-        // Check extended device type records
-        if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
-        {
-            const uint32_t extendedPos = deviceTypeIndex - BASE_DEV_TYPE_ARRAY_SIZE;
-            if (extendedPos < _extendedDevTypeRecords.size())
-                isValid = _extendedDevTypeRecords[extendedPos].getDeviceTypeRecord(devTypeRec);
-            RaftMutex_unlock(_extDeviceTypeRecordsMutex);
-        }
-    }
-    else
-    {
-        devTypeRec = baseDevTypeRecords[deviceTypeIndex];
-        isValid = true;
-    }
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
 #ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_INDEX
-    LOG_I(MODULE_PREFIX, "getDeviceInfo %d %s %s", deviceTypeIndex, 
-                isValid ? "OK" : "NOT FOUND", 
-                isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
+    LOG_I(MODULE_PREFIX, "getDeviceInfo %d %s %s", deviceTypeIndex, pRec ? "OK" : "NOT FOUND",
+                pRec ? (pRec->deviceType ? pRec->deviceType : "NO NAME") : "INVALID");
 #endif
-    return isValid;
+    if (!pRec)
+        return false;
+    devTypeRec = *pRec;
+    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -153,45 +201,16 @@ bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIndex, Devic
 /// @return true if device type found
 bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIndex) const
 {
-    // Iterate the extended device types first - so that device type keys can be overridden
-    bool isValid = false;
-    uint32_t extendedTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE;
-    if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
-    {
-        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
-        {
-            if (extDevTypeRec.deviceTypeName == deviceTypeKey)
-            {
-                isValid = extDevTypeRec.getDeviceTypeRecord(devTypeRec);
-                deviceTypeIndex = extendedTypeIndex;
-                break;
-            }
-            extendedTypeIndex++;
-        }
-        RaftMutex_unlock(_extDeviceTypeRecordsMutex);
-    }
-
-    // Iterate the device types
-    if (!isValid)
-    {
-        for (uint16_t i = 0; i < BASE_DEV_TYPE_ARRAY_SIZE; i++)
-        {
-            if (deviceTypeKey == baseDevTypeRecords[i].deviceType)
-            {
-                devTypeRec = baseDevTypeRecords[i];
-                deviceTypeIndex = i;
-                isValid = true;
-                break;
-            }
-        }
-    }
+    DeviceTypeIndexType foundIndex = DEVICE_TYPE_INDEX_INVALID;
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeKey.c_str(), foundIndex);
 #ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_NAME
-    LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s idx %d devTypeInfo %s", deviceTypeKey.c_str(), 
-                isValid ? "OK" : "NOT FOUND", 
-                deviceTypeIndex,
-                isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
+    LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s idx %d", deviceTypeKey.c_str(), pRec ? "OK" : "NOT FOUND", foundIndex);
 #endif
-    return isValid;
+    if (!pRec)
+        return false;
+    devTypeRec = *pRec;
+    deviceTypeIndex = foundIndex;
+    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -814,76 +833,189 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
     }
 
     // Add any extended device type record addresses to the highest priority list
-    if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+    uint32_t extCount = _extCount.load(std::memory_order_acquire);
+    for (uint32_t extPos = 0; extPos < extCount; extPos++)
     {
-        for (const auto& extDevTypeRec : _extendedDevTypeRecords)
+        std::vector<int> addressList;
+        Raft::parseIntList(_extRecords[extPos]->addresses, addressList, ",");
+        for (int devAddr : addressList)
         {
-            std::vector<int> addressList;
-            Raft::parseIntList(extDevTypeRec.addresses.c_str(), addressList, ",");
-            for (int devAddr : addressList)
-            {
-                if (priorityLists.size() == 0)
-                    priorityLists.push_back(std::vector<BusElemAddrType>());
-                priorityLists[0].push_back(devAddr);
-            }
+            if (priorityLists.size() == 0)
+                priorityLists.push_back(std::vector<BusElemAddrType>());
+            priorityLists[0].push_back(devAddr);
         }
-        RaftMutex_unlock(_extDeviceTypeRecordsMutex);
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Add extended device type record
+/// @brief Add an extended device type record
+/// @param devTypeRec device type record
+/// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID unless Added or AlreadyPresent)
+/// @return result
+DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecordDynamic& devTypeRec, DeviceTypeIndexType& deviceTypeIndex)
+{
+    deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (devTypeRec.deviceTypeName.length() == 0)
+        return AddResult::Invalid;
+
+    // Lock
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return AddResult::Full;
+
+    // A record with this key already added: the same content is the same record; different content is
+    // rejected, since an index must always mean one record and a key one record (D17)
+    AddResult result = AddResult::Added;
+    int32_t existingPos = findExtendedPosByKey(devTypeRec.deviceTypeName.c_str());
+    if (existingPos >= 0)
+    {
+        if (DeviceTypeRecordPacked::contentMatches(*_extRecords[existingPos], devTypeRec))
+        {
+            result = AddResult::AlreadyPresent;
+            deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE + existingPos;
+        }
+        else
+        {
+            result = AddResult::Conflict;
+        }
+    }
+    else
+    {
+        // Limits (the pointer array is allocated when the first record is added, so the limits are fixed then)
+        if (!_extRecords)
+        {
+            applyDefaultExtendedRecordLimits();
+            _extRecords = new (std::nothrow) const DeviceTypeRecord*[_extMaxRecords];
+        }
+        uint32_t count = _extCount.load(std::memory_order_relaxed);
+        uint32_t recBytes = DeviceTypeRecordPacked::sizeFor(devTypeRec);
+        if (!_extRecords || (count >= _extMaxRecords) || (_extBytesUsed + recBytes > _extMaxBytes) ||
+                    (BASE_DEV_TYPE_ARRAY_SIZE + count >= DEVICE_TYPE_INDEX_INVALID))
+        {
+            result = AddResult::Full;
+        }
+        else
+        {
+            const DeviceTypeRecord* pRec = DeviceTypeRecordPacked::create(devTypeRec);
+            if (!pRec)
+            {
+                result = AddResult::Full;
+            }
+            else
+            {
+                // Store the record, keep the key index sorted, then publish the new count
+                _extRecords[count] = pRec;
+                _extBytesUsed += recBytes;
+                auto insertIt = std::lower_bound(_extPosByKey.begin(), _extPosByKey.end(), pRec->deviceType,
+                        [this](uint16_t pos, const char* key) { return strcmp(_extRecords[pos]->deviceType, key) < 0; });
+                _extPosByKey.insert(insertIt, (uint16_t)count);
+                _extCount.store(count + 1, std::memory_order_release);
+                deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE + count;
+            }
+        }
+    }
+
+    // Unlock
+    RaftMutex_unlock(_extRecordsMutex);
+
+#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
+    LOG_I(MODULE_PREFIX, "addRecord %s %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
+                getAddResultStr(result), devTypeRec.deviceTypeName.c_str(), deviceTypeIndex,
+                devTypeRec.addresses.c_str(), devTypeRec.detectionValues.c_str(),
+                devTypeRec.initValues.c_str(), devTypeRec.pollInfo.c_str());
+#endif
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Add extended device type records
 /// @param devTypeRec device type record
 /// @param deviceTypeIndex (out) device type index
 /// @return true if added
 bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, DeviceTypeIndexType& deviceTypeIndex)
 {
-    // Lock
-    if (!RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+    return addRecord(devTypeRec, deviceTypeIndex) == AddResult::Added;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get add result as a string
+const char* DeviceTypeRecords::getAddResultStr(AddResult result)
+{
+    switch (result)
+    {
+        case AddResult::Added: return "Added";
+        case AddResult::AlreadyPresent: return "AlreadyPresent";
+        case AddResult::Conflict: return "Conflict";
+        case AddResult::Full: return "Full";
+        case AddResult::Invalid: return "Invalid";
+    }
+    return "Unknown";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set the limits for extended records (only before the first extended record is added)
+/// @param maxRecords maximum number of extended records (0 for the default)
+/// @param maxBytes maximum bytes used by extended records (0 for the default)
+/// @return true if set
+bool DeviceTypeRecords::setExtendedRecordLimits(uint32_t maxRecords, uint32_t maxBytes)
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
-
-    // Check if max number of records reached
-    if (_extendedDevTypeRecords.size() >= MAX_EXTENDED_DEV_TYPE_RECORDS)
+    bool isSet = false;
+    if (!_extRecords)
     {
-        RaftMutex_unlock(_extDeviceTypeRecordsMutex);
-#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
-        LOG_W(MODULE_PREFIX, "addExtendedDeviceTypeRecord MAX_EXTENDED_DEV_TYPE_RECORDS reached");
-#endif
-        return false;
+        applyDefaultExtendedRecordLimits();
+        if (maxRecords > 0)
+            _extMaxRecords = maxRecords;
+        if (maxBytes > 0)
+            _extMaxBytes = maxBytes;
+        isSet = true;
     }
+    RaftMutex_unlock(_extRecordsMutex);
+    return isSet;
+}
 
-    // Check if already added
-    bool recFound = false;
-    for (uint16_t i = 0; i < _extendedDevTypeRecords.size(); i++)
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get extended record usage
+DeviceTypeRecords::ExtendedRecordStats DeviceTypeRecords::getExtendedRecordStats() const
+{
+    ExtendedRecordStats stats;
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return stats;
+    stats.count = _extCount.load(std::memory_order_relaxed);
+    stats.bytesUsed = _extBytesUsed;
+    if (_extMaxRecords == 0)
     {
-        if (_extendedDevTypeRecords[i].nameMatches(devTypeRec))
-        {
-            recFound = true;
-            deviceTypeIndex = i + BASE_DEV_TYPE_ARRAY_SIZE;
-            break;
-        }
+        // Limits not applied yet - report the defaults that will apply
+        const_cast<DeviceTypeRecords*>(this)->applyDefaultExtendedRecordLimits();
     }
+    stats.maxRecords = _extMaxRecords;
+    stats.maxBytes = _extMaxBytes;
+    RaftMutex_unlock(_extRecordsMutex);
+    return stats;
+}
 
-    // Add to list
-    if (!recFound)
-    {
-        _extendedDevTypeRecords.push_back(devTypeRec);
-        RaftAtomicBool_set(_extendedRecordsAdded, true);
-        deviceTypeIndex = _extendedDevTypeRecords.size() - 1 + BASE_DEV_TYPE_ARRAY_SIZE;
-    }
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Apply the default limits for extended records if not already set (D3). Assumes the mutex is held
+void DeviceTypeRecords::applyDefaultExtendedRecordLimits()
+{
+    if (_extMaxRecords != 0)
+        return;
+    uint32_t spiramSize = utilsGetSPIRAMSize();
+    bool hasPSRAM = (spiramSize != 0) && (spiramSize != UINT32_MAX);
+    _extMaxRecords = hasPSRAM ? EXT_MAX_RECORDS_DEFAULT_PSRAM : EXT_MAX_RECORDS_DEFAULT;
+    _extMaxBytes = hasPSRAM ? EXT_MAX_BYTES_DEFAULT_PSRAM : EXT_MAX_BYTES_DEFAULT;
+}
 
-    // Unlock
-    RaftMutex_unlock(_extDeviceTypeRecordsMutex);
-
-#ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
-    LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
-                recFound ? "ALREADY PRESENT" : "ADDED OK",
-                devTypeRec.deviceTypeName.c_str(), 
-                deviceTypeIndex,
-                devTypeRec.addresses.c_str(), devTypeRec.detectionValues.c_str(),
-                devTypeRec.initValues.c_str(), devTypeRec.pollInfo.c_str());
-#endif
-    return !recFound;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Find an extended record by key (binary search). Assumes the mutex is held
+/// @return position in _extRecords, or -1
+int32_t DeviceTypeRecords::findExtendedPosByKey(const char* deviceTypeKey) const
+{
+    auto it = std::lower_bound(_extPosByKey.begin(), _extPosByKey.end(), deviceTypeKey,
+            [this](uint16_t pos, const char* key) { return strcmp(_extRecords[pos]->deviceType, key) < 0; });
+    if ((it != _extPosByKey.end()) && (strcmp(_extRecords[*it]->deviceType, deviceTypeKey) == 0))
+        return *it;
+    return -1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -892,12 +1024,6 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 /// @return poll decode function
 DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(DeviceTypeIndexType deviceTypeIndex) const
 {
-
-    // TODO - see if copying can be avoided
-
-    // Get device type record
-    DeviceTypeRecord devTypeRec;
-    if (!getDeviceInfo(deviceTypeIndex, devTypeRec))
-        return nullptr;
-    return devTypeRec.pollResultDecodeFn;
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    return pRec ? pRec->pollResultDecodeFn : nullptr;
 }

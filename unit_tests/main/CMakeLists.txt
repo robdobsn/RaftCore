@@ -27,6 +27,7 @@ idf_component_register(SRCS
             "RestAPIDeferredResponses_test.cpp"
             "DeviceNames_test.cpp"
             "DeviceManager_regression_test.cpp"
+            "DeviceTypeTable_test.cpp"
 
             # The following test requires rebooting the ESP32 so isn't
             # included in the default test suite.

@@ -13,6 +13,7 @@
 #include "DeviceTypeRecordDynamic.h"
 #include "DevicePollingInfo.h"
 #include "RaftThreading.h"
+#include <atomic>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecords
@@ -30,9 +31,24 @@ public:
     std::vector<DeviceTypeIndexType> getDeviceTypeIdxsForAddr(BusElemAddrType addr) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the device type record for a device type index (no copy, no lock)
+    /// @param deviceTypeIndex device type index
+    /// @return the record (in flash for a base record), or nullptr if there is none. Records are never changed or
+    ///         freed while the firmware runs, so the pointer stays valid
+    const DeviceTypeRecord* getRecord(DeviceTypeIndexType deviceTypeIndex) const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the device type record for a device type key (an extended record with the key takes
+    ///        precedence over a base record with the same key)
+    /// @param deviceTypeKey device type key
+    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not found)
+    /// @return the record, or nullptr if there is none
+    const DeviceTypeRecord* getRecord(const char* deviceTypeKey, DeviceTypeIndexType& deviceTypeIndex) const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type record for a device type index
     /// @param deviceTypeIndex device type index
-    /// @param devTypeRec (out) device type record
+    /// @param devTypeRec (out) device type record (a copy - its strings point into the record, which stays valid)
     /// @return true if device type found
     bool getDeviceInfo(DeviceTypeIndexType deviceTypeIndex, DeviceTypeRecord& devTypeRec) const;
 
@@ -105,12 +121,52 @@ public:
     /// @param priorityLists (out) priority lists
     void getScanPriorityLists(std::vector<std::vector<BusElemAddrType>>& priorityLists);
 
+    // Result of adding an extended record
+    enum class AddResult
+    {
+        Added,              // added with a new index
+        AlreadyPresent,     // a record with the same key and the same content is present - its index is returned
+        Conflict,           // a record with the same key and different content is present - not added (D17)
+        Full,               // the configured number of records or bytes would be exceeded, or out of memory
+        Invalid,            // the record has no key
+    };
+    static const char* getAddResultStr(AddResult result);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Add an extended device type record
+    /// @param devTypeRec device type record
+    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID unless Added or AlreadyPresent)
+    /// @return result
+    AddResult addRecord(const DeviceTypeRecordDynamic& devTypeRec, DeviceTypeIndexType& deviceTypeIndex);
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Add extended device type records
     /// @param devTypeRec device type record
-    /// @param deviceTypeIndex (out) device type index
-    /// @return true if added
+    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not added or present)
+    /// @return true if added (false if already present - deviceTypeIndex is then its index - or not added)
+    /// @note see addRecord() for the reason a record is not added
     bool addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, uint16_t& deviceTypeIndex);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set the limits for extended records (only before the first extended record is added)
+    /// @param maxRecords maximum number of extended records (0 for the default)
+    /// @param maxBytes maximum bytes used by extended records (0 for the default)
+    /// @return true if set (false if records have already been added)
+    /// @note defaults: 256 records and 256 KB on boards with PSRAM, 32 records and 20 KB without
+    bool setExtendedRecordLimits(uint32_t maxRecords, uint32_t maxBytes);
+
+    // Extended record usage
+    struct ExtendedRecordStats
+    {
+        uint32_t count = 0;
+        uint32_t maxRecords = 0;
+        uint32_t bytesUsed = 0;
+        uint32_t maxBytes = 0;
+    };
+    ExtendedRecordStats getExtendedRecordStats() const;
+
+    /// @brief Number of base records
+    static uint32_t getNumBaseRecords();
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device poll decode function
@@ -119,22 +175,29 @@ public:
     DeviceTypeRecordDecodeFn getPollDecodeFn(uint16_t deviceTypeIndex) const;
 
 private:
-    // Mutex for access to extended device type records (mutable to allow locking in const methods)
-    mutable RaftMutex _extDeviceTypeRecordsMutex;
+    // Extended records are added at runtime. Each is one packed allocation (DeviceTypeRecordPacked) that never
+    // changes or moves, so pointers to it stay valid. _extRecords is a fixed array of pointers (allocated when
+    // the first record is added, sized by the limits); a record is written to it before _extCount is
+    // incremented (release), so reading a record by index needs no lock. Adding and key lookups take the mutex
+    mutable RaftMutex _extRecordsMutex;
+    const DeviceTypeRecord** _extRecords = nullptr;
+    std::atomic<uint32_t> _extCount{0};
+    uint32_t _extMaxRecords = 0;
+    uint32_t _extMaxBytes = 0;
+    uint32_t _extBytesUsed = 0;
 
-    // Flag indicating if any extended records have been added - since this is set only once and
-    // never cleared it is used to avoid taking the mutex in the common case where no extended records
-    // have been added
-    RaftAtomicBool _extendedRecordsAdded;
+    // Positions of the extended records sorted by key (for binary search), maintained under the mutex
+    std::vector<uint16_t> _extPosByKey;
 
-    // Maximum number of extended device type records (see note below about absolute pointers since this space will be reserved)
-    static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 20;
+    // Default limits (D3)
+    static constexpr uint32_t EXT_MAX_RECORDS_DEFAULT = 32;
+    static constexpr uint32_t EXT_MAX_BYTES_DEFAULT = 20 * 1024;     // holds 32 typical records (538 B each, measured)
+    static constexpr uint32_t EXT_MAX_RECORDS_DEFAULT_PSRAM = 256;
+    static constexpr uint32_t EXT_MAX_BYTES_DEFAULT_PSRAM = 256 * 1024;
 
-    // Extended device type records
-    // This list MUST only ever be extended and the absolute pointers to 
-    // the DeviceTypeRecordDynamic instances must not change so storage MUST
-    // be allocated in a way that does not move the instances
-    std::vector<DeviceTypeRecordDynamic> _extendedDevTypeRecords;
+    // Helpers for extended records (assume the mutex is held)
+    void applyDefaultExtendedRecordLimits();
+    int32_t findExtendedPosByKey(const char* deviceTypeKey) const;
 
     // Helpers
     static bool extractBufferDataFromHexStr(const String& writeStr, std::vector<uint8_t>& writeData);

@@ -122,9 +122,18 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
                     print(f"Invalid address range {addr_range}")
                     sys.exit(1)
 
+            # Addresses above the 7-bit range used by the firmware's address index can't be identified -
+            # fail rather than drop them silently (C12)
+            bad_addrs = [addr for addr in addr_list if addr > max_valid_i2c_addr]
+            if len(bad_addrs) > 0:
+                bad_addrs_hex = ",".join([f'0x{addr:02x}' for addr in bad_addrs])
+                print(f"ERROR: record \"{dev_type['deviceType']}\" has addresses {bad_addrs_hex} above "
+                      f"0x{max_valid_i2c_addr:02x}, which can't be identified", file=sys.stderr)
+                sys.exit(1)
+
         # Debug
         addr_list_hex = ",".join([f'0x{addr:02x}' for addr in addr_list])
-        print(f"Record {dev_record_index} Addresses {addr_range} Addr List {addr_list_hex}")
+        print(f"Record {dev_record_index} Addresses {addresses} Addr List {addr_list_hex}")
 
         # Some device types (e.g. Robotical RSAOs) are identified by probing rather than by
         # bus address, and several share the same addresses. They are excluded from the
@@ -213,7 +222,7 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         header_file.write('using namespace Raft;\n\n')
 
         # Generate the DeviceTypeRecord array
-        header_file.write('static DeviceTypeRecord baseDevTypeRecords[] =\n')
+        header_file.write('static const DeviceTypeRecord baseDevTypeRecords[] =\n')
         header_file.write('{\n')
 
         # Iterate records
@@ -268,7 +277,7 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # For every non-zero length array, generate a C variable specific to that array
         for addr in range(min_addr_array_index, max_addr_array_index+1):
             if len(addr_index_to_dev_array[addr]) > 0:
-                header_file.write(f'static uint16_t baseDevTypeIndexByAddr_0x{addr:02x}[] = ')
+                header_file.write(f'static const uint16_t baseDevTypeIndexByAddr_0x{addr:02x}[] = ')
                 header_file.write('{')
                 if len(addr_index_to_dev_array[addr]) > 0:
                     header_file.write(f'{addr_index_to_dev_array[addr][0]}')
@@ -277,7 +286,7 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
                 header_file.write('};\n')
 
         # Generate the DeviceTypeRecord index by address
-        header_file.write(f'\nstatic uint16_t* baseDevTypeIndexByAddr[] =\n')
+        header_file.write(f'\nstatic const uint16_t* const baseDevTypeIndexByAddr[] =\n')
         header_file.write('{\n')
 
         # Iterate address array
@@ -288,6 +297,15 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
                 header_file.write(f'    baseDevTypeIndexByAddr_0x{addr:02x},\n')
 
         header_file.write('};\n')
+
+        # Generate the record indexes sorted by device type key (byte order, as strcmp) for binary search
+        dev_type_keys = list(dev_ident_json['devTypes'].keys())
+        sorted_key_indexes = sorted(range(len(dev_type_keys)), key=lambda i: dev_type_keys[i].encode('utf-8'))
+        header_file.write('\nstatic const uint16_t baseDevTypeIndexByKey[] =\n')
+        header_file.write('{\n    ')
+        for record_index in sorted_key_indexes:
+            header_file.write(f'{record_index},')
+        header_file.write('\n};\n')
 
         # Generate the scan priority lists
         addr_scan_priority_lists = []

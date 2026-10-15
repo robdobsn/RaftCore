@@ -207,3 +207,56 @@ TEST_CASE("direct devices reject bus-only devconfig and cmdraw", "[DeviceManager
         TEST_ASSERT_EQUAL_STRING("failDeviceNotOnBus", responseJson.getString("error", "").c_str());
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Static devices and their device type records
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#include "DemoDevice.h"
+#include "DeviceFactory.h"
+#include "DeviceTypeRecords.h"
+
+// Set up a DeviceManager with static DemoDevices from a Devices config array and return their type indexes
+static void setupStaticDemoDevices(const char* devicesJson, std::vector<uint32_t>& typeIdxs, uint32_t numDevices)
+{
+    raftBusSystem.deinit();
+    deviceFactory.registerDevice("DemoDevice", DemoDevice::create);
+    String configStr = String(R"({"DeviceManager":{"Devices":)") + devicesJson + "}}";
+    RaftJson config = configStr.c_str();
+    TestableDeviceManager deviceManager("DeviceManager", config);
+    deviceManager.setup();
+    typeIdxs.clear();
+    for (uint32_t i = 0; i < numDevices; i++)
+    {
+        RaftDevice* pDevice = deviceManager.getDevice(RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, i));
+        typeIdxs.push_back(pDevice ? pDevice->getDeviceTypeIndex() : UINT32_MAX);
+    }
+}
+
+TEST_CASE("static devices of the same type share its record", "[DeviceManager]")
+{
+    std::vector<uint32_t> typeIdxs;
+    setupStaticDemoDevices(R"([{"class":"DemoDevice","name":"A","type":"RegressSameType"},)"
+                           R"({"class":"DemoDevice","name":"B","type":"RegressSameType"}])", typeIdxs, 2);
+    TEST_ASSERT_EQUAL_UINT32(2, typeIdxs.size());
+    TEST_ASSERT_NOT_EQUAL(DEVICE_TYPE_INDEX_INVALID, typeIdxs[0]);
+    TEST_ASSERT_EQUAL_UINT32(typeIdxs[0], typeIdxs[1]);
+    DeviceTypeIndexType idx = 0;
+    TEST_ASSERT_NOT_NULL(deviceTypeRecords.getRecord("RegressSameType", idx));
+    TEST_ASSERT_EQUAL_UINT32(typeIdxs[0], idx);
+}
+
+TEST_CASE("a static device whose type conflicts with an existing one gets no type", "[DeviceManager]")
+{
+    // The second device has the same type key but a different data size: its record differs, so it is
+    // rejected (D17) and the device has no type - never index 0 or the first device's record (C7, C8)
+    std::vector<uint32_t> typeIdxs;
+    setupStaticDemoDevices(R"([{"class":"DemoDevice","name":"A","type":"RegressConflictType"},)"
+                           R"({"class":"DemoDevice","name":"B","type":"RegressConflictType","sampleBytes":64}])", typeIdxs, 2);
+    TEST_ASSERT_EQUAL_UINT32(2, typeIdxs.size());
+    TEST_ASSERT_NOT_EQUAL(DEVICE_TYPE_INDEX_INVALID, typeIdxs[0]);
+    TEST_ASSERT_EQUAL_UINT32(DEVICE_TYPE_INDEX_INVALID, typeIdxs[1]);
+    const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(typeIdxs[0]);
+    TEST_ASSERT_NOT_NULL(pRec);
+    TEST_ASSERT_EQUAL_UINT16(14, pRec->pollDataSizeBytes);
+}
