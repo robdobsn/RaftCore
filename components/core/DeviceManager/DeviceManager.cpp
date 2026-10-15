@@ -73,7 +73,7 @@ void DeviceManager::setup()
 
     // Load device names from config first so that setupStaticDevices can overwrite
     // entries for any device that provides a name in its Devices array entry.
-    loadDeviceNames(modConfig());
+    _deviceNames.loadFromConfig(modConfig());
 
     // Setup device classes (these are the keys into the device factory)
     setupStaticDevices("Devices", modConfig());
@@ -660,10 +660,10 @@ double DeviceManager::getNamedValue(const char* pValueName, bool& isValid)
         }
 
         // Try named bus device
-        auto it = _deviceNameToID.find(std::string(deviceName.c_str()));
-        if (it != _deviceNameToID.end())
+        RaftDeviceID namedDeviceID;
+        if (_deviceNames.resolveName(deviceName, namedDeviceID))
         {
-            double val = getBusDeviceNamedValue(it->second, paramName, isValid);
+            double val = getBusDeviceNamedValue(namedDeviceID, paramName, isValid);
 #ifdef DEBUG_SYSMOD_GET_NAMED_VALUE
             LOG_I("DeviceManager", "getNamedValue busDevice: name=%s param=%s result: %f (valid=%d)",
                         deviceName.c_str(), paramName.c_str(), val, isValid);
@@ -719,15 +719,8 @@ bool DeviceManager::setNamedValue(const char* pValueName, double value)
 
         // Try named bus device — resolve name to deviceID
         RaftDeviceID deviceID;
-        auto it = _deviceNameToID.find(std::string(deviceName.c_str()));
-        if (it != _deviceNameToID.end())
-        {
-            deviceID = it->second;
-        }
-        else
-        {
+        if (!_deviceNames.resolveName(deviceName, deviceID))
             deviceID = RaftDeviceID::fromString(deviceName);
-        }
 
         if (deviceID.isValid() && deviceID.getBusNum() != RaftDeviceID::BUS_NUM_DIRECT_CONN)
         {
@@ -1970,11 +1963,11 @@ RaftDevice* DeviceManager::getDevice(const String& deviceStr, bool tryConfigName
     RaftMutex_unlock(_accessMutex);
 
     // Try the DeviceNames map (for bus devices with friendly names)
-    auto it = _deviceNameToID.find(std::string(deviceStr.c_str()));
-    if (it != _deviceNameToID.end())
+    RaftDeviceID namedDeviceID;
+    if (_deviceNames.resolveName(deviceStr, namedDeviceID))
     {
         // Found the name — try to find the device by the mapped ID
-        RaftDevice* pDevice = getDevice(it->second);
+        RaftDevice* pDevice = getDevice(namedDeviceID);
         if (pDevice)
             return pDevice;
     }
@@ -2084,68 +2077,12 @@ void DeviceManager::deviceEventCB(RaftDevice& device, const char* eventName, con
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Load device names from configuration
-/// @param devManConfig Device manager configuration (expects a "DeviceNames" object mapping RaftDeviceID strings to friendly names)
-void DeviceManager::loadDeviceNames(RaftJsonIF& devManConfig)
-{
-    // Get keys from DeviceNames config section
-    std::vector<String> keys;
-    if (!devManConfig.getKeys("DeviceNames", keys) || keys.empty())
-        return;
-
-    for (const auto& key : keys)
-    {
-        // Key is a RaftDeviceID string (e.g. "1_f8"), value is the friendly name
-        String path = "DeviceNames/" + key;
-        String friendlyName = devManConfig.getString(path.c_str(), "");
-        if (friendlyName.length() == 0)
-            continue;
-
-        RaftDeviceID deviceID = RaftDeviceID::fromString(key);
-        if (!deviceID.isValid())
-        {
-#ifdef DEBUG_DEVICE_NAMES
-            LOG_W(MODULE_PREFIX, "loadDeviceNames: invalid deviceID key: %s", key.c_str());
-#endif
-            continue;
-        }
-
-        // Store in both maps
-        setDeviceName(deviceID, friendlyName);
-#ifdef DEBUG_DEVICE_NAMES
-        LOG_I(MODULE_PREFIX, "loadDeviceNames: %s -> %s", key.c_str(), friendlyName.c_str());
-#endif
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Assign a friendly name to a bus device
 /// @param deviceID Device identifier
 /// @param name Friendly name
 void DeviceManager::setDeviceName(RaftDeviceID deviceID, const String& name)
 {
-    std::string nameStr(name.c_str());
-    uint64_t key = packDeviceIDKey(deviceID);
-
-    // Remove old name for this deviceID if it exists
-    auto itOld = _deviceIDToName.find(key);
-    if (itOld != _deviceIDToName.end())
-    {
-        _deviceNameToID.erase(itOld->second);
-        _deviceIDToName.erase(itOld);
-    }
-
-    // Remove old deviceID for this name if it exists
-    auto itOldName = _deviceNameToID.find(nameStr);
-    if (itOldName != _deviceNameToID.end())
-    {
-        _deviceIDToName.erase(packDeviceIDKey(itOldName->second));
-        _deviceNameToID.erase(itOldName);
-    }
-
-    // Store new mapping
-    _deviceNameToID[nameStr] = deviceID;
-    _deviceIDToName[key] = nameStr;
+    _deviceNames.setName(deviceID, name);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2154,11 +2091,7 @@ void DeviceManager::setDeviceName(RaftDeviceID deviceID, const String& name)
 /// @return friendly name if mapped, otherwise deviceID.toString()
 String DeviceManager::getDeviceNameForID(RaftDeviceID deviceID) const
 {
-    uint64_t key = packDeviceIDKey(deviceID);
-    auto it = _deviceIDToName.find(key);
-    if (it != _deviceIDToName.end())
-        return String(it->second.c_str());
-    return deviceID.toString();
+    return _deviceNames.getNameForID(deviceID);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2167,11 +2100,7 @@ String DeviceManager::getDeviceNameForID(RaftDeviceID deviceID) const
 /// @return friendly name if mapped, otherwise empty string
 String DeviceManager::lookupDeviceName(RaftDeviceID deviceID) const
 {
-    uint64_t key = packDeviceIDKey(deviceID);
-    auto it = _deviceIDToName.find(key);
-    if (it != _deviceIDToName.end())
-        return String(it->second.c_str());
-    return String();
+    return _deviceNames.lookupName(deviceID);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2180,13 +2109,7 @@ String DeviceManager::lookupDeviceName(RaftDeviceID deviceID) const
 /// @param role Role string (e.g. "system"). Pass empty or "normal" to remove the mapping.
 void DeviceManager::setDeviceRole(RaftDeviceID deviceID, const String& role)
 {
-    uint64_t key = packDeviceIDKey(deviceID);
-    if (role.length() == 0 || role.equalsIgnoreCase("normal"))
-    {
-        _deviceRole.erase(key);
-        return;
-    }
-    _deviceRole[key] = std::string(role.c_str());
+    _deviceNames.setRole(deviceID, role);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2195,22 +2118,14 @@ void DeviceManager::setDeviceRole(RaftDeviceID deviceID, const String& role)
 /// @return role string, or "normal" if no role mapped
 String DeviceManager::getDeviceRole(RaftDeviceID deviceID) const
 {
-    uint64_t key = packDeviceIDKey(deviceID);
-    auto it = _deviceRole.find(key);
-    if (it != _deviceRole.end())
-        return String(it->second.c_str());
-    return String("normal");
+    return _deviceNames.getRole(deviceID);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Check whether device has role "system"
 bool DeviceManager::isSystemDevice(RaftDeviceID deviceID) const
 {
-    uint64_t key = packDeviceIDKey(deviceID);
-    auto it = _deviceRole.find(key);
-    if (it == _deviceRole.end())
-        return false;
-    return it->second == "system";
+    return _deviceNames.isSystem(deviceID);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2220,13 +2135,7 @@ bool DeviceManager::isSystemDevice(RaftDeviceID deviceID) const
 /// @return true if found in the name map
 bool DeviceManager::resolveDeviceNameToID(const String& name, RaftDeviceID& deviceID) const
 {
-    auto it = _deviceNameToID.find(std::string(name.c_str()));
-    if (it != _deviceNameToID.end())
-    {
-        deviceID = it->second;
-        return true;
-    }
-    return false;
+    return _deviceNames.resolveName(name, deviceID);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

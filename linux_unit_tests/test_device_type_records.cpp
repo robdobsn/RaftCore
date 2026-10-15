@@ -22,11 +22,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "testhdr.h"
 #include "DeviceTypeRecords.h"
 #include "RaftJson.h"
-
-static int failCount = 0;
-static int checkCount = 0;
 
 typedef std::vector<uint8_t> Bytes;
 
@@ -44,8 +42,7 @@ static std::string bytesToHex(const Bytes& bytes)
 
 static void fail(const std::string& context, const std::string& msg)
 {
-    printf("FAIL %s: %s\n", context.c_str(), msg.c_str());
-    failCount++;
+    testFail(context.c_str(), msg.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +80,7 @@ static bool parseDetection(const char* detectionValues, std::vector<DeviceTypeRe
 
 static void runParseCase(const ParseCase& tc)
 {
-    checkCount++;
+    testCheckCount++;
     std::string context = std::string(tc.name) + " \"" + tc.detectionValues + "\"";
     std::vector<DeviceTypeRecords::DeviceDetectionRec> recs;
     bool valid = parseDetection(tc.detectionValues, recs);
@@ -196,7 +193,7 @@ static void testExplicitCases()
 
     // Read requests: only the length is checked here, as the semantics of rN in detection are not
     // yet defined (see devdocs/device-identification-review.md C10)
-    checkCount++;
+    testCheckCount++;
     std::vector<DeviceTypeRecords::DeviceDetectionRec> recs;
     if (!parseDetection("0x00=r2", recs) || (recs.size() != 1) || (recs[0].checkValues.size() != 1) ||
             (recs[0].checkValues[0].first.size() != 2) || (recs[0].checkValues[0].second.size() != 2))
@@ -292,7 +289,7 @@ static void checkDetectionValues(const std::string& catalogue, const std::string
 {
     if (detectionValues.empty())
         return;
-    checkCount++;
+    testCheckCount++;
     std::string context = catalogue + " " + deviceType + " \"" + detectionValues + "\"";
     std::vector<DeviceTypeRecords::DeviceDetectionRec> recs;
     if (!parseDetection(detectionValues.c_str(), recs))
@@ -386,11 +383,5 @@ int main(int argc, char** argv)
     for (int i = 1; i < argc; i++)
         testCatalogueFile(argv[i]);
 
-    if (failCount > 0)
-    {
-        printf("test_device_type_records FAILED %d of %d checks\n", failCount, checkCount);
-        return 1;
-    }
-    printf("test_device_type_records all %d checks passed\n", checkCount);
-    return 0;
+    return testSummary("test_device_type_records");
 }

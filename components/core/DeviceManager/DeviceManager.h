@@ -11,6 +11,7 @@
 #include "RaftDeviceConsts.h"
 #include "RaftThreading.h"
 #include "DeviceDataSubscribers.h"
+#include "DeviceNames.h"
 
 class RaftBusDevicesIF;
 #include <unordered_map>
@@ -297,19 +298,8 @@ private:
     /// @param eventData Data associated with the event
     void deviceEventCB(RaftDevice& device, const char* eventName, const char* eventData);
 
-    // Device name maps (for bus devices with friendly names)
-    // Maps friendly name -> RaftDeviceID
-    std::unordered_map<std::string, RaftDeviceID> _deviceNameToID;
-    // Maps packed (busNum << 32 | address) -> friendly name
-    std::unordered_map<uint64_t, std::string> _deviceIDToName;
-
-    // Device role map: packed (busNum << 32 | address) -> role string
-    // Empty / missing entry implies role "normal"
-    std::unordered_map<uint64_t, std::string> _deviceRole;
-
-    /// @brief Load device names from config (DeviceNames section)
-    /// @param devManConfig Device manager configuration
-    void loadDeviceNames(RaftJsonIF& devManConfig);
+    // Device names and device roles (for bus devices with friendly names), keyed by device ID
+    DeviceNames _deviceNames;
 
     /// @brief Get a named value from a bus-discovered device using its cached poll data
     /// @param deviceID Device identifier on the bus
@@ -329,12 +319,6 @@ private:
 
     /// @brief Handle devman/slot API endpoint (set or query slot mode)
     RaftRetCode apiDevManSlot(const String &reqStr, String &respStr, const RaftJson& jsonParams);
-
-    /// @brief Pack a RaftDeviceID into a uint64_t key for map lookup
-    static uint64_t packDeviceIDKey(RaftDeviceID deviceID)
-    {
-        return (static_cast<uint64_t>(deviceID.getBusNum()) << 32) | deviceID.getAddress();
-    }
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;
