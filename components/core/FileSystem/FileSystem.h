@@ -10,6 +10,7 @@
 #pragma once
 
 #include <list>
+#include <atomic>
 #include <string>
 #include "RaftUtils.h"
 #include "RaftThreading.h"
@@ -129,6 +130,33 @@ public:
     // Write to file
     uint32_t fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeLen);
 
+    // Number and total duration of slow writes (since startup). A slow write is usually a flash sector erase which
+    // stalls all code running from flash (on both cores) for its duration - used to attribute main loop stalls
+    uint32_t getSlowWriteCount() const
+    {
+        return _slowWriteCount.load(std::memory_order_relaxed);
+    }
+    uint32_t getSlowWriteMs() const
+    {
+        return _slowWriteMs.load(std::memory_order_relaxed);
+    }
+    static const uint32_t SLOW_WRITE_THRESHOLD_US = 10000;
+
+    // Write pacing - after a slow write (a flash sector erase stalls all code running from flash, on both cores)
+    // writers which can wait (e.g. file uploads, which then stop reading from the network so the sender is slowed by
+    // flow control) hold off for long enough that slow writes take at most maxStallPercent of the time
+    // @param maxStallPercent maximum percentage of time spent in slow writes during a transfer (0 = no pacing)
+    void setWritePacing(uint32_t maxStallPercent)
+    {
+        _writePacingMaxStallPct = maxStallPercent < 100 ? maxStallPercent : 0;
+    }
+    bool isWriteHoldoffActive() const
+    {
+        return (_writePacingMaxStallPct > 0) &&
+                ((int32_t)(_writeHoldoffUntilMs.load(std::memory_order_relaxed) - (uint32_t)millis()) > 0);
+    }
+    static const uint32_t WRITE_PACING_MAX_STALL_PCT_DEFAULT = 30;
+
     // Get file position
     uint32_t filePos(FILE* pFile);
 
@@ -142,6 +170,14 @@ public:
     bool getFileSystemSize(const String& fileSystemStr, uint64_t& fsSizeBytes, uint64_t& fsUsedBytes);
     
 private:
+
+    // Slow writes
+    std::atomic<uint32_t> _slowWriteCount{0};
+    std::atomic<uint32_t> _slowWriteMs{0};
+
+    // Write pacing
+    uint32_t _writePacingMaxStallPct = WRITE_PACING_MAX_STALL_PCT_DEFAULT;
+    std::atomic<uint32_t> _writeHoldoffUntilMs{0};
 
     // File system settings
     LocalFileSystemType _localFsType = LOCAL_FS_DISABLE;

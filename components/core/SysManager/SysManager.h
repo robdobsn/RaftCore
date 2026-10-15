@@ -279,6 +279,24 @@ private:
     uint32_t _slowSysModThresholdUs = SLOW_SYS_MOD_THRESHOLD_MS_DEFAULT * 1000;
     bool _reportSlowSysMod = true;
 
+    // Slow SysMod reporting - the first slow loop of a SysMod is reported immediately, then further slow loops are
+    // counted and reported in one summary at the end of the reporting interval
+    struct SlowSysModReport
+    {
+        bool reportOpen = false;
+        uint32_t reportStartMs = 0;
+        uint32_t count = 0;
+        uint32_t maxUs = 0;
+        uint32_t fsSlowWritesAtStart = 0;
+    };
+    std::vector<SlowSysModReport> _slowSysModReports;
+    static const uint32_t SLOW_SYS_MOD_REPORT_INTERVAL_MS = 10000;
+    uint32_t _slowSysModTotalCount = 0;
+    uint32_t _slowSysModMaxUs = 0;
+    String _slowSysModMaxName;
+    void slowSysModRecord(uint32_t sysModIdx, uint32_t loopUs, bool fsSlowWriteDuringLoop);
+    void slowSysModReportsService();
+
     // Monitor timer and period
     uint32_t _monitorPeriodMs = 0;
     uint32_t _monitorTimerMs = 0;
