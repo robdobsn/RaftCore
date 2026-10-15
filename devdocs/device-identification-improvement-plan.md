@@ -335,12 +335,12 @@ the RaftROS examples, 2026-10-15):
 |---|---|---|---|
 | The key in `devTypes` | Always | — | The generator: C struct and decoder names (`poll_<key>`) |
 | `deviceType` | In every record | **Yes, in every record** | The generator copies it into `DeviceTypeRecord::deviceType`, which is the runtime identifier: name lookups, `typeinfo?type=`, logs, RaftROS AutoPub. The Axiom device library checks that it equals the key |
-| `devInfoJson.type` | In every record | No: `AdafruitGamepad` has `Gamepad`; `RoboticalThermocoupleAmp` has `Thermocouple` | No reader found in RaftCore, RaftI2C or RaftROS. raftjs declares the field in `DeviceTypeInfo` but no reader was found in `raftjs/src` (web UIs not checked) |
+| `devInfoJson.type` | In every record | No: `AdafruitGamepad` has `Gamepad`; `RoboticalThermocoupleAmp` has `Thermocouple` | No reader in RaftCore, RaftI2C or RaftROS. **Clients do read it** (found 2026-10-15): raftjs's simulated channel uses it to choose device behaviour and fill `_t`, and raftjs's e2e scripts find devices by it (e.g. `"RoboticalVCP"`). Apps very likely do the same, since firmware never sent the real key |
 | `devInfoJson.name` | In every record | — | The text shown to users, through raftjs |
 | `devInfoJson.desc` | In every record | — | Longer description for UIs |
 
-So `deviceType` is a pure copy of the key, and `devInfoJson.type` is a drifting copy of it that nothing
-appears to read.
+So `deviceType` is a pure copy of the key, and `devInfoJson.type` is a copy that has drifted in 2 records but
+that clients rely on.
 
 **Proposal:**
 
@@ -351,15 +351,18 @@ appears to read.
 | **Type description** | `devInfoJson.desc` | Unchanged |
 | **Device type index** | Assigned by the firmware | Session-scoped handle for one *version* of a record (§3.8). Wire names `_i` and `dtIdx` unchanged |
 
-- **Remove `deviceType` from the JSON.**
-  - The generator fills `DeviceTypeRecord::deviceType` (renamed `deviceTypeKey`) from the key. The file
-    loader does the same.
-  - During the change, both accept a `deviceType` field if it equals the key and reject the record if it
-    doesn't. The field is then removed from the shipped files.
-- **Remove `devInfoJson.type`.**
-  - `typeinfo` adds a top-level `deviceTypeKey`, so clients get the real identifier (today they never do).
-  - For one release, the firmware also inserts `"type":"<key>"` into the `devinfo` it returns, so any web UI
-    that reads it keeps working. This costs no flash, unlike keeping the field in every record.
+- **`deviceType` is optional in the JSON** (D13, done 2026-10-15).
+  - The generator fills `DeviceTypeRecord::deviceType` from the key (the field keeps its name; it holds the
+    key). The file loader (Stage 6) will do the same.
+  - A record with `deviceType` is accepted if it equals the key; otherwise the build fails.
+  - The RaftCore catalogue no longer has the field. Other catalogues (Axiom, RaftROS examples, RaftI2C tests)
+    still have it and need no change. Generated output is byte-identical either way.
+- **`devInfoJson.type` stays, permanently, with its current values** (D13 revised 2026-10-15).
+  - Clients rely on it (see the table above), so removing it, or changing the two values that differ from
+    the key, would break them.
+  - `typeinfo` returns a top-level `deviceTypeKey` (done 2026-10-15), which new client code should use.
+  - The generator warns about any new record whose `devInfoJson.type` differs from its key, so no new drift
+    appears.
 - **Overrides.** A record's identity is its key. An override is a new *version* of the same key, from a
   different source.
   - `typeinfo` reports the version that is current (`src`: `base`, `file`, `code` or `static`).
@@ -417,7 +420,7 @@ involved.
 | Index spelling in code | `deviceTypeIndex` everywhere (replacing `deviceTypeIdx`, `devTypeIdx`, `typeIdx`). Wire names `_i` and `dtIdx` are unchanged |
 | Vendor type identifier | `hwTypeId` (replacing `deviceTypeId`, which is too close to `deviceTypeIdx`) |
 | Lookups | `getDeviceInfo(idx)` → `getRecord(deviceTypeIndex)`; `getDeviceTypeIdxsForAddr` → `getIdentCandidates(addr)` and `getKnownTypesAtAddr(addr)`; `getPendingIdentPoll` → `getNextDuePoll` |
-| Record identifier and its copies | §3.9: the `devTypes` key is the only identifier ("device type key"); `deviceType` and `devInfoJson.type` are removed from the JSON |
+| Record identifier and its copies | §3.9: the `devTypes` key is the identifier ("device type key"); `deviceType` is optional in the JSON and filled from the key; `devInfoJson.type` is kept for clients |
 
 Rule for the later stages: each stage renames the identifiers in the code it changes. Public C++ APIs keep a
 deprecated alias for one release.
@@ -971,7 +974,7 @@ All decided on 2026-10-15. Each decision took the recommendation made in this pl
 | D10 | Should policy changes made over REST be persisted, and where? | Yes, in the type file as `disable` entries, so there is one source of truth |
 | D11 | Should the runtime decoder (review §9.2-G) be scheduled? | Decide after Stage 6 |
 | D12 | Term for the record identifier | **Device type key** (§3.9). Done 2026-10-15: documentation (principles §2, plan, wiki); `deviceTypeKey` added to the `typeinfo` response; inside the Raft libraries, non-API names (parameters, locals, comments, log text) renamed. Names that are part of an API or contract are unchanged |
-| D13 | Remove `deviceType` and `devInfoJson.type` from the JSON? | Yes. The identifier is filled in from the key. During the transition, `deviceType` is accepted only if it equals the key, and `type` is inserted into `typeinfo` responses for one release (§3.9) |
+| D13 | What happens to `deviceType` and `devInfoJson.type` in the JSON? | **Revised and done 2026-10-15.** `deviceType` is optional: the generator fills it from the key and fails the build if it differs; the RaftCore catalogue omits it, and generated output is byte-identical. `devInfoJson.type` is **kept permanently** with its current values, because clients identify devices by it; the generator warns about new mismatches. (Originally: remove both, inserting `type` into responses for one release.) |
 | D14 | Adopt the index rules of §3.8? | Yes. Rules 1–3 and 5 go into Stage 7 (rule 1 for live overrides waits for Stage 8). **Rule 4 revised 2026-10-15:** no type table ID in the publish streams; clients clear index-keyed caches on (re)subscribe (see D16) |
 
 ### 8.1 Follow-ups from the decisions
@@ -1020,13 +1023,13 @@ Rules:
 | 1 | **devbin stream** (envelope, record header, `devTypeIdx`) | raftjs, apps | — | **Unchanged.** An earlier version of this plan put a type table ID in the envelope. That would have broken deployed raftjs: it accepts magic 0xDB–0xDF, then tells EnvelopeV2 from V1 by probing for a valid record at offset 5, then 4 (`processClientMsgBinary`), so a longer envelope fails both probes and the whole message is dropped. The ID is no longer needed (§3.8 rules 4–5) | Yes |
 | 2 | **devjson stream** | raftjs, apps, tools | — | **Unchanged** (the `_tt` key proposed earlier is withdrawn) | Yes |
 | 3 | **Meaning of `_i` / `devTypeIdx`** | raftjs, RaftROS, DataLogger | 2, 5, 6, 8 | Base indices are unchanged for a given build. A boot-time override keeps the base index (D2). **New:** file records get indices in file order, after the static devices; static devices register first, so their indices stay as today. Within a firmware boot an index never changes meaning (§3.8) | Yes. Across boots, raftjs clears index-keyed type data on (re)subscribe (R1) |
-| 4 | **`devman/typeinfo`** | raftjs (two URL forms), apps | 3, 5, 8, 10 | The response adds `deviceTypeKey`, `src` and `policy`. `devinfo.type` is removed from the catalogues but inserted into responses for one release (D13). **The `bus=<n>&type=<index>` form must stay:** current raftjs uses it for *every* devbin record to choose the payload format, not only for old firmware | Yes, if `bus=&type=` keeps its behaviour |
+| 4 | **`devman/typeinfo`** | raftjs (two URL forms), apps | 3, 5, 8, 10 | The response adds `deviceTypeKey` (done), `src` and `policy`. `devinfo.type` is unchanged and stays (D13). **The `bus=<n>&type=<index>` form must stay:** current raftjs uses it for *every* devbin record to choose the payload format, not only for old firmware | Yes, if `bus=&type=` keeps its behaviour |
 | 5 | **`devman/listdevs`** | raftjs, tools | 7, 10 | Adds fields (identification state) | Yes |
 | 6 | **`devman/devconfig`** | raftjs, apps | 1, 7, 10 | `intervalUs` is clamped to ≥ 2 ms (D7). `numSamples` is capped by bytes (I6). Settings survive re-identification (Stage 7). Adds `save=1` | Mostly. A request below the clamp gets less than it asked for, so the response must report the value applied |
 | 7 | **Actual poll rates** (behaviour) | Anyone reading samples | 1 | Rates rise to the configured value (from 2–20% below it), and bus load rises with them. The default `i` (D7) affects only records without `i`: every shipped catalogue sets both `i` and `s` (checked: RaftCore, Axiom, RSAO, RaftROS examples) | Behaviour change; release note |
 | 8 | **Presence and deletion events** (behaviour) | raftjs, RaftROS, Axiom | 1, 7 | Devices behind a lost mux or a power-cycled slot are now reported offline and deleted, where they used to stay as ghosts. Re-verification can produce `TypeChanged` | Correct, but visible; release note |
 | 9 | **Type change at the same device ID** | raftjs | 5–8 | raftjs caches type info per device ID (`_cachedDeviceTypeRecs[deviceKey]`) and fetches it only when the device state has none. `removeDevice()` deletes the device state but **not** that cache entry, and nothing clears the cache on reconnect. So when a device's type changes at the same device ID, a deployed raftjs keeps decoding with the old type until the app is reloaded. A deletion notice from the firmware does not help. This already happens today (CRC re-identification), and Stages 5–8 make it more likely (disable, override, file changes, re-verification) | **No.** Needs raftjs change R1. Old apps must be reloaded after changing the type file |
-| 10 | **Device type catalogue JSON format** (RaftCore, Axiom, third-party, device-library files) | Generator, MicroPython generator, Axiom scripts, device library | 3, 4, 6 | D13: `deviceType` becomes optional, then is removed. Readers to update: `ProcessDevTypeJsonToC.py`, `MicroPythonGenerator.py` (reads `deviceType`), Axiom `split_rsao_records.py` and `verify_split.py`, and on the Axiom branch the device library's key == `deviceType` check and `check-descriptor-spec.mjs`. `excludeFromAddrMap` → `probeOnly`: used by all 11 RSAO records, so both names are accepted. Stage 4's strict parser may reject records that build today (odd-length hex, a bare `pNN` used as write data, more than one `=`) | Yes, with the transition in D13 and D19 |
+| 10 | **Device type catalogue JSON format** (RaftCore, Axiom, third-party, device-library files) | Generator, MicroPython generator, Axiom scripts, device library | 3, 4, 6 | D13 (done): `deviceType` is optional and, if present, must equal the key; the generators take the identifier from the key. Catalogues that still have the field stay valid. Axiom's scripts don't read `deviceType`; the Axiom branch's device library already accepts it being absent. `excludeFromAddrMap` → `probeOnly`: used by all 11 RSAO records, so both names are accepted. Stage 4's strict parser may reject records that build today (odd-length hex, a bare `pNN` used as write data, more than one `=`) | Yes, with the transition in D13 and D19 |
 | 11 | **Generated artefacts** (`poll_<key>` structs, field descriptors, MicroPython `decode_device_data(deviceType…)`) | RaftROS, DataLogger, MicroPython users | 2, 3 | Names come from the key, which equals `deviceType` everywhere, so they don't change. Stage 3 stops generating the address and scan tables; nothing outside `DeviceTypeRecords.cpp` should include them (to verify) | Yes |
 | 12 | **RaftCore C++ APIs** | RaftROS AutoPub, Axiom (DevicePower, DataLogger, VL53LxCX, RSAOSysMod), RaftSysMods `BLEBusDeviceManager` and `BusBLE`, RaftCore `BusSerial` | 0, 2, 3, 7, 8 | Renames get aliases. `DeviceTypeRecord::deviceType` is a field of a POD, so it can't be aliased: keep the field name until Stage 11 and add a `getKey()` accessor. `BusAddrStatus` gains fields: keep the existing constructor, which BLE calls positionally. New `RaftBusDevicesIF` virtual functions get default bodies. Stage 8's "no raw `const char*` kept beyond a call" means RaftROS AutoPub and DataLogger must keep an index plus the table ID instead of record pointers | Yes for 0–7; Stage 8 needs consumer changes in step |
 | 13 | **Ident hook semantics** (`registerNewDeviceIdentHandler`) | Axiom RSAO | 7, 9 | Today an unidentified device is offered to the hook every ~3 s. Axiom's commissioning debounce relies on this: each retry refreshes `requestedMs` (review A2). Stage 7 stops re-running the hook on `NoMatch`, and Stage 9 asks hooks to register their address ranges. `Deferred` must still be retried, and the Axiom change has to land with Stage 7 | **No, unless Axiom changes in step** |
@@ -1043,7 +1046,7 @@ Rules:
 |---|---|---|---|
 | R1 | **Decode by index** (§3.8 rules 4–5): decode metadata is cached by device type index only, and that cache is cleared when raftjs (re)subscribes. Per device ID, keep the last index seen plus instance data (name, role); when a record's index differs from the last one, switch to that index's type data. Replace today's per-device-ID type cache (`_cachedDeviceTypeRecs[deviceKey]`) with this. The per-device `typeinfo?deviceid=` request is still used, but only for its instance data | **Now**, independently of the firmware stages (D18). It fixes a problem that exists today | Yes (pure client logic) |
 | R2 | *(Withdrawn.)* No type table ID is needed by clients; see §3.8 rule 4 and D16 | — | — |
-| R3 | **Make `DeviceTypeInfo.type` optional** in the TypeScript type, and read `deviceTypeKey` when present | Before the D13 transition release ends | Yes |
+| R3 | **Read `deviceTypeKey` when present** (the optional field was added to `RaftDevTypeInfoResponse` on 2026-10-15). `DeviceTypeInfo.type` stays as it is, since firmware keeps sending it (D13) | With R1 | Yes |
 | R4 | **New fields:** `displayName`, `deviceTypeKey`, `busNum` on the device state; deprecate the old meanings | Stage 11 | Yes (fall back to today's derivation) |
 | R5 | **New API wrappers:** `types`, `typepolicy`, `typefile`, `identinfo`, `reident`, `reinit`, `devenable`, `pollstats`, `scanstats` | Stage 10 | Return "unsupported" on `failUnknownAPI` |
 | R6 | **Keep both `typeinfo` URL forms** and the per-record payload-format probe unchanged | Throughout | — |
@@ -1057,10 +1060,10 @@ Rules:
 | Axiom RSAO | Hook semantics (item 13): debounce from first-seen time (A2), register its address ranges (D9), and change in step with Stage 7. Generate the type registry from `hwTypeId` (Stage 3) | 3, 7, 9 |
 | Axiom DataLogger, DevicePower, VL53LxCX | Handle `TypeChanged` and `Lost`. Stop keeping decoders or record pointers for the whole session | 7, 8 |
 | Axiom device library (branch) | Align its file format with the Stage 6 loader (`devTypes`, `disable`). Its "suppress by name" meant hidden from lookups too; under Stage 5 it hides from identification only. Move its protection rules to SysTypes roles | 5, 6 |
-| Axiom scripts and CI (`split_rsao_records.py`, `verify_split.py`, `check-descriptor-spec.mjs`) | Read the key instead of `deviceType`; accept `probeOnly` | 3, D13 |
+| Axiom scripts and CI (`split_rsao_records.py`, `verify_split.py`, `check-descriptor-spec.mjs`) | Accept `probeOnly` (they don't read `deviceType`) | 3 |
 | RaftSysMods `BLEBusDeviceManager` and `BusBLE` | Builds against the renamed APIs (aliases cover one release). Optionally adopt identification events | 0, 7 |
 | RaftCore `BusSerial` | Same as BLE | 0, 7 |
-| Python tools (Axiom `serial_protocol.py`, bench scripts) | None for the wire. Scripts that read `devinfo.type` should switch to `deviceTypeKey` | D13 |
+| Python tools (Axiom `serial_protocol.py`, bench scripts) | None. New scripts should identify types by `deviceTypeKey` rather than `devinfo.type` | — |
 | raft CLI | None found | — |
 | Wiki (record format, REST API, identification pages) | Update with each stage; mark deprecated fields | All |
 
@@ -1130,7 +1133,7 @@ as in the compiled files. A compiled record can be pasted into a library file un
 | `pollInfo.s` | Present in every shipped record | Missing or 0 is **accepted** (0 to 256 allowed) | No: C5. Stage 1 defaults `s` to 1 and clamps it |
 | `pollInfo.i` | Present in every shipped record | Not checked (review §7.3) | D7 clamps it |
 | `devInfoJson.resp.b` | The generator checks it against the size computed from `c` | Becomes `pollDataSizeBytes`, and is checked against the runtime parser's size | Yes |
-| `devInfoJson.type` | Present; differs from the key in 2 records | Passed through | D13 removes it |
+| `devInfoJson.type` | Present; differs from the key in 2 records | Passed through | Yes: kept, with the generator warning about new mismatches (D13) |
 | `scanPriority` | Used (two-tier in practice) | **Accepted and ignored**; library records always go in scan list 0 | Stage 3 honours it, a change of behaviour for library records |
 | `excludeFromAddrMap` | Used by all 11 RSAO records | **Ignored**, so a library RSAO record with `addresses` is address-mapped and reserved | Stage 3 honours it (as `probeOnly`, both names accepted) |
 | `deviceTypeId` | Ignored by the generator; a hand-written table in Axiom holds the mapping | Validated (0–65535 or a `0x` string) and passed to the RSAO registry through a callback | Stage 3: `hwTypeId`, with `deviceTypeId` accepted as the old name |

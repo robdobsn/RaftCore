@@ -2,7 +2,6 @@
     "devTypes": {
         "RoboticalLightSensor": {
             "addresses": "0x28",
-            "deviceType": "RoboticalLightSensor",
             "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x0084",
             "initValues": "=p250&0x6004ff9c=p250",
             "pollInfo": {
@@ -56,7 +55,6 @@
         },
         "RoboticalServo": {
             "addresses": "0x10-0x18",
-            "deviceType": "RoboticalServo",
             "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x008F",
             "initValues": "=p250&0x6004ff9c=p250&0x2001",
             "pollInfo": {
@@ -131,7 +129,6 @@
         },
         "RoboticalWaterPump": {
             "addresses": "0x10-0x18",
-            "deviceType": "RoboticalWaterPump",
             "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x0098",
             "initValues": "=p250&0x6004ff9c=p250&0x2001",
             "pollInfo": {
@@ -199,7 +196,6 @@
         },
         "VCNL4040": {
             "addresses": "0x60",
-            "deviceType": "VCNL4040",
             "detectionValues": "0x0c=0b100001100000XXXX",
             "initValues": "0x041007=&0x030e08=&0x000000=",
             "pollInfo": {
@@ -251,7 +247,6 @@
         "VEML7700": {
             "_notes": "ALS sensor with range 0-120 klx. I2C address fixed at 0x10. Device ID register at 0x07. Returns 0x81c4 or 0x81d4 (0xc481/0xd481 as 16-bit LE). Config: gain x1, 100ms integration time, power on.",
             "addresses": "0x10",
-            "deviceType": "VEML7700",
             "detectionValues": "0x07=0x81c4,0x81d4",
             "initValues": "0x000000=",
             "pollInfo": {
@@ -292,7 +287,6 @@
         "VEML6040": {
             "_notes": "RGBW ambient light sensor. I2C address fixed at 0x10. No dedicated device ID register, so detection relies on address and response behavior.",
             "addresses": "0x10",
-            "deviceType": "VEML6040",
             "detectionValues": "",
             "initValues": "0x000000=",
             "pollInfo": {
@@ -349,7 +343,6 @@
         "VL6180": {
             "_notes": "Interleaved mode ALS & Range (0x2a3=>0x01)\nRange settings defined in https://www.st.com/resource/en/application_note/an4545-vl6180x-basic-ranging-application-note-stmicroelectronics.pdf\nALS integration period 100ms (0x0040=>0x0063)\nALS gain 20 (0x003f=>0x40)\n",
             "addresses": "0x29",
-            "deviceType": "VL6180",
             "detectionValues": "0x0000=0b10110100",
             "initValues": "0x020701&0x020801&0x009600&0x0097fd&0x00e301&0x00e403&0x00e502&0x00e601&0x00e703&0x00f502&0x00d905&0x00dbce&0x00dc03&0x00ddf8&0x009f00&0x00a33c&0x00b700&0x00bb3c&0x00b209&0x00ca09&0x019801&0x01b017&0x01ad00&0x00ff05&0x010005&0x019905&0x01a61b&0x01ac3e&0x01a71f&0x003000&0x001110&0x010a30&0x003f42&0x0031ff&0x004000&0x004163&0x002e01&0x001b09&0x003e31&0x001424&0x003801",
             "pollInfo": {
@@ -394,7 +387,6 @@
         "VL53L0X": {
             "_notes": "ToF distance sensor with range up to 2m. Initialization sequence adapted from the Pololu library.",
             "addresses": "0x29",
-            "deviceType": "VL53L0X",
             "detectionValues": "0xC0=0xEE&0xC1=0xAA",
             "initValues": "0x8800&0x440040&0x8001&0xff01&0x0000&0x91=r1&0x0001&0xff00&0x8000&0x0001",
             "pollInfo": {
@@ -458,7 +450,6 @@
         "VL53L1X": {
             "_notes": "ToF distance sensor with extended range up to 4m",
             "addresses": "0x29",
-            "deviceType": "VL53L1X",
             "detectionValues": "0x010f=0xEACC",
             "initValues": "0x002D01&0x0087&0x25012c00=p100&0x0060=p100",
             "pollInfo": {
@@ -504,7 +495,6 @@
         "VL53L4CD": {
             "_notes": "ToF distance sensor with range 0-1.3m",
             "addresses": "0x29",
-            "deviceType": "VL53L4CD",
             "detectionValues": "0x010F=0xEBAA",
             "initValues": "0x002D0001011102000208000810010100000000FF000F0000000000200B000002142100&0x004e000500000000c8000038ff010008000001cc0701f10500a0008008380000&006c00000f89000000000000000107050606000002c7ff9b000000010000&0x008740=p200&0x008601&0x008780&0x000809&0x000b00&0x00240500&0x006c00000000&0x005e02f2&0x006103a1&008721",
             "pollInfo": {
@@ -550,7 +540,6 @@
         "MAX30101": {
             "_notes": "init: 0x0940 (reset), 0x00=r1 (clear INT), 0x0903 (SpO2mode Red+IR), 0x085f (4 sample avg, FIFO rollover, FIFO Int 17), 0x0A27 (100 samples/s, 18bit), 0x0c40&0x0d40 (LEDs 12.6mA), 0x1121 (Slot interleaved)",
             "addresses": "0x57",
-            "deviceType": "MAX30101",
             "detectionValues": "0xff=0x15",
             "initValues": "0x0940&0x0903&0x085f&0x00=r1&0x0a27&0x0c4040&0x11=0x21",
             "pollInfo": {
@@ -595,7 +584,6 @@
         },
         "ADXL313": {
             "addresses": "0x1d,0x53",
-            "deviceType": "ADXL313",
             "detectionValues": "0x00=0b1010110100011101",
             "initValues": "0x2d0c=;0x310a=",
             "pollInfo": {
@@ -647,7 +635,6 @@
         "MXC400xXC": {
             "_notes": "x in part code sets i2c address LSB from 0x10-0x17",
             "addresses": "0x10-0x17",
-            "deviceType": "MXC400xXC",
             "detectionValues": "0x0E=0x02",
             "initValues": "0x01=0b00010000&=p250",
             "pollInfo": {
@@ -709,7 +696,6 @@
         "MMC5603": {
             "_notes": "MEMSIC MMC5603NJ 3-axis magnetometer. Product ID reg 0x39=0x10. Init: SW reset (CTRL1 0x1C=0x80, wait 20ms), SET/RESET pulses (CTRL0 0x1B=0x08 then 0x10) to null bridge offset, ODR reg 0x1A=0x64 (100Hz), continuous mode with auto set/reset (CTRL0 0x1B=0xA0 = cmm_freq_en|Auto_SR_en) and CTRL2 0x1D=0x10 (cmm_en). Poll reads 6 bytes 0x00-0x05 (top 16 bits of each 20-bit axis, big-endian). Zero-field null=32768, 0.1uT/LSB, range +/-30 Gauss (+/-3000uT).",
             "addresses": "0x30",
-            "deviceType": "MMC5603",
             "detectionValues": "0x39=0x10",
             "initValues": "0x1C80=&=p20&0x1B08=&=p1&0x1B10=&=p1&0x1A64=&0x1BA0=&0x1D10=",
             "pollInfo": {
@@ -775,7 +761,6 @@
         "LSM6DS": {
             "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. FIFO depth is LIMITED to the watermark (FIFO_CTRL4.STOP_ON_FTH=1, FTH=1020 words via FIFO_CTRL1/2) so DIFF_FIFO can never wrap to 0: with an unlimited depth a host pause of >6.6 s (e.g. an RSAO test-mode or commissioning session) filled the 4096-word FIFO, the count read 0 and the {$0.w12} poll read nothing forever (devdocs/lsm6ds-fifo-full-deadlock.md, 2026-09-11). Two-phase I2C read: first reads FIFO_STATUS1-4 (word count), then reads only the required FIFO data bytes from 0x3E. FIFO_PATTERN (STATUS3/4) used to skip to next aligned group boundary before decoding. Each sample = 6 words (gx,gy,gz,ax,ay,az). Compatible with LSM6DS3, LSM6DS33, LSM6DSM. DSOX uses different FIFO architecture.",
             "addresses": "0x6a",
-            "deviceType": "LSM6DS",
             "detectionValues": "0x0f=0x69,0x6a,0x6c",
             "initValues": "0x0a00&0x1244&0x1048&0x114c&0x1640&0x0809&0x0980&0x06fc&0x0703&0x0a26",
             "pollInfo": {
@@ -900,7 +885,6 @@
         "TMP117": {
             "_notes": "High-Accuracy Temperature Sensor. Detection: 0x0F (DevID) = 0x0117. Init: 0x01 (Config) = 0x0220 (1s continuous mode, 8 avg). Poll: 0x00 (Temp) = 2 bytes.",
             "addresses": "0x48-0x4B",
-            "deviceType": "TMP117",
             "detectionValues": "0x0F=0x0117",
             "initValues": "0x01=0x0220",
             "pollInfo": {
@@ -935,7 +919,6 @@
         "AHT20": {
             "_notes": "Temperature and humidity sensor. Data format: Status(8bit) + Humidity(20bit) + Temperature(20bit). Conversion: humidity(%) = (H[19:0]/2^20)*100, temp(°C) = (T[19:0]/2^20)*200-50",
             "addresses": "0x38",
-            "deviceType": "AHT20",
             "detectionValues": "",
             "initValues": "0xbe0800=",
             "pollInfo": {
@@ -991,7 +974,6 @@
         "SHT40": {
             "_notes": "Sensirion SHT4x (SHT40) at 0x44. Uses high-precision single-shot command 0xFD. Response is 6 bytes: T_MSB,T_LSB,T_CRC,RH_MSB,RH_LSB,RH_CRC.",
             "addresses": "0x44-0x46",
-            "deviceType": "SHT40",
             "detectionValues": "",
             "initValues": "0xfd=&=p10",
             "pollInfo": {
@@ -1037,7 +1019,6 @@
         "SGP30": {
             "_notes": "Gas sensor for IAQ. Detection: 0x0000 = 0x58, 0x00 = config. Init: Send IAQ_INIT and wait 100ms, then poll. Poll: Send MEASURE_IAQ and read 6 bytes (CO2 & TVOC).",
             "addresses": "0x58",
-            "deviceType": "SGP30",
             "detectionValues": "0x0000=0x58",
             "initValues": "0x2003=p100",
             "pollInfo": {
@@ -1094,7 +1075,6 @@
         "SGP40": {
             "_notes": "Gas sensor for VOC measurements (0-500). Hotplate temp controlled by command 0x59. Init: None needed. Poll: Send 0x2600 + humidity/temp compensation (default to 50%RH=0x8000, 25°C=0x6666), read raw signal (VOC ticks).",
             "addresses": "0x59",
-            "deviceType": "SGP40",
             "detectionValues": "",
             "initValues": "0x260f8000a2666693",
             "pollInfo": {
@@ -1142,7 +1122,6 @@
         },
         "MCP9808": {
             "addresses": "0x18-0x1f",
-            "deviceType": "MCP9808",
             "detectionValues": "0x06=0b0000000001010100&0x07=0b00000100XXXXXXXX",
             "initValues": "0x010000",
             "pollInfo": {
@@ -1178,7 +1157,6 @@
         },
         "LPS25": {
             "addresses": "0x5D",
-            "deviceType": "LPS25",
             "detectionValues": "0x0f=0b10111101",
             "initValues": "0x2104=&0x20C0=",
             "pollInfo": {
@@ -1234,7 +1212,6 @@
         "MPRLS": {
             "_notes": "Honeywell MPRLS pressure sensor. No detection values, so the record claims any device at 0x18 - it must stay AFTER the MCP9808 and Robotical servo/pump records, which share the address and have detection values.",
             "addresses": "0x18",
-            "deviceType": "MPRLS",
             "detectionValues": "",
             "initValues": "0xAA0000",
             "pollInfo": {
@@ -1279,7 +1256,6 @@
         },
         "CAP1203": {
             "addresses": "0x28",
-            "deviceType": "CAP1203",
             "detectionValues": "0xfd=0b01101101",
             "initValues": "0x0000&0x1f06",
             "pollInfo": {
@@ -1341,7 +1317,6 @@
         "CAP1188": {
             "_notes": "Microchip CAP1188 8-channel capacitive touch sensor with 8 LED drivers. Product ID 0x50, Manufacturer ID 0x5D. ADDR_COMM strap selects address in range 0x28-0x2D.",
             "addresses": "0x28-0x2d",
-            "deviceType": "CAP1188",
             "detectionValues": "0xfd=0x50&0xfe=0x5d",
             "initValues": "0x0000&0x1f36&0x2a00",
             "pollInfo": {
@@ -1509,7 +1484,6 @@
         },
         "QwiicButton": {
             "addresses": "0x6f",
-            "deviceType": "QwiicButton",
             "detectionValues": "0x00=0b01011101",
             "initValues": "",
             "pollInfo": {
@@ -1569,7 +1543,6 @@
         },
         "MAX17048": {
             "addresses": "0x36",
-            "deviceType": "MAX17048",
             "detectionValues": "0x08=0b000000000001001x",
             "initValues": "0x0c9716&=p100&0x14a0d7",
             "pollInfo": {
@@ -1643,7 +1616,6 @@
         },
         "AS5600": {
             "addresses": "0x36",
-            "deviceType": "AS5600",
             "detectionValues": "0x00=0b000000xx",
             "initValues": "",
             "pollInfo": {
@@ -1675,7 +1647,6 @@
         },
         "MT6701": {
             "addresses": "0x06",
-            "deviceType": "MT6701",
             "detectionValues": "",
             "initValues": "",
             "pollInfo": {
@@ -1707,7 +1678,6 @@
         },
         "M5Encoder": {
             "addresses": "0x40",
-            "deviceType": "M5Encoder",
             "detectionValues": "0x20=0b0000000X11111111",
             "initValues": "",
             "pollInfo": {
@@ -1762,7 +1732,6 @@
         },
         "AdafruitGamepad": {
             "addresses": "0x50",
-            "deviceType": "AdafruitGamepad",
             "detectionValues": "0x0001=0b10000111",
             "initValues": "0x007fff=p20&0x010300010067=p1&0x010b00010067=p1&0x010500010067=p1",
             "pollInfo": {
@@ -1868,7 +1837,6 @@
         },
         "QwiicLEDStick": {
             "addresses": "0x23",
-            "deviceType": "QwiicLEDStick",
             "detectionValues": "",
             "initValues": "",
             "pollInfo": {},
@@ -1905,7 +1873,6 @@
             }
         },
         "HX711": {
-            "deviceType": "HX711",
             "detectionValues": "",
             "initValues": "",
             "pollInfo": {
@@ -1944,7 +1911,6 @@
             }
         },
         "BLEBTHome": {
-            "deviceType": "BLEBTHome",
             "detectionValues": "",
             "initValues": "",
             "pollInfo": {
@@ -2015,7 +1981,6 @@
         "AdafruitSoilSensor": {
             "addresses": "0x36",
             "_notes": "sensor must be wrapped in heatshrink to produce sensible values. very sensitive to human proximity",
-            "deviceType": "AdafruitSoilSensor",
             "detectionValues": "0x0001=p25&=0x55",
             "initValues": "",
             "pollInfo": {
@@ -2057,7 +2022,6 @@
         "SCD30": {
             "_notes": "Sensirion SCD30 CO2/temperature/humidity. No detection values (unique address 0x61).",
             "addresses": "0x61",
-            "deviceType": "SCD30",
             "detectionValues": "",
             "initValues": "0xd100=p5&=r3&=p5&0x0010000081=p10&0x46000002e3=p10&0x5306000081",
             "pollInfo": {
@@ -2109,7 +2073,6 @@
         "SCD40": {
             "_notes": "Sensirion SCD40 CO2/temperature/humidity. No detection values (unique address 0x62). read_measurement (0xEC05) returns three big-endian words, each followed by a CRC byte: CO2 (ppm) at 0, T at 3 (-45 + 175*raw/65535), RH at 6 (100*raw/65535). Standard decode.",
             "addresses": "0x62",
-            "deviceType": "SCD40",
             "detectionValues": "",
             "initValues": "0x21b1=",
             "pollInfo": {
@@ -2200,7 +2163,6 @@
         "STCC4": {
             "_notes": "Sensirion STCC4 miniature CO2 sensor (paired with SHT41 for RH/T compensation), fixed address 0x64. Detection is empty (unique address) - the product-ID command cannot be used because the detection path issues a single write+read with no inter-command delay and the STCC4 NACKs that read - so the record claims any device at 0x64. Init: start_continuous_measurement (0x218B). Poll: read_measurement (0xEC05), 1 ms pause, read 12 bytes = CO2/temp/humidity/status words each followed by a CRC byte (skipped via 'at'). CO2 raw = ppm; temperature = -45 + 175*s/65535; humidity = -6 + 125*s/65535. Must never be probed by the RSAO delegated-identification hook (its framed 0x99 command stops the sensor measuring); RaftI2C DeviceIdentMgr only runs that hook when no device-type record matches - this record's empty detection always matches, so the hook is never reached at 0x64. See devdocs/stcc4-identification-notes.md",
             "addresses": "0x64",
-            "deviceType": "STCC4",
             "detectionValues": "",
             "initValues": "0x218b=",
             "pollInfo": {
@@ -2266,7 +2228,6 @@
         "GravityO2": {
             "_notes": "DFRobot Gravity O2 sensor. No detection values; addresses 0x70-0x73 overlap the usual I2C mux range, so a board with a mux at those addresses must exclude them.",
             "addresses": "0x70-0x73",
-            "deviceType": "GravityO2",
             "detectionValues": "",
             "initValues": "",
             "pollInfo": {
@@ -2312,7 +2273,6 @@
         "AMG8833": {
             "addresses": "0x69",
             "_notes": "default settings on power on: normal (not sleep) mode, 10 frames per second, no interrupt, moving average off",
-            "deviceType": "AMG8833",
             "detectionValues": "",
             "initValues": "",
             "pollInfo": {
@@ -2349,7 +2309,6 @@
         "TrillBar": {
             "_notes": "Bela Trill Bar - 1D capacitive touch, 26 channels, up to 5 simultaneous touches. CENTROID mode. Identify cmd returns device_type=1 in byte 1 of 3-byte response. Address jumper-configurable 0x20-0x27.",
             "addresses": "0x20-0x27",
-            "deviceType": "TrillBar",
             "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000001",
             "initValues": "0x000100=p15&0x0006=p30",
             "pollInfo": {
@@ -2403,7 +2362,6 @@
         "TrillSquare": {
             "_notes": "Bela Trill Square - 2D capacitive touch, 30 channels, up to 4 simultaneous touches. CENTROID mode returns 4 vertical loc+size pairs followed by 4 horizontal loc+size pairs. Address jumper-configurable 0x28-0x2F.",
             "addresses": "0x28-0x2F",
-            "deviceType": "TrillSquare",
             "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000010",
             "initValues": "0x000100=p15&0x0006=p30",
             "pollInfo": {
@@ -2463,7 +2421,6 @@
         "TrillCraft": {
             "_notes": "Bela Trill Craft - 1D capacitive sensor strip, 30 channels, up to 5 simultaneous touches in CENTROID mode (default DIFF). Address jumper-configurable 0x30-0x37.",
             "addresses": "0x30-0x37",
-            "deviceType": "TrillCraft",
             "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000011",
             "initValues": "0x000100=p15&0x0006=p30",
             "pollInfo": {
@@ -2517,7 +2474,6 @@
         "TrillRing": {
             "_notes": "Bela Trill Ring - 1D circular capacitive touch, 28 ring channels + 2 button channels, up to 5 touches. CENTROID response: 5 loc + 5 size + 2 button values (uint16 BE). Address jumper-configurable 0x38-0x3F.",
             "addresses": "0x38-0x3F",
-            "deviceType": "TrillRing",
             "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000100",
             "initValues": "0x000100=p15&0x0006=p30",
             "pollInfo": {
@@ -2573,7 +2529,6 @@
         "TrillHex": {
             "_notes": "Bela Trill Hex - 2D hexagonal capacitive touch pad, 30 channels, up to 4 simultaneous touches. CENTROID response: 4 vertical loc + 4 vertical size + 4 horizontal loc + 4 horizontal size (uint16 BE). Address jumper-configurable 0x40-0x47.",
             "addresses": "0x40-0x47",
-            "deviceType": "TrillHex",
             "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000101",
             "initValues": "0x000100=p15&0x0006=p30",
             "pollInfo": {
@@ -2633,7 +2588,6 @@
         "TrillFlex": {
             "_notes": "Bela Trill Flex - flexible 1D capacitive touch with custom electrode connection, 30 channels, up to 5 touches in CENTROID mode (default DIFF). Address jumper-configurable 0x48-0x4F.",
             "addresses": "0x48-0x4F",
-            "deviceType": "TrillFlex",
             "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000110",
             "initValues": "0x000100=p15&0x0006=p30",
             "pollInfo": {
@@ -2687,7 +2641,6 @@
         "LTR-329": {
             "_notes": "Detection per datasheet DS86-2014-0006: PART_ID (0x86) part number 0xA (revision nibble ignored), MANUFAC_ID (0x87) 0x05.",
             "addresses": "0x29",
-            "deviceType": "LTR-329",
             "detectionValues": "0x86=0b1010XXXX&0x87=0x05",
             "initValues": "0x8002&=p20&0x8001",
             "pollInfo": {
@@ -2732,7 +2685,6 @@
         },
         "LTR-390": {
             "addresses": "0x53",
-            "deviceType": "LTR-390",
             "detectionValues": "0x06=0b1011XXXX",
             "initValues": "0x0010&0x0440&=p20&0x000A",
             "pollInfo": {
@@ -2775,7 +2727,6 @@
         },
         "M5-Weight": {
             "addresses": "0x26",
-            "deviceType": "M5-Weight",
             "detectionValues": "0xFF=0x26",
             "initValues": "",
             "pollInfo": {

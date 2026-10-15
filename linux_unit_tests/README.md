@@ -30,6 +30,7 @@ make -C linux_unit_tests check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tes
 | `test_device_data_subscribers` | `DeviceDataSubscribers`: several subscribers per device, rate limits, unsubscribing while a callback runs |
 | `test_device_type_records` | Detection value parsing in `DeviceTypeRecords`, against hand-checked cases and every built-in device type record (generated from `devtypes/DeviceTypeRecords.json`) |
 | `test_protocol_exchange` | `ProtocolExchange`: a real-time stream session from start to final block, the file stream activity hook, and refusal of a stream to an unknown endpoint |
+| `scripts/tests` (Python) | The device type record generator: generated decoders (`test_standard_decode`), pseudocode arrays, and device type key handling (`test_device_type_keys`) |
 | `test_espnow_config` | ESP-NOW configuration parsing. The code is on the RaftSysMods branch `feature/ESPNow-as-first-class-protocol`, so `make check` skips this test unless `../../RaftSysMods/components/ESPNowManager` exists. It should move to RaftSysMods with that code |
 
 ## Adding a test

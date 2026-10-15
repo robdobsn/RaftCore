@@ -24,6 +24,34 @@ from MicroPythonGenerator import MicroPythonGenerator
 # --DECODE_STRUCT_TIMESTAMP_C_TYPE - the C data type for the timestamp in the decoded data struct
 # --DECODE_STRUCT_TIMESTAMP_RESOLUTION_US - the resolution of the timestamp in the decoded data struct
 
+# Records whose devInfoJson "type" has always differed from the device type key. Clients may match on these
+# values, so they are kept as they are (the device type key is available to clients as deviceTypeKey)
+DEV_INFO_TYPE_DIFFERS_FROM_KEY = {
+    "AdafruitGamepad": "Gamepad",
+    "RoboticalThermocoupleAmp": "Thermocouple",
+}
+
+def check_and_normalise_device_type_keys(dev_types, json_file_path):
+    """Check the device type key of each record and fill in its deviceType field
+
+    The key of each record in devTypes is the device type key - the record's identifier. A record may omit
+    "deviceType"; if present it must equal the key. Afterwards every record's "deviceType" is the key, so the
+    rest of the generator (and the MicroPython generator) gets the key from either.
+    devInfoJson "type" is a copy of the key kept for clients; a new mismatch gives a warning
+    """
+    for dev_type_key, dev_type in dev_types.items():
+        declared_type = dev_type.get("deviceType")
+        if (declared_type is not None) and (declared_type != dev_type_key):
+            print(f"ERROR: {json_file_path}: record \"{dev_type_key}\" has deviceType \"{declared_type}\" - "
+                  f"deviceType must equal the record's key (or be omitted)", file=sys.stderr)
+            sys.exit(1)
+        dev_type["deviceType"] = dev_type_key
+        dev_info = dev_type.get("devInfoJson")
+        if isinstance(dev_info, dict) and ("type" in dev_info) and (dev_info["type"] != dev_type_key):
+            if DEV_INFO_TYPE_DIFFERS_FROM_KEY.get(dev_type_key) != dev_info["type"]:
+                print(f"WARNING: {json_file_path}: record \"{dev_type_key}\" has devInfoJson type \"{dev_info['type']}\" "
+                      f"which differs from its key")
+
 def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, gen_options):
     # Remove any leading or trailing square brackets
     json_paths = json_paths.strip()
@@ -46,8 +74,10 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             continue
         with open(json_file_path.strip(), 'r') as json_file:
             file_json = json.load(json_file)
+            file_dev_types = file_json.get('devTypes', {})
+            check_and_normalise_device_type_keys(file_dev_types, json_file_path.strip())
             # Merge device types from multiple JSON files
-            dev_ident_json['devTypes'].update(file_json.get('devTypes', {}))
+            dev_ident_json['devTypes'].update(file_dev_types)
 
     # Address range
     min_addr_array_index = 0
@@ -203,7 +233,7 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             polling_config_json_str = json.dumps(dev_type.get("pollInfo",{}), separators=(',', ':'))
             dev_info_json_str = json.dumps(dev_type.get("devInfoJson",{}), separators=(',', ':'))
             header_file.write('    {\n')
-            header_file.write(f'        R"JSON({dev_type.get("deviceType","")})JSON",\n')
+            header_file.write(f'        R"JSON({dev_type_key})JSON",\n')
             header_file.write(f'        R"JSON({dev_type.get("addresses","")})JSON",\n')
             header_file.write(f'        R"JSON({dev_type.get("detectionValues","")})JSON",\n')
             header_file.write(f'        R"JSON({dev_type.get("initValues","")})JSON",\n')

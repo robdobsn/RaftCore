@@ -106,6 +106,8 @@ check: $(TESTS)
 	else \
 		echo "test_espnow_config SKIPPED ($(ESPNOW_DIR) not present)"; \
 	fi; \
+	echo "===== scripts/tests (device type generator)"; \
+	python3 -m unittest discover -s ../scripts/tests -p "test_*.py" || failed=1; \
 	if [ $$failed -ne 0 ]; then echo "===== SOME TESTS FAILED"; exit 1; fi; \
 	echo "===== ALL TESTS PASSED"
 
