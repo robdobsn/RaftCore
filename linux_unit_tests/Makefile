@@ -14,10 +14,24 @@
 CC = g++
 CFLAGS = -Wall -std=c++20 -g -DRAFT_CORE
 
+# Each source is compiled to its own object in obj/ with a dependency file (obj/....d), so a change to any
+# header rebuilds exactly what uses it. Objects are shared between tests
+OBJDIR = obj
+DEPFLAGS = -MMD -MP
+
 CORE = ../components/core
 COMMS = ../components/comms
 
-INCLUDES = -I. -I../unit_tests/main \
+# Generated device type records (see test_device_type_records below)
+DEV_TYPE_GEN_DIR = gen
+DEV_TYPE_CATALOGUE = ../devtypes/DeviceTypeRecords.json
+DEV_TYPE_GEN_HEADER = $(DEV_TYPE_GEN_DIR)/DeviceTypeRecords_generated.h
+
+# test_espnow_config tests code that is not yet on RaftSysMods main (branch feature/ESPNow-as-first-class-protocol).
+# "make check" runs it only when that code is present in ../../RaftSysMods, and otherwise reports it as skipped
+ESPNOW_DIR = ../../RaftSysMods/components/ESPNowManager
+
+INCLUDES = -I. -I../unit_tests/main -I$(DEV_TYPE_GEN_DIR) -I$(ESPNOW_DIR) \
   -I$(CORE)/ArduinoUtils -I$(CORE)/RaftJson -I$(CORE)/Utils -I$(CORE)/NamedValueProvider \
   -I$(CORE)/SupervisorStats -I$(CORE)/DebugGlobals -I$(CORE)/SysMod -I$(CORE)/RaftDevice -I$(CORE)/Bus \
   -I$(CORE)/DeviceManager -I$(CORE)/DeviceTypes -I$(CORE)/APICommon -I$(CORE)/FileSystem \
@@ -55,6 +69,15 @@ COMMS_SOURCES = \
   $(CORE)/FileSystem/FileSystem.cpp \
   linux_stubs.cpp
 
+# Sources for each test
+SOURCES_test_raft_json = test_raft_json.cpp $(COMMON_SOURCES)
+SOURCES_test_raft_utils = test_raft_utils.cpp $(COMMON_SOURCES)
+SOURCES_test_device_names = test_device_names.cpp $(COMMON_SOURCES)
+SOURCES_test_device_data_subscribers = test_device_data_subscribers.cpp $(COMMON_SOURCES)
+SOURCES_test_device_type_records = test_device_type_records.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(COMMON_SOURCES)
+SOURCES_test_protocol_exchange = test_protocol_exchange.cpp $(COMMS_SOURCES) $(COMMON_SOURCES)
+SOURCES_test_espnow_config = test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.cpp $(COMMON_SOURCES)
+
 # Tests run by "make check"
 TESTS = test_raft_json test_raft_utils test_device_names test_device_data_subscribers test_device_type_records \
   test_protocol_exchange
@@ -63,9 +86,8 @@ TESTS = test_raft_json test_raft_utils test_device_names test_device_data_subscr
 #   make check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tests/TestDevTypeRecs.json"
 DEV_TYPE_CATALOGUES ?=
 
-# test_espnow_config tests code that is not yet on RaftSysMods main (branch feature/ESPNow-as-first-class-protocol).
-# "make check" runs it only when that code is present in ../../RaftSysMods, and otherwise reports it as skipped
-ESPNOW_DIR = ../../RaftSysMods/components/ESPNowManager
+# Object file for a source: obj/ plus its path with any leading ../ removed
+objs = $(addprefix $(OBJDIR)/,$(subst ../,,$(1:.cpp=.o)))
 
 .PHONY: all check clean
 
@@ -87,40 +109,34 @@ check: $(TESTS)
 	if [ $$failed -ne 0 ]; then echo "===== SOME TESTS FAILED"; exit 1; fi; \
 	echo "===== ALL TESTS PASSED"
 
-test_raft_json: test_raft_json.cpp testhdr.h $(CORE)/RaftJson/RaftJson.h
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ test_raft_json.cpp $(COMMON_SOURCES)
+# Link each test from its objects
+.SECONDEXPANSION:
+$(TESTS) test_espnow_config: $$(call objs,$$(SOURCES_$$@))
+	$(CC) $(CFLAGS) -o $@ $^
 
-test_raft_utils: test_raft_utils.cpp testhdr.h $(CORE)/Utils/RaftUtils.cpp $(CORE)/Utils/RaftUtils.h
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ test_raft_utils.cpp $(COMMON_SOURCES)
+# Compile: local sources, sources one level up (RaftCore) and two levels up (other repos)
+$(OBJDIR)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c -o $@ $<
 
-test_device_names: test_device_names.cpp testhdr.h $(CORE)/DeviceManager/DeviceNames.h
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ test_device_names.cpp $(COMMON_SOURCES)
+$(OBJDIR)/%.o: ../%.cpp
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c -o $@ $<
 
-test_device_data_subscribers: test_device_data_subscribers.cpp testhdr.h $(CORE)/DeviceManager/DeviceDataSubscribers.h
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ test_device_data_subscribers.cpp $(COMMON_SOURCES)
-
-test_protocol_exchange: test_protocol_exchange.cpp testhdr.h $(COMMS_SOURCES)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ test_protocol_exchange.cpp $(COMMS_SOURCES) $(COMMON_SOURCES)
+$(OBJDIR)/%.o: ../../%.cpp
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c -o $@ $<
 
 # Device type records: the built-in records are generated from the RaftCore catalogue by the real generator
-DEV_TYPE_GEN_DIR = gen
-DEV_TYPE_CATALOGUE = ../devtypes/DeviceTypeRecords.json
-DEV_TYPE_GEN_HEADER = $(DEV_TYPE_GEN_DIR)/DeviceTypeRecords_generated.h
-
 $(DEV_TYPE_GEN_HEADER): $(DEV_TYPE_CATALOGUE) ../scripts/ProcessDevTypeJsonToC.py ../scripts/DecodeGenerator.py
 	mkdir -p $(DEV_TYPE_GEN_DIR)
 	python3 ../scripts/ProcessDevTypeJsonToC.py $(DEV_TYPE_CATALOGUE) $(DEV_TYPE_GEN_HEADER) \
 		$(DEV_TYPE_GEN_DIR)/DevicePollRecords_generated.h > $(DEV_TYPE_GEN_DIR)/generator.log
 
-test_device_type_records: test_device_type_records.cpp testhdr.h $(DEV_TYPE_GEN_HEADER) \
-		$(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.h
-	$(CC) $(CFLAGS) -I$(DEV_TYPE_GEN_DIR) $(INCLUDES) -o $@ test_device_type_records.cpp \
-		$(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(COMMON_SOURCES)
+$(call objs,test_device_type_records.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp): $(DEV_TYPE_GEN_HEADER)
 
-test_espnow_config: test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.h $(ESPNOW_DIR)/ESPNowConfig.cpp
-	$(CC) $(CFLAGS) $(INCLUDES) -I$(ESPNOW_DIR) -o $@ test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.cpp \
-		$(COMMON_SOURCES)
+-include $(shell find $(OBJDIR) -name '*.d' 2>/dev/null)
 
 clean:
-	rm -f $(TESTS) test_espnow_config linux_unit_tests arduino_stubs.o
-	rm -rf $(DEV_TYPE_GEN_DIR)
+	rm -f $(TESTS) test_espnow_config linux_unit_tests arduino_stubs.o *.d
+	rm -rf $(OBJDIR) $(DEV_TYPE_GEN_DIR)

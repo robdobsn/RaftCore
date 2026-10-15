@@ -81,9 +81,9 @@ static void testLoadFromConfig()
 {
     printf("Running testLoadFromConfig...\n");
     DeviceNames names;
-    RaftJson config(R"({"DeviceNames":{"1_f8":"accelerometer","1_50":"barometer","2_10":"gyro","1_20":""}})");
+    RaftJson config(R"({"DeviceNames":{"1_f8":"accelerometer","1_50":"barometer","2_10":"gyro","1_20":"","notanid":"x"}})");
     names.loadFromConfig(config);
-    TEST_ASSERT(names.nameCount() == 3, "three entries loaded (empty name skipped)");
+    TEST_ASSERT(names.nameCount() == 3, "three entries loaded (empty name and invalid device ID skipped)");
     RaftDeviceID resolved;
     TEST_ASSERT(names.resolveName("accelerometer", resolved) && (resolved == RaftDeviceID(1, 0xf8)), "accelerometer");
     TEST_ASSERT(names.resolveName("barometer", resolved) && (resolved == RaftDeviceID(1, 0x50)), "barometer");
@@ -148,8 +148,53 @@ static void testRoles()
     TEST_ASSERT(names.getRole(id2) == "System", "naming a device keeps its role");
 }
 
+// Device ID strings, as used in REST requests (deviceid=), config (DeviceNames) and published data
+static void testDeviceIDFromString()
+{
+    printf("Running testDeviceIDFromString...\n");
+    struct ValidCase { const char* str; BusNumType busNum; BusElemAddrType address; };
+    const ValidCase validCases[] = {
+        {"1_68", 1, 0x68},
+        {"1_0x68", 1, 0x68},
+        {"1_6A", 1, 0x6a},
+        {"1_325", 1, 0x325},            // slot 3, I2C address 0x25
+        {"12_ff", 12, 0xff},
+        {"0_1", 0, 1},                  // directly connected device
+        {"68", 0, 0x68},                // address only: bus 0
+        {"0x68", 0, 0x68},
+        {"bad", 0, 0xbad},              // a hex address, not a name
+        {"1_ffffffff", 1, 0xffffffff},
+    };
+    for (const auto& tc : validCases)
+    {
+        RaftDeviceID id = RaftDeviceID::fromString(tc.str);
+        std::string name = std::string("valid \"") + tc.str + "\"";
+        TEST_ASSERT(id.isValid() && (id.getBusNum() == tc.busNum) && (id.getAddress() == tc.address), name.c_str());
+    }
+    TEST_ASSERT(RaftDeviceID::fromString("ANY").isAnyDevice(), "ANY");
+    TEST_ASSERT(RaftDeviceID::fromString("any").isAnyDevice(), "any (case)");
+
+    // Malformed strings give an invalid ID rather than a guess
+    const char* invalidCases[] = {
+        "", "_68", "1_", "1_0x", "a_68", "-1_68", "1_68x", "1_6 8", "imu", "notanid", "1_123456789",
+        "4294967294_1", "4294967295_1", "99999999999_1", "1_2_3",
+    };
+    for (const char* str : invalidCases)
+    {
+        std::string name = std::string("invalid \"") + str + "\"";
+        TEST_ASSERT(!RaftDeviceID::fromString(str).isValid(), name.c_str());
+    }
+
+    // toString and fromString round trip
+    const RaftDeviceID roundTrip[] = { RaftDeviceID(1, 0x68), RaftDeviceID(0, 3), RaftDeviceID(7, 0x325),
+            RaftDeviceID(RaftDeviceID::ALL_DEVICES_ANY_BUS, 0) };
+    for (const auto& id : roundTrip)
+        TEST_ASSERT(RaftDeviceID::fromString(id.toString()) == id, ("round trip " + id.toString()).c_str());
+}
+
 int main()
 {
+    testDeviceIDFromString();
     testPackDeviceIDKey();
     testSetAndGetName();
     testUnnamedDevice();

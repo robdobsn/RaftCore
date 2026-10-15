@@ -245,9 +245,76 @@ static void testStreamToUnknownEndpointRefused()
     RaftSysMod::setSysManager(nullptr);
 }
 
+// With several sessions, the hook reports the combined activity of all of them, and reports each change
+// (not only the change between idle and active). A session that ends must not stop the others being serviced
+static void testConcurrentSessionsReportedTogether()
+{
+    printf("Running testConcurrentSessionsReportedTogether...\n");
+
+    TestCommsCore commsCore;
+    RestAPIEndpointManager restAPI;
+    TestSysManager sysManager(commsCore, restAPI);
+    RaftSysMod::setSysManager(&sysManager);
+    restAPI.addEndpoint(TEST_STREAM_ENDPOINT, RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
+            [](const String&, String&, const APISourceInfo&) { return RAFT_OK; },
+            "test stream", nullptr, nullptr, RestAPIEndpoint::ENDPOINT_CACHE_NEVER, nullptr, nullptr,
+            [](const String&, FileStreamBlock&, const APISourceInfo&) { return RAFT_OK; },
+            [](const APISourceInfo&) { return true; });
+
+    RaftJson config("{}");
+    ProtocolExchange protocolExchange("ProtExchg", config);
+    std::vector<HookCall> hookCalls;
+    protocolExchange.setFileStreamActivityHook([&](bool isMainFWUpdate, bool isFileSystemActivity, bool isStreaming) {
+        hookCalls.push_back({isMainFWUpdate, isFileSystemActivity, isStreaming});
+    });
+    RaftSysMod& sysMod = protocolExchange;
+    sysMod.addCommsChannels(commsCore);
+    if (!commsCore.ricSerialHandler)
+    {
+        TEST_ASSERT(false, "RICSerial message handler registered");
+        return;
+    }
+    auto lastHookIs = [&](bool fw, bool fs, bool stream) {
+        return !hookCalls.empty() && (hookCalls.back().isMainFWUpdate == fw) &&
+                (hookCalls.back().isFileSystemActivity == fs) && (hookCalls.back().isStreaming == stream);
+    };
+
+    // A stream (first session) and a firmware upload (second session)
+    sendCmdFrame(commsCore, 1, String("{\"cmdName\":\"ufStart\",\"reqStr\":\"ufStart\",\"fileType\":\"rtstream\",") +
+            "\"fileName\":\"stream1\",\"endpoint\":\"" + TEST_STREAM_ENDPOINT + "\",\"fileLen\":4}");
+    sendCmdFrame(commsCore, 2, "{\"cmdName\":\"ufStart\",\"reqStr\":\"ufStart\",\"fileType\":\"fw\","
+            "\"fileName\":\"fw.bin\",\"fileLen\":100000}");
+    TEST_ASSERT(commsCore.responses.size() == 2, "both starts answered");
+    uint32_t streamID = 0;
+    for (const String& resp : commsCore.responses)
+    {
+        TEST_ASSERT(RaftJson(resp).getString("rslt", "") == "ok", "start ok");
+        if (streamID == 0)
+            streamID = RaftJson(resp).getLong("streamID", 0);
+    }
+
+    // Both are reported together
+    sysMod.loop();
+    TEST_ASSERT(lastHookIs(true, false, true), "firmware update and streaming reported together");
+
+    // The stream ends - the firmware update is still reported, on its own
+    sendFileBlock(commsCore, 3, streamID, 0, { 1, 2, 3, 4 });
+    sysMod.loop();
+    TEST_ASSERT(lastHookIs(true, false, false), "firmware update still reported after the stream ends");
+
+    // The firmware update is cancelled - no activity
+    sendCmdFrame(commsCore, 4, "{\"cmdName\":\"ufCancel\",\"reqStr\":\"ufCancel\",\"fileName\":\"fw.bin\"}");
+    sysMod.loop();
+    TEST_ASSERT(lastHookIs(false, false, false), "no activity after the firmware update is cancelled");
+    TEST_ASSERT(hookCalls.size() == 3, "one hook call per change");
+
+    RaftSysMod::setSysManager(nullptr);
+}
+
 int main()
 {
     testStreamSessionAndActivityHook();
     testStreamToUnknownEndpointRefused();
+    testConcurrentSessionsReportedTogether();
     return testSummary("test_protocol_exchange");
 }

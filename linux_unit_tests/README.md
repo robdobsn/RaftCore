@@ -39,5 +39,7 @@ make -C linux_unit_tests check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tes
 2. Test the real code. If the code is hard to construct on its own, move the logic into a small class that the
    production code uses and test that (as `DeviceNames` and `DeviceDataSubscribers` are), rather than testing a
    copy of it.
-3. Add a build rule and add the test to `TESTS` in the `Makefile`.
+3. In the `Makefile`, add `SOURCES_test_<area> = test_<area>.cpp <sources it needs>` and add the test to
+   `TESTS`. Each source is compiled once into `obj/` with its header dependencies tracked, so nothing else is
+   needed.
 4. Check that the test fails without the change it protects, then passes with it.

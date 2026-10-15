@@ -64,8 +64,10 @@ private:
     static const uint32_t MAX_SIMULTANEOUS_FILE_STREAM_SESSIONS = 3;
     std::list<FileStreamSession*> _sessions;
 
-    // Previous activity indicator to keep SysManager up-to-date
-    bool _sysManStateIndWasActive = false;
+    // Activity last reported through the file stream activity hook (to keep SysManager up-to-date)
+    bool _activityReportedMainFWUpdate = false;
+    bool _activityReportedFileSystem = false;
+    bool _activityReportedStreaming = false;
 
     // Threshold for determining if message processing is slow
     static const uint32_t MSG_PROC_SLOW_PROC_THRESH_MS = 50;

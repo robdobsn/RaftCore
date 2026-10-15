@@ -66,45 +66,46 @@ ProtocolExchange::~ProtocolExchange()
 
 void ProtocolExchange::loop()
 {
-    // Service active sessions
-
+    // Service sessions, removing those that have finished, and combine the activity of those still active
     bool isMainFWUpdate = false;
     bool isFileSystemActivity = false;
     bool isStreaming = false;
-    for (FileStreamSession* pSession : _sessions)
+    for (auto it = _sessions.begin(); it != _sessions.end(); )
     {
         // Service the session
+        FileStreamSession* pSession = *it;
         pSession->loop();
-
-        // Update status
-        isMainFWUpdate = pSession->isMainFWUpdate();
-        isFileSystemActivity = pSession->isFileSystemActivity();
-        isStreaming = pSession->isStreaming();
 
         // Check if the session is inactive
         if (!pSession->isActive())
         {
 #ifdef DEBUG_FILE_STREAM_SESSIONS
             LOG_I(MODULE_PREFIX, "loop session inactive name %s channel %d streamID %d pSession %p",
-                        pSession->getFileStreamName().c_str(), pSession->getChannelID(), 
+                        pSession->getFileStreamName().c_str(), pSession->getChannelID(),
                         pSession->getStreamID(), pSession);
-#endif            
+#endif
             // Tidy up inactive session
-            _sessions.remove(pSession);
+            it = _sessions.erase(it);
             delete pSession;
-
-            // Must break here so list iteration isn't hampered
-            break;
+            continue;
         }
+
+        // Update status
+        isMainFWUpdate = isMainFWUpdate || pSession->isMainFWUpdate();
+        isFileSystemActivity = isFileSystemActivity || pSession->isFileSystemActivity();
+        isStreaming = isStreaming || pSession->isStreaming();
+        ++it;
     }
 
-    // Inform SysManager of changes in file/stream and firmware update activity
-    bool isActive = isMainFWUpdate || isFileSystemActivity || isStreaming;
-    if (_sysManStateIndWasActive != isActive)
+    // Inform SysManager of any change in file/stream and firmware update activity
+    if ((isMainFWUpdate != _activityReportedMainFWUpdate) || (isFileSystemActivity != _activityReportedFileSystem) ||
+                (isStreaming != _activityReportedStreaming))
     {
         if (_fileStreamActivityHookFn)
             _fileStreamActivityHookFn(isMainFWUpdate, isFileSystemActivity, isStreaming);
-        _sysManStateIndWasActive = isActive;
+        _activityReportedMainFWUpdate = isMainFWUpdate;
+        _activityReportedFileSystem = isFileSystemActivity;
+        _activityReportedStreaming = isStreaming;
     }
 }
 
