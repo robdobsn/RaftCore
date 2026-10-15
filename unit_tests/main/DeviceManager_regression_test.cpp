@@ -260,3 +260,32 @@ TEST_CASE("a static device whose type conflicts with an existing one gets no typ
     TEST_ASSERT_NOT_NULL(pRec);
     TEST_ASSERT_EQUAL_UINT16(14, pRec->pollDataSizeBytes);
 }
+
+#ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
+TEST_CASE("devman/demo starts one demo device per type", "[DeviceManager]")
+{
+    raftBusSystem.deinit();
+    RaftJson config = R"({"DeviceManager":{}})";
+    TestableDeviceManager deviceManager("DeviceManager", config);
+    deviceManager.setup();
+
+    // Started: a static device named after its type, with that type's record
+    RaftJson resp1 = request(deviceManager, "devman/demo?type=RegressDemo&rate=50").c_str();
+    TEST_ASSERT_EQUAL_STRING("ok", resp1.getString("rslt", "").c_str());
+    TEST_ASSERT_TRUE(resp1.getBool("demoStarted", false));
+    RaftDevice* pDevice = deviceManager.getDevice("RegressDemo", true);
+    TEST_ASSERT_NOT_NULL(pDevice);
+    DeviceTypeIndexType idx = 0;
+    TEST_ASSERT_NOT_NULL(deviceTypeRecords.getRecord("RegressDemo", idx));
+    TEST_ASSERT_EQUAL_UINT32(idx, pDevice->getDeviceTypeIndex());
+
+    // A second demo of the same type is refused
+    RaftJson resp2 = request(deviceManager, "devman/demo?type=RegressDemo").c_str();
+    TEST_ASSERT_EQUAL_STRING("failDemoDeviceExists", resp2.getString("error", "").c_str());
+
+    // A type containing a quote gives valid JSON
+    RaftJson resp3 = request(deviceManager, "devman/demo?type=Quote%22Demo").c_str();
+    TEST_ASSERT_EQUAL_STRING("ok", resp3.getString("rslt", "").c_str());
+    TEST_ASSERT_EQUAL_STRING("Quote\"Demo", resp3.getString("type", "").c_str());
+}
+#endif

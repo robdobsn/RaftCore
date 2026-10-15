@@ -12,6 +12,7 @@
 #include "RaftThreading.h"
 #include "DeviceDataSubscribers.h"
 #include "DeviceNames.h"
+#include "DeviceFactory.h"
 
 class RaftBusDevicesIF;
 #include <unordered_map>
@@ -189,11 +190,16 @@ private:
     /// @param devManConfig Device manager configuration
     void setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
 
-    // /// @brief Setup a single device
-    // /// @param pDeviceClass class of the device to setup
-    // /// @param devConfig configuration for the device
-    // /// @return RaftDevice* pointer to the created device or nullptr if failed
-    // RaftDevice* setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig);
+    /// @brief Create a static device and add it to the static device list
+    /// @param pCreateFn create function for the device's class
+    /// @param pDevClass device class name
+    /// @param devConf device configuration (its optional "name" and "role" are applied)
+    /// @return the device, or nullptr if it could not be created
+    RaftDevice* addStaticDevice(RaftDeviceCreateFn pCreateFn, const char* pDevClass, RaftJson& devConf);
+
+    /// @brief Set up a static device and register its device type record (if it has one)
+    /// @param pDevice device
+    void setupStaticDevice(RaftDevice* pDevice);
     
     /// @brief Bus element status callback
     /// @param bus a reference to the bus which has elements with changed status

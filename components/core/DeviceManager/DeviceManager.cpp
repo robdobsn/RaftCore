@@ -335,7 +335,7 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
         }
 
         // Create the device
-        auto pDevice = pDeviceClassDef->pCreateFn(devClass.c_str(), devConf.c_str());
+        RaftDevice* pDevice = addStaticDevice(pDeviceClassDef->pCreateFn, devClass.c_str(), devConf);
         if (!pDevice)
         {
 #ifdef WARN_ON_DEVICE_INSTANTIATION_FAILED
@@ -344,18 +344,6 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
 #endif
             continue;
         }
-
-        // Set deviceID and associate with this DeviceManager
-        RaftDeviceID deviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _staticDeviceList.size());
-        pDevice->setDeviceID(deviceID);
-        pDevice->setDeviceManager(this);
-        _staticDeviceList.push_back({pDevice, true});
-
-        // Apply name and role (if provided) to DeviceManager's central maps
-        if (name.length() > 0)
-            setDeviceName(deviceID, name);
-        if (role.length() > 0)
-            setDeviceRole(deviceID, role);
 
         // Debug
 #ifdef DEBUG_DEVICE_FACTORY
@@ -371,39 +359,7 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
     for (auto& devRec : _staticDeviceList)
     {
         if (devRec.pDevice)
-        {
-#ifdef DEBUG_DEVICE_SETUP            
-            LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", devRec.pDevice, devRec.pDevice->getConfiguredDeviceName().c_str());
-#endif
-            // Setup device
-            devRec.pDevice->setup();
-
-            // See if the device has a device type record
-            DeviceTypeRecordDynamic devTypeRec;
-            if (devRec.pDevice->getDeviceTypeRecord(devTypeRec))
-            {
-                // Add the device type record to the device type records. If it can't be added the device has
-                // no type (never index 0, which is another record)
-                DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
-                DeviceTypeRecords::AddResult addResult = deviceTypeRecords.addRecord(devTypeRec, deviceTypeIndex);
-                if (addResult == DeviceTypeRecords::AddResult::Conflict)
-                {
-                    LOG_E(MODULE_PREFIX, "setup device %s type %s differs from an existing type with the same key - "
-                                "give this device a distinct type in its configuration",
-                                devRec.pDevice->getConfiguredDeviceName().c_str(), devTypeRec.deviceTypeName.c_str());
-                }
-                else if ((addResult != DeviceTypeRecords::AddResult::Added) &&
-                            (addResult != DeviceTypeRecords::AddResult::AlreadyPresent))
-                {
-                    DeviceTypeRecords::ExtendedRecordStats stats = deviceTypeRecords.getExtendedRecordStats();
-                    LOG_E(MODULE_PREFIX, "setup device %s type %s not added (%s, %d of %d records, %d of %d bytes)",
-                                devRec.pDevice->getConfiguredDeviceName().c_str(), devTypeRec.deviceTypeName.c_str(),
-                                DeviceTypeRecords::getAddResultStr(addResult), (int)stats.count, (int)stats.maxRecords,
-                                (int)stats.bytesUsed, (int)stats.maxBytes);
-                }
-                devRec.pDevice->setDeviceTypeIndex(deviceTypeIndex);
-            }
-        }
+            setupStaticDevice(devRec.pDevice);
     }
 
     // Give each SysMod the opportunity to add endpoints and comms channels and to keep a
@@ -430,6 +386,80 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
     if (_staticDeviceList.size() == 0)
         LOG_I(MODULE_PREFIX, "No devices found");
 #endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Create a static device and add it to the static device list
+/// @param pCreateFn create function for the device's class
+/// @param pDevClass device class name
+/// @param devConf device configuration (its optional "name" and "role" are applied)
+/// @return the device, or nullptr if it could not be created
+/// @note the device is given the next direct-connection device ID; call setupStaticDevice() to set it up
+RaftDevice* DeviceManager::addStaticDevice(RaftDeviceCreateFn pCreateFn, const char* pDevClass, RaftJson& devConf)
+{
+    RaftDevice* pDevice = pCreateFn ? pCreateFn(pDevClass, devConf.c_str()) : nullptr;
+    if (!pDevice)
+        return nullptr;
+
+    // Set deviceID and associate with this DeviceManager
+    RaftDeviceID deviceID;
+    if (!RaftMutex_lock(_accessMutex, ACCESS_MUTEX_MAX_WAIT_MS))
+    {
+        delete pDevice;
+        return nullptr;
+    }
+    deviceID = RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, _staticDeviceList.size());
+    pDevice->setDeviceID(deviceID);
+    pDevice->setDeviceManager(this);
+    _staticDeviceList.push_back({pDevice, true});
+    RaftMutex_unlock(_accessMutex);
+
+    // Apply name and role (if provided) to DeviceManager's central maps
+    String name = devConf.getString("name", "");
+    String role = devConf.getString("role", "");
+    if (name.length() > 0)
+        setDeviceName(deviceID, name);
+    if (role.length() > 0)
+        setDeviceRole(deviceID, role);
+    return pDevice;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set up a static device and register its device type record (if it has one)
+/// @param pDevice device
+void DeviceManager::setupStaticDevice(RaftDevice* pDevice)
+{
+#ifdef DEBUG_DEVICE_SETUP            
+    LOG_I(MODULE_PREFIX, "setup pDevice %p name %s", pDevice, pDevice->getConfiguredDeviceName().c_str());
+#endif
+    // Setup device
+    pDevice->setup();
+
+    // See if the device has a device type record
+    DeviceTypeRecordDynamic devTypeRec;
+    if (pDevice->getDeviceTypeRecord(devTypeRec))
+    {
+        // Add the device type record to the device type records. If it can't be added the device has
+        // no type (never index 0, which is another record)
+        DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+        DeviceTypeRecords::AddResult addResult = deviceTypeRecords.addRecord(devTypeRec, deviceTypeIndex);
+        if (addResult == DeviceTypeRecords::AddResult::Conflict)
+        {
+            LOG_E(MODULE_PREFIX, "setup device %s type %s differs from an existing type with the same key - "
+                        "give this device a distinct type in its configuration",
+                        pDevice->getConfiguredDeviceName().c_str(), devTypeRec.deviceTypeName.c_str());
+        }
+        else if ((addResult != DeviceTypeRecords::AddResult::Added) &&
+                    (addResult != DeviceTypeRecords::AddResult::AlreadyPresent))
+        {
+            DeviceTypeRecords::ExtendedRecordStats stats = deviceTypeRecords.getExtendedRecordStats();
+            LOG_E(MODULE_PREFIX, "setup device %s type %s not added (%s, %d of %d records, %d of %d bytes)",
+                        pDevice->getConfiguredDeviceName().c_str(), devTypeRec.deviceTypeName.c_str(),
+                        DeviceTypeRecords::getAddResultStr(addResult), (int)stats.count, (int)stats.maxRecords,
+                        (int)stats.bytesUsed, (int)stats.maxBytes);
+        }
+        pDevice->setDeviceTypeIndex(deviceTypeIndex);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1432,22 +1462,30 @@ RaftRetCode DeviceManager::apiDevManDemo(const String &reqStr, String &respStr, 
     if (offlineDurS < 1)
         offlineDurS = 1;
 
-    RaftDevice* pExistingDevice = getDeviceByID(deviceType.c_str());
-    if (pExistingDevice)
+    // One demo device per type - it is named after its type
+    if (getDevice(deviceType, true))
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDemoDeviceExists");
 
-    RaftJson jsonConfig = "{\"name\":\"DemoDevice\",\"type\":\"" + deviceType +
-                                "\",\"sampleRateMs\":" + String(sampleRateMs) +
-                                ",\"durationMs\":" + String(durationMs) +
-                                ",\"offlineIntvS\":" + String(offlineIntvS) +
-                                ",\"offlineDurS\":" + String(offlineDurS) + "}";
-    setupDevice(deviceType.c_str(), jsonConfig);
+    String configStr = "{";
+    RaftJson::appendStringField(configStr, "name", deviceType.c_str());
+    RaftJson::appendStringField(configStr, "type", deviceType.c_str());
+    configStr += ",\"sampleRateMs\":" + String(sampleRateMs) +
+                ",\"durationMs\":" + String(durationMs) +
+                ",\"offlineIntvS\":" + String(offlineIntvS) +
+                ",\"offlineDurS\":" + String(offlineDurS) + "}";
+    RaftJson jsonConfig = configStr.c_str();
+    RaftDevice* pDevice = addStaticDevice(DemoDevice::create, "DemoDevice", jsonConfig);
+    if (!pDevice)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDemoDeviceCreate");
+    setupStaticDevice(pDevice);
+    pDevice->postSetup();
 
-    String resultStr = "\"demoStarted\":true,\"type\":\"" + deviceType +
-                        "\",\"rate\":" + String(sampleRateMs) +
-                        ",\"duration\":" + String(durationMs) +
-                        ",\"offlineIntvS\":" + String(offlineIntvS) +
-                        ",\"offlineDurS\":" + String(offlineDurS);
+    String resultStr = "\"demoStarted\":true";
+    RaftJson::appendStringField(resultStr, "type", deviceType.c_str());
+    resultStr += ",\"rate\":" + String(sampleRateMs) +
+                ",\"duration\":" + String(durationMs) +
+                ",\"offlineIntvS\":" + String(offlineIntvS) +
+                ",\"offlineDurS\":" + String(offlineDurS);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, resultStr.c_str());
 }
 #endif
