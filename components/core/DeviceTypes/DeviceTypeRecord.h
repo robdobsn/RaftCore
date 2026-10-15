@@ -64,6 +64,36 @@ public:
     uint16_t pollFieldCount = 0;
     uint16_t pollStructSize = 0;
 
+    // Scan priority of the record's addresses: the first address goes in scan list 0 and the others in list 1
+    // for high (0); all go in list 1 for medium and list 2 for low. NONE: addresses are scanned only in the last
+    // list (JSON "scanPriority": "high"/"medium"/"low" or 1-3)
+    static constexpr uint8_t SCAN_PRIORITY_HIGH = 0;
+    static constexpr uint8_t SCAN_PRIORITY_NONE = 0xff;
+    uint8_t scanPriority = SCAN_PRIORITY_NONE;
+
+    // Flags
+    static constexpr uint8_t FLAG_PROBE_ONLY = 0x01;        // not identified by address: adopted by an identification
+                                                            // hook, and not reserved or prioritised for scanning
+                                                            // (JSON "excludeFromAddrMap" or "probeOnly")
+    static constexpr uint8_t FLAG_HAS_HW_TYPE_ID = 0x02;    // hwTypeId is set
+    uint8_t flags = 0;
+
+    // Candidates for an address are tried in descending identPriority, then in record order (JSON "identPriority")
+    int8_t identPriority = 0;
+
+    // Hardware type ID: the ID the device reports when probed by an identification hook, in that hook's own
+    // numbering (e.g. the RSAO WHOAMI response). JSON "deviceTypeId". Valid if FLAG_HAS_HW_TYPE_ID is set
+    uint16_t hwTypeId = 0;
+
+    bool isProbeOnly() const
+    {
+        return (flags & FLAG_PROBE_ONLY) != 0;
+    }
+    bool hasHwTypeId() const
+    {
+        return (flags & FLAG_HAS_HW_TYPE_ID) != 0;
+    }
+
     String getJson(bool includePlugAndPlayInfo) const
     {
         // Check if plug and play info required

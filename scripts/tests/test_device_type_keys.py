@@ -86,14 +86,32 @@ class DeviceTypeKeyTests(unittest.TestCase):
         self.assertNotIn("WARNING", result.stdout)
 
     def test_raftcore_catalogue(self):
-        """Every RaftCore record is named by its key, with no deviceType in the file and no warnings"""
+        """Every RaftCore record is named by its key, with no deviceType in the file and no key warnings"""
         catalogue = json.loads(RAFTCORE_CATALOGUE.read_text())["devTypes"]
         self.assertFalse([k for k, v in catalogue.items() if "deviceType" in v],
                          "deviceType is filled in from the key, so the RaftCore catalogue omits it")
         result, header = self.run_generator([RAFTCORE_CATALOGUE])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertNotIn("WARNING", result.stdout)
+        key_warnings = [line for line in result.stdout.splitlines()
+                        if line.startswith("WARNING") and "has no detection values" not in line]
+        self.assertEqual(key_warnings, [])
         self.assertEqual(self.record_names(header), list(catalogue.keys()))
+
+    def test_raftcore_catalogue_shadowing(self):
+        """The records in the RaftCore catalogue that have no detection values and are matched before another
+        record at the same address (so the other is never identified there). Known cases - when one is fixed (e.g.
+        with identPriority or detection values) remove it here; a new one fails this test"""
+        result, _ = self.run_generator([RAFTCORE_CATALOGUE])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        shadowing = [line for line in result.stdout.splitlines() if "has no detection values" in line]
+        self.assertEqual(shadowing, [
+            'WARNING: record "VEML6040" has no detection values, so at address 0x10 it is matched before MXC400xXC',
+            'WARNING: record "QwiicLEDStick" has no detection values, so at address 0x23 it is matched before TrillBar',
+            'WARNING: record "AHT20" has no detection values, so at address 0x38 it is matched before TrillRing',
+            'WARNING: record "SHT40" has no detection values, so at address 0x44 it is matched before TrillHex',
+            'WARNING: record "SHT40" has no detection values, so at address 0x45 it is matched before TrillHex',
+            'WARNING: record "SHT40" has no detection values, so at address 0x46 it is matched before TrillHex',
+        ])
 
 
 if __name__ == "__main__":

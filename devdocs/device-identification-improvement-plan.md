@@ -1,6 +1,6 @@
 # Device Identification and Device Type Management: Staged Improvement Plan
 
-Status: plan agreed 2026-10-15 (decisions in §8). Stages 0, 1 and 2 done on the `feature/device-identification`
+Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 3 done on the `feature/device-identification`
 branches (2026-10-15).
 
 Companion documents:
@@ -767,6 +767,42 @@ Identification, `typeinfo` by device and by key, and poll rates on the bench are
 **Aim:** the address map, scan lists and reserved addresses are built at runtime from all records, so extended
 records are first-class (G7, G4).
 
+**Status (2026-10-15): done**, except that `identPriority` is the only explicit ordering: the detection-strength
+ordering of §3.5 (items 2 and 3) is left to Stage 7, because it would change which record matches today. What was
+done:
+- **Record fields** on `DeviceTypeRecord` (and `DeviceTypeRecordDynamic`, with defaults): `scanPriority`,
+  `flags` (`FLAG_PROBE_ONLY` from JSON `probeOnly` or `excludeFromAddrMap`; `FLAG_HAS_HW_TYPE_ID`),
+  `identPriority` and `hwTypeId` (**D24 decided:** RaftCore holds it; C++ name `hwTypeId`; JSON `deviceTypeId`).
+  The generator emits them with each record and validates them. Code that builds records with the existing
+  constructor is unchanged.
+- **`CatalogueIndex`**, built from all records when the generation changes and shared as an immutable snapshot
+  (`getCatalogueIndex()`): identification candidates per address in CSR form (descending `identPriority`, then
+  extended records as added, then base records in catalogue order - the order used before), reserved addresses,
+  scan lists from each record's `scanPriority`, and hardware type ID -> index.
+- **Queries:** `getIdentCandidates()`, `getKnownTypesAtAddr()`, `isAddrReserved()`, `getRecordByHwTypeId()`,
+  `getGeneration()`. `getDeviceTypeIdxsForAddr()` (used by Axiom's RSAO address reservation) and
+  `getScanPriorityLists()` are kept and come from the index.
+- **RaftI2C:** `DeviceIdentMgr` uses `getIdentCandidates()`. `BusScanner` reloads its scan lists (keeping scan
+  boost and each list's position) when the generation changes, so the snapshot taken at setup (§5.16) is gone.
+- **Generator:** no longer emits the address map or the scan lists (the sorted key index stays, in flash). New
+  warnings: a key in more than one file, and a record with no detection values ahead of another at its address.
+- **Tests:** `test_catalogue_index` checks that the runtime index equals what the generator derived (computed
+  by `scripts/tests/reference_catalogue_index.py`, the old algorithm) for the RaftCore catalogue in CI, and was
+  also run for Axiom's catalogue (47 records, RSAO records included); plus extended records' scan priority,
+  candidate order, probe-only records, hardware type ID lookup, and rebuilds. Generator tests for the new fields,
+  their validation and the warnings. Axiom's `RSAOTypeRegistry` can now be replaced by `getRecordByHwTypeId()`
+  (an Axiom change, not made).
+
+**Results:** on the FeatherS3 the index for the 49 base records builds in 2.1 ms and uses 766 B (targets 5 ms and
+1 KB; a first version that kept a vector per address took 4.5 ms). Identification times are unchanged. The
+generated record array grows by 5 bytes per record (in flash).
+
+**Found:** the shadowing report finds records with no detection values ahead of others at the same address in
+the RaftCore catalogue, so the later record is never identified there: VEML6040 before MXC400xXC (0x10),
+QwiicLEDStick before TrillBar (0x23), AHT20 before TrillRing (0x38) and SHT40 before TrillHex (0x44-0x46).
+`test_device_type_keys.py` lists them. Fixing them (detection values, or `identPriority`) changes identification,
+so it is left for a decision.
+
 **Changes:**
 1. **Record fields that today exist only at build time** become fields of every record, base and
    extended:
@@ -1445,7 +1481,7 @@ Checked against review §5, §7 and §9 and principles P1–P15. Items already i
 | D21 | Confirm D2 for library files: an override replaces the base record, with no fall-through, although the branch falls through? | Yes; a deliberate difference (§10.4). Tell Nikos now so the branch spec and example file can warn about it, and list it in the Stage 6 release notes |
 | D22 | Where do the limits for untrusted records live? | In the RaftCore loader, applied to file and REST sources only; compiled records and code-registered records are not limited. Once I6 is fixed, replace the ring-size limit with a configurable per-record byte cap |
 | D23 | Can a compiled catalogue (or a SysType) contain `disable` entries? | Yes. The generator emits them as policy settings, not records. This gives boards a way to say "never X" (N11) and removes the trap of an empty record being compiled |
-| D24 | Should RaftCore take over the RSAO-style "hardware type ID → record" mapping, and what is it called? | Decide in Stage 3. Today `deviceTypeId` is used only by RSAO records and Axiom's RSAO code. Recommendation: RaftCore takes it over (removing Axiom's duplicated registry and making file-loaded RSAO records work). Then the C++ name is generic (e.g. `hwTypeId`, matching principles §2) since the core holds no vendor knowledge (P4); it is documented as an ID the device reports when probed by an identification hook, in that hook's own numbering. The JSON field stays `deviceTypeId`. Not `rsaoWHOAMI`: that names the RSAO command, and WHO_AM_I is also a common register on ordinary sensors |
+| D24 | **Decided 2026-10-15: yes, `hwTypeId` (Stage 3).** Should RaftCore take over the RSAO-style "hardware type ID → record" mapping, and what is it called? | Decide in Stage 3. Today `deviceTypeId` is used only by RSAO records and Axiom's RSAO code. Recommendation: RaftCore takes it over (removing Axiom's duplicated registry and making file-loaded RSAO records work). Then the C++ name is generic (e.g. `hwTypeId`, matching principles §2) since the core holds no vendor knowledge (P4); it is documented as an ID the device reports when probed by an identification hook, in that hook's own numbering. The JSON field stays `deviceTypeId`. Not `rsaoWHOAMI`: that names the RSAO command, and WHO_AM_I is also a common register on ordinary sensors |
 
 ### 10.7 Ideas taken from the branch
 

@@ -26,6 +26,7 @@ COMMS = ../components/comms
 DEV_TYPE_GEN_DIR = gen
 DEV_TYPE_CATALOGUE = ../devtypes/DeviceTypeRecords.json
 DEV_TYPE_GEN_HEADER = $(DEV_TYPE_GEN_DIR)/DeviceTypeRecords_generated.h
+CATALOGUE_INDEX_EXPECTED = $(DEV_TYPE_GEN_DIR)/catalogue_index_expected.json
 
 # test_espnow_config tests code that is not yet on RaftSysMods main (branch feature/ESPNow-as-first-class-protocol).
 # "make check" runs it only when that code is present in ../../RaftSysMods, and otherwise reports it as skipped
@@ -78,12 +79,13 @@ SOURCES_test_device_poll_timing = test_device_poll_timing.cpp $(CORE)/Bus/Device
 SOURCES_test_device_poll_scheduler = test_device_poll_scheduler.cpp $(CORE)/Bus/DeviceStatus.cpp $(COMMON_SOURCES)
 SOURCES_test_device_type_records = test_device_type_records.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(COMMON_SOURCES)
 SOURCES_test_device_type_table = test_device_type_table.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(COMMON_SOURCES)
+SOURCES_test_catalogue_index = test_catalogue_index.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(COMMON_SOURCES)
 SOURCES_test_protocol_exchange = test_protocol_exchange.cpp $(COMMS_SOURCES) $(COMMON_SOURCES)
 SOURCES_test_espnow_config = test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.cpp $(COMMON_SOURCES)
 
 # Tests run by "make check"
 TESTS = test_raft_json test_raft_utils test_device_names test_device_data_subscribers test_device_type_records \
-  test_device_type_table test_device_poll_timing test_device_poll_scheduler test_protocol_exchange
+  test_device_type_table test_catalogue_index test_device_poll_timing test_device_poll_scheduler test_protocol_exchange
 
 # Extra device type catalogues for test_device_type_records to sweep, e.g.
 #   make check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tests/TestDevTypeRecs.json"
@@ -96,11 +98,12 @@ objs = $(addprefix $(OBJDIR)/,$(subst ../,,$(1:.cpp=.o)))
 
 all: $(TESTS)
 
-check: $(TESTS)
+check: $(TESTS) $(CATALOGUE_INDEX_EXPECTED)
 	@failed=0; \
 	for t in $(TESTS); do \
 		echo "===== $$t"; \
 		if [ "$$t" = "test_device_type_records" ]; then ./$$t $(DEV_TYPE_CATALOGUES) || failed=1; \
+		elif [ "$$t" = "test_catalogue_index" ]; then ./$$t $(CATALOGUE_INDEX_EXPECTED) || failed=1; \
 		else ./$$t || failed=1; fi; \
 	done; \
 	echo "===== test_espnow_config"; \
@@ -138,7 +141,12 @@ $(DEV_TYPE_GEN_HEADER): $(DEV_TYPE_CATALOGUE) ../scripts/ProcessDevTypeJsonToC.p
 	python3 ../scripts/ProcessDevTypeJsonToC.py $(DEV_TYPE_CATALOGUE) $(DEV_TYPE_GEN_HEADER) \
 		$(DEV_TYPE_GEN_DIR)/DevicePollRecords_generated.h > $(DEV_TYPE_GEN_DIR)/generator.log
 
-$(call objs,test_device_type_records.cpp test_device_type_table.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp): $(DEV_TYPE_GEN_HEADER)
+$(call objs,test_device_type_records.cpp test_device_type_table.cpp test_catalogue_index.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp): $(DEV_TYPE_GEN_HEADER)
+
+# The address map and scan lists the generator used to derive from the catalogue (for test_catalogue_index)
+$(CATALOGUE_INDEX_EXPECTED): $(DEV_TYPE_CATALOGUE) ../scripts/tests/reference_catalogue_index.py
+	mkdir -p $(DEV_TYPE_GEN_DIR)
+	python3 ../scripts/tests/reference_catalogue_index.py $(DEV_TYPE_CATALOGUE) $@
 
 -include $(shell find $(OBJDIR) -name '*.d' 2>/dev/null)
 

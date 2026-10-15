@@ -74,6 +74,10 @@ public:
         devTypeRec.pollDataSizeBytes = pollDataSizeBytes;
         devTypeRec.devInfoJson = devInfoJson.data();
         devTypeRec.pollResultDecodeFn = pollResultDecodeFn;
+        devTypeRec.scanPriority = scanPriority;
+        devTypeRec.flags = flags;
+        devTypeRec.identPriority = identPriority;
+        devTypeRec.hwTypeId = hwTypeId;
 
         return true;
     }
@@ -93,4 +97,18 @@ public:
     uint16_t pollDataSizeBytes = 0;
     SpiramAwareString devInfoJson;
     DeviceTypeRecordDecodeFn pollResultDecodeFn = nullptr;
+
+    // Identification and scanning (see DeviceTypeRecord). An extended record's addresses are scanned at high
+    // priority unless set otherwise
+    uint8_t scanPriority = DeviceTypeRecord::SCAN_PRIORITY_HIGH;
+    uint8_t flags = 0;
+    int8_t identPriority = 0;
+    uint16_t hwTypeId = 0;
+
+    /// @brief Set the hardware type ID (see DeviceTypeRecord::hwTypeId)
+    void setHwTypeId(uint16_t id)
+    {
+        hwTypeId = id;
+        flags |= DeviceTypeRecord::FLAG_HAS_HW_TYPE_ID;
+    }
 };

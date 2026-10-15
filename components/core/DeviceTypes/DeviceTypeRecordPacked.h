@@ -57,6 +57,10 @@ public:
         pRec->devInfoJson = copyStr(pStr, src.devInfoJson.c_str(), src.devInfoJson.length());
         pRec->pollDataSizeBytes = src.pollDataSizeBytes;
         pRec->pollResultDecodeFn = src.pollResultDecodeFn;
+        pRec->scanPriority = src.scanPriority;
+        pRec->flags = src.flags;
+        pRec->identPriority = src.identPriority;
+        pRec->hwTypeId = src.hwTypeId;
         return pRec;
     }
 
@@ -81,7 +85,9 @@ public:
                 strEq(packed.pollInfo, src.pollInfo.c_str()) &&
                 strEq(packed.devInfoJson, src.devInfoJson.c_str()) &&
                 (packed.pollDataSizeBytes == src.pollDataSizeBytes) &&
-                (packed.pollResultDecodeFn == src.pollResultDecodeFn);
+                (packed.pollResultDecodeFn == src.pollResultDecodeFn) &&
+                (packed.scanPriority == src.scanPriority) && (packed.flags == src.flags) &&
+                (packed.identPriority == src.identPriority) && (packed.hwTypeId == src.hwTypeId);
     }
 
 private:

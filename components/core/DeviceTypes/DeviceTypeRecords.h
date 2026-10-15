@@ -13,7 +13,9 @@
 #include "DeviceTypeRecordDynamic.h"
 #include "DevicePollingInfo.h"
 #include "RaftThreading.h"
+#include "CatalogueIndex.h"
 #include <atomic>
+#include <memory>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecords
@@ -28,7 +30,42 @@ public:
     /// @brief Get device type for address
     /// @param addr device address
     /// @returns device type indexes that match the address
+    /// @note the records that identify a device at the address by address - kept for existing callers (e.g. RSAO
+    ///       address reservation). Use getIdentCandidates() for identification and isAddrReserved() for
+    ///       reservation
     std::vector<DeviceTypeIndexType> getDeviceTypeIdxsForAddr(BusElemAddrType addr) const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the catalogue index (lookups derived from all records), rebuilt if records have been added
+    /// @return the index - it doesn't change, so it can be used without a lock for as long as it is held
+    std::shared_ptr<const CatalogueIndex> getCatalogueIndex() const;
+
+    /// @brief Generation of the records: increases whenever a record is added (or later replaced or its policy
+    ///        changed). A caller that keeps something derived from the records rebuilds it when this changes
+    uint32_t getGeneration() const
+    {
+        return _generation.load(std::memory_order_acquire);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Identification candidates for an address, in the order to try them
+    /// @param addr address (without slot)
+    /// @return device type indexes
+    std::vector<DeviceTypeIndexType> getIdentCandidates(BusElemAddrType addr) const;
+
+    /// @brief Records known at an address (records that identify a device there by address)
+    std::vector<DeviceTypeIndexType> getKnownTypesAtAddr(BusElemAddrType addr) const;
+
+    /// @brief Check whether a record identifies a device at this address (re-addressable devices keep off it)
+    bool isAddrReserved(BusElemAddrType addr) const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the record with a hardware type ID (the ID a device reports when probed by an identification
+    ///        hook, JSON "deviceTypeId")
+    /// @param hwTypeId hardware type ID
+    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not found)
+    /// @return the record, or nullptr if there is none
+    const DeviceTypeRecord* getRecordByHwTypeId(uint16_t hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get the device type record for a device type index (no copy, no lock)
@@ -188,6 +225,11 @@ private:
 
     // Positions of the extended records sorted by key (for binary search), maintained under the mutex
     std::vector<uint16_t> _extPosByKey;
+
+    // Generation (incremented when a record is added) and the catalogue index built for it (replaced, never
+    // changed, when rebuilt; held under the mutex)
+    std::atomic<uint32_t> _generation{1};
+    mutable std::shared_ptr<const CatalogueIndex> _catalogueIndex;
 
     // Default limits (D3)
     static constexpr uint32_t EXT_MAX_RECORDS_DEFAULT = 32;

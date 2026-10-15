@@ -65,55 +65,69 @@ uint32_t DeviceTypeRecords::getNumBaseRecords()
 /// @returns device type indexes (into generated baseDevTypeRecords array) that match the address
 std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(BusElemAddrType addr) const
 {
-#ifdef DEBUG_DEVICE_INFO_PERFORMANCE
-    uint64_t startTimeUs = micros();
-#endif
+    return getKnownTypesAtAddr(addr);
+}
 
-    // Return value
-    std::vector<DeviceTypeIndexType> deviceTypeIndexesForAddr;
-
-    // Check if any of the extended device type records match (ext indices continue on from the base indices)
-    uint32_t extCount = _extCount.load(std::memory_order_acquire);
-    for (uint32_t extPos = 0; extPos < extCount; extPos++)
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the catalogue index, rebuilt if records have been added
+std::shared_ptr<const CatalogueIndex> DeviceTypeRecords::getCatalogueIndex() const
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return std::make_shared<const CatalogueIndex>();
+    uint32_t generation = _generation.load(std::memory_order_acquire);
+    if (!_catalogueIndex || (_catalogueIndex->getGeneration() != generation))
     {
-        std::vector<int> addressList;
-        Raft::parseIntList(_extRecords[extPos]->addresses, addressList, ",");
-        for (int devAddr : addressList)
-        {
-            if (devAddr == (int)addr)
-            {
-                deviceTypeIndexesForAddr.push_back(BASE_DEV_TYPE_ARRAY_SIZE + extPos);
-                break;
-            }
-        }
-    }
-
-    // Check valid
-    if ((addr < BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR) || (addr > BASE_DEV_INDEX_BY_ARRAY_MAX_ADDR))
-        return deviceTypeIndexesForAddr;
-    uint32_t addrIdx = addr - BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR;
-    
-    // Get number of types for this addr - if none then return
-    uint32_t numTypes = baseDevTypeCountByAddr[addrIdx];
-    if (numTypes == 0)
-        return deviceTypeIndexesForAddr;
-
-    // Iterate the types for this address
-    for (uint32_t i = 0; i < numTypes; i++)
-    {
-        deviceTypeIndexesForAddr.push_back(baseDevTypeIndexByAddr[addrIdx][i]);
-    }
-    
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
-    uint64_t endTimeUs = micros();
-    LOG_I(MODULE_PREFIX, "getDeviceTypeIdxsForAddr %04x %d typeIdxs %lld us", addr, 
-                    deviceTypeIndexesForAddr.size(), endTimeUs - startTimeUs);
+        uint64_t startUs = micros();
 #endif
+        auto pIndex = std::make_shared<CatalogueIndex>();
+        pIndex->build(generation, BASE_DEV_TYPE_ARRAY_SIZE, _extCount.load(std::memory_order_acquire),
+                [this](DeviceTypeIndexType idx) { return getRecord(idx); });
+        _catalogueIndex = pIndex;
+#ifdef DEBUG_DEVICE_INFO_PERFORMANCE
+        LOG_I(MODULE_PREFIX, "getCatalogueIndex built generation %d in %d us, %d bytes", (int)generation,
+                    (int)(micros() - startUs), (int)pIndex->getBytesUsed());
+#endif
+    }
+    std::shared_ptr<const CatalogueIndex> pIndex = _catalogueIndex;
+    RaftMutex_unlock(_extRecordsMutex);
+    return pIndex;
+}
 
-#ifdef DEBUG_DEVICE_INFO_RECORDS
-    LOG_I(MODULE_PREFIX, "getDeviceTypeIdxsForAddr %04x %d types", addr, deviceTypeIndexesForAddr.size());
-#endif
-    return deviceTypeIndexesForAddr;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Identification candidates for an address, in the order to try them
+std::vector<DeviceTypeIndexType> DeviceTypeRecords::getIdentCandidates(BusElemAddrType addr) const
+{
+    std::shared_ptr<const CatalogueIndex> pIndex = getCatalogueIndex();
+    uint32_t count = 0;
+    const DeviceTypeIndexType* pCands = pIndex->getIdentCandidates(addr, count);
+    return pCands ? std::vector<DeviceTypeIndexType>(pCands, pCands + count) : std::vector<DeviceTypeIndexType>();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Records known at an address
+std::vector<DeviceTypeIndexType> DeviceTypeRecords::getKnownTypesAtAddr(BusElemAddrType addr) const
+{
+    // The same records as the identification candidates until records can be disabled (a disabled record is
+    // still known, so its address stays reserved, but it isn't a candidate)
+    return getIdentCandidates(addr);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether a record identifies a device at this address
+bool DeviceTypeRecords::isAddrReserved(BusElemAddrType addr) const
+{
+    return getCatalogueIndex()->isAddrReserved(addr);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the record with a hardware type ID
+const DeviceTypeRecord* DeviceTypeRecords::getRecordByHwTypeId(uint16_t hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const
+{
+    deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (!getCatalogueIndex()->findByHwTypeId(hwTypeId, deviceTypeIndex))
+        return nullptr;
+    return getRecord(deviceTypeIndex);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -819,32 +833,12 @@ String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeK
 /// @param priorityLists (out) priority lists
 void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddrType>>& priorityLists)
 {
-    // Clear initially
+    std::shared_ptr<const CatalogueIndex> pIndex = getCatalogueIndex();
+    const std::vector<std::vector<uint8_t>>& scanLists = pIndex->getScanLists();
     priorityLists.clear();
-
-    // Resize list
-    priorityLists.resize(numScanPriorityLists);
-    for (int i = 0; i < numScanPriorityLists; i++)
-    {
-        for (int j = 0; j < scanPriorityListLengths[i]; j++)
-        {
-            priorityLists[i].push_back(scanPriorityLists[i][j]);
-        }
-    }
-
-    // Add any extended device type record addresses to the highest priority list
-    uint32_t extCount = _extCount.load(std::memory_order_acquire);
-    for (uint32_t extPos = 0; extPos < extCount; extPos++)
-    {
-        std::vector<int> addressList;
-        Raft::parseIntList(_extRecords[extPos]->addresses, addressList, ",");
-        for (int devAddr : addressList)
-        {
-            if (priorityLists.size() == 0)
-                priorityLists.push_back(std::vector<BusElemAddrType>());
-            priorityLists[0].push_back(devAddr);
-        }
-    }
+    priorityLists.resize(scanLists.size());
+    for (uint32_t i = 0; i < scanLists.size(); i++)
+        priorityLists[i].assign(scanLists[i].begin(), scanLists[i].end());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -909,6 +903,7 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
                         [this](uint16_t pos, const char* key) { return strcmp(_extRecords[pos]->deviceType, key) < 0; });
                 _extPosByKey.insert(insertIt, (uint16_t)count);
                 _extCount.store(count + 1, std::memory_order_release);
+                _generation.fetch_add(1, std::memory_order_acq_rel);
                 deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE + count;
             }
         }

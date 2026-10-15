@@ -52,6 +52,54 @@ def check_and_normalise_device_type_keys(dev_types, json_file_path):
                 print(f"WARNING: {json_file_path}: record \"{dev_type_key}\" has devInfoJson type \"{dev_info['type']}\" "
                       f"which differs from its key")
 
+SCAN_PRIORITY_NONE = 0xff
+SCAN_PRIORITY_NAMES = {"high": 0, "medium": 1, "low": 2}
+NUM_SCAN_PRIORITY_LEVELS = 3
+FLAG_PROBE_ONLY = 0x01
+FLAG_HAS_HW_TYPE_ID = 0x02
+
+def record_ident_fields(dev_type, dev_type_key):
+    """Identification and scanning fields of a record, as emitted in its DeviceTypeRecord:
+    (scanPriority, flags, identPriority, hwTypeId)
+
+    scanPriority: "high"/"medium"/"low" or 1-3 gives 0-2 (clamped); absent gives SCAN_PRIORITY_NONE
+    flags: FLAG_PROBE_ONLY for "excludeFromAddrMap" or "probeOnly"; FLAG_HAS_HW_TYPE_ID if "deviceTypeId" is set
+    identPriority: -128 to 127, default 0
+    hwTypeId: "deviceTypeId" as a number or a string such as "0x0084", 0 to 0xffff
+    """
+    scan_priority = SCAN_PRIORITY_NONE
+    if "scanPriority" in dev_type:
+        value = dev_type["scanPriority"]
+        if isinstance(value, bool):
+            value = None
+        if isinstance(value, int):
+            scan_priority = min(max(value - 1, 0), NUM_SCAN_PRIORITY_LEVELS - 1)
+        elif isinstance(value, str) and value in SCAN_PRIORITY_NAMES:
+            scan_priority = SCAN_PRIORITY_NAMES[value]
+        else:
+            # Matches the address map built before records carried this field: an unrecognised value is low
+            scan_priority = NUM_SCAN_PRIORITY_LEVELS - 1
+    flags = 0
+    if dev_type.get("excludeFromAddrMap", False) or dev_type.get("probeOnly", False):
+        flags |= FLAG_PROBE_ONLY
+    hw_type_id = 0
+    if "deviceTypeId" in dev_type:
+        value = dev_type["deviceTypeId"]
+        try:
+            hw_type_id = int(value, 0) if isinstance(value, str) else int(value)
+        except (TypeError, ValueError):
+            print(f"ERROR: record \"{dev_type_key}\" has an invalid deviceTypeId {value!r}", file=sys.stderr)
+            sys.exit(1)
+        if not 0 <= hw_type_id <= 0xffff:
+            print(f"ERROR: record \"{dev_type_key}\" deviceTypeId {value!r} is outside 0-0xffff", file=sys.stderr)
+            sys.exit(1)
+        flags |= FLAG_HAS_HW_TYPE_ID
+    ident_priority = dev_type.get("identPriority", 0)
+    if not isinstance(ident_priority, int) or isinstance(ident_priority, bool) or not -128 <= ident_priority <= 127:
+        print(f"ERROR: record \"{dev_type_key}\" identPriority must be an integer from -128 to 127", file=sys.stderr)
+        sys.exit(1)
+    return scan_priority, flags, ident_priority, hw_type_id
+
 def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, gen_options):
     # Remove any leading or trailing square brackets
     json_paths = json_paths.strip()
@@ -76,26 +124,18 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             file_json = json.load(json_file)
             file_dev_types = file_json.get('devTypes', {})
             check_and_normalise_device_type_keys(file_dev_types, json_file_path.strip())
-            # Merge device types from multiple JSON files
+            # Merge device types from multiple JSON files (a later file's record replaces an earlier one's)
+            for dev_type_key in file_dev_types:
+                if dev_type_key in dev_ident_json['devTypes']:
+                    print(f"WARNING: {json_file_path.strip()}: record \"{dev_type_key}\" replaces a record with the "
+                          f"same key in an earlier file")
             dev_ident_json['devTypes'].update(file_dev_types)
 
-    # Address range
-    min_addr_array_index = 0
-    max_addr_array_index = 0x7f
-    min_valid_i2c_addr = 0x04
+    # Highest address the firmware identifies by
     max_valid_i2c_addr = 0x77
 
-    # Address indexes
-    addr_index_to_dev_record = {}
-
-    # Scan priorities
-    NUM_PRIORITY_LEVELS = 3
-    addr_scan_priority_sets = [set() for _ in range(NUM_PRIORITY_LEVELS)]
-    scan_priority_values = {
-        "high": 0,
-        "medium": 1,
-        "low": 2
-    }
+    # Records (in order) that identify a device by each address - for the shadowing report
+    addr_to_record_keys = {}
 
     # Iterate device type records
     dev_record_index = 0
@@ -135,60 +175,27 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         addr_list_hex = ",".join([f'0x{addr:02x}' for addr in addr_list])
         print(f"Record {dev_record_index} Addresses {addresses} Addr List {addr_list_hex}")
 
-        # Some device types (e.g. Robotical RSAOs) are identified by probing rather than by
-        # bus address, and several share the same addresses. They are excluded from the
-        # address->record map (and scan-priority sets) so they are not auto-identified by
-        # address; they keep their record (index, decode fn, addresses string) and are
-        # adopted explicitly by the RSAO identification hook instead.
-        exclude_from_addr_map = bool(dev_type.get("excludeFromAddrMap", False))
-
-        # Scan priority
-        # A record with no "addresses" contributes no addresses to prioritise. Guard for it:
-        # without this, addr_list[0] below raises IndexError for any record that declares a
-        # scanPriority but no addresses (all RSAO records are in exactly that state today, so
-        # clearing excludeFromAddrMap on one would crash the build rather than do anything).
-        if "scanPriority" in dev_type and not exclude_from_addr_map and len(addr_list) > 0:
-            scan_priority = dev_type.get("scanPriority", 0)
-
-            # If scan_priority is an array then set scan priority for primary address to first
-            # element and for all other addresses to the second element
-            priority_value = scan_priority-1 if isinstance(scan_priority, int) else scan_priority_values[scan_priority] if isinstance(scan_priority, str) else NUM_PRIORITY_LEVELS-1
-            if priority_value < 0:
-                priority_value = 0
-            if priority_value > NUM_PRIORITY_LEVELS-1:
-                priority_value = NUM_PRIORITY_LEVELS-1
-            if priority_value == 0:
-                addr_scan_priority_sets[0].add(addr_list[0])
-                for addr in addr_list[1:]:
-                    addr_scan_priority_sets[1].add(addr)
-            else:
-                for addr in addr_list:
-                    addr_scan_priority_sets[priority_value].add(addr)
-
-        # Generate a dictionary with all addresses referring to a record index
-        if not exclude_from_addr_map:
+        # Identification and scanning fields (validated here; the firmware builds its address map and scan lists
+        # from them at runtime). A probe-only record (e.g. Robotical RSAOs, identified by an identification
+        # hook rather than by bus address) isn't identified by address
+        _, flags, _, _ = record_ident_fields(dev_type, dev_type["deviceType"])
+        if not (flags & FLAG_PROBE_ONLY):
             for addr in addr_list:
-                if addr in addr_index_to_dev_record:
-                    addr_index_to_dev_record[addr].append(dev_record_index)
-                else:
-                    addr_index_to_dev_record[addr] = [dev_record_index]
+                addr_to_record_keys.setdefault(addr, []).append(dev_type["deviceType"])
 
         # Bump index
         dev_record_index += 1
 
-    # Generate array covering all addresses from 0x00 to 0x77
-    max_count_of_dev_types_for_addr = 0
-    addr_index_to_dev_array = []
-    for addr in range(min_addr_array_index, max_addr_array_index+1):
-        if addr in addr_index_to_dev_record:
-            addr_index_to_dev_array.append(addr_index_to_dev_record[addr])
-            if len(addr_index_to_dev_record[addr]) > max_count_of_dev_types_for_addr:
-                max_count_of_dev_types_for_addr = len(addr_index_to_dev_record[addr])
-        else:
-            addr_index_to_dev_array.append([])
-
-    # Debug
-    print(addr_index_to_dev_record)
+    # Shadowing report: a record with no detection values matches any device at its address, so records after it
+    # at the same address are never tried (unless they have a higher identPriority)
+    dev_types_by_key = dev_ident_json['devTypes']
+    for addr, keys in sorted(addr_to_record_keys.items()):
+        for i, key in enumerate(keys[:-1]):
+            if dev_types_by_key[key].get("detectionValues", "").strip() == "":
+                shadowed = ", ".join(keys[i+1:])
+                print(f"WARNING: record \"{key}\" has no detection values, so at address 0x{addr:02x} it is matched "
+                      f"before {shadowed}")
+                break
 
     # Generate poll records header file
     with open(dev_poll_header_path, 'w') as header_file:
@@ -257,46 +264,17 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             if gen_options.get("gen_decode", False):
                 header_file.write(f',\n        {decodeGenerator.decode_fn(dev_type, dev_type_key)}')
                 header_file.write(f',\n        {decodeGenerator.field_desc_ref(dev_type, dev_type_key)}')
+            else:
+                header_file.write(',\n        nullptr, nullptr, 0, 0')
+
+            # Identification and scanning fields: scanPriority, flags, identPriority, hwTypeId
+            scan_priority, flags, ident_priority, hw_type_id = record_ident_fields(dev_type, dev_type_key)
+            header_file.write(f',\n        {scan_priority}, {flags}, {ident_priority}, 0x{hw_type_id:04x}')
 
             header_file.write('\n    },\n')
             dev_record_index += 1
 
         header_file.write('};\n\n')
-
-        # Write constants for the min and max values of array index
-        header_file.write(f'static const uint32_t BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR = 0;\n')
-        header_file.write(f'static const uint32_t BASE_DEV_INDEX_BY_ARRAY_MAX_ADDR = 0x77;\n\n')
-
-        # Generate the count of device types for each address
-        header_file.write(f'static const uint8_t baseDevTypeCountByAddr[] =\n')
-        header_file.write('{\n    ')
-        for addr_index in addr_index_to_dev_array:
-            header_file.write(f'{len(addr_index)},')
-        header_file.write('\n};\n\n')
-
-        # For every non-zero length array, generate a C variable specific to that array
-        for addr in range(min_addr_array_index, max_addr_array_index+1):
-            if len(addr_index_to_dev_array[addr]) > 0:
-                header_file.write(f'static const uint16_t baseDevTypeIndexByAddr_0x{addr:02x}[] = ')
-                header_file.write('{')
-                if len(addr_index_to_dev_array[addr]) > 0:
-                    header_file.write(f'{addr_index_to_dev_array[addr][0]}')
-                    for i in range(1, len(addr_index_to_dev_array[addr])):
-                        header_file.write(f', {addr_index_to_dev_array[addr][i]}')
-                header_file.write('};\n')
-
-        # Generate the DeviceTypeRecord index by address
-        header_file.write(f'\nstatic const uint16_t* const baseDevTypeIndexByAddr[] =\n')
-        header_file.write('{\n')
-
-        # Iterate address array
-        for addr in range(min_addr_array_index, max_addr_array_index+1):
-            if len(addr_index_to_dev_array[addr]) == 0:
-                header_file.write('    nullptr,\n')
-            else:
-                header_file.write(f'    baseDevTypeIndexByAddr_0x{addr:02x},\n')
-
-        header_file.write('};\n')
 
         # Generate the record indexes sorted by device type key (byte order, as strcmp) for binary search
         dev_type_keys = list(dev_ident_json['devTypes'].keys())
@@ -307,42 +285,6 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             header_file.write(f'{record_index},')
         header_file.write('\n};\n')
 
-        # Generate the scan priority lists
-        addr_scan_priority_lists = []
-        for i in range(NUM_PRIORITY_LEVELS):
-            if i == 0:
-                addr_scan_priority_lists.append(sorted(addr_scan_priority_sets[i]))
-            else:
-                if i == NUM_PRIORITY_LEVELS-1:
-                    addr_scan_priority_sets[i] = set(range(min_valid_i2c_addr, max_valid_i2c_addr+1))
-                for j in range(i):
-                    addr_scan_priority_sets[i] = addr_scan_priority_sets[i] - addr_scan_priority_sets[j]
-                addr_scan_priority_lists.append(sorted(addr_scan_priority_sets[i]))
-
-        # Write out the priority scan lists
-        for i in range(NUM_PRIORITY_LEVELS):
-            header_file.write(f'\n\nstatic const uint8_t scanPriority{i}[] =\n')
-            header_file.write('{\n    ')
-            for addr in addr_scan_priority_lists[i]:
-                header_file.write(f'0x{addr:02x},')
-            header_file.write('\n};\n')
-
-        # Write a record for scan lists
-        header_file.write('\nstatic const uint8_t* scanPriorityLists[] =\n')
-        header_file.write('{\n')
-        for i in range(NUM_PRIORITY_LEVELS):
-            header_file.write(f'    scanPriority{i},\n')
-        header_file.write('};\n')
-
-        # Write out the lengths of the priority scan lists
-        header_file.write('\nstatic const uint8_t scanPriorityListLengths[] =\n')
-        header_file.write('{\n')
-        for i in range(NUM_PRIORITY_LEVELS):
-            header_file.write(f'    {len(addr_scan_priority_lists[i])},\n')
-        header_file.write('};\n')
-
-        # Write out the number of priority scan lists
-        header_file.write(f'\nstatic const uint8_t numScanPriorityLists = {NUM_PRIORITY_LEVELS};\n')
 
     # Generate MicroPython files if requested
     if micropython_generator:
