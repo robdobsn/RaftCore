@@ -67,7 +67,8 @@ SOURCES = main.cpp \
 # Output binary
 OUTPUT = linux_unit_tests
 
-all: $(OUTPUT) test_device_names test_espnow_config
+# test_espnow_config needs RaftSysMods ESPNowManager (not yet on main) - build it explicitly with "make test_espnow_config"
+all: $(OUTPUT) test_device_names
 
 $(OUTPUT): $(SOURCES) ../components/core/RaftJson/RaftJson.h ../components/core/Utils/RaftUtils.h ../components/core/DeviceManager/DeviceDataSubscribers.h DeviceDataSubscribersTest.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUT) $(SOURCES)
