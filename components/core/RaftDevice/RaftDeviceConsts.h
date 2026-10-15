@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 #include <limits.h>
+#include <string.h>
+#include <ctype.h>
 #include <vector>
 #include <functional>
 #include "RaftArduino.h"
@@ -97,28 +99,48 @@ public:
     /// @brief Convert from string
     /// @param str String representation of the DeviceIDType
     /// @return DeviceIDType object
+    /// @note Accepted forms are "<busNum>_<address>", "<address>" (bus 0, i.e. directly connected) and "ANY".
+    ///       busNum is decimal, address is hex (1 to 8 digits, optional 0x prefix). Anything else (e.g. a
+    ///       device name, a non-numeric bus or trailing characters) gives an invalid ID
     static RaftDeviceID fromString(const String& str)
     {
         if (str.equalsIgnoreCase("ANY"))
         {
             return RaftDeviceID(RaftDeviceID::ALL_DEVICES_ANY_BUS, 0);
         }
-        String addressStr = str;
+        const char* pStr = str.c_str();
         BusNumType busNum = RaftDeviceID::BUS_NUM_DIRECT_CONN;
-        int underscoreIndex = str.indexOf('_');
-        if (underscoreIndex > 0)
-        {                
-            String busNumStr = str.substring(0, underscoreIndex);
-            addressStr = str.substring(underscoreIndex + 1);
-            busNum = busNumStr.toInt();
+        const char* pUnderscore = strchr(pStr, '_');
+        if (pUnderscore)
+        {
+            // Bus number: decimal digits only, and not one of the special values
+            if (pUnderscore == pStr)
+                return RaftDeviceID();
+            uint64_t busNumVal = 0;
+            for (const char* p = pStr; p < pUnderscore; p++)
+            {
+                if ((*p < '0') || (*p > '9'))
+                    return RaftDeviceID();
+                busNumVal = busNumVal * 10 + (*p - '0');
+                if (busNumVal >= RaftDeviceID::INVALID)
+                    return RaftDeviceID();
+            }
+            busNum = (BusNumType)busNumVal;
+            pStr = pUnderscore + 1;
         }
 
-        // Check for leading "0x" in address and remove it if present
-        if (addressStr.startsWith("0x") || addressStr.startsWith("0X"))
+        // Address: optional 0x prefix then 1 to 8 hex digits and nothing else
+        if ((pStr[0] == '0') && ((pStr[1] == 'x') || (pStr[1] == 'X')))
+            pStr += 2;
+        size_t numDigits = strlen(pStr);
+        if ((numDigits == 0) || (numDigits > 2 * sizeof(BusElemAddrType)))
+            return RaftDeviceID();
+        for (size_t i = 0; i < numDigits; i++)
         {
-            addressStr = addressStr.substring(2);
-        }   
-        BusElemAddrType address = strtoul(addressStr.c_str(), nullptr, 16);
+            if (!isxdigit((unsigned char)pStr[i]))
+                return RaftDeviceID();
+        }
+        BusElemAddrType address = strtoul(pStr, nullptr, 16);
         return RaftDeviceID(busNum, address);
     }
 

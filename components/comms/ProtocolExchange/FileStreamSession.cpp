@@ -174,6 +174,13 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
                     }
                 }
             }
+            else
+            {
+                // No endpoint to deliver the stream to - don't start the session (otherwise the start is
+                // acknowledged, every block fails and the session stays active until it times out)
+                delete _pFileStreamProtocolHandler;
+                _pFileStreamProtocolHandler = nullptr;
+            }
 
             break;
         }

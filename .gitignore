@@ -14,8 +14,11 @@ scripts/config.ini
 test/eepromPartitionTest/prewritedata.bin
 test/eepromPartitionTest/readbackdata.bin
 linux_unit_tests/linux_unit_tests
-linux_unit_tests/test_device_names
-linux_unit_tests/test_espnow_config
+linux_unit_tests/test_*
+!linux_unit_tests/test_*.cpp
+linux_unit_tests/gen/
+linux_unit_tests/obj/
+linux_unit_tests/arduino_stubs.o
 build/**/raft
 __pycache__
 build_linux/
