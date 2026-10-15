@@ -47,6 +47,19 @@ polling), and the consumers that are affected (raftjs, RaftROS, Axiom).
 Naming (G11) is decided once, in Stage 0. Each later stage then uses the new names for the code it touches.
 Stage 11 handles the remaining renames that clients can see.
 
+### 1.3 Way of working
+
+- **One branch per repository for the whole plan:** `feature/device-identification` in each repository that
+  changes (RaftCore, RaftI2C, RaftSysMods, RaftROS, raftjs, and others as needed). Every stage is committed
+  there, as one or more commits per stage. Pull requests are opened when the work (or an agreed group of
+  stages) is complete, not per change.
+- **Keep the branches current:** merge `main` into them regularly, so the final pull requests don't carry large
+  conflicts.
+- **Wiki:** the wiki has no pull requests. Its changes are committed locally and pushed when the matching
+  pull requests are merged, so the wiki never describes behaviour that isn't on `main`.
+- **Every stage keeps `make -C linux_unit_tests check` passing** (and the RaftROS and raftjs tests where they
+  are touched), and records its hardware checks.
+
 ---
 
 ## 2. Starting point (2026-10-15)
