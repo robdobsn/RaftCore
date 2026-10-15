@@ -65,13 +65,17 @@ Stage 11 handles the remaining renames that clients can see.
 | NACKed write left the bus unusable (bus resync after a partial access) | RaftI2C |
 | Console logging no longer stalls the main loop when nothing reads the console | RaftCore, RaftSysMods |
 | `SpiramAwareAllocator` detects PSRAM on ESP-IDF 5+ | RaftCore |
+| Binary detection values parsed as hex (§10.8) fixed, with a test of every built-in record (PR #12, 2026-10-15) | RaftCore |
+| Linux unit tests: one program per area, all checking real code, run by CI on pushes to `main` and on PRs (`make -C linux_unit_tests check`) | RaftCore |
+| `DeviceNames` class (device names and roles) moved out of DeviceManager | RaftCore |
+| `RaftDeviceID::fromString` rejects malformed IDs; `ProtocolExchange` reports combined activity of all sessions; a stream to an unknown endpoint is refused | RaftCore |
 
 ### 2.2 Still open, by area
 
 | Area | Open findings |
 |---|---|
 | Type table and generator | C5 (`s` defaults to 0), C6, C7, C8, C9, C10, C11, C12, C13, C15; non-const tables in DRAM; runtime records re-parse address strings on every lookup; name lookup is a linear `strcmp` |
-| Identification | **Binary detection patterns parsed as hex (§10.8; urgent)**; I3, I4, I9, I10, I11, I17; ordering shadows records (review §5.2); no identity-change event (A1) |
+| Identification | I3, I4, I9, I10, I11, I17; ordering shadows records (review §5.2); no identity-change event (A1) |
 | Presence and scanning | I1, I2, I7, I8, I16; scan lists are a snapshot taken in `BusScanner::setup` (review §5.16) |
 | Polling | I5, I6, I14; the poll-rate drift described in §2.3 |
 | Runtime records | Cap of 20, shared with static devices; no disable; override leaves two indices for one name; no file loader on `main` |
@@ -464,11 +468,8 @@ offline (G9).
     decode in `BusStatusMgr::handlePollResult()` and the FIFO word-count timing in `DevicePollingMgr`.
     Either remove them or drive them from record data (§10.5).
 
-**Identification fix (urgent):**
-- **Binary detection patterns parsed as hex** (§10.8): MCP9808, VCNL4040, M5Encoder, AS5600 and LTR-329
-  are not identified correctly on `main`. Restore prefix detection at the start of the value, and add a host
-  test that runs every shipped detection string through the parser. This can land on its own, before the
-  rest of Stage 1.
+**Identification fix (urgent):** done 2026-10-15 (PR #12). Binary detection patterns parsed as hex (§10.8) is
+fixed, and `test_device_type_records` runs every shipped detection string through the parser.
 
 **Client change (raftjs, independent of the firmware, D18):**
 - **R1, decode by index** (§3.8 rules 4–5, §9.3): released with or before this stage. It needs no firmware
@@ -1242,7 +1243,7 @@ branch's diary and its tests.
 | 14 | **Error messages that name the record and the rule**, e.g. `"<key>: deviceType field says '<x>'"`, `"<key>: reads N bytes in one command, limit M"` | `applyJson` | Stage 4 and 6 error reporting |
 | 15 | **Data produced by firmware code, described by a record** (`pollInfo.ext`, the VL53L5CX ULD task) | VL53L5CX port | Stage 1 (N13), and the type file: an `ext` record can be supplied, but data only flows if the firmware contains the producer, which the loader should report |
 
-### 10.8 Bug found through the branch: binary detection patterns are parsed as hex on `main`
+### 10.8 Bug found through the branch: binary detection patterns were parsed as hex (fixed 2026-10-15)
 
 Found by the branch's host tests (diary 2026-10-14: "embedded-0x binary-expression precedence bug") and
 confirmed on `main` by reading the code.
