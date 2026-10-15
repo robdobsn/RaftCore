@@ -8,6 +8,7 @@
 #include "MsgExchangeHookTest.h"
 #include "DeviceNamesTest.h"
 #include "DeviceDataSubscribersTest.h"
+#include "ThreadSafeQueueTest.h"
 
 #include "JSON_test_data_large.h"
 #include "JSON_test_data_small.h"
@@ -289,7 +290,8 @@ int main()
     TEST_ASSERT(RaftJson::getLongIm(testStrNull, testStrNull+strlen(testStrNull), nullptr, -1000000) == -1000000, "testPrimitiveLong6");
     TEST_ASSERT(RaftJson::getLongIm(testStrNull, testStrNull+strlen(testStrNull), "abc", -1000000) == -1000000, "testPrimitiveLong7");
     TEST_ASSERT(RaftJson::getLongIm(testStrNull, testStrNull+strlen(testStrNull), "abc", 0) == 0, "testPrimitiveLong8");
-    TEST_ASSERT(RaftJson::getLongIm(testStrTrueInQuotes, testStrTrueInQuotes+strlen(testStrTrueInQuotes), "", 1234) == 0, "testPrimitiveBool13");
+    // Quoted true and false are treated as booleans (as quoted numbers are treated as numbers)
+    TEST_ASSERT(RaftJson::getLongIm(testStrTrueInQuotes, testStrTrueInQuotes+strlen(testStrTrueInQuotes), "", 1234) == 1, "testPrimitiveBool13");
     TEST_ASSERT(RaftJson::getBoolIm(testStrTrue, testStrTrue+strlen(testStrTrue), "", false) == true, "testPrimitiveBool1");
     TEST_ASSERT(RaftJson::getBoolIm(testStrTrue, testStrTrue+strlen(testStrTrue), nullptr, false) == false, "testPrimitiveBool2");
     TEST_ASSERT(RaftJson::getBoolIm(testStrTrue, testStrTrue+strlen(testStrTrue), "abc", false) == false, "testPrimitiveBool3");
@@ -417,6 +419,10 @@ int main()
     // Test device data fan-out (several subscribers per device)
     DeviceDataSubscribersTest deviceDataSubscribersTest;
     failCount += deviceDataSubscribersTest.runTests();
+
+    // Test ThreadSafeQueue
+    ThreadSafeQueueTest threadSafeQueueTest;
+    failCount += threadSafeQueueTest.runTests();
 
     // Check failCount
     if (failCount > 0)
