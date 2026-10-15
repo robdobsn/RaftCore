@@ -28,9 +28,13 @@ bool DeviceStatus::getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo
     uint32_t callIntervalUs = isStartOfPoll ? deviceIdentPolling.pollIntervalUs : deviceIdentPolling.partialPollPauseAfterSendMs * 1000;
     if (Raft::isTimeout(timeNowUs, deviceIdentPolling.lastPollTimeUs, callIntervalUs))
     {
-        // Clear the poll result data if this is the start of the poll
+        // Clear the poll result data and record poll timing if this is the start of the poll
         if (isStartOfPoll)
+        {
             pollInfo._pollDataResult.clear();
+            if (deviceIdentPolling.pollReqs.size() > 0)
+                pollTimingStats.recordPollStart(timeNowUs, deviceIdentPolling.pollIntervalUs);
+        }
 
         // Update timestamp
         deviceIdentPolling.lastPollTimeUs = timeNowUs;

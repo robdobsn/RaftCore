@@ -87,7 +87,7 @@ Stage 11 handles the remaining renames that clients can see.
 
 | Area | Open findings |
 |---|---|
-| Type table and generator | C5 (`s` defaults to 0), C6, C7, C8, C9, C10, C11, C12, C13, C15; non-const tables in DRAM; extended records re-parse address strings on every lookup; name lookup is a linear `strcmp` |
+| Type table and generator | C5 (`s` defaults to 0), C6, C7, C8, C9, C10, C11, C12, C13, C15; 276 B of index lists in DRAM (the larger tables are already in flash, §2.4); extended records re-parse address strings on every lookup; name lookup is a linear `strcmp` |
 | Identification | I3, I4, I9, I10, I11, I17; ordering shadows records (review §5.2); no identity-change event (A1) |
 | Presence and scanning | I1, I2, I7, I8, I16; scan lists are a snapshot taken in `BusScanner::setup` (review §5.16) |
 | Polling | I5, I6, I14; the poll-rate drift described in §2.3 |
@@ -95,7 +95,8 @@ Stage 11 handles the remaining renames that clients can see.
 
 ### 2.3 Why poll rates are slower than expected
 
-Found while preparing this plan, by reading the code. The figures need confirming on hardware (Stage 0).
+Found while preparing this plan, by reading the code. Items 1 and 3 are confirmed on hardware (§2.4); the pass
+period is about 8–12 ms rather than 5 ms, because a pass's own work is added to the 5 ms delay.
 
 1. **Interval measured from when the poll ran, not from when it was due.**
    - `DeviceStatus::getPendingIdentPollInfo()` sets `lastPollTimeUs = timeNowUs` when a poll is found due.
@@ -119,6 +120,62 @@ Found while preparing this plan, by reading the code. The figures need confirmin
    - The device that waits is always the one later in `_addrStatus`, so the error is not shared fairly.
 4. **No interval means poll every pass.** A missing `i` defaults to 0, so that device is due on every pass.
    This makes item 3 worse.
+
+### 2.4 Baseline measurements (Stage 0, 2026-10-15)
+
+Measured on the FeatherS3 bench (MPU6050 at 0x68 and APDS9960 at 0x39 on an I2C bus at 100 kHz), with the
+`SysTypeFeatherS3C3Test` firmware built from `feature/device-identification` (RaftCore `46e678b` plus the Stage 0
+statistics). Tool: `scripts/bench/device-bench.js`, 20 s per scenario, two runs, each after a reboot. The runs
+agree to within about 0.5% (raw results: `bench-results/2026-10-15-feathers3-baseline-run{1,2}.json`).
+
+**Poll rate against the configured rate** (mean of the two runs; delivered = rate a raftjs client received):
+
+| Scenario | Device | Configured | Polled | Error | Max interval | Delivered |
+|---|---|---|---|---|---|---|
+| defaults | MPU6050 | 20 Hz (50 ms) | 18.48 Hz | −7.6% | 71 ms | 18.52 Hz |
+| defaults | APDS9960 | 10 Hz (100 ms) | 9.50 Hz | −5.0% | 116 ms | 9.49 Hz |
+| all 100 ms | both | 10 Hz | 9.64 Hz | −3.6% | 110 ms | 9.66 Hz |
+| all 50 ms | both | 20 Hz | 18.72 Hz | −6.3% | 62 ms | 18.77 Hz |
+| all 25 ms | both | 40 Hz | 33.47 Hz | −16.3% | 38 ms | 33.56 Hz |
+| all 10 ms | MPU6050 | 100 Hz | **9.65 Hz** | **−90%** | 461 ms | 9.62 Hz |
+| all 10 ms | APDS9960 | 100 Hz | 78.09 Hz | −22% | 26 ms | 78.33 Hz |
+| mixed | MPU6050 at 10 ms | 100 Hz | 74.05 Hz | −26% | 31 ms | 74.22 Hz |
+| mixed | APDS9960 at 100 ms | 10 Hz | 9.44 Hz | −5.6% | 117 ms | 9.49 Hz |
+
+**Findings:**
+1. **Every device polls slower than configured** (§2.3 item 1), by 3.6% at 100 ms rising to 16% at 25 ms. The
+   mean interval is the configured one plus 3.5–5 ms, about half a worker pass.
+2. **Starvation** (§2.3 item 3, review I5). With both devices at 10 ms, the MPU6050 gets 9.6 Hz while the
+   APDS9960 gets 78 Hz, because the scheduler always takes the first due device in its list. Its longest gap
+   was 461 ms, with about 190 missed periods in 20 s.
+3. **One poll per pass caps the bus at the pass rate.** The worker runs 86–125 passes per second (8–12 ms each,
+   not the 5 ms delay alone), so at most about 88 polls per second were made when both devices wanted 100 Hz.
+   A single device at 10 ms reaches only 74 Hz.
+4. **Scanning is the largest single cost.** With nothing changing on the bus, the scanner made 340–590 probes
+   per second and took 21–29% of the worker's time (213–294 ms per second), more than polling at the default
+   rates (12%). Scanning shrinks as polling grows, because it uses the time left in each pass. This is
+   input for Stage 9.
+5. **The worker is busy 39–58% of the time** (all parts of a pass, excluding the 5 ms delay).
+6. **Clients receive what is polled** (delivered within 1% of polled), so these figures are not limited by
+   publishing or the network.
+7. **Identification after boot:** the APDS9960 was seen at 171–194 ms after the bus started, online at
+   295–320 ms and identified at 360–384 ms; the MPU6050 was seen at 617–626 ms, online at 641–650 ms and
+   identified at 653–664 ms. Coming online takes two successful probes, about 25 ms apart for the MPU6050 but
+   about 125 ms for the APDS9960.
+8. **Main loop:** average 0.9–3.2 ms, longest pass about 16–18 ms.
+
+**Memory** (from the firmware's per-file size report and symbol table):
+- The base record array (`baseDevTypeRecords`, 2,120 B), the per-address index (512 B) and counts (128 B) are
+  already in flash: although the generated code doesn't declare them `const`, GCC places these never-written
+  arrays in `.rodata`. Only the per-address candidate lists (`baseDevTypeIndexByAddr_0x..`, 276 B in total) are
+  in RAM. §4's "~2.5 KB DRAM" was wrong; making the tables `const` (Stage 2) saves about 276 B and makes the
+  flash placement guaranteed rather than an optimisation.
+- The Stage 0 statistics add 72 B to each bus element's `DeviceStatus` (one per address seen on a bus) and about
+  200 B per I2C bus.
+- Extended records were not measured: the bench SysType has none. Stage 2 measures them.
+
+**Not measured** (needs other hardware): scanning across mux slots, and the time to find a device that is
+plugged in while running.
 
 ---
 
@@ -383,11 +440,11 @@ keep their spelling and hold the key: `DeviceTypeRecord::deviceType`, `DeviceTyp
 
 ## 4. Memory budget for extended records
 
-These are estimates from the current catalogue sizes. Stage 0 measures them.
+Estimates from the current catalogue sizes, except where marked as measured (§2.4).
 
 | | Today | Proposed, no PSRAM | Proposed, with PSRAM |
 |---|---|---|---|
-| Base record array and address index | ~2.5 KB DRAM (non-const) | 0 DRAM (const, in flash) | 0 DRAM |
+| Base record array and address index | 276 B DRAM (measured, §2.4: the large arrays are already placed in flash by the compiler) | 0 DRAM (const, in flash) | 0 DRAM |
 | Idle cost of extended record slots | ~2.2 KB internal (`reserve(20)`) | 4 B × capacity (128 B for 32) | 4 B × capacity (1 KB for 256) |
 | Typical extended record (median `devInfoJson` ~380 B) | ~520 B + 6 heap blocks of overhead | ~480 B, 1 block (internal) | ~480 B, 1 block (PSRAM) |
 | Same, with `devInfoJson` kept in the file | n/a | ~100–150 B | not needed |
@@ -395,8 +452,8 @@ These are estimates from the current catalogue sizes. Stage 0 measures them.
 | Catalogue index (§3.3) | 0 (generated) | < 1 KB + 2–6 B per record | same, in PSRAM |
 
 Configuration keys (names to be confirmed in Stage 0):
-- `DevMan/typeTable/maxRuntimeRecords`
-- `DevMan/typeTable/maxRuntimeBytes`
+- `DevMan/typeTable/maxExtendedRecords`
+- `DevMan/typeTable/maxExtendedBytes`
 - `DevMan/typeTable/devInfoInFile`
 
 ---
@@ -410,6 +467,22 @@ involved.
 ### Stage 0: Agree terms; add measurements
 
 **Aim:** settle names before changing code, and take a baseline to measure every later stage against.
+
+**Status (2026-10-15): done**, except the measurements that need other hardware (scanning across mux slots,
+hot-plug timing). Naming: D1, D12, D13 and the `deviceTypeIndex` renames are done; the hardware type ID moved to
+Stage 3 (D24). Measurements: the firmware statistics below, `scripts/bench/device-bench.js`, and the baseline in
+§2.4. Also ported from the device library branch (§10.7 item 12): the two DeviceManager regression tests, run
+on-device, and the on-device DeviceNames test now tests the real `DeviceNames` class.
+
+**Firmware statistics added** (always on; reported by `devman/busstatus`, with `reset=1` to restart the
+measurement):
+- `pollTiming` per polled device (`DevicePollTimingStats` in each `DeviceStatus`, 72 B): interval count, mean,
+  min and max, a histogram of the difference from the configured interval with its 95th percentile, missed
+  periods and achieved rate, measured from one full poll start to the next;
+- `activity` per I2C bus (`BusI2CActivityStats`): for the last complete ~1 s window, the worker's passes, busy
+  time, longest pass, time in each part of a pass, scan probes and poll steps;
+- `identTiming` per I2C bus: for each element, when it was first seen, came online and was identified, in ms
+  since the bus started.
 
 **Naming decisions** (G11). Adopt the canonical terms in *principles §2*, with these additions:
 
@@ -549,7 +622,7 @@ raised (G1–G4). Behaviour does not change.
    extended records it is maintained when a record is added.
 
 **Verify:**
-- Linker map: the DRAM used by the device type tables drops by the expected ~2.5 KB.
+- Linker map: the device type tables use no DRAM (276 B before, §2.4).
 - Extended record cost per record matches §4, with and without PSRAM (FeatherS3 has PSRAM; test a build with
   `CONFIG_SPIRAM` off).
 - Add 32 records (no PSRAM) and 256 records (PSRAM).

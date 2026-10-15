@@ -866,7 +866,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/setrole?deviceid=<deviceId>&role=<role> - Assign role (e.g. system) to a device (in-memory),"
                             " devman/listdevs?role=<roleFilter> - Enumerate instantiated/detected devices (optional role filter),"
                             " devman/slot?bus=<busNameOrNum>&slot=<n>&mode=<i2c|serial-full|serial-half> - Set slot mode (omit mode to query),"
-                            " devman/busstatus[?busnum=<n>] - Per-bus diagnostics (e.g. poll-response integrity counters),"
+                            " devman/busstatus[?busnum=<n>&reset=1] - Per-bus diagnostics (poll-response integrity, poll timing, worker activity, identification timing; reset=1 restarts poll timing after reporting),"
                             " Note: typeKeyOrIndex can be either a device type key or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
@@ -923,8 +923,9 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Report per-bus status JSON (bus-specific diagnostics, e.g. poll-response
-///        integrity counters). Optional "busnum" selects one bus; otherwise all buses
-///        are reported. Buses with nothing to report return an empty object.
+///        integrity counters, poll timing, worker activity). Optional "busnum" selects one bus;
+///        otherwise all buses are reported. Buses with nothing to report return an empty object.
+///        Optional "reset=1" resets the statistics that measure over a period after reporting them.
 RaftRetCode DeviceManager::apiDevManBusStatus(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
     // NOTE: BUS_NUM_FIRST_BUS is uint32_t, so comparing a negative "not specified"
@@ -932,6 +933,7 @@ RaftRetCode DeviceManager::apiDevManBusStatus(const String &reqStr, String &resp
     // int so the sentinel behaves as intended.
     const int busNum = jsonParams.getLong("busnum", -1);
     const bool filterByBusNum = (busNum >= (int)RaftDeviceID::BUS_NUM_FIRST_BUS);
+    const bool resetAfterReport = jsonParams.getBool("reset", false);
     String busesJson;
     for (RaftBus* pBus : raftBusSystem.getBusList())
     {
@@ -942,6 +944,8 @@ RaftRetCode DeviceManager::apiDevManBusStatus(const String &reqStr, String &resp
         if (busesJson.length() > 0)
             busesJson += ",";
         busesJson += "\"" + pBus->getBusName() + "\":" + pBus->getBusStatusJson();
+        if (resetAfterReport)
+            pBus->resetBusStatus();
     }
     if (filterByBusNum && (busesJson.length() == 0))
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusNotFound");

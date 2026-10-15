@@ -14,61 +14,35 @@
 #include "RaftDeviceConsts.h"
 #include "RaftJson.h"
 #include "Logger.h"
+#include "DeviceNames.h"
 
-// Standalone name-map logic mirroring DeviceManager private members
-// (avoids full DeviceManager instantiation which requires buses, config, etc.)
-static std::unordered_map<std::string, RaftDeviceID> s_deviceNameToID;
-static std::unordered_map<uint64_t, std::string> s_deviceIDToName;
+// The DeviceNames class used by DeviceManager (tested directly, so no DeviceManager instance - with its buses
+// and config - is needed). The helpers keep the test cases' names for the DeviceManager methods they cover
+static DeviceNames s_deviceNames;
 
 static uint64_t packDeviceIDKey(RaftDeviceID deviceID)
 {
-    return (static_cast<uint64_t>(deviceID.getBusNum()) << 32) | deviceID.getAddress();
+    return DeviceNames::packDeviceIDKey(deviceID);
 }
 
 static void setDeviceName(RaftDeviceID deviceID, const String& name)
 {
-    std::string nameStr(name.c_str());
-    uint64_t key = packDeviceIDKey(deviceID);
-    auto itOld = s_deviceIDToName.find(key);
-    if (itOld != s_deviceIDToName.end())
-    {
-        s_deviceNameToID.erase(itOld->second);
-        s_deviceIDToName.erase(itOld);
-    }
-    auto itOldName = s_deviceNameToID.find(nameStr);
-    if (itOldName != s_deviceNameToID.end())
-    {
-        s_deviceIDToName.erase(packDeviceIDKey(itOldName->second));
-        s_deviceNameToID.erase(itOldName);
-    }
-    s_deviceNameToID[nameStr] = deviceID;
-    s_deviceIDToName[key] = nameStr;
+    s_deviceNames.setName(deviceID, name);
 }
 
 static String getDeviceNameForID(RaftDeviceID deviceID)
 {
-    uint64_t key = packDeviceIDKey(deviceID);
-    auto it = s_deviceIDToName.find(key);
-    if (it != s_deviceIDToName.end())
-        return String(it->second.c_str());
-    return deviceID.toString();
+    return s_deviceNames.getNameForID(deviceID);
 }
 
 static bool resolveDeviceNameToID(const String& name, RaftDeviceID& deviceID)
 {
-    auto it = s_deviceNameToID.find(std::string(name.c_str()));
-    if (it != s_deviceNameToID.end())
-    {
-        deviceID = it->second;
-        return true;
-    }
-    return false;
+    return s_deviceNames.resolveName(name, deviceID);
 }
 
 static void clearMaps()
 {
-    s_deviceNameToID.clear();
-    s_deviceIDToName.clear();
+    s_deviceNames = DeviceNames();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -184,18 +158,8 @@ TEST_CASE("loadDeviceNames from JSON config", "[DeviceNames]")
     const char* config = R"({"DeviceNames":{"1_f8":"accelerometer","1_50":"barometer","2_10":"gyro"}})";
     RaftJson json(config);
 
-    std::vector<String> keys;
-    TEST_ASSERT_TRUE(json.getKeys("DeviceNames", keys));
-    TEST_ASSERT_EQUAL(3, keys.size());
-
-    for (const auto& key : keys)
-    {
-        String path = "DeviceNames/" + key;
-        String name = json.getString(path.c_str(), "");
-        RaftDeviceID deviceID = RaftDeviceID::fromString(key);
-        if (deviceID.isValid() && name.length() > 0)
-            setDeviceName(deviceID, name);
-    }
+    s_deviceNames.loadFromConfig(json);
+    TEST_ASSERT_EQUAL(3, s_deviceNames.nameCount());
 
     RaftDeviceID resolved;
     TEST_ASSERT_TRUE(resolveDeviceNameToID("accelerometer", resolved));

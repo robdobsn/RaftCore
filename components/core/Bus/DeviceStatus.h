@@ -12,6 +12,7 @@
 #include "RaftUtils.h"
 #include "DevicePollingInfo.h"
 #include "PollDataAggregatorIF.h"
+#include "DevicePollTimingStats.h"
 #include "RaftDeviceConsts.h"
 #include <memory>
 
@@ -28,6 +29,7 @@ public:
     {
         deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
         deviceIdentPolling.clear();
+        pollTimingStats.reset();
         if (pDataAggregator)
             pDataAggregator->clear();
     }
@@ -164,6 +166,9 @@ public:
 
     // Device ident polling - polling related to the device type
     DevicePollingInfo deviceIdentPolling;
+
+    // How closely polls keep to the configured interval (from one full poll start to the next)
+    DevicePollTimingStats pollTimingStats;
 
     // Data aggregator
     std::shared_ptr<PollDataAggregatorIF> pDataAggregator;
