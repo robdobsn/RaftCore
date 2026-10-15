@@ -60,13 +60,13 @@ std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(Bus
 #endif
 
     // Return value
-    std::vector<DeviceTypeIndexType> devTypeIdxsForAddr;
+    std::vector<DeviceTypeIndexType> deviceTypeIndexesForAddr;
 
     // Check if any of the extended device type records match
     if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         // Ext devType indices continue on from the base devType indices
-        DeviceTypeIndexType devTypeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
+        DeviceTypeIndexType deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE;
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
             std::vector<int> addressList;
@@ -75,70 +75,70 @@ std::vector<DeviceTypeIndexType> DeviceTypeRecords::getDeviceTypeIdxsForAddr(Bus
             {
                 if (devAddr == addr)
                 {
-                    devTypeIdxsForAddr.push_back(devTypeIdx);
+                    deviceTypeIndexesForAddr.push_back(deviceTypeIndex);
                     break;
                 }
             }
-            devTypeIdx++;
+            deviceTypeIndex++;
         }
         RaftMutex_unlock(_extDeviceTypeRecordsMutex);
     }
 
     // Check valid
     if ((addr < BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR) || (addr > BASE_DEV_INDEX_BY_ARRAY_MAX_ADDR))
-        return devTypeIdxsForAddr;
+        return deviceTypeIndexesForAddr;
     uint32_t addrIdx = addr - BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR;
     
     // Get number of types for this addr - if none then return
     uint32_t numTypes = baseDevTypeCountByAddr[addrIdx];
     if (numTypes == 0)
-        return devTypeIdxsForAddr;
+        return deviceTypeIndexesForAddr;
 
     // Iterate the types for this address
     for (uint32_t i = 0; i < numTypes; i++)
     {
-        devTypeIdxsForAddr.push_back(baseDevTypeIndexByAddr[addrIdx][i]);
+        deviceTypeIndexesForAddr.push_back(baseDevTypeIndexByAddr[addrIdx][i]);
     }
     
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
     uint64_t endTimeUs = micros();
     LOG_I(MODULE_PREFIX, "getDeviceTypeIdxsForAddr %04x %d typeIdxs %lld us", addr, 
-                    devTypeIdxsForAddr.size(), endTimeUs - startTimeUs);
+                    deviceTypeIndexesForAddr.size(), endTimeUs - startTimeUs);
 #endif
 
 #ifdef DEBUG_DEVICE_INFO_RECORDS
-    LOG_I(MODULE_PREFIX, "getDeviceTypeIdxsForAddr %04x %d types", addr, devTypeIdxsForAddr.size());
+    LOG_I(MODULE_PREFIX, "getDeviceTypeIdxsForAddr %04x %d types", addr, deviceTypeIndexesForAddr.size());
 #endif
-    return devTypeIdxsForAddr;
+    return deviceTypeIndexesForAddr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device type for a device type index
-/// @param deviceTypeIdx device type index
+/// @param deviceTypeIndex device type index
 /// @param devTypeRec (out) device type record
 /// @return true if device type found
-bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceTypeRecord& devTypeRec) const
+bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIndex, DeviceTypeRecord& devTypeRec) const
 {
     // Check if in range
     bool isValid = false;
-    if (deviceTypeIdx >= BASE_DEV_TYPE_ARRAY_SIZE)
+    if (deviceTypeIndex >= BASE_DEV_TYPE_ARRAY_SIZE)
     {
         // Check extended device type records
         if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
         {
-            const uint32_t extDevTypeIdx = deviceTypeIdx - BASE_DEV_TYPE_ARRAY_SIZE;
-            if (extDevTypeIdx < _extendedDevTypeRecords.size())
-                isValid = _extendedDevTypeRecords[extDevTypeIdx].getDeviceTypeRecord(devTypeRec);
+            const uint32_t extendedPos = deviceTypeIndex - BASE_DEV_TYPE_ARRAY_SIZE;
+            if (extendedPos < _extendedDevTypeRecords.size())
+                isValid = _extendedDevTypeRecords[extendedPos].getDeviceTypeRecord(devTypeRec);
             RaftMutex_unlock(_extDeviceTypeRecordsMutex);
         }
     }
     else
     {
-        devTypeRec = baseDevTypeRecords[deviceTypeIdx];
+        devTypeRec = baseDevTypeRecords[deviceTypeIndex];
         isValid = true;
     }
 #ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_INDEX
-    LOG_I(MODULE_PREFIX, "getDeviceInfo %d %s %s", deviceTypeIdx, 
+    LOG_I(MODULE_PREFIX, "getDeviceInfo %d %s %s", deviceTypeIndex, 
                 isValid ? "OK" : "NOT FOUND", 
                 isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
 #endif
@@ -149,13 +149,13 @@ bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceT
 /// @brief Get device type for a device type key
 /// @param deviceTypeKey device type key
 /// @param devTypeRec (out) device type record
-/// @param deviceTypeIdx (out) device type index
+/// @param deviceTypeIndex (out) device type index
 /// @return true if device type found
-bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const
+bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIndex) const
 {
     // Iterate the extended device types first - so that device type keys can be overridden
     bool isValid = false;
-    uint32_t typeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
+    uint32_t extendedTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE;
     if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
@@ -163,10 +163,10 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRec
             if (extDevTypeRec.deviceTypeName == deviceTypeKey)
             {
                 isValid = extDevTypeRec.getDeviceTypeRecord(devTypeRec);
-                deviceTypeIdx = typeIdx;
+                deviceTypeIndex = extendedTypeIndex;
                 break;
             }
-            typeIdx++;
+            extendedTypeIndex++;
         }
         RaftMutex_unlock(_extDeviceTypeRecordsMutex);
     }
@@ -179,7 +179,7 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRec
             if (deviceTypeKey == baseDevTypeRecords[i].deviceType)
             {
                 devTypeRec = baseDevTypeRecords[i];
-                deviceTypeIdx = i;
+                deviceTypeIndex = i;
                 isValid = true;
                 break;
             }
@@ -188,7 +188,7 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRec
 #ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_NAME
     LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s idx %d devTypeInfo %s", deviceTypeKey.c_str(), 
                 isValid ? "OK" : "NOT FOUND", 
-                deviceTypeIdx,
+                deviceTypeIndex,
                 isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
 #endif
     return isValid;
@@ -758,14 +758,14 @@ String DeviceTypeRecords::deviceStatusToJson(BusElemAddrType addr, DeviceOnlineS
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device type info JSON by device type index
-/// @param deviceTypeIdx device type index
+/// @param deviceTypeIndex device type index
 /// @param includePlugAndPlayInfo include plug and play info
 /// @return JSON string
-String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIdx, bool includePlugAndPlayInfo) const
+String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIndex, bool includePlugAndPlayInfo) const
 {
     // Get device type record
     DeviceTypeRecord devTypeRec;
-    if (getDeviceInfo(deviceTypeIdx, devTypeRec))
+    if (getDeviceInfo(deviceTypeIndex, devTypeRec))
         return devTypeRec.getJson(includePlugAndPlayInfo);
     return "{}";
 }
@@ -774,13 +774,13 @@ String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType device
 /// @brief Get device type info JSON by device type key
 /// @param deviceTypeKey device type key
 /// @param includePlugAndPlayInfo include plug and play info
-/// @param deviceTypeIdx (out) device type index
+/// @param deviceTypeIndex (out) device type index
 /// @return JSON string
-String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeKey, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIdx) const
+String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeKey, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const
 {
     // Get the device type info
     DeviceTypeRecord devTypeRec;
-    if (getDeviceInfo(deviceTypeKey, devTypeRec, deviceTypeIdx))
+    if (getDeviceInfo(deviceTypeKey, devTypeRec, deviceTypeIndex))
         return devTypeRec.getJson(includePlugAndPlayInfo);
     return "{}";
 }
@@ -878,16 +878,16 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get device poll decode function
-/// @param deviceTypeIdx device type index
+/// @param deviceTypeIndex device type index
 /// @return poll decode function
-DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(DeviceTypeIndexType deviceTypeIdx) const
+DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(DeviceTypeIndexType deviceTypeIndex) const
 {
 
     // TODO - see if copying can be avoided
 
     // Get device type record
     DeviceTypeRecord devTypeRec;
-    if (!getDeviceInfo(deviceTypeIdx, devTypeRec))
+    if (!getDeviceInfo(deviceTypeIndex, devTypeRec))
         return nullptr;
     return devTypeRec.pollResultDecodeFn;
 }

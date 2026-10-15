@@ -180,11 +180,11 @@ private:
         // reports, not per sample
         std::vector<LastReport> lastReports;
 
-        bool matches(RaftDeviceID id, DeviceTypeIndexType typeIdx) const
+        bool matches(RaftDeviceID id, DeviceTypeIndexType sampleTypeIndex) const
         {
             if (kind == Kind::DEVICE_ID)
                 return deviceID == id;
-            return (typeIdx != DEVICE_TYPE_INDEX_INVALID) && (deviceTypeIndex == typeIdx);
+            return (sampleTypeIndex != DEVICE_TYPE_INDEX_INVALID) && (deviceTypeIndex == sampleTypeIndex);
         }
         bool rateAllows(RaftDeviceID id, uint32_t timeNowMs)
         {
@@ -214,7 +214,7 @@ private:
     DispatchTask _dispatchTasks[MAX_DISPATCH_TASKS];
     uint32_t _dispatchOverflows = 0;
 
-    void add(Sub::Kind kind, RaftDeviceID deviceID, DeviceTypeIndexType typeIdx,
+    void add(Sub::Kind kind, RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex,
              RaftDeviceDataChangeCB cb, uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo)
     {
         if (!cb)
@@ -222,7 +222,7 @@ private:
         Sub s;
         s.kind = kind;
         s.deviceID = deviceID;
-        s.deviceTypeIndex = typeIdx;
+        s.deviceTypeIndex = deviceTypeIndex;
         s.cb = cb;
         s.minTimeBetweenReportsMs = minTimeBetweenReportsMs;
         s.pCallbackInfo = pCallbackInfo;

@@ -31,18 +31,18 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type record for a device type index
-    /// @param deviceTypeIdx device type index
+    /// @param deviceTypeIndex device type index
     /// @param devTypeRec (out) device type record
     /// @return true if device type found
-    bool getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceTypeRecord& devTypeRec) const;
+    bool getDeviceInfo(DeviceTypeIndexType deviceTypeIndex, DeviceTypeRecord& devTypeRec) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type record for a device type key
     /// @param deviceTypeKey device type key
     /// @param devTypeRec (out) device type record
-    /// @param deviceTypeIdx (out) device type index
+    /// @param deviceTypeIndex (out) device type index
     /// @return true if device type found
-    bool getDeviceInfo(const String& deviceTypeKey, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const;
+    bool getDeviceInfo(const String& deviceTypeKey, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIndex) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device polling info
@@ -53,10 +53,10 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type info JSON by device type index
-    /// @param deviceTypeIdx device type index
+    /// @param deviceTypeIndex device type index
     /// @param includePlugAndPlayInfo include plug and play info
     /// @return JSON string
-    String getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIdx, bool includePlugAndPlayInfo) const;
+    String getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIndex, bool includePlugAndPlayInfo) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type info JSON by device type key
@@ -114,9 +114,9 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device poll decode function
-    /// @param deviceTypeIdx device type index
+    /// @param deviceTypeIndex device type index
     /// @return poll decode function
-    DeviceTypeRecordDecodeFn getPollDecodeFn(uint16_t deviceTypeIdx) const;
+    DeviceTypeRecordDecodeFn getPollDecodeFn(uint16_t deviceTypeIndex) const;
 
 private:
     // Mutex for access to extended device type records (mutable to allow locking in const methods)

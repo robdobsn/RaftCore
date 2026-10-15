@@ -2019,8 +2019,8 @@ void DeviceManager::installBusDataDispatcher(RaftBusDevicesIF& busDevicesIF, Bus
 {
     const RaftDeviceID deviceID(busNum, address);
     busDevicesIF.registerForDeviceData(address,
-        [this, deviceID](uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void*) {
-            _deviceDataSubscribers.dispatch(deviceID, deviceTypeIdx, std::move(data), millis());
+        [this, deviceID](uint16_t deviceTypeIndex, std::vector<uint8_t> data, const void*) {
+            _deviceDataSubscribers.dispatch(deviceID, deviceTypeIndex, std::move(data), millis());
         },
         /*minTimeBetweenReportsMs=*/0, /*pCallbackInfo=*/&_deviceDataSubscribers);
 }
@@ -2053,8 +2053,8 @@ uint32_t DeviceManager::installStaticDataDispatchers()
     {
         const RaftDeviceID deviceID = pDevice->getDeviceID();
         pDevice->registerForDeviceData(
-            [this, deviceID](uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void*) {
-                _deviceDataSubscribers.dispatch(deviceID, deviceTypeIdx, std::move(data), millis());
+            [this, deviceID](uint16_t deviceTypeIndex, std::vector<uint8_t> data, const void*) {
+                _deviceDataSubscribers.dispatch(deviceID, deviceTypeIndex, std::move(data), millis());
             },
             /*minTimeBetweenReportsMs=*/0, /*pCallbackInfo=*/&_deviceDataSubscribers);
     }

@@ -185,7 +185,7 @@ private:
 ///       NOT on the main task - so it may run in parallel with the subscriber's loop() (on another core).
 ///       The callback must be short, must not block and must hand data off to the main task in a thread-safe
 ///       way (e.g. ThreadSafeQueue or atomics) rather than touching state owned by the main task.
-typedef std::function<void(uint16_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo)> RaftDeviceDataChangeCB;
+typedef std::function<void(uint16_t deviceTypeIndex, std::vector<uint8_t> data, const void* pCallbackInfo)> RaftDeviceDataChangeCB;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Callback type for device status change
