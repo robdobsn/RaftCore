@@ -49,7 +49,7 @@ the canonical terms.
 | Concept | Canonical term | Spellings in use today | Notes |
 |---|---|---|---|
 | The description of one kind of device | **device type record** | `DeviceTypeRecord`, `DeviceTypeRecordDynamic`, "devType", "type record" | **Base record**: compiled from JSON at build time. **Extended record**: added at runtime. **Catalogue**: the full set of records. |
-| The record's unique machine name, e.g. `RoboticalLightSensor` | **device type name** | JSON key in `devTypes`; `deviceType` field; `DeviceTypeRecord::deviceType`; `deviceTypeName`; REST `type=`; static devices' `type` config (`RaftDevice::getConfiguredDeviceType()`); RaftROS `deviceTypeName` | The JSON key always equals `deviceType`. **`devInfoJson.type` is meant to repeat it but differs in 2 records**: AdafruitGamepad has `"Gamepad"` and RoboticalThermocoupleAmp has `"Thermocouple"`. `devman/typeinfo` returns only `devInfoJson`, so a client never sees the real device type name. |
+| The record's unique identifier, e.g. `RoboticalLightSensor` | **device type key** | JSON key in `devTypes`; `deviceType` field; `DeviceTypeRecord::deviceType`; `deviceTypeName`; REST `type=`; static devices' `type` config (`RaftDevice::getConfiguredDeviceType()`); RaftROS `deviceTypeName` | Called the *device type key* until 2026-10-15; renamed because "name" is easily confused with the type display name (`devInfoJson.name`), which is shown to users and need not be unique. Code identifiers that are part of an API (`deviceType`, `deviceTypeName` members, `getDevTypeInfoJsonByTypeName`) keep their spelling and hold the device type key. The JSON key always equals `deviceType`. **`devInfoJson.type` is meant to repeat it but differs in 2 records**: AdafruitGamepad has `"Gamepad"` and RoboticalThermocoupleAmp has `"Thermocouple"`. `devman/typeinfo` returns only `devInfoJson`, so a client never sees the real device type key (`deviceTypeKey` is being added to the response). |
 | The human-readable name of the kind of device, e.g. "Robotical Light Sensor" | **type display name** | `devInfoJson.name`; raftjs `DeviceTypeInfo.name` | raftjs overwrites `DeviceTypeInfo.name` with the device name, so in raftjs the same field holds either the type display name or the device name. |
 | The compact integer that names a record in published data | **device type index** | C++ `DeviceTypeIndexType`, `deviceTypeIndex` (most common), `deviceTypeIdx`, `devTypeIdx`, `typeIdx`; devjson `_i`; devbin header `devTypeIdx`; REST `dtIdx`; REST `type=<number>` | Positional: base records in JSON merge order, then extended records in the order added. Valid only for one firmware build and one boot. Invalid value: `DEVICE_TYPE_INDEX_INVALID` (0xFFFF). Recommended spelling: `deviceTypeIndex` in code; keep `_i` and `dtIdx` on the wire. |
 | A type identifier reported by the device itself (RSAO WHOAMI) | **hardware type ID** | `deviceTypeId` (Axiom JSON field, `RSAOTypeRegistry`, `RSAOIdentHandler`) | Assigned by the vendor and persistent, unlike the device type index. **The spelling `deviceTypeId` is one letter away from `deviceTypeIdx` and means something quite different.** Renaming it, for example to `hwTypeId`, would remove the hazard. |
@@ -99,14 +99,14 @@ The problems with this:
 
 ### 2.4 Consistency rules adopted in this document
 
-1. "Type" alone is not used. Each use names the concept: device type name, type display name, device
+1. "Type" alone is not used. Each use names the concept: device type key, type display name, device
    type index, hardware type ID or device classes.
 2. "Index" always means the session-scoped device type index. "ID" always means something that is
    stable across sessions: device ID (stable while the wiring and bus configuration stay the same),
    hardware type ID or hardware instance ID.
 3. "Address" alone means the element address. Where only the raw bus address is meant, it is called the
    I2C address.
-4. "Name" alone is not used. Each use says device type name, type display name, device name, display
+4. "Name" alone is not used. Each use says device type key, type display name, device name, display
    name, bus name or system friendly name.
 
 ### 2.5 Other terms
@@ -147,7 +147,7 @@ The problems with this:
 
 **Principle.** A record holds everything needed to:
 
-- name the kind of device, with a device type name for machines and a type display name for people;
+- name the kind of device, with a device type key for machines and a type display name for people;
 - identify it by talking to it over a bus;
 - initialise it;
 - poll it at a defined rate;
@@ -165,7 +165,7 @@ The problems with this:
 **Current practice.**
 
 - **Fields.** `DeviceTypeRecord` (`DeviceTypeRecord.h`) is a POD holding:
-  - `deviceType`, the device type name;
+  - `deviceType`, the device type key;
   - `addresses`, a CSV and/or ranges;
   - `detectionValues`;
   - `initValues`;
@@ -190,7 +190,7 @@ The problems with this:
   - optional `crc`, an integrity trailer;
   - optional `ext`, for data pushed in by other code instead of polled.
 - **`devInfoJson` fields:**
-  - `name` (the type display name), `desc`, `manu`, `type` (meant to repeat the device type name, see
+  - `name` (the type display name), `desc`, `manu`, `type` (meant to repeat the device type key, see
     2.1), and `clas` (the device classes);
   - `resp`, the response layout: `b` bytes, plus `a[]` attributes with type, range, format,
     divisor/addend and units;
@@ -209,7 +209,7 @@ The problems with this:
     the Axiom JSON but nothing reads it. A hand-written table in `RSAOTypeRegistry.cpp` holds it instead.
   - The record does not contain its own device type index. The index is assigned from the record's
     position (P8), so the same record can have a different index in a different build.
-  - The device type name is stored twice (`deviceType` and `devInfoJson.type`), and the two copies
+  - The device type key is stored twice (`deviceType` and `devInfoJson.type`), and the two copies
     disagree in 2 records. Clients receive only the second copy.
 
 **To challenge.**
@@ -219,7 +219,7 @@ The problems with this:
 - Should bus-type-specific parts (addressing, detection transport) be separate from bus-neutral parts
   (decode, actions, metadata)?
 - Should identity data such as the hardware type ID be a first-class record field?
-- Should the device type name be stored once, and returned in `devman/typeinfo`?
+- Should the device type key be stored once, and returned in `devman/typeinfo`?
 
 ---
 
@@ -296,15 +296,15 @@ The problems with this:
   - At most 20 records (`MAX_EXTENDED_DEV_TYPE_RECORDS`), reserved up front so that `c_str()` pointers
     stay valid.
   - Append-only.
-  - Deduplicated by device type name: re-adding a name returns the existing device type index and
+  - Deduplicated by device type key: re-adding a name returns the existing device type index and
     **discards the new content**.
   - The only caller on `main` is `DeviceManager::setupStaticDevices()`. There is no REST or file loader.
 - **Override.**
-  - Lookup by device type name searches extended records first, so an extended record with the same
-    device type name shadows the base record for lookups by name.
+  - Lookup by device type key searches extended records first, so an extended record with the same
+    device type key shadows the base record for lookups by key.
   - The base record is still a candidate in lookups by address.
   - An existing extended record cannot be replaced.
-  - **Consistency problem:** an override gives one device type name **two** device type indices. The
+  - **Consistency problem:** an override gives one device type key **two** device type indices. The
     base index is still valid, still matched by address and still published. So neither the device type
     name nor the device type index identifies "the current definition of this kind of device".
 - **Disable.** Not on `main`. The device-library branches add name suppression *(review §7)*.
@@ -380,7 +380,7 @@ The problems with this:
 - **On a match:** init runs (its result is ignored), poll info is built, and a new `PollDataAggregator`
   is created.
 - **If nothing matches:** the ident hook runs. For RSAOs the hook probes `ROBOTICAL_ID`, then WHOAMI, then
-  maps the hardware type ID to a device type name through `RSAOTypeRegistry`, then finds the record by
+  maps the hardware type ID to a device type key through `RSAOTypeRegistry`, then finds the record by
   that name. RSAO records have no addresses, so they
   never match by address.
 - **Re-identification.** A device is never re-checked once identified, except when `DevicePollingMgr`
@@ -515,7 +515,7 @@ In practice:
 
 **Rationale.**
 
-- Bandwidth: a `uint16_t` on every devbin record instead of a device type name string.
+- Bandwidth: a `uint16_t` on every devbin record instead of a device type key string.
 - Consistency between devjson and devbin.
 
 **Current practice.**
@@ -527,11 +527,11 @@ In practice:
   - devjson: `"_i"` in each device entry;
   - devbin: a `uint16` BE `devTypeIdx` in each record header.
 - **Getting metadata:**
-  - `devman/typeinfo?type=<device type index | device type name>`;
+  - `devman/typeinfo?type=<device type index | device type key>`;
   - `devman/typeinfo?deviceid=<device ID>`, which also returns the device name and device role;
   - `devman/listdevs`, which lists `dtIdx` for each online, identified device.
 
-  Neither form returns the device type name itself, only `devInfoJson` (see 2.1).
+  Neither form returns the device type key itself, only `devInfoJson` (see 2.1).
 - **raftjs cache.**
   - Keyed by `bustype:<bus number>:<device type index>` and by device ID.
   - **Never invalidated**: not on reconnect, not when `_i` changes at a device ID, and not when a device is
@@ -543,8 +543,8 @@ In practice:
   - Firmware does not publish any generation or version marker, so a client cannot tell when its cache is
     stale.
 - **Consistency problems with P3:**
-  - An override gives one device type name two device type indices.
-  - Re-adding a device type name returns the old device type index with the old content.
+  - An override gives one device type key two device type indices.
+  - Re-adding a device type key returns the old device type index with the old content.
 
   So the principle "a subscriber resolves the index once" holds only because records are never mutated
   in place.
@@ -552,7 +552,7 @@ In practice:
 **To challenge.**
 
 - Would an identifier stable across sessions be better than a positional index, given P3's "no delete"
-  rule exists only to protect indices? Options include a hash of the device type name, an assigned ID
+  rule exists only to protect indices? Options include a hash of the device type key, an assigned ID
   registry, or the hardware type ID where one exists.
 - Alternatively, keep compact session indices but add a **type-table generation** to the publish
   envelope or the typeinfo response, so that caches can be invalidated *(review)*.
@@ -834,17 +834,17 @@ In practice:
 | Principle | Divergence |
 |---|---|
 | P3 "in flash" | Record and index arrays are non-const and occupy DRAM. Only the string contents and scan lists are in flash. |
-| P3 add/override/disable | Add exists with a cap of 20 and silently ignores content for a duplicate device type name. Override shadows only lookups by device type name, and leaves one device type name with two device type indices. Disable does not exist on `main`. There is no runtime loader. |
+| P3 add/override/disable | Add exists with a cap of 20 and silently ignores content for a duplicate device type key. Override shadows only lookups by device type key, and leaves one device type key with two device type indices. Disable does not exist on `main`. There is no runtime loader. |
 | P3 efficient derivation | Extended records' address strings are re-parsed on every lookup. Extended addresses are always placed in scan list 0. |
 | P5 non-destructive first | The order is right, but a bus error during detection falls through to later candidates and eventually to the destructive probe. |
 | P6 small share of bus | The bound is a fixed time slice per pass, not a share that adapts to polling load. |
-| P8 consistent access to metadata | Device type indices are positional and carry no version. Typeinfo does not return the device type name. The raftjs cache is never invalidated, and nothing signals a change in the type table. |
+| P8 consistent access to metadata | Device type indices are positional and carry no version. Typeinfo does not return the device type key. The raftjs cache is never invalidated, and nothing signals a change in the type table. |
 | P9 per-device settings | Settings are lost whenever a device goes offline or is identified again. Device names do not persist. |
 | P9 display name | Not defined by firmware. raftjs puts it into fields named `name` and `deviceType` that also hold type-level values, and caches it so renames are not seen. |
 | P10 exclude list available externally | It is not exposed. It is computed once at setup and not refreshed when records are added. |
 | P11 get round every device | First-due by list position, with drift and no fairness. |
 | P13 / P8 | Re-identification is silent, so consumers can decode with the wrong record's decoder. |
-| Terminology (section 2) | The device type index has six spellings. `deviceTypeId` (hardware type ID) and `deviceTypeIdx` (device type index) are easily confused. `devInfoJson.type` disagrees with the device type name in 2 records. |
+| Terminology (section 2) | The device type index has six spellings. `deviceTypeId` (hardware type ID) and `deviceTypeIdx` (device type index) are easily confused. `devInfoJson.type` disagrees with the device type key in 2 records. |
 
 ## 6. Assumptions under the principles
 

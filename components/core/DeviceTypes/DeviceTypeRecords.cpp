@@ -146,21 +146,21 @@ bool DeviceTypeRecords::getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceT
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get device type for a device type name
-/// @param deviceTypeName device type name
+/// @brief Get device type for a device type key
+/// @param deviceTypeKey device type key
 /// @param devTypeRec (out) device type record
 /// @param deviceTypeIdx (out) device type index
 /// @return true if device type found
-bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const
+bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeKey, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const
 {
-    // Iterate the extended device types first - so that device type names can be overridden
+    // Iterate the extended device types first - so that device type keys can be overridden
     bool isValid = false;
     uint32_t typeIdx = BASE_DEV_TYPE_ARRAY_SIZE;
     if (RaftAtomicBool_get(_extendedRecordsAdded) && RaftMutex_lock(_extDeviceTypeRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
         for (const auto& extDevTypeRec : _extendedDevTypeRecords)
         {
-            if (extDevTypeRec.deviceTypeName == deviceTypeName)
+            if (extDevTypeRec.deviceTypeName == deviceTypeKey)
             {
                 isValid = extDevTypeRec.getDeviceTypeRecord(devTypeRec);
                 deviceTypeIdx = typeIdx;
@@ -176,7 +176,7 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRe
     {
         for (uint16_t i = 0; i < BASE_DEV_TYPE_ARRAY_SIZE; i++)
         {
-            if (deviceTypeName == baseDevTypeRecords[i].deviceType)
+            if (deviceTypeKey == baseDevTypeRecords[i].deviceType)
             {
                 devTypeRec = baseDevTypeRecords[i];
                 deviceTypeIdx = i;
@@ -186,7 +186,7 @@ bool DeviceTypeRecords::getDeviceInfo(const String& deviceTypeName, DeviceTypeRe
         }
     }
 #ifdef DEBUG_LOOKUP_DEVICE_TYPE_BY_NAME
-    LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s idx %d devTypeInfo %s", deviceTypeName.c_str(), 
+    LOG_I(MODULE_PREFIX, "getDeviceInfo %s %s idx %d devTypeInfo %s", deviceTypeKey.c_str(), 
                 isValid ? "OK" : "NOT FOUND", 
                 deviceTypeIdx,
                 isValid ? (devTypeRec.deviceType ? devTypeRec.deviceType : "NO NAME") : "INVALID");
@@ -771,16 +771,16 @@ String DeviceTypeRecords::getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType device
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get device type info JSON by device type name
-/// @param deviceTypeName device type name
+/// @brief Get device type info JSON by device type key
+/// @param deviceTypeKey device type key
 /// @param includePlugAndPlayInfo include plug and play info
 /// @param deviceTypeIdx (out) device type index
 /// @return JSON string
-String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeName, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIdx) const
+String DeviceTypeRecords::getDevTypeInfoJsonByTypeName(const String& deviceTypeKey, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIdx) const
 {
     // Get the device type info
     DeviceTypeRecord devTypeRec;
-    if (getDeviceInfo(deviceTypeName, devTypeRec, deviceTypeIdx))
+    if (getDeviceInfo(deviceTypeKey, devTypeRec, deviceTypeIdx))
         return devTypeRec.getJson(includePlugAndPlayInfo);
     return "{}";
 }
@@ -868,10 +868,10 @@ bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynami
 #ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
     LOG_I(MODULE_PREFIX, "addExtendedDeviceTypeRecord %s type %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",
                 recFound ? "ALREADY PRESENT" : "ADDED OK",
-                devTypeRec.deviceTypeName_.c_str(), 
+                devTypeRec.deviceTypeName.c_str(), 
                 deviceTypeIndex,
-                devTypeRec.addresses_.c_str(), devTypeRec.detectionValues_.c_str(),
-                devTypeRec.initValues_.c_str(), devTypeRec.pollInfo_.c_str());
+                devTypeRec.addresses.c_str(), devTypeRec.detectionValues.c_str(),
+                devTypeRec.initValues.c_str(), devTypeRec.pollInfo.c_str());
 #endif
     return !recFound;
 }

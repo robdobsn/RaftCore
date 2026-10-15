@@ -102,12 +102,12 @@ public:
             uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);
 
     /// @brief Register for device data notifications (note that callbacks may occur on different threads)
-    /// @param deviceTypeName Device type name
+    /// @param deviceTypeKeyOrAddr Device type key, or a device address of the form "<bus>_<addr>[@slot]"
     /// @param dataChangeCB Callback for data change
     /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
     /// @param pCallbackInfo Callback info (passed to the callback)
     /// @param unregister true to unregister the callback instead of registering
-    void registerForDeviceData(const char* deviceTypeName, RaftDeviceDataChangeCB dataChangeCB,
+    void registerForDeviceData(const char* deviceTypeKeyOrAddr, RaftDeviceDataChangeCB dataChangeCB,
             uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);            
             
     /// @brief Register for device status changes
@@ -228,6 +228,11 @@ private:
 
     /// @brief Handle devman/typeinfo
     RaftRetCode apiDevManTypeInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Append the "deviceTypeKey" field for a device type index (nothing is appended if there is no record)
+    /// @param jsonFields (in/out) JSON fields (without braces) to append to
+    /// @param deviceTypeIndex device type index
+    void appendDeviceTypeKey(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const;
 
     /// @brief Handle devman/cmdraw
     RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,

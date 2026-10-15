@@ -37,12 +37,12 @@ public:
     bool getDeviceInfo(DeviceTypeIndexType deviceTypeIdx, DeviceTypeRecord& devTypeRec) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get device type record for a device type name
-    /// @param deviceType device type name
+    /// @brief Get device type record for a device type key
+    /// @param deviceTypeKey device type key
     /// @param devTypeRec (out) device type record
     /// @param deviceTypeIdx (out) device type index
     /// @return true if device type found
-    bool getDeviceInfo(const String& deviceTypeName, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const;
+    bool getDeviceInfo(const String& deviceTypeKey, DeviceTypeRecord& devTypeRec, DeviceTypeIndexType& deviceTypeIdx) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device polling info
@@ -59,12 +59,12 @@ public:
     String getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIdx, bool includePlugAndPlayInfo) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get device type info JSON by device type name
-    /// @param deviceType device type name
+    /// @brief Get device type info JSON by device type key
+    /// @param deviceTypeKey device type key
     /// @param includePlugAndPlayInfo include plug and play info
     /// @param deviceTypeIndex (out) device type index
     /// @return JSON string
-    String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const;
+    String getDevTypeInfoJsonByTypeName(const String& deviceTypeKey, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const;
 
     // Device detection record
     class DeviceDetectionRec
@@ -127,7 +127,7 @@ private:
     // have been added
     RaftAtomicBool _extendedRecordsAdded;
 
-    // Maximum number of added device type records (see note below about absolute pointers since this space will be reserved)
+    // Maximum number of extended device type records (see note below about absolute pointers since this space will be reserved)
     static constexpr uint32_t MAX_EXTENDED_DEV_TYPE_RECORDS = 20;
 
     // Extended device type records

@@ -855,7 +855,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     // REST API endpoints
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            " devman/typeinfo?type=<typeName> - Get type info,"
+                            " devman/typeinfo?type=<typeKeyOrIndex> - Get type info,"
                             " devman/typeinfo?deviceid=<deviceId> - Get type info for a specific device (includes name/role sidecar fields when set),"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
@@ -867,7 +867,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/listdevs?role=<roleFilter> - Enumerate instantiated/detected devices (optional role filter),"
                             " devman/slot?bus=<busNameOrNum>&slot=<n>&mode=<i2c|serial-full|serial-half> - Set slot mode (omit mode to query),"
                             " devman/busstatus[?busnum=<n>] - Per-bus diagnostics (e.g. poll-response integrity counters),"
-                            " Note: typeName can be either a device type name or a device type index"
+                            " Note: typeKeyOrIndex can be either a device type key or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
@@ -954,7 +954,7 @@ RaftRetCode DeviceManager::apiDevManBusStatus(const String &reqStr, String &resp
 /// @brief Get type information for a device
 /// @param reqStr request string containing the command and parameters
 /// @param respStr (out) response string to be filled with the result
-/// @param jsonParams JSON object containing the parameters for the command, expected to have a "type" field which can be either a device type name or a device type index
+/// @param jsonParams JSON object containing the parameters for the command, expected to have a "type" field which can be either a device type key or a device type index
 /// @return RaftRetCode indicating success or failure of the operation, with the response containing the device type information in JSON format if successful
 RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
@@ -962,8 +962,9 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
     // In this mode we look up the device's actual installed type index and emit
     // optional sidecar fields "name" and "role" (omitted when at their default values).
     // NOTE: a request with only "bus" (no "addr") is NOT per-device mode — it falls
-    // through to the legacy type-name lookup for backward compatibility (e.g. the
-    // WebUI client passes `?bus=<name>&type=<type>` to scope a type-name lookup).
+    // through to the legacy type key/index lookup for backward compatibility (e.g. the
+    // WebUI client passes `?bus=<name>&type=<type>` to scope a type lookup).
+    // Both modes also return "deviceTypeKey", the device type key of the record.
     String deviceIdStr = jsonParams.getString("deviceid", "");
     String busName = jsonParams.getString("bus", "");
     String addrStr = jsonParams.getString("addr", "");
@@ -1016,44 +1017,49 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
             extras = "\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(resolvedTypeIndex);
         else
             extras = "\"dtIdx\":" + String((int)resolvedTypeIndex);
+        appendDeviceTypeKey(extras, resolvedTypeIndex);
         String name = lookupDeviceName(deviceID);
         if (name.length() > 0)
-        {
-            extras += ",\"name\":\"";
-            extras += name;
-            extras += "\"";
-        }
+            RaftJson::appendStringField(extras, "name", name.c_str());
         String role = getDeviceRole(deviceID);
         if (!role.equalsIgnoreCase("normal"))
-        {
-            extras += ",\"role\":\"";
-            extras += role;
-            extras += "\"";
-        }
+            RaftJson::appendStringField(extras, "role", role.c_str());
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
     }
 
-    // Original type-name / type-index lookup mode
-    String typeName = jsonParams.getString("type", "");
-    if (typeName.length() == 0)
+    // Original type key / type index lookup mode
+    String typeKeyOrIndex = jsonParams.getString("type", "");
+    if (typeKeyOrIndex.length() == 0)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeMissing");
 
     String devInfo;
     DeviceTypeIndexType deviceTypeIndex = 0;
 
-    if ((typeName.length() > 0) && isdigit(typeName[0]))
+    if ((typeKeyOrIndex.length() > 0) && isdigit(typeKeyOrIndex[0]))
     {
-        deviceTypeIndex = (DeviceTypeIndexType)typeName.toInt();
+        deviceTypeIndex = (DeviceTypeIndexType)typeKeyOrIndex.toInt();
         devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(deviceTypeIndex, false);
     }
     if (devInfo.length() == 0)
-        devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(typeName, false, deviceTypeIndex);
+        devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(typeKeyOrIndex, false, deviceTypeIndex);
 
     if ((devInfo.length() == 0) || (devInfo == "{}"))
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
 
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true,
-                ("\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(deviceTypeIndex)).c_str());
+    String extras = "\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(deviceTypeIndex);
+    appendDeviceTypeKey(extras, deviceTypeIndex);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Append the "deviceTypeKey" field for a device type index (nothing is appended if there is no record)
+/// @param jsonFields (in/out) JSON fields (without braces) to append to
+/// @param deviceTypeIndex device type index
+void DeviceManager::appendDeviceTypeKey(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const
+{
+    DeviceTypeRecord devTypeRec;
+    if (deviceTypeRecords.getDeviceInfo(deviceTypeIndex, devTypeRec) && devTypeRec.deviceType && devTypeRec.deviceType[0])
+        RaftJson::appendStringField(jsonFields, "deviceTypeKey", devTypeRec.deviceType);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1808,21 +1814,21 @@ void DeviceManager::registerForDeviceData(DeviceTypeIndexType deviceTypeIndex, R
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Register for device data notifications (note that callbacks may occur on different threads)
-/// @param deviceTypeName Device type name
+/// @param deviceTypeKeyOrAddr Device type key, or a device address of the form "<bus>_<addr>[@slot]"
 /// @param dataChangeCB Callback for data change
 /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
 /// @param pCallbackInfo Optional callback info (passed to the callback)
 /// @param unregister true to unregister the callback instead of registering
-void DeviceManager::registerForDeviceData(const char* deviceTypeName, RaftDeviceDataChangeCB dataChangeCB,
+void DeviceManager::registerForDeviceData(const char* deviceTypeKeyOrAddr, RaftDeviceDataChangeCB dataChangeCB,
         uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo, bool unregister)
 {
     // The identifier may be a device address of the form "<bus>_<addr>[@slot]"
-    // (e.g. "I2CA_0x6a@0") rather than a device type name. If it resolves to a
+    // (e.g. "I2CA_0x6a@0") rather than a device type key. If it resolves to a
     // real bus + address, register by device ID instead. That path is deferred
     // until the device at that address comes online (see busElemStatusCB), so it
     // works even when called before the device has been identified.
     {
-        String idStr(deviceTypeName);
+        String idStr(deviceTypeKeyOrAddr);
         int usPos = idStr.indexOf('_');
         if (usPos > 0)
         {
@@ -1853,18 +1859,18 @@ void DeviceManager::registerForDeviceData(const char* deviceTypeName, RaftDevice
         }
     }
 
-    // Get device type index for the device type name
+    // Get device type index for the device type key
     DeviceTypeRecord devTypeRec;
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
-    deviceTypeRecords.getDeviceInfo(String(deviceTypeName), devTypeRec, deviceTypeIndex);
+    deviceTypeRecords.getDeviceInfo(String(deviceTypeKeyOrAddr), devTypeRec, deviceTypeIndex);
     if (deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID)
     {
-        LOG_W(MODULE_PREFIX, "registerForDeviceData failed: invalid device type name %s", deviceTypeName);
+        LOG_W(MODULE_PREFIX, "registerForDeviceData failed: invalid device type key %s", deviceTypeKeyOrAddr);
         return;
     }
 
 #ifdef DEBUG_REGISTER_FOR_DEVICE_DATA
-    LOG_I(MODULE_PREFIX, "registerForDeviceData deviceTypeName %s deviceTypeIndex %u", deviceTypeName, deviceTypeIndex);
+    LOG_I(MODULE_PREFIX, "registerForDeviceData deviceTypeKey %s deviceTypeIndex %u", deviceTypeKeyOrAddr, deviceTypeIndex);
 #endif
 
     // Add to requests for device data changes

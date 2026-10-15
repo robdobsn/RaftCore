@@ -52,7 +52,7 @@ struct AttrFieldDesc
 class DeviceTypeRecord
 {
 public:
-    const char* deviceType = nullptr;
+    const char* deviceType = nullptr;       // Device type key
     const char* addresses = nullptr;
     const char* detectionValues = nullptr;
     const char* initValues = nullptr;

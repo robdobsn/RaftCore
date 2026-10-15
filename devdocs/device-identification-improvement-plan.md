@@ -21,13 +21,13 @@ polling), and the consumers that are affected (raftjs, RaftROS, Axiom).
 
 | # | Goal |
 |---|---|
-| G1 | Keep built-in device type records mainly in flash |
-| G2 | Hold runtime device type records memory-efficiently. Raise the limit of 20 if possible |
+| G1 | Keep base device type records mainly in flash |
+| G2 | Hold extended device type records memory-efficiently. Raise the limit of 20 if possible |
 | G3 | Work on ESP32 parts with and without PSRAM, with higher limits when PSRAM is present |
 | G4 | Handle device type records as efficiently as possible in processor time |
-| G5 | Allow built-in records to be disabled at runtime, for example by a runtime record carrying a disable flag |
-| G6 | Load runtime records from a file at startup, and do not identify devices until it is loaded. When the file changes, either reset the system or restart identification |
-| G7 | Do the derivations that `ProcessDevTypeJsonToC.py` does today (address map, scan lists) at startup and whenever the record set changes, so built-in and runtime records are treated the same |
+| G5 | Allow base records to be disabled at runtime, for example by an extended record carrying a disable flag |
+| G6 | Load extended records from a file at startup, and do not identify devices until it is loaded. When the file changes, either reset the system or restart identification |
+| G7 | Do the derivations that `ProcessDevTypeJsonToC.py` does today (address map, scan lists) at startup and whenever the record set changes, so base and extended records are treated the same |
 | G8 | Find new or changed devices quickly without taking significant bus time from polling |
 | G9 | Make polling meet every device's polling requirement, including the expected rate |
 | G10 | Provide finer-grained device management through improved DeviceManager APIs |
@@ -40,7 +40,7 @@ polling), and the consumers that are affected (raftjs, RaftROS, Axiom).
 2. **Lay the foundations before the features.** Storage (Stage 2), the runtime-built index (Stage 3) and the
    single parser (Stage 4) are what disabling records, loading records from a file and identifying devices
    per element all depend on.
-3. **Make runtime records first-class, then load them from a file** (Stages 5–6).
+3. **Make extended records first-class, then load them from a file** (Stages 5–6).
 4. **Then the identification model, live reload, scanning, the APIs and the wire-level names** (Stages 7–11).
    Each depends on the stages before it.
 
@@ -65,7 +65,7 @@ Stage 11 handles the remaining renames that clients can see.
 | NACKed write left the bus unusable (bus resync after a partial access) | RaftI2C |
 | Console logging no longer stalls the main loop when nothing reads the console | RaftCore, RaftSysMods |
 | `SpiramAwareAllocator` detects PSRAM on ESP-IDF 5+ | RaftCore |
-| Binary detection values parsed as hex (§10.8) fixed, with a test of every built-in record (PR #12, 2026-10-15) | RaftCore |
+| Binary detection values parsed as hex (§10.8) fixed, with a test of every base record (PR #12, 2026-10-15) | RaftCore |
 | Linux unit tests: one program per area, all checking real code, run by CI on pushes to `main` and on PRs (`make -C linux_unit_tests check`) | RaftCore |
 | `DeviceNames` class (device names and roles) moved out of DeviceManager | RaftCore |
 | `RaftDeviceID::fromString` rejects malformed IDs; `ProtocolExchange` reports combined activity of all sessions; a stream to an unknown endpoint is refused | RaftCore |
@@ -74,11 +74,11 @@ Stage 11 handles the remaining renames that clients can see.
 
 | Area | Open findings |
 |---|---|
-| Type table and generator | C5 (`s` defaults to 0), C6, C7, C8, C9, C10, C11, C12, C13, C15; non-const tables in DRAM; runtime records re-parse address strings on every lookup; name lookup is a linear `strcmp` |
+| Type table and generator | C5 (`s` defaults to 0), C6, C7, C8, C9, C10, C11, C12, C13, C15; non-const tables in DRAM; extended records re-parse address strings on every lookup; name lookup is a linear `strcmp` |
 | Identification | I3, I4, I9, I10, I11, I17; ordering shadows records (review §5.2); no identity-change event (A1) |
 | Presence and scanning | I1, I2, I7, I8, I16; scan lists are a snapshot taken in `BusScanner::setup` (review §5.16) |
 | Polling | I5, I6, I14; the poll-rate drift described in §2.3 |
-| Runtime records | Cap of 20, shared with static devices; no disable; override leaves two indices for one name; no file loader on `main` |
+| Extended records | Cap of 20, shared with static devices; no disable; override leaves two indices for one name; no file loader on `main` |
 
 ### 2.3 Why poll rates are slower than expected
 
@@ -115,19 +115,18 @@ This is where the stages lead. Each stage below moves part of the way there.
 
 ### 3.1 Two sources of record, one type table
 
-- **Built-in records** (canonical term: base record) are generated at build time, are `const`, and stay in
-  flash, including their arrays.
-- **Runtime records** (canonical term: extended record) come from:
+- **Base records** are generated at build time, are `const`, and stay in flash, including their arrays.
+- **Extended records** are added at runtime. They come from:
   - the device type file;
   - application code, for example RSAO or a SysMod;
   - static devices, i.e. devices declared in `DevMan/Devices`.
 - **The type table** is the single place that maps a device type index to a record.
-  - It is an array of handles. The entries for built-in indices point into flash by default.
+  - It is an array of handles. The entries for base indices point into flash by default.
   - Each entry also holds the record's **policy byte** (enabled, disabled, or disabled-claim) and its
-    **source** (built-in, file, code, or static device).
+    **source** (base, file, code, or static device).
 - **Override keeps the index if it is applied before identification starts** (D2, refined by §3.8).
-  - A runtime record with the same device type key as a built-in record, loaded before the type table is
-    `Ready`, replaces that built-in record's *entry*. It does not get a new index.
+  - An extended record with the same device type key as a base record, loaded before the type table is
+    `Ready`, replaces that base record's *entry*. It does not get a new index.
   - An override applied later (live reload, Stage 8) gets a **new** index. The key then resolves to the new
     index, and the old index stays bound to the old record until nothing uses it.
   - So a device type key always maps to exactly one *current* device type index, and an index never changes
@@ -137,7 +136,7 @@ This is where the stages lead. Each stage below moves part of the way there.
   - The record stays visible to `typeinfo`, decoding and subscriptions. Only identification ignores it
     (review §7.2).
 
-### 3.2 Runtime record storage
+### 3.2 Extended record storage
 
 - **One allocation per record.**
   - A small fixed header holds offsets, sizes, flags, scan priority, identification priority and the
@@ -168,14 +167,14 @@ table changes (when the generation, described below, increases). It replaces the
 | Address → identification candidates | CSR: `uint16_t start[0x79]` plus a `uint16_t` index list, sorted by identification order (§3.5) | ~250 B + 2 B per (record, address) pair; ~400 B for today's catalogue |
 | Address → all known records (`AllKnown`, used for RSAO reservation) | A second CSR, or one flag bit per entry in the first | ~150 B |
 | Scan priority lists | `uint8_t` address lists, one per level | ≤ 360 B |
-| Name → index | A `uint16_t` array sorted by device type name, searched by binary search | 2 B per record |
+| Key → index | A `uint16_t` array sorted by device type key, searched by binary search | 2 B per record |
 | Hardware type ID → index | A sorted array of `(uint16_t hwTypeId, uint16_t index)` | 4 B per record that has one |
 | Reserved-address bitmap (for re-addressable devices) | 128 bits | 16 B |
 
 - **Generation.** A `uint32_t` that increases on every change. Readers take one snapshot of the
   structure (built off to one side, then the pointer is swapped under the table mutex), so lookups don't
   hold a lock.
-- **Built-in-only builds** spend under 1 KB of RAM and a few milliseconds at boot.
+- **Base-only builds** spend under 1 KB of RAM and a few milliseconds at boot.
 - **The generator keeps validating** records, and emits the per-record fields (§3.1) rather than derived
   tables. A host unit test checks that the runtime builder gives the same address map and scan lists as the
   old generated tables for the shipped catalogues.
@@ -187,12 +186,12 @@ table changes (when the generation, described below, increases). It replaces the
     `Pause`.
   - It checks the string strictly and reports the position of any error.
 - **When it runs:**
-  - for runtime records, when the record is registered (rejected with the reason if invalid);
-  - for built-in records, at build time through the same rules in Python, with shared test vectors.
+  - for extended records, when the record is registered (rejected with the reason if invalid);
+  - for base records, at build time through the same rules in Python, with shared test vectors.
 - **What is stored at runtime:**
-  - Runtime records store the compiled operations in their record allocation, which is usually smaller than
+  - Extended records store the compiled operations in their record allocation, which is usually smaller than
     the strings.
-  - Built-in records are compiled on first use and the result is cached per identified device type, as a
+  - Base records are compiled on first use and the result is cached per identified device type, as a
     `shared_ptr<const PollPlan>`. This also removes the copy of `DevicePollingInfo` made on every poll
     (review §5.1).
 
@@ -250,7 +249,7 @@ disabled, and how do we make sure data isn't decoded with the wrong record durin
 | # | Case | Result |
 |---|---|---|
 | H1 | An override rebinds an index that devices are already using (D2 as first written, applied live) | Samples polled under the old record are decoded with the new record's layout, by firmware and by clients that already cached the index |
-| H2 | Indices differ between sessions: runtime indices follow file order; built-in indices follow JSON order and firmware build | A client that keeps its cache across a reboot, reconnect or OTA decodes with the wrong record. raftjs never invalidates its cache today |
+| H2 | Indices differ between sessions: extended record indices follow file order; base indices follow JSON order and firmware build | A client that keeps its cache across a reboot, reconnect or OTA decodes with the wrong record. raftjs never invalidates its cache today |
 | H3 | raftjs also caches typeinfo **per device ID**, and doesn't check `_i` again | When a device at the same address is re-identified as a different type, raftjs keeps decoding it with the old type |
 | H4 | Firmware consumers cache the decoder per device (RaftROS AutoPub, DataLogger) | Same as H3, inside the firmware (review A1) |
 | H5 | A multi-step poll is in progress when the device is re-identified | The remaining steps of the old poll plan complete, and their result could be stored in the new type's aggregator |
@@ -267,7 +266,7 @@ without knowing anything about the device's history.
 
 **Rules** (agreed as D14, rules 4 and 5 revised 2026-10-15; they apply to Stages 2, 5, 7 and 8):
 1. **An index is bound to one record's content for the whole firmware boot.** It is never reused or rebound.
-   - Before `Ready`, nothing has been identified or published, so a file override can take the built-in
+   - Before `Ready`, nothing has been identified or published, so a file override can take the base
      index (§3.1).
    - After `Ready`, any change to a record's content gets a new index. The old index is retired, and stays
      resolvable for decoding until no device and no stored sample uses it.
@@ -282,7 +281,7 @@ without knowing anything about the device's history.
    - The firmware forgets subscriptions when it reboots, and raftjs re-subscribes after every reconnect
      (`RaftConnector._reestablishAfterReconnect`). So every new firmware boot is seen by raftjs as a new
      subscription. Within one subscription, rule 1 means the cache never needs clearing.
-   - Across a reboot an index *can* change meaning: after an OTA (built-in order), after a type file change,
+   - Across a reboot an index *can* change meaning: after an OTA (base order), after a type file change,
      or with a boot-time override (D2). So raftjs clears its index-keyed type cache when it (re)subscribes
      (R1). This is a client-only change.
    - **No change to devbin or devjson is needed.** The earlier proposal of a type table ID in the publish
@@ -350,29 +349,31 @@ appears to read.
     that reads it keeps working. This costs no flash, unlike keeping the field in every record.
 - **Overrides.** A record's identity is its key. An override is a new *version* of the same key, from a
   different source.
-  - `typeinfo` reports the version that is current (`src`: `builtin`, `file`, `code` or `static`).
+  - `typeinfo` reports the version that is current (`src`: `base`, `file`, `code` or `static`).
   - `devman/types?all=1` also lists the versions that have been replaced, so a UI can show "the file
-    overrides the built-in VCNL4040".
+    overrides the base VCNL4040".
   - Disabling is applied to a key, so it applies to whichever version is current.
 - **Static devices** already get their key from configuration (`type`, e.g. `ACCDEMO`). C8 (two instances
   with the same key and different content) is handled by the registration result in Stage 2.
 
-**Term.** The principles document calls the identifier the "device type name". "Name" is easily confused
-with `devInfoJson.name`, which is the opposite (shown to users, not unique). This plan proposes **device type
-key** instead (decision D12). If adopted, principles §2 is updated and the C++ and REST spellings follow
-the Stage 0 rules.
+**Term** (D12, done 2026-10-15). The identifier is the **device type key**. It was called the "device type
+name", which is easily confused with `devInfoJson.name` (shown to users, not unique). Principles §2, the plan
+and the wiki use the new term, and `devman/typeinfo` returns `deviceTypeKey`. Inside the Raft libraries,
+parameter names, local variables, comments and log text use "key". Names that are part of an API or contract
+keep their spelling and hold the key: `DeviceTypeRecord::deviceType`, `DeviceTypeRecordDynamic::deviceTypeName`,
+`getDevTypeInfoJsonByTypeName`, the REST parameter `type=`, and JSON and wire field names.
 
 ---
 
-## 4. Memory budget for runtime records
+## 4. Memory budget for extended records
 
 These are estimates from the current catalogue sizes. Stage 0 measures them.
 
 | | Today | Proposed, no PSRAM | Proposed, with PSRAM |
 |---|---|---|---|
-| Built-in record array and address index | ~2.5 KB DRAM (non-const) | 0 DRAM (const, in flash) | 0 DRAM |
-| Idle cost of runtime slots | ~2.2 KB internal (`reserve(20)`) | 4 B × capacity (128 B for 32) | 4 B × capacity (1 KB for 256) |
-| Typical runtime record (median `devInfoJson` ~380 B) | ~520 B + 6 heap blocks of overhead | ~480 B, 1 block (internal) | ~480 B, 1 block (PSRAM) |
+| Base record array and address index | ~2.5 KB DRAM (non-const) | 0 DRAM (const, in flash) | 0 DRAM |
+| Idle cost of extended record slots | ~2.2 KB internal (`reserve(20)`) | 4 B × capacity (128 B for 32) | 4 B × capacity (1 KB for 256) |
+| Typical extended record (median `devInfoJson` ~380 B) | ~520 B + 6 heap blocks of overhead | ~480 B, 1 block (internal) | ~480 B, 1 block (PSRAM) |
 | Same, with `devInfoJson` kept in the file | n/a | ~100–150 B | not needed |
 | Suggested default capacity | 20 | 32 records, 16 KB byte budget | 256 records, 256 KB byte budget |
 | Catalogue index (§3.3) | 0 (generated) | < 1 KB + 2–6 B per record | same, in PSRAM |
@@ -398,8 +399,8 @@ involved.
 
 | Decision | Proposal |
 |---|---|
-| Names for the two record sources | **built-in** and **runtime**, replacing "base" and "extended". "Static" is avoided, because a *static device* already means a directly connected device. Update principles §2 to match |
-| Class names | `DeviceTypeRecordDynamic` → `RuntimeDeviceTypeRecord`; `_extendedDevTypeRecords` → the type table's runtime store |
+| Names for the two record sources | **base** and **extended**, as in principles §2 and the code (D1). Not "static"/"dynamic" or "built-in"/"runtime" |
+| Class names | Unchanged. `DeviceTypeRecordDynamic` is external API (overridden by Axiom `DevicePower`, RaftMotorControl `MotorControl` and `DemoDevice`), so it keeps its name and is documented as the class that holds an extended record's data |
 | Index spelling in code | `deviceTypeIndex` everywhere (replacing `deviceTypeIdx`, `devTypeIdx`, `typeIdx`). Wire names `_i` and `dtIdx` are unchanged |
 | Vendor type identifier | `hwTypeId` (replacing `deviceTypeId`, which is too close to `deviceTypeIdx`) |
 | Lookups | `getDeviceInfo(idx)` → `getRecord(deviceTypeIndex)`; `getDeviceTypeIdxsForAddr` → `getIdentCandidates(addr)` and `getKnownTypesAtAddr(addr)`; `getPendingIdentPoll` → `getNextDuePoll` |
@@ -415,7 +416,7 @@ deprecated alias for one release.
 - **Scan.** Time from plug-in to `isNewlyIdentified`, by priority list and by slot. Also probes per second
   and the share of bus time used by scanning.
 - **Bus utilisation.** Time spent in polls, scans and requests per 1 s window.
-- **Memory.** DRAM used by the type table, idle and per runtime record, with and without PSRAM.
+- **Memory.** DRAM used by the type table, idle and per extended record, with and without PSRAM.
 - **Script:** a bench script (in the style of `deftest.js`) that records all of the above to JSON, so later
   stages can be compared run against run.
 
@@ -503,7 +504,7 @@ load rises. The admission warning (item 7) makes this visible.
 
 ### Stage 2: Type table storage
 
-**Aim:** built-in records cost no DRAM, runtime records are compact and can use PSRAM, and the limit of 20 is
+**Aim:** base records cost no DRAM, extended records are compact and can use PSRAM, and the limit of 20 is
 raised (G1–G4). Behaviour does not change.
 
 **Changes:**
@@ -511,14 +512,14 @@ raised (G1–G4). Behaviour does not change.
    as `const`. (The field descriptor tables and scan lists are already `const`.) Also C6, C11, C12.
 2. **`RuntimeDeviceTypeRecord`** uses the packed single-allocation layout (§3.2), allocated with
    `SpiramAwareAllocator`.
-3. **Runtime store:**
+3. **Extended record store:**
    - a fixed-capacity array of record handles, sized from configuration, with defaults that depend on PSRAM
      (§4);
    - an atomic count published with release semantics, so a read by index needs no lock (review §9.1
      RaftCore item 9);
    - a byte budget, checked when a record is added.
 4. **Lookups without copies.** `const DeviceTypeRecord* getRecord(deviceTypeIndex)` returns a pointer to the
-   flash record, or to a view of the runtime record. The current `getDeviceInfo(idx, DeviceTypeRecord&)`
+   flash record, or to a view of the extended record. The current `getDeviceInfo(idx, DeviceTypeRecord&)`
    becomes a wrapper around it.
 5. **Registration result.**
    - `addRecord()` returns `{Added, Replaced, AlreadyPresent, Full, Invalid}` plus the index (C7).
@@ -526,12 +527,12 @@ raised (G1–G4). Behaviour does not change.
 6. **Static devices of the same type with different data sizes** (C8): the second registration with the same
    key and different content is rejected with a clear error, and the configuration must give it a distinct
    `type`. Keys are not suffixed automatically, because that would rename RaftROS topics (§9.2 item 14, D17).
-7. **Name lookup by binary search** over a sorted index. For built-in records it is generated (`const`); for
-   runtime records it is maintained when a record is added.
+7. **Name lookup by binary search** over a sorted index. For base records it is generated (`const`); for
+   extended records it is maintained when a record is added.
 
 **Verify:**
 - Linker map: the DRAM used by the device type tables drops by the expected ~2.5 KB.
-- Runtime record cost per record matches §4, with and without PSRAM (FeatherS3 has PSRAM; test a build with
+- Extended record cost per record matches §4, with and without PSRAM (FeatherS3 has PSRAM; test a build with
   `CONFIG_SPIRAM` off).
 - Add 32 records (no PSRAM) and 256 records (PSRAM).
 - All existing unit tests and the decode regression test pass.
@@ -544,12 +545,12 @@ raised (G1–G4). Behaviour does not change.
 
 ### Stage 3: The catalogue index, built at runtime
 
-**Aim:** the address map, scan lists and reserved addresses are built at runtime from all records, so runtime
+**Aim:** the address map, scan lists and reserved addresses are built at runtime from all records, so extended
 records are first-class (G7, G4).
 
 **Changes:**
-1. **Record fields that today exist only at build time** become fields of every record, built-in and
-   runtime:
+1. **Record fields that today exist only at build time** become fields of every record, base and
+   extended:
    - `scanPriority`;
    - `probeOnly` (replacing `excludeFromAddrMap`);
    - `identPriority`;
@@ -575,8 +576,8 @@ records are first-class (G7, G4).
 **Verify:**
 - A host test checks that the runtime-built address map and scan lists equal the old generated ones for the
   RaftCore and Axiom catalogues.
-- Boot-time cost (Stage 0 measurement): index build under 5 ms and under 1 KB for built-in-only builds.
-- A runtime record with `scanPriority: "low"` is no longer forced into list 0.
+- Boot-time cost (Stage 0 measurement): index build under 5 ms and under 1 KB for base-only builds.
+- An extended record with `scanPriority: "low"` is no longer forced into list 0.
 
 **Repos:** RaftCore, RaftI2C, Axiom (RSAO registry, later).
 
@@ -602,7 +603,7 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
   report over every known catalogue; then they reject.
 - **Shared test vectors** (JSON), run by a C++ host test and by the Python generator. The Axiom
   `device-descriptor-spec.md` is the starting point for the specification.
-- **Compiled operations** are stored in the runtime record. Built-in records are compiled on first use and
+- **Compiled operations** are stored in the extended record. Base records are compiled on first use and
   cached per type (`PollPlan`).
 - **Tri-state detection** (I4): `checkDeviceTypeMatch` returns `Match`, `NoMatch` or `BusError`. A
   `BusError` stops the attempt: no fall-through to weaker records, and no fallback hook.
@@ -621,7 +622,7 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
 
 ### Stage 5: Record policy and override
 
-**Aim:** built-in records can be disabled at runtime, and an override really replaces a built-in record
+**Aim:** base records can be disabled at runtime, and an override really replaces a base record
 (G5).
 
 **Changes:**
@@ -632,12 +633,12 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
      fallback hook is not run there, and the address stays reserved.
    - The policy affects identification only. `typeinfo`, decoding and subscriptions are unchanged.
 2. **Override keeps the index when applied before `Ready`** (§3.1, §3.8).
-   - Adding a runtime record with the key of a built-in record before `Ready` replaces that entry's handle.
+   - Adding an extended record with the key of a base record before `Ready` replaces that entry's handle.
    - The old record is retired, not freed.
    - The device type key keeps a single index. (Overrides after `Ready` only exist from Stage 8 and get a new
      index.)
    - The decoder is inherited when the `resp` schema is byte-identical (review §9.2-G).
-3. **A runtime record may carry `"disable": true`** (with or without a body) to set the policy for that
+3. **An extended record may carry `"disable": true`** (with or without a body) to set the policy for that
    name.
 4. **Protected types and addresses come from SysTypes** (review §9.2-F). `DevMan/Devices[]` entries with
    `role: "system"` plus `expectType` cannot be disabled or overridden. This replaces Axiom's hard-coded
@@ -648,7 +649,7 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
 
 **Verify:**
 - Unit tests:
-  - disable a built-in record → the next candidate matches;
+  - disable a base record → the next candidate matches;
   - `DisabledClaim` → the hook is not called;
   - override → one index per name, and `typeinfo` reports `src`.
 - Bench: disable APDS9960 → the device at 0x39 stays unidentified and is not probed by a hook.
@@ -661,7 +662,7 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
 
 ### Stage 6: Device type file at startup; identification waits for it
 
-**Aim:** runtime records are loaded from a file before any device is identified. A change to the file is
+**Aim:** extended records are loaded from a file before any device is identified. A change to the file is
 applied by a controlled restart (G6).
 
 **Changes:**
@@ -669,7 +670,7 @@ applied by a controlled restart (G6).
    - `DevMan/typeFile` (e.g. `/local/devtypes.json`);
    - `DevMan/typeFileRequired` (what to do if the file is missing).
    - **Format:** the same as `DeviceTypeRecords.json`, i.e. `{"devTypes":{…}}`. Entries may be full records,
-     overrides (same name as a built-in record) or `{"disable":true}`.
+     overrides (same name as a base record) or `{"disable":true}`.
    - **Validation:** each record is validated by the Stage 4 parser and the Stage 2 budgets. A bad record is
      rejected on its own and the first error is kept.
    - **Result:** a CRC of the applied content is kept, for comparison with `filehash`. This is the Axiom
@@ -769,7 +770,7 @@ device's identity changes (needed to make G6's restart-identification and G10 wo
    4. rebuild the catalogue index;
    5. let the `StaleGeneration` re-identification run.
 3. **Safe lifetime for retired records** (review §9.2-I).
-   - Raw `const char*` pointers into runtime records must not outlive a call.
+   - Raw `const char*` pointers into extended records must not outlive a call.
    - Consumers that keep type data (DeviceManager subscriber cache, RaftROS, DataLogger) keep the index plus
      the generation, and look the record up again when the generation changes.
    - Retired records are freed only when no bus has an identification against the old generation, i.e.
@@ -803,7 +804,7 @@ and the main bus and all slots keep being covered (G8).
    - This replaces the fixed 2 ms per pass in slow mode. It lets an idle bus find devices faster, and keeps a
      busy bus free for polling.
 2. **Scan where a device could be identified.**
-   - The scan lists come from the catalogue index (Stage 3) and so include runtime records at their declared
+   - The scan lists come from the catalogue index (Stage 3) and so include extended records at their declared
      priority.
    - Addresses that no record and no registered hook can claim move to a slow "background sweep". They still
      appear as unidentified elements in diagnostics, but far less often. A hook registers the address range
@@ -841,7 +842,7 @@ each measured with 0, 1 and 2 VCPs polling.
 
 | Endpoint | Purpose |
 |---|---|
-| `devman/types` | The type table: index, device type name, source, policy, generation. Paged |
+| `devman/types` | The type table: index, device type key, source, policy, generation. Paged |
 | `devman/typeinfo` | As today, plus `deviceTypeName`, `src`, `policy` and `generation` |
 | `devman/typepolicy?type=&policy=enabled\|disabled\|claim` | Change a record's policy at runtime, optionally saving it to the type file |
 | `devman/typefile`, `devman/typefile/apply` | Status and apply (Stages 6 and 8) |
@@ -869,7 +870,7 @@ Also:
 **Aim:** finish G11 at the API and client level without breaking existing clients.
 
 - **REST:**
-  - accept `deviceTypeIndex` alongside `type=<number>`, and `deviceTypeName` alongside `type=<name>`;
+  - accept `deviceTypeIndex` alongside `type=<number>`, and `deviceTypeKey` alongside `type=<key>`;
   - document the canonical form.
 - **raftjs** (additions only, §9.1 rule 4, R4):
   - new fields `displayName`, `deviceTypeKey` and `busNum`;
@@ -889,13 +890,13 @@ Also:
 
 | Goal | Stages |
 |---|---|
-| G1 built-in records in flash | 2 |
-| G2 memory-efficient runtime records, higher limit | 2 (packed storage, byte budget), 6 (`devInfoJson` in the file, optional) |
+| G1 base records in flash | 2 |
+| G2 memory-efficient extended records, higher limit | 2 (packed storage, byte budget), 6 (`devInfoJson` in the file, optional) |
 | G3 with and without PSRAM | 2 (allocator and defaults), 0 (measurement) |
 | G4 processor efficiency | 2 (lock-free index reads, binary search by name), 3 (CSR index), 4 (compiled operations, `PollPlan`) |
 | G5 runtime disable | 5 |
 | G6 file at startup and on change | 6 (reset), 8 (restart identification) |
-| G7 runtime derivation, first-class runtime records | 3 |
+| G7 derivation at runtime, first-class extended records | 3 |
 | G8 scanning | 3 (lists from the index), 9 |
 | G9 polling | 1 |
 | G10 DeviceManager APIs | 10 (plus pieces in 6–8) |
@@ -945,25 +946,25 @@ All decided on 2026-10-15. Each decision took the recommendation made in this pl
 
 | # | Question | Decision |
 |---|---|---|
-| D1 | Names for the record sources | **Built-in** and **runtime**. "Static" is avoided because a static device already means a directly connected device |
-| D2 | Should an override keep the built-in record's index? | Yes, if the override is applied before the type table is `Ready`: one key, one current index. A live override (Stage 8) gets a new index, so an index never changes meaning within a session. This refinement is confirmed by D14 (§3.8 rule 1) |
+| D1 | Names for the record sources | **Base** and **extended**, as already used in the code and in principles §2. (Revised 2026-10-15: "built-in"/"runtime" was first agreed, then dropped to avoid renaming code and external APIs.) `DeviceTypeRecordDynamic` keeps its name |
+| D2 | Should an override keep the base record's index? | Yes, if the override is applied before the type table is `Ready`: one key, one current index. A live override (Stage 8) gets a new index, so an index never changes meaning within a session. This refinement is confirmed by D14 (§3.8 rule 1) |
 | D3 | Default capacities and byte budgets | 32 records / 16 KB without PSRAM; 256 records / 256 KB with PSRAM. Confirm against Stage 0 measurements |
 | D4 | Keep `devInfoJson` in the file on boards without PSRAM? | An option, off by default. Enable it on boards that are short of RAM |
 | D5 | First version of "file changed" | Reset first (Stage 6); restart identification without a reset later (Stage 8) |
-| D6 | Can identification wait for ever for a missing or slow source? | No. Wait with a timeout (5 s proposed), then continue with the built-in records and log it |
+| D6 | Can identification wait for ever for a missing or slow source? | No. Wait with a timeout (5 s proposed), then continue with the base records and log it |
 | D7 | Default and minimum poll interval | 100 ms default, 2 ms minimum |
 | D8 | Catch-up policy for late polls | No bursts. Skip to `now + interval` and count the miss |
 | D9 | Should addresses that no record can claim be scanned only in a slow background sweep? | Yes. Hooks register the address ranges they handle |
 | D10 | Should policy changes made over REST be persisted, and where? | Yes, in the type file as `disable` entries, so there is one source of truth |
 | D11 | Should the runtime decoder (review §9.2-G) be scheduled? | Decide after Stage 6 |
-| D12 | Term for the record identifier | **Device type key** (§3.9). Principles §2 is to be updated to match |
+| D12 | Term for the record identifier | **Device type key** (§3.9). Done 2026-10-15: documentation (principles §2, plan, wiki); `deviceTypeKey` added to the `typeinfo` response; inside the Raft libraries, non-API names (parameters, locals, comments, log text) renamed. Names that are part of an API or contract are unchanged |
 | D13 | Remove `deviceType` and `devInfoJson.type` from the JSON? | Yes. The identifier is filled in from the key. During the transition, `deviceType` is accepted only if it equals the key, and `type` is inserted into `typeinfo` responses for one release (§3.9) |
 | D14 | Adopt the index rules of §3.8? | Yes. Rules 1–3 and 5 go into Stage 7 (rule 1 for live overrides waits for Stage 8). **Rule 4 revised 2026-10-15:** no type table ID in the publish streams; clients clear index-keyed caches on (re)subscribe (see D16) |
 
 ### 8.1 Follow-ups from the decisions
 
-- Update `device-type-management-principles.md` §2 for D1 and D12: built-in and runtime records, and the
-  device type key. Do this in Stage 0.
+- Update `device-type-management-principles.md` §2 for D12 (the device type key). Base and extended records
+  (D1) need no change there. Do this in Stage 0.
 - D3, D6 and D7 contain numbers to confirm or tune against the Stage 0 measurements.
 - D11 is revisited when Stage 6 is complete.
 
@@ -1005,7 +1006,7 @@ Rules:
 |---|---|---|---|---|---|
 | 1 | **devbin stream** (envelope, record header, `devTypeIdx`) | raftjs, apps | — | **Unchanged.** An earlier version of this plan put a type table ID in the envelope. That would have broken deployed raftjs: it accepts magic 0xDB–0xDF, then tells EnvelopeV2 from V1 by probing for a valid record at offset 5, then 4 (`processClientMsgBinary`), so a longer envelope fails both probes and the whole message is dropped. The ID is no longer needed (§3.8 rules 4–5) | Yes |
 | 2 | **devjson stream** | raftjs, apps, tools | — | **Unchanged** (the `_tt` key proposed earlier is withdrawn) | Yes |
-| 3 | **Meaning of `_i` / `devTypeIdx`** | raftjs, RaftROS, DataLogger | 2, 5, 6, 8 | Built-in indices are unchanged for a given build. A boot-time override keeps the built-in index (D2). **New:** file records get indices in file order, after the static devices; static devices register first, so their indices stay as today. Within a firmware boot an index never changes meaning (§3.8) | Yes. Across boots, raftjs clears index-keyed type data on (re)subscribe (R1) |
+| 3 | **Meaning of `_i` / `devTypeIdx`** | raftjs, RaftROS, DataLogger | 2, 5, 6, 8 | Base indices are unchanged for a given build. A boot-time override keeps the base index (D2). **New:** file records get indices in file order, after the static devices; static devices register first, so their indices stay as today. Within a firmware boot an index never changes meaning (§3.8) | Yes. Across boots, raftjs clears index-keyed type data on (re)subscribe (R1) |
 | 4 | **`devman/typeinfo`** | raftjs (two URL forms), apps | 3, 5, 8, 10 | The response adds `deviceTypeKey`, `src` and `policy`. `devinfo.type` is removed from the catalogues but inserted into responses for one release (D13). **The `bus=<n>&type=<index>` form must stay:** current raftjs uses it for *every* devbin record to choose the payload format, not only for old firmware | Yes, if `bus=&type=` keeps its behaviour |
 | 5 | **`devman/listdevs`** | raftjs, tools | 7, 10 | Adds fields (identification state) | Yes |
 | 6 | **`devman/devconfig`** | raftjs, apps | 1, 7, 10 | `intervalUs` is clamped to ≥ 2 ms (D7). `numSamples` is capped by bytes (I6). Settings survive re-identification (Stage 7). Adds `save=1` | Mostly. A request below the clamp gets less than it asked for, so the response must report the value applied |
@@ -1131,10 +1132,10 @@ loader needs the `scanPriority`, `excludeFromAddrMap`/`probeOnly` and `s` fixes.
 
 | # | Behaviour | Branch | Plan | Effect on library files already in the field |
 |---|---|---|---|---|
-| B1 | **Override** | The library record is tried first; the compiled record stays a fall-through candidate. The example file's `_notes` relies on this ("if these detectionValues fail to match, identification still falls through to the built-in definition") | D2: an override replaces the entry, with no fall-through | A library override whose detection is wrong stops matching instead of falling back. Confirm D2 (D21) and update the spec and the example |
+| B1 | **Override** | The library record is tried first; the compiled record stays a fall-through candidate. The example file's `_notes` relies on this ("if these detectionValues fail to match, identification still falls through to the base definition") | D2: an override replaces the entry, with no fall-through | A library override whose detection is wrong stops matching instead of falling back. Confirm D2 (D21) and update the spec and the example |
 | B2 | **Disable** | By name, kept in a separate list of up to 128 names. It also hides the record from name lookups (`typeinfo?type=`, `registerForDeviceData(name)`) and from RSAO address reservation | A policy byte on the key; identification only; lookups, decoding and reservation are unchanged | Disabled types still appear in `typeinfo`. Safer for RSAO reservation |
 | B3 | **Unknown key in a `disable` entry** | Counted as suppressed (a typo reports success) | Not covered | Stage 6 reports it as "unknown key" (§10.5) |
-| B4 | **Limits for untrusted records** | In the Axiom loader: file ≤ 64 KB, read ≤ 1024 bytes per command, `s` ≤ 256, `s` × slot ≤ 65,535 bytes (because of the `uint16_t` ring, I6) | Stage 2 adds a byte budget; Stage 1 makes the ring `uint32_t` | Move these limits into the RaftCore loader as limits for runtime sources. Replace the ring limit with a per-record byte cap (D22) |
+| B4 | **Limits for untrusted records** | In the Axiom loader: file ≤ 64 KB, read ≤ 1024 bytes per command, `s` ≤ 256, `s` × slot ≤ 65,535 bytes (because of the `uint16_t` ring, I6) | Stage 2 adds a byte budget; Stage 1 makes the ring `uint32_t` | Move these limits into the RaftCore loader as limits for extended record sources. Replace the ring limit with a per-record byte cap (D22) |
 | B5 | **Re-identification after loading** | `reIdentifyAllBuses()` after a load, plus an unconditional call in `RSAOSysMod::postSetup` on every boot | Stage 6 gating: no device is identified before the table is `Ready` | Both calls are removed when Stage 6 lands, ending the boot-time data gap (review §11 item 4) |
 | B6 | **RSAO id mapping** | `DeviceTypeIdSink` callback into a registry that is sealed in `postSetup` | `hwTypeId` → index lookup in the catalogue index (Stage 3) | The sink, the registry and the sealing go. This also removes the dependency on SysMod order |
 | B7 | **Capacity** | 20 records, shared with static devices; `devlib` reports `maxRecords` | D3: 32 / 256 records with byte budgets | Keep `maxRecords` in the status, and add the byte budget |
@@ -1184,7 +1185,7 @@ notes, and Nikos is told before more units carry files that rely on fall-through
 - `DeviceTypeIdSink` and registry sealing;
 - the hard-coded MAX17048 / 0x36 protections;
 - the `cmdraw` / `setCallbackFromBusTask` commits (superseded by deferred responses);
-- shipping a reduced built-in catalogue in published releases (the test idea behind it *is* taken, §10.7
+- shipping a reduced base catalogue in published releases (the test idea behind it *is* taken, §10.7
   item 6).
 
 ### 10.5 Issues from the review and principles documents not yet in the plan
@@ -1216,7 +1217,7 @@ Checked against review §5, §7 and §9 and principles P1–P15. Items already i
 | # | Question | Recommendation |
 |---|---|---|
 | D20 | How are the branch's file path, config key and `devlib` endpoint handled? | The type file defaults to `/local/devlib.json`. `DeviceLibrary/devLibFile` is read if `DevMan/typeFile` is not set. `devlib` stays as an alias of `devman/typefile`, with the same fields and CRC16-CCITT, for at least one release |
-| D21 | Confirm D2 for library files: an override replaces the built-in record, with no fall-through, although the branch falls through? | Yes; a deliberate difference (§10.4). Tell Nikos now so the branch spec and example file can warn about it, and list it in the Stage 6 release notes |
+| D21 | Confirm D2 for library files: an override replaces the base record, with no fall-through, although the branch falls through? | Yes; a deliberate difference (§10.4). Tell Nikos now so the branch spec and example file can warn about it, and list it in the Stage 6 release notes |
 | D22 | Where do the limits for untrusted records live? | In the RaftCore loader, applied to file and REST sources only; compiled records and code-registered records are not limited. Once I6 is fixed, replace the ring-size limit with a configurable per-record byte cap |
 | D23 | Can a compiled catalogue (or a SysType) contain `disable` entries? | Yes. The generator emits them as policy settings, not records. This gives boards a way to say "never X" (N11) and removes the trap of an empty record being compiled |
 
@@ -1232,7 +1233,7 @@ branch's diary and its tests.
 | 3 | **Validate untrusted records where they enter**, using the runtime parser to compute the real poll size, check it against `resp.b`, and bound reads, samples and ring size. One bad record is rejected on its own, and the first error is kept | `DeviceLibraryLoader::applyJson` | Stage 6 (D22) |
 | 4 | **"Present" versus "applied", with a CRC of the applied bytes** that uses the same algorithm as `filehash`, so a client can tell whether the file on disk is the one in effect | `devlib` endpoint | Stage 6 status, with the same field names (D20) |
 | 5 | **An empty `devTypes` is a valid file** ("no custom types"), not an error reported on every boot | `applyJson` | Stage 6 |
-| 6 | **Test additions for real:** build with a reduced built-in catalogue and supply the rest from a file | `DeviceTypeRecords.testsplit.json`, `check-device-library-selection.mjs` | Stage 6 verification, as a test build only: identification results from "reduced built-in + file" must equal those from the full built-in build. This is the proof that runtime records are first-class (G7) |
+| 6 | **Test additions for real:** build with a reduced base catalogue and supply the rest from a file | `DeviceTypeRecords.testsplit.json`, `check-device-library-selection.mjs` | Stage 6 verification, as a test build only: identification results from "reduced base + file" must equal those from the full base build. This is the proof that extended records are first-class (G7) |
 | 7 | **A hardware acceptance gate** checking: inventory under streaming; raw-read isolation; acceptance by the real host decoder; detection of panics or unexpected reboots; file upload, CRC and persistence across a restart; PSRAM diagnostics | `tests/hardware/axiom_device_gate.py`, `test_device_gate.py` | Stage 0: build the bench script on this design and run it at the end of every stage (§7) |
 | 8 | **Measure delivered rate as well as poll rate.** The branch measured a USB stream rate that fell from about 19–20 Hz to about 8 Hz with Wi-Fi enabled, an effect that predates its own changes | Diary 2026-10-15 | Stage 0: measure poll rate (at the bus) and delivered rate (at the client) separately, so G9 isn't judged on a number limited by the transport |
 | 9 | **An atomic request consumed once at the worker boundary**, for work requested from another task | RaftI2C `1f2eeef` (`_reIdentifyRequested.exchange`) | Stage 8 (`requestReIdentify`) |
