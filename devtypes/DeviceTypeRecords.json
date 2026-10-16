@@ -347,13 +347,13 @@
             }
         },
         "VL6180": {
-            "_notes": "Interleaved mode ALS & Range (0x2a3=>0x01)\nRange settings defined in https://www.st.com/resource/en/application_note/an4545-vl6180x-basic-ranging-application-note-stmicroelectronics.pdf\nALS integration period 100ms (0x0040=>0x0063)\nALS gain 20 (0x003f=>0x40)\n",
+            "_notes": "VL6180X ToF proximity sensor with 1x range scaling (RANGE_SCALER 0x0096/0x0097=>0x00fd), so the range is an 8-bit value in mm (0-255). Specified range 0-100mm, typically up to ~200mm with a reflective target and low ambient light\nInit: write 0x0018=>0x01 then wait 100ms, which stops continuous ranging left running by a previous init (the sensor may not have been power cycled) or otherwise does one harmless single-shot range; AN4545 private settings https://www.st.com/resource/en/application_note/an4545-vl6180x-basic-ranging-application-note-stmicroelectronics.pdf; clear SYSTEM__FRESH_OUT_OF_RESET (0x0016=>0x00); GPIO1 interrupt output active low (0x0011=>0x10); readout averaging period 4.3ms (0x010a=>0x30); VHV recalibration every 255 ranges (0x0031=>0xff) and once now (0x002e=>0x01); range inter-measurement period 100ms (0x001b=>0x09); interrupt on new range sample only (0x0014=>0x04); clear interrupts (0x0015=>0x07); start continuous ranging (0x0018=>0x03)\nPoll: RESULT__RANGE_STATUS (0x004d), RESULT__RANGE_VAL (0x0062), then clear interrupts (0x0015=>0x07)\nerr is the range error code (0x004d bits 7:4) and valid is true only when it is 0. With no target in range err is typically 6 (early convergence estimate), 7 (max convergence time) or 11 (signal to noise) and the raw range reads 255\nAmbient light sensing (ALS) is not used",
             "addresses": "0x29",
             "deviceType": "VL6180",
             "detectionValues": "0x0000=0b10110100",
-            "initValues": "0x020701&0x020801&0x009600&0x0097fd&0x00e301&0x00e403&0x00e502&0x00e601&0x00e703&0x00f502&0x00d905&0x00dbce&0x00dc03&0x00ddf8&0x009f00&0x00a33c&0x00b700&0x00bb3c&0x00b209&0x00ca09&0x019801&0x01b017&0x01ad00&0x00ff05&0x010005&0x019905&0x01a61b&0x01ac3e&0x01a71f&0x003000&0x001110&0x010a30&0x003f42&0x0031ff&0x004000&0x004163&0x002e01&0x001b09&0x003e31&0x001424&0x003801",
+            "initValues": "0x001801=p100&0x020701&0x020801&0x009600&0x0097fd&0x00e301&0x00e403&0x00e502&0x00e601&0x00e703&0x00f502&0x00d905&0x00dbce&0x00dc03&0x00ddf8&0x009f00&0x00a33c&0x00b700&0x00bb3c&0x00b209&0x00ca09&0x019801&0x01b017&0x01ad00&0x00ff05&0x010005&0x019905&0x01a61b&0x01ac3e&0x01a71f&0x003000&0x001600&0x001110&0x010a30&0x0031ff&0x002e01=p10&0x001b09&0x001404&0x001507&0x001803",
             "pollInfo": {
-                "c": "0x004f=r1&0x0062=r1&0x001507&0x001801",
+                "c": "0x004d=r1&0x0062=r1&0x001507",
                 "i": 200,
                 "s": 1
             },
@@ -370,17 +370,40 @@
                         {
                             "n": "valid",
                             "t": "B",
+                            "at": 0,
                             "u": "",
                             "r": [0,1],
-                            "m": "0x04",
-                            "s": 2,
+                            "m": "0xF0",
+                            "s": 4,
                             "f": "b",
                             "o": "bool",
+                            "vs": false,
+                            "lut": [
+                                {
+                                    "r": "0",
+                                    "v": 1
+                                },
+                                {
+                                    "r": "",
+                                    "v": 0
+                                }
+                            ]
+                        },
+                        {
+                            "n": "err",
+                            "t": "B",
+                            "at": 0,
+                            "u": "",
+                            "r": [0,15],
+                            "m": "0xF0",
+                            "s": 4,
+                            "f": "d",
                             "vs": false
                         },
                         {
                             "n": "dist",
                             "t": "B",
+                            "at": 1,
                             "u": "mm",
                             "r": [0,255],
                             "f": "3d",
