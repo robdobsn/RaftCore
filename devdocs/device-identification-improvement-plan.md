@@ -1306,10 +1306,27 @@ for 5 s, 3 times; same hook on the previous RaftI2C): identified again 731, 996,
 to the 1 s target. The LSM6DS on slot 7 misses about 10 polls in 100 s with gaps up to 0.3-0.5 s on both the new
 and previous firmware (§11).
 
-**Not done - needs more multiplexer work:** slot coverage by priority (slots with recent changes or known devices
-more often, with a guaranteed full cycle) and rescanning only a changed multiplexer's slots (item 4) - both change
-the slot sequence and can't be tested here. The I8 check and the slot positions of the new schedule are also
-untested on hardware with a multiplexer. The 1 s target for any slot of an 8-slot multiplexer is not measured.
+**Multiplexer items (done 2026-10-16, tested on the Axiom):**
+- **Slot coverage by priority (item 3):** the schedule visits slots in a weighted cycle (smooth weighted round
+  robin, so visits are spread): main bus 2, a slot with an online device `slotKnownWeight` (2), a slot with a change
+  in the last `slotChangedMs` (10 s) `slotChangedWeight` (3), others 1. Every slot is in every cycle, so the worst
+  case for a quiet slot is bounded by the cycle length (sum of the weights; 13 on the Axiom against 10 unweighted).
+  `BusStatusMgr` keeps the last change time per slot. A slot stays selected for consecutive probes on it (the
+  previous slot is deselected before another is selected, so only one is ever live), which raised the Axiom's
+  probes per second from 263 to 313.
+- **Multiplexer supervision (found while testing item 4):** a multiplexer address was only probed when the scan came
+  round to it - about every 7 s on the main bus - and a hub's slots are reached through cached slot masks, so a hub
+  unplugged and replugged could leave its devices unreachable for many seconds. One multiplexer address is now
+  probed every `muxCheckMs` (100 ms), in turn, on its connection slot: a multiplexer going or coming is seen in
+  300-360 ms. When one goes, the devices on its slots are reported gone (`goingOfflineOnSlot`) - otherwise a device
+  that isn't polled (the VL53L5CX) stayed online through the outage.
+- **A multiplexer change rescans only its slots (item 4):** after startup, a change marks that multiplexer's slots
+  as changed and runs a fast scan (up to `fastScanMaxMs`) instead of restarting from the multiplexer-only phase.
+- **Bench (Axiom):** VL6180 on slot 2 unplugged/replugged (simulated, 3 times): identified again 232, 748, 965 ms
+  after it came back (Stage 9 before the slot weights: 1,282, 1,011, 1,333). Hub unplugged/replugged (the
+  multiplexer at 0x75 and everything on its slots NACKing for 5 s, 3 times): slot devices identified again 309-482
+  ms after it came back, against 1,180-1,406 ms with the old full restart (same build otherwise); the VL53L5CX is
+  reported lost and restarted. FeatherS3 (no multiplexer) bench unchanged.
 
 **Proposed changes**, to be confirmed against the Stage 0 measurements:
 1. **Budget as a share of the bus, not a fixed time per pass.**

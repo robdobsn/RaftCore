@@ -5,8 +5,9 @@
 // The order in which a bus scanner probes addresses (Stage 9 of the device identification plan).
 //
 // Priority lists: addresses a device type record (or an identification hook, or a multiplexer) can claim, in
-// priority order. Each list is scanned at every "slot position": the main bus counts as two positions, so it is
-// covered twice as often as each multiplexer slot. The first list is scanned a whole slot position at a time;
+// priority order. Each list is scanned on the main bus and every multiplexer slot in a cycle of slot visits: the
+// main bus has weight MAIN_BUS_WEIGHT (2) and each slot a weight set by the scanner (1, or more for a slot with
+// devices or a recent change), the visits spread through the cycle; every slot is in every cycle. The first list is scanned a whole slot position at a time;
 // lower lists in chunks of a few addresses, so that the first list comes round again after at most one chunk of
 // a lower list. The lists take turns by weight - the first every turn, the second every LIST_WEIGHTS[1] turns and
 // so on - and each list keeps its own position.
@@ -25,6 +26,12 @@ class BusScanSchedule
 {
 public:
     static constexpr uint32_t LIST_WEIGHTS[] = { 1, 3, 9 };
+    static constexpr uint32_t MAIN_BUS_WEIGHT = 2;
+
+    BusScanSchedule()
+    {
+        rebuildSlotSeq();
+    }
 
     /// @brief Set the priority lists (the position in a list is kept where the list is unchanged in size)
     void setLists(const std::vector<std::vector<uint8_t>>& lists)
@@ -41,15 +48,32 @@ public:
         }
     }
 
-    /// @brief Set the number of multiplexer slots (positions are 0 and 1 for the main bus, then one per slot)
+    /// @brief Set the number of multiplexer slots (each weighted 1 until setSlotWeights)
     void setNumSlots(uint32_t numSlots)
     {
         if (numSlots == _numSlots)
             return;
         _numSlots = numSlots;
+        _slotWeights.assign(numSlots, 1);
+        rebuildSlotSeq();
         for (Cursor& cursor : _cursors)
-            cursor.slotPos = 0;
+            cursor.slotSeqIdx = 0;
         _bgPos = 0;
+    }
+
+    /// @brief Set how often each multiplexer slot is scanned relative to the others (1 or more - e.g. more for a
+    ///        slot with devices or a recent change). The main bus has weight MAIN_BUS_WEIGHT. Every slot is in every
+    ///        cycle, so the cycle - the time for a list to cover every slot - is at most the sum of the weights
+    /// @param weights one per slot (ignored if the count differs from setNumSlots)
+    void setSlotWeights(const std::vector<uint8_t>& weights)
+    {
+        if ((weights.size() != _numSlots) || (weights == _slotWeights))
+            return;
+        _slotWeights = weights;
+        rebuildSlotSeq();
+        for (Cursor& cursor : _cursors)
+            if (cursor.slotSeqIdx >= _slotSeq.size())
+                cursor.slotSeqIdx = 0;
     }
 
     /// @brief Set the background addresses and the time for a full background sweep (main bus and every slot)
@@ -71,7 +95,7 @@ public:
 
     /// @brief Get the next address to probe from the priority lists
     /// @param addr (out) address
-    /// @param slotPos (out) slot position: 0 or 1 for the main bus, 2 + n for the nth multiplexer slot
+    /// @param slotPos (out) 0 for the main bus, 1 + n for the nth multiplexer slot
     /// @param sweepCompleted (out) set true when a list has been scanned at every slot position
     /// @return false if the lists are empty
     bool next(uint32_t& addr, uint32_t& slotPos, bool& sweepCompleted)
@@ -83,7 +107,7 @@ public:
         }
         Cursor& cursor = _cursors[_cur];
         addr = _lists[_cur][cursor.addrIdx];
-        slotPos = cursor.slotPos;
+        slotPos = _slotSeq[cursor.slotSeqIdx];
         cursor.addrIdx++;
         if (_chunkLeft > 0)
             _chunkLeft--;
@@ -91,11 +115,11 @@ public:
         {
             // A slot position done - lists switch turns at a slot boundary
             cursor.addrIdx = 0;
-            cursor.slotPos++;
+            cursor.slotSeqIdx++;
             _chunkLeft = 0;
-            if (cursor.slotPos >= numSlotPositions())
+            if (cursor.slotSeqIdx >= _slotSeq.size())
             {
-                cursor.slotPos = 0;
+                cursor.slotSeqIdx = 0;
                 sweepCompleted = true;
             }
         }
@@ -130,16 +154,23 @@ public:
         return true;
     }
 
+    /// @brief Number of slot visits in a cycle (the sum of the weights)
     uint32_t numSlotPositions() const
     {
-        return 2 + _numSlots;
+        return _slotSeq.size();
+    }
+
+    /// @brief The slot visits of a cycle, in order (0 the main bus, 1 + n the nth slot)
+    const std::vector<uint8_t>& getSlotSeq() const
+    {
+        return _slotSeq;
     }
 
 private:
     struct Cursor
     {
         uint32_t addrIdx = 0;
-        uint32_t slotPos = 0;
+        uint32_t slotSeqIdx = 0;     // position in _slotSeq
         uint32_t credit = 0;        // addresses earned (in units of 1/weight) and not yet scanned
     };
     std::vector<std::vector<uint8_t>> _lists;
@@ -147,6 +178,34 @@ private:
     uint32_t _cur = 0;
     uint32_t _chunkLeft = 0;
     uint32_t _numSlots = 0;
+    std::vector<uint8_t> _slotWeights;
+    std::vector<uint8_t> _slotSeq;
+
+    // The slot visits of a cycle by smooth weighted round robin, so a slot's visits are spread through the cycle
+    void rebuildSlotSeq()
+    {
+        uint32_t numPos = 1 + _numSlots;
+        std::vector<int32_t> weight(numPos), current(numPos, 0);
+        int32_t total = 0;
+        for (uint32_t i = 0; i < numPos; i++)
+        {
+            weight[i] = (i == 0) ? MAIN_BUS_WEIGHT : (_slotWeights[i - 1] > 0 ? _slotWeights[i - 1] : 1);
+            total += weight[i];
+        }
+        _slotSeq.clear();
+        for (int32_t step = 0; step < total; step++)
+        {
+            uint32_t best = 0;
+            for (uint32_t i = 0; i < numPos; i++)
+            {
+                current[i] += weight[i];
+                if (current[i] > current[best])
+                    best = i;
+            }
+            current[best] -= total;
+            _slotSeq.push_back((uint8_t)best);
+        }
+    }
 
     std::vector<uint8_t> _bgAddrs;
     uint32_t _bgSweepPeriodMs = 0;

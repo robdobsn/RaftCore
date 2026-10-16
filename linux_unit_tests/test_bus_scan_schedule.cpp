@@ -71,8 +71,8 @@ static void testSlots()
         uint32_t addr = 0, pos = 0;
         bool sweep = false;
         sched.next(addr, pos, sweep);
-        TEST_ASSERT(pos < sched.numSlotPositions(), "slot position in range");
-        uint32_t slot = pos < 2 ? 0 : pos - 1;   // 0 main bus, 1..3 slots
+        TEST_ASSERT(pos <= 3, "slot in range");
+        uint32_t slot = pos;   // 0 main bus, 1..3 slots
         count[{addr, slot}]++;
         sweeps += sweep ? 1 : 0;
     }
@@ -84,6 +84,41 @@ static void testSlots()
     TEST_ASSERT((count[{0x10, 0}] >= 2 * count[{0x10, 1}] - 2) && (count[{0x40, 0}] >= 2 * count[{0x40, 3}] - 2),
                 "main bus covered twice as often as a slot");
     TEST_ASSERT(sweeps > 0, "sweeps complete");
+}
+
+// Slot weights: a slot with weight 3 is visited three times as often as one with weight 1, the visits spread
+// through the cycle, every slot in every cycle; the cycle is the sum of the weights
+static void testSlotWeights()
+{
+    printf("Running testSlotWeights...\n");
+    BusScanSchedule sched;
+    TEST_ASSERT((sched.getSlotSeq().size() == 2) && (sched.getSlotSeq()[0] == 0), "no slots: the main bus twice");
+    sched.setLists({range(0x10, 0x11)});
+    sched.setNumSlots(4);
+    TEST_ASSERT(sched.numSlotPositions() == 2 + 4, "unweighted cycle");
+    sched.setSlotWeights({1, 3, 1, 2});
+    const std::vector<uint8_t>& seq = sched.getSlotSeq();
+    TEST_ASSERT(seq.size() == 2 + 1 + 3 + 1 + 2, "cycle is the sum of the weights");
+    std::map<uint32_t, uint32_t> perCycle;
+    for (uint8_t s : seq)
+        perCycle[s]++;
+    TEST_ASSERT((perCycle[0] == 2) && (perCycle[1] == 1) && (perCycle[2] == 3) && (perCycle[3] == 1) && (perCycle[4] == 2),
+                "visits per cycle by weight");
+    bool noRepeat = true;
+    for (uint32_t i = 0; i + 1 < seq.size(); i++)
+        noRepeat = noRepeat && (seq[i] != seq[i + 1]);
+    TEST_ASSERT(noRepeat, "visits spread (no slot twice in a row within a cycle)");
+    std::map<uint32_t, uint32_t> count;
+    for (uint32_t i = 0; i < 9000; i++)
+    {
+        uint32_t addr = 0, pos = 0;
+        bool sweep = false;
+        sched.next(addr, pos, sweep);
+        count[pos]++;
+    }
+    TEST_ASSERT((count[2] == 3 * count[1]) && (count[4] == 2 * count[3]) && (count[0] == 2 * count[1]), "probes by weight");
+    sched.setSlotWeights({1, 1});
+    TEST_ASSERT(sched.numSlotPositions() == 2 + 3 + 1 + 1 + 2, "wrong count ignored");
 }
 
 static void testWeightsAndEdges()
@@ -160,6 +195,7 @@ int main()
 {
     testRevisitGap();
     testSlots();
+    testSlotWeights();
     testWeightsAndEdges();
     testBackground();
     return testSummary("test_bus_scan_schedule");
