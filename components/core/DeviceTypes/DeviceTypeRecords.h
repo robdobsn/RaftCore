@@ -292,6 +292,22 @@ public:
         return _ready;
     }
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Register a source of records (e.g. the device type file) that must supply its records before devices
+    ///        are identified. Buses scan for presence meanwhile, and identify once every registered source is ready
+    /// @param pName name (for logging and status)
+    /// @param timeoutMs time after which identification goes ahead without this source (logged)
+    /// @return source ID for markRecordSourceReady()
+    uint32_t registerRecordSource(const char* pName, uint32_t timeoutMs = RECORD_SOURCE_TIMEOUT_MS_DEFAULT);
+
+    /// @brief Mark a record source as having supplied its records
+    void markRecordSourceReady(uint32_t sourceId);
+
+    /// @brief Check whether devices can be identified: every registered record source is ready (or timed out)
+    bool areRecordSourcesReady() const;
+
+    static constexpr uint32_t RECORD_SOURCE_TIMEOUT_MS_DEFAULT = 10000;
+
     /// @brief Check whether the identification hook must not be run at an address (a record there has the policy
     ///        DISABLED_CLAIM)
     bool isAddrHookBlocked(BusElemAddrType addr) const;
@@ -341,6 +357,18 @@ private:
     AddResult replaceBaseRecord(DeviceTypeIndexType baseIdx, const DeviceTypeRecordDynamic& devTypeRec);
     static bool sameResponseLayout(const char* pDevInfoA, const char* pDevInfoB);
     static int32_t findBaseIdxByKey(const char* deviceTypeKey);
+
+    // Record sources that must supply their records before identification (under the mutex). _sourcesReady is
+    // the fast path: true when there are none outstanding
+    struct RecordSource_
+    {
+        std::string name;
+        uint32_t registeredMs = 0;
+        uint32_t timeoutMs = 0;
+        bool ready = false;
+    };
+    mutable std::vector<RecordSource_> _recordSources;
+    mutable std::atomic<bool> _sourcesReady{true};
 
     // Default limits (D3)
     static constexpr uint32_t EXT_MAX_RECORDS_DEFAULT = 32;

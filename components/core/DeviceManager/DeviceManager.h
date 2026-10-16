@@ -13,6 +13,7 @@
 #include "DeviceDataSubscribers.h"
 #include "DeviceNames.h"
 #include "DeviceFactory.h"
+#include "DeviceTypeFileLoader.h"
 
 class RaftBusDevicesIF;
 #include <unordered_map>
@@ -338,6 +339,32 @@ private:
 
     /// @brief Handle devman/slot API endpoint (set or query slot mode)
     RaftRetCode apiDevManSlot(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    // System configuration (for settings of other modules read for compatibility)
+    RaftJsonIF& _sysConfig;
+
+    // Device type file: extended records, overrides and disabled types loaded before devices are identified
+    String _typeFilePath;
+    bool _typeFileRequired = false;
+    uint32_t _typeFileSourceId = UINT32_MAX;
+    DeviceTypeFileLoader::Limits _typeFileLimits;
+    DeviceTypeFileLoader::Result _typeFileResult;
+    const char* _typeFileState = "none";            // loading, none, missing, error or applied
+    bool _typeFilePresent = false;
+    uint16_t _typeFileCrc16 = 0;
+    uint32_t _typeFileRecordsAvailable = 0;         // extended records free before the file was loaded
+
+    /// @brief Read the device type file settings and register the file as a record source (before buses start)
+    void setupTypeFile();
+
+    /// @brief Load the device type file and mark its record source ready
+    void loadTypeFile();
+
+    /// @brief Handle devman/typefile (status) and devman/typefile/apply (restart to apply a new file)
+    RaftRetCode apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devlib (status, with the fields of the feature/device-library branch's endpoint)
+    RaftRetCode apiDevLib(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;

@@ -993,6 +993,67 @@ done:
 **Aim:** extended records are loaded from a file before any device is identified. A change to the file is
 applied by a controlled restart (G6).
 
+**Status (2026-10-16): done in RaftCore and RaftI2C.** What was done:
+- **Loader** (`DeviceTypeFileLoader`, RaftCore DeviceTypes): applies `{"devTypes":{…}}` text to the type table.
+  It walks the file once and stores `pollInfo` and `devInfoJson` without whitespace (B11). Each record is checked
+  before it is added (D22): `deviceType` equals the key (D13); addresses in the generator's format, up to 0x77 (N1);
+  `deviceTypeId`, `identPriority`, `scanPriority` and `excludeFromAddrMap`/`probeOnly` read as the generator reads
+  them; detection, init and poll strings compiled by the Stage 4 grammar (an error rejects the record); reads per
+  command, `pollInfo.s` and the poll ring (result size × samples) within the limits; and `devInfoJson.resp.b` equal to
+  what the runtime's poll info produces. A rejected record doesn't stop the others, and the first error is kept as
+  `"<key>: <reason>"` (idea 14). An empty `devTypes` is valid (idea 5). A record with neither `addresses` nor
+  `deviceTypeId` is a warning (N4).
+- **Disable entries:** `"disable": true` or `"claim"` sets the policy of a type that is present (the rest of the
+  entry is ignored, as on the branch); a full record with a new key is added already disabled (as the generator does,
+  D23); a key that isn't present is rejected as "unknown key" (B3, N3). Protected types are refused.
+- **DeviceManager:** `DevMan/typeFile`, defaulting to `DeviceLibrary/devLibFile` and then `/local/devlib.json` (D20);
+  `typeFileRequired`; `typeFileTimeoutMs`; `typeFileLimits` (64 KB file, 1024-byte reads, 256 samples and a 64 KB
+  per-record ring by default - the ring is `uint32_t` since Stage 1, so the last is a configurable cap rather than the
+  branch's hard 65,535, D22). The file is registered as a record source in `setup()`, before the buses start, and
+  loaded at the start of `postSetup()`, when every SysMod's `setup()` has run, so FileManager has mounted the file
+  system.
+  The CRC16-CCITT of the file is kept (the `filehash` algorithm, idea 4).
+- **Readiness** (§3.6): `DeviceTypeRecords::registerRecordSource()` / `markRecordSourceReady()` /
+  `areRecordSourcesReady()`, with a per-source timeout (10 s default, logged). RaftI2C's `BusScanner` doesn't identify
+  while a source is outstanding: the element is online but unidentified, and is identified as soon as the records are
+  complete, without waiting for the 3 s unidentified-retry interval. `markReady()` (identification has started) is
+  unchanged, so a file override always lands before Ready and keeps the base index (D2).
+- **REST:** `devman/typefile` (path, state, present, applied, CRC, counts - added, replaced, unchanged, disabled,
+  rejected, warnings - first error and warning, records and bytes used and their limits, `identReady`);
+  `devman/typefile/apply` replies, then restarts; `devlib` gives the same status with the branch endpoint's fields and
+  meanings (B9).
+- **Static devices** already register their records through `addRecord()` (Stage 2), so they share the limits and
+  are in the `records`/`bytes` counts (item 5).
+- **Not done:** the optional FileManager watch on writes to the file (an upload is applied by calling `apply`).
+
+**Tests:** `linux_unit_tests/test_device_type_file.cpp` (88 checks): the branch's example file
+(`fixtures/example-devlib.json`) loads with 1 added, 1 replaced, 1 disabled; every rejection rule; field parsing;
+overrides, policies, protection, conflicts and limits; record sources and their timeout; and every record of the RaftCore
+catalogue, loaded from a file, is identical to the generated record (devInfoJson compared as JSON, since the generator
+re-prints floats and escapes non-ASCII), with the same identification candidates at every address (idea 6, as a test
+rather than a reduced-catalogue build). On-device unit tests pass (113, with the known FileSystem image failure).
+
+**Bench (FeatherS3, 2026-10-16):** no file → state `none`, both devices identified. A file overriding APDS9960,
+disabling MPU6050, adding a new type and holding one bad record, uploaded with `fileupload` and applied with
+`devman/typefile/apply`: after the restart APDS9960 was the override at its base index 51, 0x68 was not identified, the
+new type had index 53, the bad record was rejected with its reason, and `crc` equalled `filehash`. With the load
+delayed 3 s by a temporary test hook, APDS9960 was identified 52 ms after the file loaded, not before. A truncated
+file gave state `error` ("not valid JSON") and the compiled records were used.
+
+**Release notes - files written for the feature/device-library firmware** (D21; Nikos to be told):
+- An override **replaces** the compiled record; the compiled record is no longer tried if the override's detection
+  doesn't match (the branch's example file `_notes` says it is). Fix the override's detection rather than relying on
+  fall-through.
+- A disabled type is hidden from identification only: `typeinfo`, decoding and subscriptions still find it, and its
+  address stays reserved.
+- `scanPriority` and `excludeFromAddrMap`/`probeOnly` are honoured (the branch ignored them); a missing `scanPriority`
+  means the address isn't in a priority scan list, as for compiled records.
+- Stricter checks: addresses must be `0xHH` or `0xHH-0xHH`; command strings with grammar errors are rejected; a
+  `disable` entry for an unknown key is reported as rejected.
+- No re-identification of the whole bus after loading (B5): devices are identified once, after the file has loaded.
+- The branch's DeviceLibrary SysMod isn't needed with this firmware: Axiom `main` doesn't have it, so there is nothing
+  to migrate there (B6's `DeviceTypeIdSink` is replaced by `hwTypeId`, Stage 3).
+
 **Changes:**
 1. **Loader in RaftCore DeviceManager.** Configuration:
    - `DevMan/typeFile` (e.g. `/local/devtypes.json`);
@@ -1532,14 +1593,14 @@ loader needs the `scanPriority`, `excludeFromAddrMap`/`probeOnly` and `s` fixes.
 |---|---|---|---|---|
 | B1 | **Override** | The library record is tried first; the compiled record stays a fall-through candidate. The example file's `_notes` relies on this ("if these detectionValues fail to match, identification still falls through to the base definition") | D2: an override replaces the entry, with no fall-through | A library override whose detection is wrong stops matching instead of falling back. Confirm D2 (D21) and update the spec and the example |
 | B2 | **Disable** | By name, kept in a separate list of up to 128 names. It also hides the record from name lookups (`typeinfo?type=`, `registerForDeviceData(name)`) and from RSAO address reservation | A policy byte on the key; identification only; lookups, decoding and reservation are unchanged | Disabled types still appear in `typeinfo`. Safer for RSAO reservation |
-| B3 | **Unknown key in a `disable` entry** | Counted as suppressed (a typo reports success) | Not covered | Stage 6 reports it as "unknown key" (§10.5) |
+| B3 | **Unknown key in a `disable` entry** | Counted as suppressed (a typo reports success) | Not covered | Stage 6 reports it as "unknown key" (§10.5) - **Done (Stage 6)** |
 | B4 | **Limits for untrusted records** | In the Axiom loader: file ≤ 64 KB, read ≤ 1024 bytes per command, `s` ≤ 256, `s` × slot ≤ 65,535 bytes (because of the `uint16_t` ring, I6) | Stage 2 adds a byte budget; Stage 1 makes the ring `uint32_t` | Move these limits into the RaftCore loader as limits for extended record sources. Replace the ring limit with a per-record byte cap (D22) |
-| B5 | **Re-identification after loading** | `reIdentifyAllBuses()` after a load, plus an unconditional call in `RSAOSysMod::postSetup` on every boot | Stage 6 gating: no device is identified before the table is `Ready` | Both calls are removed when Stage 6 lands, ending the boot-time data gap (review §11 item 4) |
+| B5 | **Re-identification after loading** | `reIdentifyAllBuses()` after a load, plus an unconditional call in `RSAOSysMod::postSetup` on every boot | Stage 6 gating: no device is identified before the table is `Ready` | Both calls are removed when Stage 6 lands, ending the boot-time data gap (review §11 item 4) - **Done (Stage 6)** |
 | B6 | **RSAO id mapping** | `DeviceTypeIdSink` callback into a registry that is sealed in `postSetup` | `hwTypeId` → index lookup in the catalogue index (Stage 3) | The sink, the registry and the sealing go. This also removes the dependency on SysMod order |
 | B7 | **Capacity** | 20 records, shared with static devices; `devlib` reports `maxRecords` | D3: 32 / 256 records with byte budgets | Keep `maxRecords` in the status, and add the byte budget |
 | B8 | **Protections** | Hard-coded: `MAX17048` cannot be disabled or replaced, and address 0x36 can't be claimed | Derived from SysTypes `role: "system"` plus `expectType` (Stage 5 item 4) | Done: Axiom018 SysTypes has `expectType: "MAX17048"` on the fuel gauge entry, and DevicePower checks the identified type before using it |
-| B9 | **Status endpoint** | `devlib`: `file`, `present`, `applied`, `appliedCrc16` (CRC16-CCITT, matching `filehash`), `added`, `suppressed`, `rejected`, `maxRecords`, `maxFileBytes`, `firstError` | `devman/typefile` | Keep `devlib` as an alias with the same fields for one release; use the same CRC algorithm (D20) |
-| B10 | **Config key and path** | `DeviceLibrary/devLibFile`, default `/local/devlib.json` | `DevMan/typeFile` | Default the type file to `/local/devlib.json` on Axiom, or migrate (D20) |
+| B9 | **Status endpoint** | `devlib`: `file`, `present`, `applied`, `appliedCrc16` (CRC16-CCITT, matching `filehash`), `added`, `suppressed`, `rejected`, `maxRecords`, `maxFileBytes`, `firstError` | `devman/typefile` | Keep `devlib` as an alias with the same fields for one release; use the same CRC algorithm (D20) - **Done (Stage 6)** |
+| B10 | **Config key and path** | `DeviceLibrary/devLibFile`, default `/local/devlib.json` | `DevMan/typeFile` | Default the type file to `/local/devlib.json` on Axiom, or migrate (D20) - **Done (Stage 6)** |
 | B11 | **Parsing cost** | The whole file (≤ 64 KB) is read into memory, then each field is fetched with a path lookup, e.g. `getString("devTypes/<key>/pollInfo")` *(likely costly with many records; not measured)*. `pollInfo` and `devInfoJson` are stored as their raw text, including whitespace | Stage 2 packed records | The loader should walk the file once, and minify the JSON text before storing it |
 
 ### 10.4 Approach: don't merge, stay compatible, take the good ideas
@@ -1594,8 +1655,8 @@ Checked against review §5, §7 and §9 and principles P1–P15. Items already i
 |---|---|---|---|
 | N1 | `addresses` is not validated: `parseIntList` accepts forms such as `0o51` and silently skips junk | Review §7.3; branch spec | 4 (the same strict parser) |
 | N2 | Two records with the same `hwTypeId` are not detected, so a library record can silently re-map every servo | Review §7.3 | 3 (the index builder rejects or warns) |
-| N3 | A `disable` entry for a key that doesn't exist reports success | Review §7.3 | 6 (report as "unknown key") |
-| N4 | A file record with neither `addresses` nor `hwTypeId` can never match | Branch spec | 6 (warn) |
+| N3 | A `disable` entry for a key that doesn't exist reports success | Review §7.3 | 6 (report as "unknown key") - **Done (Stage 6)** |
+| N4 | A file record with neither `addresses` nor `hwTypeId` can never match | Branch spec | 6 (warn) - **Done (Stage 6)** |
 | N5 | Records with no on-device decoder: native ROS announces an endpoint that never publishes, and DataLogger CSV skips them. Until D11 is decided, RaftROS should publish raw bytes or not announce the endpoint, and the limitation should be documented | Review §7.3, §9.2-G | 6 |
 | N6 | `typeinfo …&full=1` (on the branch) doesn't round-trip: it lacks `scanPriority`, `excludeFromAddrMap`/`probeOnly`, `hwTypeId`, the source and the policy. The library UI's "copy a record and add `disable`" workflow relies on it | Review §7.2 | 10: return the record in the file format, keyed by the device type key |
 | N7 | The fallback hook runs wherever no record *matched*, not where no record *exists*, so the destructive RSAO probe can hit a known sensor that failed detection | Review §5.11; STCC4 notes | 5 or 9: the hook runs only at addresses with no `AllKnown` record, unless that record is `Disabled` (not `DisabledClaim`). Together with the hook address ranges (D9) |

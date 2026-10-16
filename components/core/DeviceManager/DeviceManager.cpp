@@ -16,6 +16,8 @@
 #include "DemoDevice.h"
 #include "BusAddrStatus.h"
 #include "RaftDevice.h"
+#include "FileSystem.h"
+#include "SpiramAwareAllocator.h"
 
 // Warnings
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND
@@ -47,7 +49,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
 DeviceManager::DeviceManager(const char *pModuleName, RaftJsonIF& sysConfig)
-    : RaftSysMod(pModuleName, sysConfig)
+    : RaftSysMod(pModuleName, sysConfig), _sysConfig(sysConfig)
 {
     // Create mutex
     RaftMutex_init(_accessMutex);
@@ -74,6 +76,10 @@ void DeviceManager::setup()
 
     // Protected types and record policies from the SysType (before buses start identifying devices)
     applyTypeTableConfig(modConfig());
+
+    // Device type file: buses don't identify devices until it has been loaded (in postSetup, once the file system
+    // is mounted)
+    setupTypeFile();
 
     // Setup buses
     raftBusSystem.setup("Buses", modConfig(),
@@ -141,6 +147,10 @@ void DeviceManager::applyTypeTableConfig(RaftJsonIF& devManConfig)
 /// @note This handles post-setup for statically added devices (dynamic devices are handled separately)
 void DeviceManager::postSetup()
 {
+    // Load the device type file (setup() of every SysMod has run, so the file system is mounted) - devices are
+    // identified once it is loaded
+    loadTypeFile();
+
     // Register JSON data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
         [this](uint16_t topicIndex, CommsChannelMsg& msg) {
@@ -989,8 +999,13 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/listdevs?role=<roleFilter> - Enumerate instantiated/detected devices (optional role filter),"
                             " devman/slot?bus=<busNameOrNum>&slot=<n>&mode=<i2c|serial-full|serial-half> - Set slot mode (omit mode to query),"
                             " devman/busstatus[?busnum=<n>&reset=1] - Per-bus diagnostics (poll-response integrity, poll timing, worker activity, identification timing; reset=1 restarts poll timing after reporting),"
+                            " devman/typefile - Device type file status (path, state, counts, first error, CRC, capacity),"
+                            " devman/typefile/apply - Restart to apply a changed device type file,"
                             " Note: typeKeyOrIndex can be either a device type key or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
+    endpointManager.addEndpoint("devlib", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
+                            std::bind(&DeviceManager::apiDevLib, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                            "Device type file status (as devman/typefile, with the fields of the device library endpoint)");
     LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added devman");
 }
 
@@ -1039,6 +1054,8 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManSlot(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("busstatus"))
         return apiDevManBusStatus(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("typefile"))
+        return apiDevManTypeFile(reqStr, respStr, jsonParams);
 
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
 }
@@ -2593,4 +2610,169 @@ void DeviceManager::cmdResultReportCallback(BusRequestResult& reqResult)
     LOG_I(MODULE_PREFIX, "cmdResultReportCallback len %d", reqResult.getReadDataLen());
     Raft::logHexBuf(reqResult.getReadData(), reqResult.getReadDataLen(), MODULE_PREFIX, "cmdResultReportCallback");
 #endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Read the device type file settings and register the file as a record source (before buses start)
+/// @note "typeFile" (default: DeviceLibrary/devLibFile, or /local/devlib.json; empty for none), "typeFileRequired"
+///       (a missing file is an error), "typeFileTimeoutMs" (identification goes ahead without the file after this),
+///       "typeFileLimits" (maxFileBytes, maxReadBytes, maxSamples, maxRecordRingBytes)
+void DeviceManager::setupTypeFile()
+{
+    if (modConfig().contains("typeFile"))
+        _typeFilePath = modConfig().getString("typeFile", "");
+    else
+        _typeFilePath = _sysConfig.getString("DeviceLibrary/devLibFile", "/local/devlib.json");
+    _typeFileRequired = modConfig().getBool("typeFileRequired", false);
+    _typeFileLimits.maxFileBytes = modConfig().getLong("typeFileLimits/maxFileBytes", _typeFileLimits.maxFileBytes);
+    _typeFileLimits.maxReadBytesPerCommand = modConfig().getLong("typeFileLimits/maxReadBytes", _typeFileLimits.maxReadBytesPerCommand);
+    _typeFileLimits.maxSamples = modConfig().getLong("typeFileLimits/maxSamples", _typeFileLimits.maxSamples);
+    _typeFileLimits.maxRecordRingBytes = modConfig().getLong("typeFileLimits/maxRecordRingBytes", _typeFileLimits.maxRecordRingBytes);
+    if (_typeFilePath.length() == 0)
+        return;
+    _typeFileState = "loading";
+    _typeFileSourceId = deviceTypeRecords.registerRecordSource("typeFile",
+                modConfig().getLong("typeFileTimeoutMs", DeviceTypeRecords::RECORD_SOURCE_TIMEOUT_MS_DEFAULT));
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Load the device type file and mark its record source ready
+void DeviceManager::loadTypeFile()
+{
+    if (_typeFileSourceId == UINT32_MAX)
+        return;
+    DeviceTypeRecords::ExtendedRecordStats statsBefore = deviceTypeRecords.getExtendedRecordStats();
+    _typeFileRecordsAvailable = statsBefore.maxRecords > statsBefore.count ? statsBefore.maxRecords - statsBefore.count : 0;
+
+    // "/local/devlib.json" is file system "local", file "devlib.json"; a name without a file system is on the default
+    String fsName;
+    String fileName = _typeFilePath;
+    if (_typeFilePath.startsWith("/"))
+    {
+        int nextSlash = _typeFilePath.indexOf('/', 1);
+        if (nextSlash > 1)
+        {
+            fsName = _typeFilePath.substring(1, nextSlash);
+            fileName = _typeFilePath.substring(nextSlash + 1);
+        }
+    }
+
+    // Read and apply
+    uint32_t fileLen = 0;
+    _typeFilePresent = fileSystem.getFileInfo(fsName, fileName, fileLen);
+    if (!_typeFilePresent)
+    {
+        _typeFileState = _typeFileRequired ? "missing" : "none";
+        if (_typeFileRequired)
+        {
+            _typeFileResult.firstError = "file not found";
+            LOG_E(MODULE_PREFIX, "loadTypeFile %s not found (required) - using the compiled records only", _typeFilePath.c_str());
+        }
+    }
+    else if (fileLen > _typeFileLimits.maxFileBytes)
+    {
+        _typeFileState = "error";
+        _typeFileResult.rejected++;
+        _typeFileResult.firstError = "file is " + String((int)fileLen) + " bytes, limit " + String((int)_typeFileLimits.maxFileBytes);
+    }
+    else
+    {
+        // getFileContents refuses a file of maxLen - 1 bytes or more, and null-terminates what it returns
+        uint8_t* pContents = fileSystem.getFileContents(fsName, fileName, _typeFileLimits.maxFileBytes + 2);
+        if (!pContents)
+        {
+            _typeFileState = "error";
+            _typeFileResult.rejected++;
+            _typeFileResult.firstError = "file could not be read";
+        }
+        else
+        {
+            _typeFileCrc16 = DeviceTypeFileLoader::crc16(pContents, strlen((const char*)pContents));
+            DeviceTypeFileLoader::applyJson(deviceTypeRecords, (const char*)pContents, _typeFileLimits, _typeFileResult);
+            _typeFileState = _typeFileResult.fileValid ? "applied" : "error";
+            SpiramAwareAllocator<uint8_t> allocator;
+            allocator.deallocate(pContents, 0);
+        }
+    }
+
+    // Devices can now be identified
+    deviceTypeRecords.markRecordSourceReady(_typeFileSourceId);
+    if (_typeFilePresent)
+    {
+        LOG_I(MODULE_PREFIX, "loadTypeFile %s %s crc %04x added %d replaced %d unchanged %d disabled %d rejected %d warnings %d%s%s",
+                    _typeFilePath.c_str(), _typeFileState, _typeFileCrc16, (int)_typeFileResult.added,
+                    (int)_typeFileResult.replaced, (int)_typeFileResult.unchanged, (int)_typeFileResult.disabled,
+                    (int)_typeFileResult.rejected, (int)_typeFileResult.warnings,
+                    _typeFileResult.firstError.length() > 0 ? " first error: " : "", _typeFileResult.firstError.c_str());
+    }
+    else
+    {
+        LOG_I(MODULE_PREFIX, "loadTypeFile no device type file at %s", _typeFilePath.c_str());
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/typefile (status) and devman/typefile/apply (restart to apply a new file)
+RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    // Apply: a changed file is applied by a restart (the reply is sent first)
+    String action = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
+    if (action.equalsIgnoreCase("apply"))
+    {
+        if (_typeFilePath.length() == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNoTypeFile");
+        LOG_I(MODULE_PREFIX, "apiDevManTypeFile apply - restarting to load %s", _typeFilePath.c_str());
+        if (getSysManager())
+            getSysManager()->systemRestart();
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, "\"restarting\":true");
+    }
+    if (action.length() > 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
+
+    // Status
+    DeviceTypeRecords::ExtendedRecordStats stats = deviceTypeRecords.getExtendedRecordStats();
+    char crcHex[8];
+    snprintf(crcHex, sizeof(crcHex), "%04x", (unsigned)_typeFileCrc16);
+    String json;
+    RaftJson::appendStringField(json, "file", _typeFilePath.c_str());
+    RaftJson::appendStringField(json, "state", _typeFileState);
+    json += ",\"present\":" + String(_typeFilePresent ? "true" : "false");
+    json += ",\"applied\":" + String(_typeFileResult.anyApplied() ? "true" : "false");
+    json += ",\"crc\":\"" + String(crcHex) + "\"";
+    json += ",\"added\":" + String((int)_typeFileResult.added);
+    json += ",\"replaced\":" + String((int)_typeFileResult.replaced);
+    json += ",\"unchanged\":" + String((int)_typeFileResult.unchanged);
+    json += ",\"disabled\":" + String((int)_typeFileResult.disabled);
+    json += ",\"rejected\":" + String((int)_typeFileResult.rejected);
+    json += ",\"warnings\":" + String((int)_typeFileResult.warnings);
+    RaftJson::appendStringField(json, "firstError", _typeFileResult.firstError.c_str());
+    RaftJson::appendStringField(json, "firstWarning", _typeFileResult.firstWarning.c_str());
+    json += ",\"records\":" + String((int)stats.count) + ",\"maxRecords\":" + String((int)stats.maxRecords);
+    json += ",\"bytes\":" + String((int)stats.bytesUsed) + ",\"maxBytes\":" + String((int)stats.maxBytes);
+    json += ",\"maxFileBytes\":" + String((int)_typeFileLimits.maxFileBytes);
+    json += ",\"identReady\":" + String(deviceTypeRecords.areRecordSourcesReady() ? "true" : "false");
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devlib: the device type file status with the fields of the feature/device-library branch's
+///        endpoint (file, present, applied, appliedCrc16, added - records in effect from the file, suppressed,
+///        rejected, maxRecords - records free for the file, maxFileBytes, firstError)
+RaftRetCode DeviceManager::apiDevLib(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+{
+    (void)sourceInfo;
+    char crcHex[8];
+    snprintf(crcHex, sizeof(crcHex), "%04x", (unsigned)_typeFileCrc16);
+    String json;
+    RaftJson::appendStringField(json, "file", _typeFilePath.c_str());
+    json += ",\"present\":" + String(_typeFilePresent ? "true" : "false");
+    json += ",\"applied\":" + String(_typeFileResult.anyApplied() ? "true" : "false");
+    json += ",\"appliedCrc16\":\"" + String(crcHex) + "\"";
+    json += ",\"added\":" + String((int)(_typeFileResult.added + _typeFileResult.replaced + _typeFileResult.unchanged));
+    json += ",\"suppressed\":" + String((int)_typeFileResult.disabled);
+    json += ",\"rejected\":" + String((int)_typeFileResult.rejected);
+    json += ",\"maxRecords\":" + String((int)_typeFileRecordsAvailable);
+    json += ",\"maxFileBytes\":" + String((int)_typeFileLimits.maxFileBytes);
+    RaftJson::appendStringField(json, "firstError", _typeFileResult.firstError.c_str());
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
 }

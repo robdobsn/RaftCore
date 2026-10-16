@@ -12,6 +12,7 @@
 #include "BusRequestInfo.h"
 #include "PollReadLenExpr.h"
 #include "RaftJson.h"
+#include "RaftUtils.h"
 #include <cctype>
 #include <cstring>
 #include <algorithm>
@@ -651,6 +652,67 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
     priorityLists.resize(scanLists.size());
     for (uint32_t i = 0; i < scanLists.size(); i++)
         priorityLists[i].assign(scanLists[i].begin(), scanLists[i].end());
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Register a source of records that must supply its records before devices are identified
+uint32_t DeviceTypeRecords::registerRecordSource(const char* pName, uint32_t timeoutMs)
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return UINT32_MAX;
+    RecordSource_ source;
+    source.name = pName ? pName : "";
+    source.registeredMs = millis();
+    source.timeoutMs = timeoutMs;
+    _recordSources.push_back(source);
+    uint32_t sourceId = _recordSources.size() - 1;
+    _sourcesReady = false;
+    RaftMutex_unlock(_extRecordsMutex);
+    return sourceId;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Mark a record source as having supplied its records
+void DeviceTypeRecords::markRecordSourceReady(uint32_t sourceId)
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return;
+    if (sourceId < _recordSources.size())
+        _recordSources[sourceId].ready = true;
+    bool allReady = true;
+    for (const RecordSource_& source : _recordSources)
+        allReady = allReady && source.ready;
+    if (allReady)
+        _sourcesReady = true;
+    RaftMutex_unlock(_extRecordsMutex);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether devices can be identified: every registered record source is ready (or timed out)
+bool DeviceTypeRecords::areRecordSourcesReady() const
+{
+    if (_sourcesReady.load(std::memory_order_acquire))
+        return true;
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    bool allReady = true;
+    for (RecordSource_& source : _recordSources)
+    {
+        if (source.ready)
+            continue;
+        if (Raft::isTimeout(millis(), source.registeredMs, source.timeoutMs))
+        {
+            LOG_W(MODULE_PREFIX, "record source %s not ready after %dms - identifying devices without it",
+                        source.name.c_str(), (int)source.timeoutMs);
+            source.ready = true;
+            continue;
+        }
+        allReady = false;
+    }
+    if (allReady)
+        _sourcesReady = true;
+    RaftMutex_unlock(_extRecordsMutex);
+    return allReady;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
