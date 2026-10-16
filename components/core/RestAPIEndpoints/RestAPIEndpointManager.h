@@ -9,6 +9,7 @@
 
 #pragma once
 #include <list>
+#include "SpiramAwareAllocator.h"
 #include "RestAPIEndpoint.h"
 #include "RestAPIDeferredResponses.h"
 #include "RaftJson.h"
@@ -177,7 +178,9 @@ public:
 
 private:
     /// @brief List of endpoints
-    std::list<RestAPIEndpoint> _endpointsList;
+    // Endpoint list (held in PSRAM where available - it's only used by the main task and there are
+    // many endpoints)
+    std::list<RestAPIEndpoint, SpiramAwareAllocator<RestAPIEndpoint>> _endpointsList;
 
     // Deferred responses
     RestAPIDeferredResponses _deferredResponses;

@@ -102,6 +102,11 @@ foreach(_raft_component ${RAFT_COMPONENTS})
 
     # Check if a local copy of this library exists in ./raftdevlibs/<ComponentName>
     set(_local_lib_path "${CMAKE_SOURCE_DIR}/raftdevlibs/${_raft_component_name}")
+    # A broken link (e.g. its target was moved, or it points outside a Docker container) must not
+    # quietly fall back to the remote library
+    if(IS_SYMLINK "${_local_lib_path}" AND NOT EXISTS "${_local_lib_path}")
+        message(FATAL_ERROR "raftdevlibs/${_raft_component_name} is a broken link - fix it or remove it with 'raft l unlink --libs ${_raft_component_name}'")
+    endif()
     if(EXISTS "${_local_lib_path}" AND IS_DIRECTORY "${_local_lib_path}")
 
         # Use the local library instead of fetching from remote

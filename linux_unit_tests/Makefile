@@ -76,11 +76,12 @@ SOURCES_test_device_names = test_device_names.cpp $(COMMON_SOURCES)
 SOURCES_test_device_data_subscribers = test_device_data_subscribers.cpp $(COMMON_SOURCES)
 SOURCES_test_device_type_records = test_device_type_records.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(COMMON_SOURCES)
 SOURCES_test_protocol_exchange = test_protocol_exchange.cpp $(COMMS_SOURCES) $(COMMON_SOURCES)
+SOURCES_test_thread_safe_queue = test_thread_safe_queue.cpp $(COMMON_SOURCES)
 SOURCES_test_espnow_config = test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.cpp $(COMMON_SOURCES)
 
 # Tests run by "make check"
 TESTS = test_raft_json test_raft_utils test_device_names test_device_data_subscribers test_device_type_records \
-  test_protocol_exchange
+  test_protocol_exchange test_thread_safe_queue
 
 # Extra device type catalogues for test_device_type_records to sweep, e.g.
 #   make check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tests/TestDevTypeRecs.json"

@@ -19,18 +19,23 @@ HTTP POST and MQTT are not deferred.
 The example's `raftdevlibs/RaftCore` is a symlink to this RaftCore checkout. Check out
 `feature/deferred-responses` here and the build uses it.
 
-`raftdevlibs` contains absolute symlinks, so the docker build must mount the whole `rdev` tree at the
-same path (`raft build --docker` only mounts the project folder):
-
 ```sh
 cd ~/Documents/rdev/raft/RaftROS/examples/ExampleDiscoverable
+raft build --docker -s SysTypeFeatherS3
+```
+
+RaftCLI 1.25.1 and later mounts each repo linked from `raftdevlibs` into the Docker container (`raft l` shows
+the links). With an older RaftCLI, which only mounts the project folder, mount the whole `rdev` tree at the
+same path instead:
+
+```sh
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp \
     -v ~/Documents/rdev:$HOME/Documents/rdev -w $PWD raftbuilder:latest \
     idf.py -B build/SysTypeFeatherS3 build
 ```
 
-The build folder name selects the SysType. Look for `LOCAL (DEBUG) LIBRARY: RaftCore` in the output to
-confirm the local RaftCore was used.
+(here the build folder name selects the SysType). Look for `LOCAL (DEBUG) LIBRARY: RaftCore` in the output
+to confirm the local RaftCore was used.
 
 ## 2. Flash and monitor
 
