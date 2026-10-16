@@ -118,9 +118,18 @@ class GeneratorTableTests(unittest.TestCase):
         self.assertIn('record "Dup" replaces a record with the same key', result.stdout)
 
     def test_shadowing_warning(self):
+        # A record that compares nothing is tried after records that compare something - unless its identPriority
+        # is higher, or the other record also compares nothing
         records = {"NoDetect": dict(make_record(), detectionValues=""), "Later": make_record()}
         result, _ = self.run_with_records(records)
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("has no detection values", result.stdout)
+        records = {"NoDetect": dict(make_record(), detectionValues="", identPriority=1), "Later": make_record()}
+        result, _ = self.run_with_records(records)
+        self.assertIn('record "NoDetect" has no detection values, so at address 0x10 it is matched before Later',
+                      result.stdout)
+        records = {"NoDetect": dict(make_record(), detectionValues=""), "Later": dict(make_record(), detectionValues="")}
+        result, _ = self.run_with_records(records)
         self.assertIn('record "NoDetect" has no detection values, so at address 0x10 it is matched before Later',
                       result.stdout)
 

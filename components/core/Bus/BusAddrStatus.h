@@ -10,6 +10,7 @@
 
 #include "RaftBusConsts.h"
 #include "RaftDeviceConsts.h"
+#include "BusIdentState.h"
 
 // Device online state
 enum class DeviceOnlineState : uint8_t
@@ -35,9 +36,18 @@ public:
     /// @param isChange 
     /// @param isNewlyIdentified 
     /// @param deviceTypeIndex 
-    BusAddrStatus(BusElemAddrType address, DeviceOnlineState onlineState, bool isChange, bool isNewlyIdentified, DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID) : 
-        address(address), onlineState(onlineState), isChange(isChange), isNewlyIdentified(isNewlyIdentified), deviceTypeIndex(deviceTypeIndex)
+    /// @param identEvent identity change (None: Identified if isNewlyIdentified with a valid type, as from a
+    ///        producer that doesn't report identity changes)
+    /// @param prevDeviceTypeIndex type before the change (for Identified after re-identification, TypeChanged and Lost)
+    BusAddrStatus(BusElemAddrType address, DeviceOnlineState onlineState, bool isChange, bool isNewlyIdentified,
+                DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID,
+                BusIdentEvent identEvent = BusIdentEvent::None,
+                DeviceTypeIndexType prevDeviceTypeIndex = DEVICE_TYPE_INDEX_INVALID) : 
+        address(address), onlineState(onlineState), isChange(isChange), isNewlyIdentified(isNewlyIdentified),
+        deviceTypeIndex(deviceTypeIndex), identEvent(identEvent), prevDeviceTypeIndex(prevDeviceTypeIndex)
     {
+        if ((identEvent == BusIdentEvent::None) && isNewlyIdentified && (deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID))
+            this->identEvent = BusIdentEvent::Identified;
     }
 
     // Address
@@ -50,6 +60,12 @@ public:
 
     // Device type index (flat field for efficiency)
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+
+    // Identity change (Identified, TypeChanged or Lost - None if the identity hasn't changed) and the type before it.
+    // isNewlyIdentified is also set for Identified and TypeChanged. A device going offline is reported as Lost if it
+    // was identified
+    BusIdentEvent identEvent = BusIdentEvent::None;
+    DeviceTypeIndexType prevDeviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
     // Max failures before declaring a bus element offline (kept for API/test compatibility)
     static const uint32_t ADDR_RESP_COUNT_FAIL_MAX_DEFAULT = 3;

@@ -92,7 +92,12 @@ std::shared_ptr<const CatalogueIndex> DeviceTypeRecords::getCatalogueIndex() con
         auto pIndex = std::make_shared<CatalogueIndex>();
         pIndex->build(generation, BASE_DEV_TYPE_ARRAY_SIZE, _extCount.load(std::memory_order_acquire),
                 [this](DeviceTypeIndexType idx) { return getRecord(idx); },
-                [this](DeviceTypeIndexType idx) { return policyOf(idx); });
+                [this](DeviceTypeIndexType idx) { return policyOf(idx); },
+                [this](DeviceTypeIndexType idx) {
+                    const DeviceTypeRecord* pRec = getRecord(idx);
+                    return pRec ? DeviceTypeGrammar::detectionStrength(
+                                DeviceTypeGrammar::compile(pRec->detectionValues, DeviceTypeGrammar::Field::Detection)) : -1;
+                });
         _catalogueIndex = pIndex;
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
         LOG_I(MODULE_PREFIX, "getCatalogueIndex built generation %d in %d us, %d bytes", (int)generation,

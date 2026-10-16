@@ -318,6 +318,20 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
             }
         }
 
+        // Identity changes of a device that stays online are rare and matter to everything using it
+        if ((addrStatus.identEvent == BusIdentEvent::TypeChanged) || (addrStatus.identEvent == BusIdentEvent::Lost))
+        {
+            LOG_I(MODULE_PREFIX, "busElemStatusCB device %s %s typeIdx %d (was %d)",
+                        RaftDeviceID(bus.getBusNum(), addrStatus.address).toString().c_str(),
+                        BusIdentSchedule::getEventStr(addrStatus.identEvent),
+                        addrStatus.deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID ? -1 : (int)addrStatus.deviceTypeIndex,
+                        addrStatus.prevDeviceTypeIndex == DEVICE_TYPE_INDEX_INVALID ? -1 : (int)addrStatus.prevDeviceTypeIndex);
+        }
+
+        // Settings made with devconfig are applied again when a device is identified again as the same type
+        if ((addrStatus.identEvent == BusIdentEvent::Identified) || (addrStatus.identEvent == BusIdentEvent::TypeChanged))
+            reapplyDevConfig(RaftDeviceID(bus.getBusNum(), addrStatus.address), addrStatus.deviceTypeIndex);
+
         // Own the device's single bus data callback and fan it out to every
         // subscriber (registerForDeviceData), whenever they register - so a
         // subscription made after the device came online also takes effect,
@@ -1886,7 +1900,66 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
     }
     if (sampleRateConfigured)
         extra += ",\"sampleRateHz\":" + sampleRateHzStr;
+
+    // Remember the settings, to apply again when the device is identified again as the same type (after it is
+    // re-identified, re-initialised or absent for a while)
+    rememberDevConfig(deviceID, pBus->getDeviceTypeIndex(addr), jsonParams);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Remember devconfig settings for a device (merged with those already remembered for the same type)
+/// @param deviceID device
+/// @param deviceTypeIndex the device's type now
+/// @param jsonParams the settings (intervalUs, numSamples, busHz, busHzSlots, sampleRateHz)
+void DeviceManager::rememberDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex, const RaftJson& jsonParams)
+{
+    if (deviceTypeIndex == DEVICE_TYPE_INDEX_INVALID)
+        return;
+    DevConfigSettings& settings = _devConfigSettings[DeviceNames::packDeviceIDKey(deviceID)];
+    if (settings.deviceTypeIndex != deviceTypeIndex)
+        settings = DevConfigSettings();
+    settings.deviceTypeIndex = deviceTypeIndex;
+    static const char* SETTING_NAMES[] = {"intervalUs", "numSamples", "busHz", "busHzSlots", "sampleRateHz"};
+    for (const char* pName : SETTING_NAMES)
+    {
+        String value = jsonParams.getString(pName, "");
+        if (value.length() == 0)
+            continue;
+        bool replaced = false;
+        for (auto& setting : settings.values)
+        {
+            if (setting.name == pName)
+            {
+                setting.value = value;
+                replaced = true;
+            }
+        }
+        if (!replaced)
+            settings.values.push_back(RaftJson::NameValuePair(pName, value));
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Apply remembered devconfig settings to a device that has been identified (again)
+/// @param deviceID device
+/// @param deviceTypeIndex the type it has been identified as (settings for another type are forgotten)
+void DeviceManager::reapplyDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex)
+{
+    auto it = _devConfigSettings.find(DeviceNames::packDeviceIDKey(deviceID));
+    if (it == _devConfigSettings.end())
+        return;
+    if (it->second.deviceTypeIndex != deviceTypeIndex)
+    {
+        _devConfigSettings.erase(it);
+        return;
+    }
+    std::vector<RaftJson::NameValuePair> nameValues = it->second.values;
+    nameValues.push_back(RaftJson::NameValuePair("deviceid", deviceID.toString()));
+    RaftJson jsonParams = RaftJson::getJSONFromNVPairs(nameValues, true);
+    String respStr;
+    apiDevManDevConfig("devman/devconfig", respStr, jsonParams);
+    LOG_I(MODULE_PREFIX, "reapplyDevConfig %s: %s", deviceID.toString().c_str(), respStr.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

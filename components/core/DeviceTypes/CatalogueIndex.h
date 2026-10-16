@@ -8,8 +8,9 @@
 // a reader holding one needs no lock.
 //
 // - Identification candidates for each address (records that aren't probe-only and whose policy is ENABLED), in
-//   identification order: descending identPriority, then extended records (in the order added) before base
-//   records (in catalogue order).
+//   identification order: descending identPriority, then descending detection strength (the number of bits the
+//   detection compares - so a record that compares nothing is tried last, and one whose detection can't be used is
+//   after that), then extended records (in the order added) before base records (in catalogue order).
 // - Reserved addresses: addresses that a record identifies by address, or claims (policy DISABLED_CLAIM) - used
 //   to keep re-addressable devices off them. Hook-blocked addresses: those a DISABLED_CLAIM record claims (the
 //   identification hook isn't run there). A DISABLED record reserves nothing.
@@ -42,8 +43,10 @@ public:
     /// @param numExtended number of extended records (indexes numBase ..)
     /// @param getRecord function returning the record for an index
     /// @param getPolicy function returning the policy for an index (DeviceTypeRecord::POLICY_...)
-    template <typename GetRecord, typename GetPolicy>
-    void build(uint32_t generation, uint32_t numBase, uint32_t numExtended, GetRecord getRecord, GetPolicy getPolicy)
+    /// @param getStrength function returning the detection strength for an index (DeviceTypeGrammar::detectionStrength)
+    template <typename GetRecord, typename GetPolicy, typename GetStrength>
+    void build(uint32_t generation, uint32_t numBase, uint32_t numExtended, GetRecord getRecord, GetPolicy getPolicy,
+                GetStrength getStrength)
     {
         _generation = generation;
 
@@ -65,7 +68,7 @@ public:
         addrRecs.reserve(numBase + numExtended + 32);
         bool inScanSet[NUM_SCAN_PRIORITY_LEVELS][MAX_ADDR + 1] = {};
         uint16_t countByAddr[MAX_ADDR + 1] = {};
-        bool anyIdentPriority = false;
+        std::vector<int32_t> strength(numBase + numExtended, 0);
         _hwTypeIds.clear();
         _claimOnly.clear();
         memset(_reservedBits, 0, sizeof(_reservedBits));
@@ -95,7 +98,7 @@ public:
                 }
                 continue;
             }
-            anyIdentPriority = anyIdentPriority || (pRec->identPriority != 0);
+            strength[idx] = getStrength(idx);
             for (int addr : addrList)
             {
                 addrRecs.push_back({(uint8_t)addr, idx});
@@ -123,16 +126,17 @@ public:
         for (const AddrRec& addrRec : addrRecs)
             _candidates[fillPos[addrRec.addr]++] = addrRec.idx;
 
-        // Identification order: descending identPriority (a stable sort keeps the record order within a priority)
-        if (anyIdentPriority)
+        // Identification order: descending identPriority, then descending detection strength (a stable sort keeps
+        // the record order otherwise)
+        for (uint32_t addr = 0; addr <= MAX_ADDR; addr++)
         {
-            for (uint32_t addr = 0; addr <= MAX_ADDR; addr++)
-            {
-                std::stable_sort(_candidates.begin() + _candStart[addr], _candidates.begin() + _candStart[addr + 1],
-                        [&getRecord](DeviceTypeIndexType a, DeviceTypeIndexType b) {
-                            return getRecord(a)->identPriority > getRecord(b)->identPriority;
-                        });
-            }
+            std::stable_sort(_candidates.begin() + _candStart[addr], _candidates.begin() + _candStart[addr + 1],
+                    [&getRecord, &strength](DeviceTypeIndexType a, DeviceTypeIndexType b) {
+                        int8_t priA = getRecord(a)->identPriority, priB = getRecord(b)->identPriority;
+                        if (priA != priB)
+                            return priA > priB;
+                        return strength[a] > strength[b];
+                    });
         }
 
         // Scan lists: each level's addresses not in a higher level, in address order. The last level holds every

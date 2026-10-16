@@ -1099,6 +1099,70 @@ file gave state `error` ("not valid JSON") and the compiled records were used.
 **Aim:** identification is scheduled per element, its outcome is visible, and consumers are told when a
 device's identity changes (needed to make G6's restart-identification and G10 work).
 
+**Status (2026-10-16): done in RaftCore, RaftI2C, RaftROS and Axiom.** What was done, by item:
+1. **State per element** (`BusAddrRecord`): `identState` (`BusIdentState`: Pending, Identified, Deferred, NoMatch,
+   BusError, InitFailed), attempts, `nextIdentMs`, the generation and hook epoch of the last attempt, a re-verify
+   request, and the type last reported. `busstatus` identTiming shows each element's state and attempts.
+2. **Scheduler** (`DeviceIdentMgr::taskService`, on the bus task each pass, `identBudgetUs` 5 ms beyond the first
+   element, at most 8 elements): round robin over due elements. The scanner no longer identifies; the bus-wide 3 s
+   retry and Stage 6's awaiting list are gone. Retry policy (`BusIdentSchedule`, decided 2026-10-16): Deferred every
+   3 s (fixed - Axiom's RSAO commissioning debounce of 2 s relies on being asked again at about that rate); NoMatch
+   (hook said NotMine) after 3 s backing off to 60 s, and at once when the generation changes or a hook is
+   registered (hook epoch) - rather than never, because Axiom's RSAO hook also returns NotMine for a transient probe
+   failure; BusError and InitFailed 100 ms backing off to 10 s. Only an element that answered its last access is
+   tried (so a device that has just left an address isn't probed there - Axiom's parked "retry tests the debounced
+   state" issue).
+3. **Init outcome:** a NACKed init step is counted, initialisation is repeated once, and the device is used (with a
+   warning) - soft resets are often NACKed, so failing those would break devices that work today. A bus error
+   other than a NACK gives InitFailed (not used; retried with backoff).
+4. **Identity events:** `BusAddrStatus::identEvent` (`BusIdentEvent`: Identified, TypeChanged, Lost) and
+   `prevDeviceTypeIndex`, derived when the change is reported from the type last reported
+   (`BusAddrRecord::takeStatusChange`). A cleared identification (CRC re-identify, re-verify mismatch) reports
+   nothing until it is identified again, so a re-identification gives one TypeChanged (or Identified, or Lost) rather
+   than Lost then Identified. Going offline reports Lost. `isNewlyIdentified` is kept (set for Identified and
+   TypeChanged); a producer that doesn't set `identEvent` (BLE) gets Identified from `isNewlyIdentified`. An attempt
+   that changes nothing isn't reported.
+5. **Re-verification:** a poll that succeeds after a failed one resets the failure count (a device now goes offline
+   after *consecutive* failures, as documented - before, failures accumulated across successes) and re-runs that
+   type's detection; a match re-initialises (reported as Identified with the same type), a mismatch identifies the
+   device again. Hook-identified (probe-only) types and detections with long pauses are not re-verified.
+6. **Settings survive** (with N8): DeviceManager remembers `devconfig` settings per device ID for the type they were
+   made for, and replays them on Identified/TypeChanged for that type - after a re-identification, re-verification
+   (re-initialisation loses register writes such as `sampleRateHz`) or an absence. Another type forgets them. Kept
+   in DeviceManager rather than on `BusAddrRecord`, because the record is deleted when the device goes offline.
+7. **Consumers:** RaftROS AutoPub re-attaches on TypeChanged and detaches on Lost (the "fork's change" wasn't found;
+   done here); the ExampleDiscoverable MainSysMod likewise. DeviceManager logs TypeChanged and Lost. Axiom
+   DataLogger and DevicePower subscribe through `DeviceManager::registerForDeviceData` instead of on the bus (a bus
+   registration was displaced by DeviceManager's dispatcher on every identification, and lost when the device went
+   offline); DataLogger drops samples from a device re-identified as another type (logged once); DevicePower checks
+   the type of each sample against `expectType`; VL53LxCX stops driving a sensor no longer identified as VL53L5CX.
+8. and 11. **Pauses:** identification is a resumable job (`DeviceIdentMgr::IdentJob`): a detection or init step
+   followed by a pause of 10 ms or more ends that element's work until the pause is over; shorter pauses wait inline.
+   **Found and fixed:** the address bar was inverted (`BusStatusMgr::barElemAccessGet` barred an address once its bar
+   had *expired*, and released it on an access *during* the bar) - so a pause's bar never held, and the first access
+   after one could be barred until another bar was set, depending on whether the `delay()` overran by a millisecond.
+   A barred access is now "no information" for the scanner and polling, not a failure.
+9. **Axiom RSAO:** no code change needed with this retry policy (Deferred keeps its 3 s cadence; hook registration
+   bumps the epoch so a NoMatch element is offered at once). Axiom's devdocs that say "retried every ~3 s" describe
+   Deferred correctly; NotMine now backs off.
+10. **Strength ordering:** candidates are sorted by `identPriority`, then `DeviceTypeGrammar::detectionStrength`
+    (bits compared; CRC bytes count 8; an erroring string is -1), then the previous order. Same in the generator's
+    shadowing report and `reference_catalogue_index.py`. It changes the order at 10 RaftCore addresses, 3 Axiom and 1
+    FeatherS3 test address; the four Stage 3 shadowing cases are gone (VEML6040 now after MXC400xXC, QwiicLEDStick
+    after TrillBar, AHT20 after TrillRing, SHT40 after TrillHex). See Stage 12 item 2 for what to check.
+
+**Tests:** `test_bus_ident.cpp` (41 checks: retry policy, due rules, event derivation, event sequences of a record,
+producer default); the catalogue index, generator and shadowing tests updated for the new order. On-device unit tests
+pass (113, with the known FileSystem image failure). Axiom018 and the FeatherS3 build.
+
+**Bench (FeatherS3, 2026-10-16):** a temporary hook disabled MPU6050 and cleared 0x68 (a type-file copy,
+MPU6050Alt, then matched): `typeChanged 52 -> 53` within 50 ms of the clear, and back; the ROS publisher for
+`/raft/imu_1_68` was re-declared (new GID) after the TypeChanged and not after a same-type re-verify. An injected poll
+failure gave a re-verify ("still matches, re-initialised") and DeviceManager re-applied `intervalUs`. APDS9960 disabled:
+0x39 tried 6 times in 105 s (0, 3, 9, 21, 45, 93 s) - 33 or so before. Identification follows coming online by 20-56
+ms. The "ten devices at once under 1 s" case wasn't reproducible with two devices; the scheduler handles 8 due
+elements a pass and each pass is about 5 ms apart, against one element per 3 s before.
+
 **Changes** (review §9.1 RaftI2C items 2, 3, 7 and §9.2-C):
 1. **Per-element identification state** on `BusAddrRecord`:
    - `identState` (`Pending`, `Identified`, `Deferred`, `NoMatch`, `BusError`, `InitFailed`);
@@ -1310,8 +1374,13 @@ without disturbing a device that is already running, and initialises and polls i
    - SCD4x and STCC4 after Stage 7, since they need a stop command first;
    - MT6701 stays empty.
 2. **The shadowing cases** found in Stage 3: VEML6040 before MXC400xXC (0x10), QwiicLEDStick before TrillBar
-   (0x23), AHT20 before TrillRing (0x38) and SHT40 before TrillHex (0x44-0x46). Item 1 and the Stage 7
-   strength ordering fix them; `test_device_type_keys.py` lists them until then.
+   (0x23), AHT20 before TrillRing (0x38) and SHT40 before TrillHex (0x44-0x46). The Stage 7 strength ordering puts the
+   records without detection last, so the others can now be identified. **Check on hardware** that the device the
+   no-detection record describes doesn't pass the detection now tried first (an AHT20 against TrillRing's 8-bit check,
+   an SHT40 against TrillHex's, a VEML6040 against MXC400xXC's, a QwiicLEDStick against TrillBar's) - giving those
+   records detection (item 1) removes the risk. Also changed by the ordering: VL6180 (8 bits) is now tried after
+   VL53L0X/L1X/L4CD/L5CX (16 bits) at 0x29 (see item 4), AS5600 (6 bits) after AdafruitSoilSensor and TrillCraft at
+   0x36, MCP9808 before ADXL313 at 0x1d, CAP1188 before CAP1203 at 0x28.
 3. **Weak detection in records that have some** - for example MXC400xXC checks one byte (`0x0E=0x02`). Review
    these the same way.
 4. **ST time-of-flight sensors (placeholder).** The VL6180 record was found (2026-10-16) not to initialise and

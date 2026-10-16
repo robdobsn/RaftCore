@@ -385,6 +385,22 @@ def compile(command_str, field):
     return result
 
 
+def detection_strength(result):
+    """Strength of a compiled detection string: the number of bits it compares (for each step, the fewest bits any of
+    its alternatives compares, plus 8 for each CRC byte checked by :crc8w); -1 if it has errors (it never matches).
+    The same as DeviceTypeGrammar::detectionStrength"""
+    if result.has_errors():
+        return -1
+    strength = 0
+    for step in result.steps:
+        bits = [sum(bin(b).count("1") for b in mask) for mask, _ in step.checks]
+        if bits and min(bits) > 0:
+            strength += min(bits)
+        if step.crc8w:
+            strength += 8 * (step.read // 3)
+    return strength
+
+
 def crc8(data):
     """Sensirion CRC-8 (poly 0x31, init 0xff)"""
     crc = 0xFF

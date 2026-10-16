@@ -114,6 +114,12 @@ public:
     ///         used at all)
     static Result compile(const char* pStr, Field field);
 
+    /// @brief Strength of a compiled detection string: the number of bits it compares (for each step, the fewest bits
+    ///        any of its alternatives compares, plus 8 for each CRC byte checked by :crc8w)
+    /// @return the number of bits (0 for a string that compares nothing, e.g. empty or only reads), or -1 if the
+    ///         string has errors (it never matches)
+    static int32_t detectionStrength(const Result& compiled);
+
     /// @brief Check whether an issue is an error
     static bool isError(IssueCode code)
     {

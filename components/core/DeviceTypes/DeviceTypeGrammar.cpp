@@ -473,6 +473,32 @@ const char* DeviceTypeGrammar::getIssueName(IssueCode code)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Strength of a compiled detection string (the number of bits it compares)
+int32_t DeviceTypeGrammar::detectionStrength(const Result& compiled)
+{
+    if (compiled.hasErrors())
+        return -1;
+    int32_t strength = 0;
+    for (const Step& step : compiled.steps)
+    {
+        int32_t weakest = -1;
+        for (const Check& check : step.checks)
+        {
+            int32_t bits = 0;
+            for (uint8_t maskByte : check.mask)
+                bits += __builtin_popcount(maskByte);
+            if ((weakest < 0) || (bits < weakest))
+                weakest = bits;
+        }
+        if (weakest > 0)
+            strength += weakest;
+        if (step.crc8w)
+            strength += 8 * (step.readLen / 3);
+    }
+    return strength;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Name of a field
 const char* DeviceTypeGrammar::getFieldName(Field field)
 {

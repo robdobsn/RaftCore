@@ -340,6 +340,17 @@ private:
     /// @brief Handle devman/slot API endpoint (set or query slot mode)
     RaftRetCode apiDevManSlot(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
+    // Settings made with devconfig, by device (packed device ID), for the type they were made for - applied again when
+    // the device is identified again as that type
+    struct DevConfigSettings
+    {
+        DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+        std::vector<RaftJson::NameValuePair> values;
+    };
+    std::unordered_map<uint64_t, DevConfigSettings> _devConfigSettings;
+    void rememberDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex, const RaftJson& jsonParams);
+    void reapplyDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex);
+
     // System configuration (for settings of other modules read for compatibility)
     RaftJsonIF& _sysConfig;
 

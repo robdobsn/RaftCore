@@ -1,7 +1,9 @@
 """Reference address map and scan lists for a device type catalogue
 
 This is the algorithm ProcessDevTypeJsonToC.py used to derive baseDevTypeIndexByAddr and the scan priority lists
-at build time, before the catalogue index was built at runtime (Stage 3 of the device identification plan). It
+at build time, before the catalogue index was built at runtime (Stage 3 of the device identification plan), with
+the identification order of Stage 7: at each address, descending identPriority, then descending detection
+strength (the number of bits the detection compares, DeviceTypeGrammar.detection_strength), then record order. It
 writes them as JSON so linux_unit_tests/test_catalogue_index can check that the runtime index gives the same
 result for base records.
 
@@ -9,8 +11,12 @@ Usage: reference_catalogue_index.py <catalogue.json>[,<catalogue.json>...] <out.
 """
 
 import json
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import DeviceTypeGrammar  # noqa: E402
 
 MIN_VALID_ADDR = 0x04
 MAX_VALID_ADDR = 0x77
@@ -61,6 +67,17 @@ def reference_index(dev_types):
         if not exclude:
             for addr in addr_list:
                 addr_map.setdefault(addr, []).append(record_index)
+    # Identification order at each address
+    records = list(dev_types.values())
+
+    def order_key(record_index):
+        dev_type = records[record_index]
+        strength = DeviceTypeGrammar.detection_strength(
+            DeviceTypeGrammar.compile(dev_type.get("detectionValues", ""), "detection"))
+        return (-dev_type.get("identPriority", 0), -strength, record_index)
+
+    for addr in addr_map:
+        addr_map[addr] = sorted(addr_map[addr], key=order_key)
     scan_lists = []
     for i in range(NUM_PRIORITY_LEVELS):
         if i == NUM_PRIORITY_LEVELS - 1:

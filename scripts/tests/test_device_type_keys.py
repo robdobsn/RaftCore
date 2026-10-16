@@ -99,19 +99,12 @@ class DeviceTypeKeyTests(unittest.TestCase):
 
     def test_raftcore_catalogue_shadowing(self):
         """The records in the RaftCore catalogue that have no detection values and are matched before another
-        record at the same address (so the other is never identified there). Known cases - when one is fixed (e.g.
-        with identPriority or detection values) remove it here; a new one fails this test"""
+        record at the same address (so the other is never identified there). Since records are tried in order of
+        detection strength (Stage 7) there are none; a new one fails this test"""
         result, _ = self.run_generator([RAFTCORE_CATALOGUE])
         self.assertEqual(result.returncode, 0, result.stderr)
         shadowing = [line for line in result.stdout.splitlines() if "has no detection values" in line]
-        self.assertEqual(shadowing, [
-            'WARNING: record "VEML6040" has no detection values, so at address 0x10 it is matched before MXC400xXC',
-            'WARNING: record "QwiicLEDStick" has no detection values, so at address 0x23 it is matched before TrillBar',
-            'WARNING: record "AHT20" has no detection values, so at address 0x38 it is matched before TrillRing',
-            'WARNING: record "SHT40" has no detection values, so at address 0x44 it is matched before TrillHex',
-            'WARNING: record "SHT40" has no detection values, so at address 0x45 it is matched before TrillHex',
-            'WARNING: record "SHT40" has no detection values, so at address 0x46 it is matched before TrillHex',
-        ])
+        self.assertEqual(shadowing, [])
 
 
 if __name__ == "__main__":

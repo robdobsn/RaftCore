@@ -242,15 +242,26 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # Bump index
         dev_record_index += 1
 
-    # Shadowing report: a record with no detection values matches any device at its address, so records after it
-    # at the same address are never tried (unless they have a higher identPriority)
+    # Shadowing report: a record whose detection compares nothing matches any device at its address, so records
+    # tried after it there are never tried. The firmware tries records at an address in order of descending
+    # identPriority, then descending detection strength (the bits compared), then record order - so this happens
+    # only when such a record has a higher identPriority, or another record also compares nothing (a record whose
+    # detection has errors never matches, so it isn't shadowed)
     dev_types_by_key = dev_ident_json['devTypes']
+    record_order = {key: i for i, key in enumerate(dev_types_by_key.keys())}
+
+    def detection_strength(key):
+        return DeviceTypeGrammar.detection_strength(
+            DeviceTypeGrammar.compile(dev_types_by_key[key].get("detectionValues", ""), "detection"))
+
     for addr, keys in sorted(addr_to_record_keys.items()):
+        keys = sorted(keys, key=lambda k: (-dev_types_by_key[k].get("identPriority", 0), -detection_strength(k),
+                                           record_order[k]))
         for i, key in enumerate(keys[:-1]):
-            if dev_types_by_key[key].get("detectionValues", "").strip() == "":
-                shadowed = ", ".join(keys[i+1:])
+            shadowed = [k for k in keys[i+1:] if detection_strength(k) >= 0]
+            if (detection_strength(key) == 0) and shadowed:
                 print(f"WARNING: record \"{key}\" has no detection values, so at address 0x{addr:02x} it is matched "
-                      f"before {shadowed}")
+                      f"before {', '.join(shadowed)}")
                 break
 
     # Generate poll records header file
