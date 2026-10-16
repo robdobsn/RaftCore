@@ -520,18 +520,32 @@ class DecodeGenerator:
                 elif bitshift < 0:
                     extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name} = (int32_t)((uint32_t)__{attr_name} << {(-bitshift) & 31});\n")
 
-            # Generate code to store the value to the struct
-            extract_code.append(f"{line_prefix}        {elem_ind}{store_target} = __{attr_name};\n")
-            
-            # Check for divisor
-            if "d" in el and el["d"] != 0:
-                divisor = el["d"]
-                extract_code.append(f"{line_prefix}        {elem_ind}{store_target} /= {divisor};\n")
+            # A lookup table is applied to the value after the divisor and addition (as RaftJS does), so the value
+            # is worked in a double and the result stored - a bool or narrow output type would lose the value the
+            # table looks up
+            lut_code = self.gen_lut_code(el, attr_name)
+            if lut_code:
+                extract_code.append(f"{line_prefix}        {elem_ind}double __{attr_name}_lut = (double)__{attr_name};\n")
+                if "d" in el and el["d"] != 0:
+                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name}_lut /= {el['d']};\n")
+                if "a" in el and el["a"] != 0:
+                    extract_code.append(f"{line_prefix}        {elem_ind}__{attr_name}_lut += {el['a']};\n")
+                for line in lut_code:
+                    extract_code.append(f"{line_prefix}        {elem_ind}{line}\n")
+                extract_code.append(f"{line_prefix}        {elem_ind}{store_target} = (decltype({store_target}))__{attr_name}_lut;\n")
+            else:
+                # Generate code to store the value to the struct
+                extract_code.append(f"{line_prefix}        {elem_ind}{store_target} = __{attr_name};\n")
 
-            # Check for addition
-            if "a" in el and el["a"] != 0:
-                addition = el["a"]
-                extract_code.append(f"{line_prefix}        {elem_ind}{store_target} += {addition};\n")
+                # Check for divisor
+                if "d" in el and el["d"] != 0:
+                    divisor = el["d"]
+                    extract_code.append(f"{line_prefix}        {elem_ind}{store_target} /= {divisor};\n")
+
+                # Check for addition
+                if "a" in el and el["a"] != 0:
+                    addition = el["a"]
+                    extract_code.append(f"{line_prefix}        {elem_ind}{store_target} += {addition};\n")
 
             # Close the element loop for array attributes
             if repeat > 1:
@@ -545,6 +559,59 @@ class DecodeGenerator:
         extract_code.append(f"{line_prefix}    pOut++;\n")
         extract_code.append(f"{line_prefix}    numRecs++;\n")
         extract_code.append(line_prefix + "}\n")
+
+    @staticmethod
+    def _parse_lut_int(text):
+        """An integer in a lookup table range, as RaftJS parses it (0x for hex, otherwise decimal); None if invalid"""
+        text = text.strip()
+        try:
+            return int(text, 16) if text.lower().startswith("0x") else int(text, 10)
+        except ValueError:
+            return None
+
+    def gen_lut_code(self, el, attr_name):
+        """Lines applying an attribute's lookup table ("lut") to the double __<attr_name>_lut, as RaftJS does: the
+        value is rounded and compared with each row's "r" ("5", "1,2,3", "0x20-0x30"); the first row that matches
+        gives the value; a row with "r" "" is the default (the last such row) for a value no row matches; with no
+        default an unmatched value is kept. A NaN is kept. Returns [] if the attribute has no lookup table"""
+        lut = el.get("lut")
+        if not isinstance(lut, list) or len(lut) == 0:
+            return []
+        var = f"__{attr_name}_lut"
+        conditions = []
+        default_value = None
+        for row in lut:
+            if not isinstance(row, dict) or "v" not in row:
+                continue
+            range_str = str(row.get("r", ""))
+            if range_str == "":
+                default_value = row["v"]
+                continue
+            terms = []
+            for part in range_str.split(","):
+                if "-" in part:
+                    bounds = part.split("-")
+                    start = self._parse_lut_int(bounds[0])
+                    end = self._parse_lut_int(bounds[1]) if len(bounds) > 1 else None
+                    if start is not None and end is not None:
+                        terms.append(f"((__lutR >= {start}LL) && (__lutR <= {end}LL))")
+                else:
+                    value = self._parse_lut_int(part)
+                    if value is not None:
+                        terms.append(f"(__lutR == {value}LL)")
+            if terms:
+                conditions.append((" || ".join(terms), row["v"]))
+        if not conditions and default_value is None:
+            return []
+        lines = [f"if ({var} == {var}) {{",
+                 f"    long long __lutR = (long long)({var} + 0.5);",
+                 f"    if ((double)__lutR > {var} + 0.5) __lutR--;"]
+        for i, (condition, value) in enumerate(conditions):
+            lines.append(f"    {'if' if i == 0 else 'else if'} ({condition}) {var} = {float(value)!r};")
+        if default_value is not None:
+            lines.append(f"    {'else ' if conditions else ''}{var} = {float(default_value)!r};")
+        lines.append("}")
+        return lines
 
     def gen_extract_code(self, dev_info_json, line_prefix, dev_type_key):
         # Get the response meta data
