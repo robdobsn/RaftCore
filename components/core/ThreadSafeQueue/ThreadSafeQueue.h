@@ -10,8 +10,10 @@
 #pragma once
 
 #include <queue>
+#include <deque>
 #include <atomic>
 #include "RaftThreading.h"
+#include "SpiramAwareAllocator.h"
 
 // Notes on thread-safety:
 // - put/get/peek/clear block for up to maxMsToWait (default DEFAULT_MAX_MS_TO_WAIT) to obtain the queue mutex
@@ -182,7 +184,10 @@ public:
     }
 
 private:
-    std::queue<ElemT> _queue;
+    // Elements are held in PSRAM where available - a std::deque allocates a block (about 500 bytes) as
+    // soon as it is created, even when empty, so with many (mostly idle) queues this keeps a significant
+    // amount of internal RAM free. Queues are only used from tasks (not ISRs) so PSRAM is fine
+    std::queue<ElemT, std::deque<ElemT, SpiramAwareAllocator<ElemT>>> _queue;
     static const uint32_t DEFAULT_MAX_QUEUE_LEN = 50;
     std::atomic<uint32_t> _maxLen{DEFAULT_MAX_QUEUE_LEN};
 
