@@ -44,6 +44,8 @@ polling), and the consumers that are affected (raftjs, RaftROS, Axiom).
 3. **Make extended records first-class, then load them from a file** (Stages 5–6).
 4. **Then the identification model, live reload, scanning, the APIs and the wire-level names** (Stages 7–11).
    Each depends on the stages before it.
+5. **Improvements to the records themselves** (Stage 12) come after the identification model, which some of
+   them need.
 
 Naming (G11) is decided once, in Stage 0. Each later stage then uses the new names for the code it touches.
 Stage 11 handles the remaining renames that clients can see.
@@ -800,8 +802,8 @@ generated record array grows by 5 bytes per record (in flash).
 **Found:** the shadowing report finds records with no detection values ahead of others at the same address in
 the RaftCore catalogue, so the later record is never identified there: VEML6040 before MXC400xXC (0x10),
 QwiicLEDStick before TrillBar (0x23), AHT20 before TrillRing (0x38) and SHT40 before TrillHex (0x44-0x46).
-`test_device_type_keys.py` lists them. Fixing them (detection values, or `identPriority`) changes identification,
-so it is left for a decision.
+`test_device_type_keys.py` lists them. Fixing them changes identification, so they are part of Stage 12, with the
+detection-strength ordering in Stage 7.
 
 **Changes:**
 1. **Record fields that today exist only at build time** become fields of every record, base and
@@ -862,6 +864,9 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
   cached per type (`PollPlan`).
 - **Tri-state detection** (I4): `checkDeviceTypeMatch` returns `Match`, `NoMatch` or `BusError`. A
   `BusError` stops the attempt: no fall-through to weaker records, and no fallback hook.
+- **CRC check in detection** (added 2026-10-16, for Stage 12): a check that each 2-byte word read is followed
+  by a valid Sensirion CRC-8 (poly 0x31, init 0xFF), e.g. a suffix such as `:crc8w`. It makes a serial-number
+  read a strong check for Sensirion parts that have no product ID (`device-detection-review.md` §3).
 
 **Verify:**
 - Every shipped catalogue compiles without errors.
@@ -995,6 +1000,13 @@ device's identity changes (needed to make G6's restart-identification and G10 wo
    identification budget.
 9. **Lands together with the Axiom RSAO change.** The hook stops being re-offered every ~3 s, and Axiom's
    commissioning debounce depends on those retries today (§9.2 item 13).
+10. **Detection-strength ordering** (§3.5 items 2 and 3, deferred from Stage 3): candidates at an address are
+    sorted by `identPriority`, then the number of bits their detection checks, with no-detection records
+    last, then catalogue order. This changes which record matches at some addresses (the shadowing cases
+    found in Stage 3), so it is verified with the Stage 12 detection changes.
+11. **Detection pauses that don't block the bus.** Long pauses (a sensor's stop command takes 500 ms to
+    1.2 s; the Robotical records already pause 500 ms) run as resumable identification steps rather than a
+    `delay()` on the bus task. Stage 12 depends on this for SCD4x and STCC4.
 
 **Verify:**
 - Ten devices unidentified at once recover in under 1 s, not about 30 s.
@@ -1144,6 +1156,58 @@ Also:
 
 ---
 
+### Stage 12: Device type record improvements
+
+Added 2026-10-16. Improvements to the records themselves - their detection, initialisation and polling - as
+opposed to the machinery that uses them. Deferred until after Stage 7 because several items depend on it
+(detection-strength ordering, pauses that don't block the bus) and on Stage 4 (the CRC check). Items can be
+taken one at a time after that, in any order; each needs the device to verify on hardware.
+
+**Aim:** every record identifies its device reliably, without matching other devices at the same address and
+without disturbing a device that is already running, and initialises and polls it correctly.
+
+**Items:**
+1. **Detection for records that have none** - the twelve I2C records reviewed in `device-detection-review.md`
+   (VEML6040, AHT20, SHT40, SGP40, MPRLS, MT6701, QwiicLEDStick, SCD30, SCD40, STCC4, GravityO2, AMG8833). The
+   review gives the ID mechanism and a proposed detection string for each, and the constraints that apply:
+   - a detection that can fail on a genuine device (for example only while it is measuring) exposes it to the
+     RSAO probe, so it is worse than none;
+   - detection must work on a device that is already running, not only before its `initValues`.
+
+   In summary:
+   - low-risk checks for MPRLS, GravityO2, SCD30, QwiicLEDStick, VEML6040 and AMG8833;
+   - a weak status-bit check for AHT20;
+   - serial-number checks for SHT40 and SGP40, once the Stage 4 CRC check exists;
+   - SCD4x and STCC4 after Stage 7, since they need a stop command first;
+   - MT6701 stays empty.
+2. **The shadowing cases** found in Stage 3: VEML6040 before MXC400xXC (0x10), QwiicLEDStick before TrillBar
+   (0x23), AHT20 before TrillRing (0x38) and SHT40 before TrillHex (0x44-0x46). Item 1 and the Stage 7
+   strength ordering fix them; `test_device_type_keys.py` lists them until then.
+3. **Weak detection in records that have some** - for example MXC400xXC checks one byte (`0x0E=0x02`). Review
+   these the same way.
+4. **ST time-of-flight sensors (placeholder).** The VL6180 record was found (2026-10-16) not to initialise and
+   poll the device correctly; it is being fixed separately. Review the other ST parts for the same kind of
+   problem at the appropriate time: VL53L0X, VL53L1X and VL53L4CD in the RaftCore catalogue, and Axiom's
+   VL53LxCX support (VL53L5CX, supplied through its ULD task as an `ext` record). Check their initialisation
+   sequences, poll commands and data layout against ST's API/ULD drivers.
+5. **Other record fixes found so far:**
+   - SGP40 vs SGP41: an SGP41 at 0x59 would be identified as an SGP40 and then fail to poll (it doesn't have
+     the SGP40's measurement command 0x260F). Detect the variant, or add an SGP41 record;
+   - alternative addresses missing from records: STCC4 0x65 (ADDR pin high), Qwiic LED Stick 0x22 (jumper),
+     MT6701 0x46 (reprogrammed);
+   - the Robotical servo and water pump records pause 500 ms in detection, blocking the bus each time a device
+     at one of their addresses is identified (fixed by Stage 7 item 11, or by shorter pauses).
+
+**Verify:** for each record changed - the device is identified from power-up and when already running (after a
+firmware restart without a power cycle), its neighbours at the same address are still identified correctly,
+and its readings match the device's own reference (vendor tool or driver).
+
+**Repos:** RaftCore (catalogue), Axiom (its catalogue and VL53LxCX).
+
+**Depends on:** Stages 4 and 7.
+
+---
+
 ## 6. Goals and findings by stage
 
 | Goal | Stages |
@@ -1171,6 +1235,7 @@ Also:
 | A1, I3, I9, I10, I11, I17 | 7 |
 | Review §9.2-I (record lifetime), raftjs cache | 8 |
 | C15, raftjs naming, review §6 docs | 10–11 |
+| Records without detection, shadowing, record fixes (`device-detection-review.md`), ST ToF review | 12 |
 
 Not in this plan, and tracked in the review: Axiom-only items A2, A3, A5 and A6; I13 (multi-consumer
 deletions); the runtime decoder for records that are only data (review §9.2-G). The runtime decoder becomes

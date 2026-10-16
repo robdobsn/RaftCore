@@ -1,6 +1,7 @@
 # Device type records without detection: review
 
-Status: research 2026-10-16. No record has been changed. None of the proposed detection strings has been tested
+Status: research 2026-10-16. No record has been changed. The work is planned as Stage 12 of
+`device-identification-improvement-plan.md` (after Stages 4 and 7). None of the proposed detection strings has been tested
 on hardware: none of these devices is on the FeatherS3 bench.
 
 ## 1. Purpose
