@@ -922,8 +922,11 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
 **Aim:** base records can be disabled at runtime, and an override really replaces a base record
 (G5).
 
-**Status (2026-10-16): done in RaftCore and RaftI2C.** Axiom's hard-coded MAX17048/0x36 rule is not replaced yet
-(an Axiom change; the mechanism it needs is in place). What was done:
+**Status (2026-10-16): done in RaftCore, RaftI2C and Axiom.** Axiom's Axiom018 SysType gives the fuel gauge entry
+`"expectType": "MAX17048"`, so the MAX17048 is protected by configuration rather than a hard-coded rule. DevicePower
+doesn't use a device at the fuel gauge address that was identified as another type (it logs the mismatch once and
+keeps waiting); DeviceManager also logs any device identified as something other than its `expectType`. What was
+done:
 - **Policy** per type-table entry (`DeviceTypeRecord::POLICY_ENABLED`, `POLICY_DISABLED`,
   `POLICY_DISABLED_CLAIM`): an initial policy in each record, changeable with `DeviceTypeRecords::setPolicy()` (by
   index or key) and from the SysType's `DevMan/typePolicy` map. The catalogue index takes it into account: only
@@ -1534,7 +1537,7 @@ loader needs the `scanPriority`, `excludeFromAddrMap`/`probeOnly` and `s` fixes.
 | B5 | **Re-identification after loading** | `reIdentifyAllBuses()` after a load, plus an unconditional call in `RSAOSysMod::postSetup` on every boot | Stage 6 gating: no device is identified before the table is `Ready` | Both calls are removed when Stage 6 lands, ending the boot-time data gap (review §11 item 4) |
 | B6 | **RSAO id mapping** | `DeviceTypeIdSink` callback into a registry that is sealed in `postSetup` | `hwTypeId` → index lookup in the catalogue index (Stage 3) | The sink, the registry and the sealing go. This also removes the dependency on SysMod order |
 | B7 | **Capacity** | 20 records, shared with static devices; `devlib` reports `maxRecords` | D3: 32 / 256 records with byte budgets | Keep `maxRecords` in the status, and add the byte budget |
-| B8 | **Protections** | Hard-coded: `MAX17048` cannot be disabled or replaced, and address 0x36 can't be claimed | Derived from SysTypes `role: "system"` plus `expectType` (Stage 5 item 4) | Axiom's SysTypes needs `expectType` on the fuel gauge entry first |
+| B8 | **Protections** | Hard-coded: `MAX17048` cannot be disabled or replaced, and address 0x36 can't be claimed | Derived from SysTypes `role: "system"` plus `expectType` (Stage 5 item 4) | Done: Axiom018 SysTypes has `expectType: "MAX17048"` on the fuel gauge entry, and DevicePower checks the identified type before using it |
 | B9 | **Status endpoint** | `devlib`: `file`, `present`, `applied`, `appliedCrc16` (CRC16-CCITT, matching `filehash`), `added`, `suppressed`, `rejected`, `maxRecords`, `maxFileBytes`, `firstError` | `devman/typefile` | Keep `devlib` as an alias with the same fields for one release; use the same CRC algorithm (D20) |
 | B10 | **Config key and path** | `DeviceLibrary/devLibFile`, default `/local/devlib.json` | `DevMan/typeFile` | Default the type file to `/local/devlib.json` on Axiom, or migrate (D20) |
 | B11 | **Parsing cost** | The whole file (≤ 64 KB) is read into memory, then each field is fetched with a path lookup, e.g. `getString("devTypes/<key>/pollInfo")` *(likely costly with many records; not measured)*. `pollInfo` and `devInfoJson` are stored as their raw text, including whitespace | Stage 2 packed records | The loader should walk the file once, and minify the JSON text before storing it |

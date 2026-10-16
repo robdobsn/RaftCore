@@ -192,6 +192,23 @@ static void testDeviceIDFromString()
         TEST_ASSERT(RaftDeviceID::fromString(id.toString()) == id, ("round trip " + id.toString()).c_str());
 }
 
+static void testExpectedType()
+{
+    printf("Running testExpectedType...\n");
+    DeviceNames names;
+    RaftDeviceID id(1, 0x36);
+    TEST_ASSERT(names.getExpectedType(id) == "", "no expected type by default");
+    names.setExpectedType(id, "MAX17048");
+    TEST_ASSERT(names.getExpectedType(id) == "MAX17048", "expected type is returned");
+    TEST_ASSERT(names.getExpectedType(RaftDeviceID(2, 0x36)) == "", "other bus has no expected type");
+    TEST_ASSERT(names.getExpectedType(RaftDeviceID(1, 0x37)) == "", "other address has no expected type");
+    names.setExpectedType(id, "LC709203F");
+    TEST_ASSERT(names.getExpectedType(id) == "LC709203F", "expected type can be changed");
+    names.setExpectedType(id, "");
+    TEST_ASSERT(names.getExpectedType(id) == "", "empty removes the expected type");
+    TEST_ASSERT(names.nameCount() == 0, "expected type does not name the device");
+}
+
 int main()
 {
     testDeviceIDFromString();
@@ -203,5 +220,6 @@ int main()
     testLoadFromConfig();
     testMultipleDevices();
     testRoles();
+    testExpectedType();
     return testSummary("test_device_names");
 }

@@ -148,6 +148,24 @@ public:
         return it->second == "system";
     }
 
+    /// @brief Set the device type key a device is expected to be (empty removes it)
+    void setExpectedType(RaftDeviceID deviceID, const String& deviceTypeKey)
+    {
+        uint64_t key = packDeviceIDKey(deviceID);
+        if (deviceTypeKey.length() == 0)
+            _expectedType.erase(key);
+        else
+            _expectedType[key] = std::string(deviceTypeKey.c_str());
+    }
+
+    /// @brief Get the device type key a device is expected to be
+    /// @return the key, or empty if none is set
+    String getExpectedType(RaftDeviceID deviceID) const
+    {
+        auto it = _expectedType.find(packDeviceIDKey(deviceID));
+        return it != _expectedType.end() ? String(it->second.c_str()) : String();
+    }
+
     /// @brief Number of named devices
     uint32_t nameCount() const
     {
@@ -173,4 +191,6 @@ private:
     std::unordered_map<uint64_t, std::string> _deviceIDToName;
     // Packed device ID -> role (no entry means "normal")
     std::unordered_map<uint64_t, std::string> _deviceRole;
+    // Packed device ID -> device type key the device is expected to be (Devices entry "expectType")
+    std::unordered_map<uint64_t, std::string> _expectedType;
 };

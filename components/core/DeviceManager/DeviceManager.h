@@ -79,6 +79,11 @@ public:
     /// @return role string, or "normal" if no role is mapped
     String getDeviceRole(RaftDeviceID deviceID) const;
 
+    /// @brief Get the device type key a device is expected to be (Devices entry "expectType")
+    /// @param deviceID device ID
+    /// @return the key, or empty if none is configured
+    String getDeviceExpectedType(RaftDeviceID deviceID) const;
+
     /// @brief Check whether a device is tagged with role "system"
     /// @param deviceID Device identifier
     /// @return true if role is "system"

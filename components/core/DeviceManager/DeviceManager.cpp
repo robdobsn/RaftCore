@@ -293,6 +293,21 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
         if (addrStatus.onlineState != DeviceOnlineState::ONLINE)
             continue;
 
+        // A device that is expected to be a particular type (Devices entry "expectType") and was identified as
+        // something else is reported - its users must not treat it as the expected type
+        if (addrStatus.isNewlyIdentified)
+        {
+            RaftDeviceID busDevID(bus.getBusNum(), addrStatus.address);
+            String expectedType = _deviceNames.getExpectedType(busDevID);
+            const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(addrStatus.deviceTypeIndex);
+            if ((expectedType.length() > 0) && (!pRec || !pRec->deviceType || !expectedType.equals(pRec->deviceType)))
+            {
+                LOG_E(MODULE_PREFIX, "busElemStatusCB device %s expected to be %s but identified as %s",
+                            busDevID.toString().c_str(), expectedType.c_str(),
+                            (pRec && pRec->deviceType) ? pRec->deviceType : "unknown");
+            }
+        }
+
         // Own the device's single bus data callback and fan it out to every
         // subscriber (registerForDeviceData), whenever they register - so a
         // subscription made after the device came online also takes effect,
@@ -369,6 +384,9 @@ void DeviceManager::setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& de
                 setDeviceName(deviceID, name);
             if (role.length() > 0)
                 setDeviceRole(deviceID, role);
+            String expectType = devConf.getString("expectType", "");
+            if (expectType.length() > 0)
+                _deviceNames.setExpectedType(deviceID, expectType);
             continue;
         }
 
@@ -2248,6 +2266,13 @@ void DeviceManager::setDeviceRole(RaftDeviceID deviceID, const String& role)
 String DeviceManager::getDeviceRole(RaftDeviceID deviceID) const
 {
     return _deviceNames.getRole(deviceID);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device type key a device is expected to be (Devices entry "expectType")
+String DeviceManager::getDeviceExpectedType(RaftDeviceID deviceID) const
+{
+    return _deviceNames.getExpectedType(deviceID);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

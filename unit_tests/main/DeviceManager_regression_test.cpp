@@ -187,6 +187,30 @@ TEST_CASE("listdevs retains identified online devices without poll responses", "
     TEST_ASSERT_FALSE(requestedOnlyPolledAddresses);
 }
 
+TEST_CASE("a bus-tagging Devices entry records the expected type", "[DeviceManager]")
+{
+    raftBusSystem.deinit();
+    raftBusSystem.registerBus("DeviceManagerRegressionBus", createDeviceManagerRegressionBus);
+
+    RaftJson config = R"({"DeviceManager":{"Buses":{"buslist":[{"type":"DeviceManagerRegressionBus"}]},)"
+                      R"("Devices":[{"name":"FuelGauge","bus":"RegressionBus","addr":"0x53","role":"system","expectType":"MAX17048"},)"
+                      R"({"name":"Other","bus":"RegressionBus","addr":"0x54"}]}})";
+    TestableDeviceManager deviceManager("DeviceManager", config);
+    deviceManager.setup();
+    const auto& buses = raftBusSystem.getBusList();
+    uint32_t busCount = buses.size();
+    BusNumType busNum = buses.empty() ? 0 : buses.front()->getBusNum();
+    String expected53 = deviceManager.getDeviceExpectedType(RaftDeviceID(busNum, 0x53));
+    String expected54 = deviceManager.getDeviceExpectedType(RaftDeviceID(busNum, 0x54));
+    String role53 = deviceManager.getDeviceRole(RaftDeviceID(busNum, 0x53));
+    raftBusSystem.deinit();
+
+    TEST_ASSERT_EQUAL_UINT32(1, busCount);
+    TEST_ASSERT_EQUAL_STRING("MAX17048", expected53.c_str());
+    TEST_ASSERT_EQUAL_STRING("", expected54.c_str());
+    TEST_ASSERT_EQUAL_STRING("system", role53.c_str());
+}
+
 TEST_CASE("direct devices reject bus-only devconfig and cmdraw", "[DeviceManager]")
 {
     raftBusSystem.deinit();
