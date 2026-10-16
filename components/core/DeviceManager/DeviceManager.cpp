@@ -1015,6 +1015,8 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/busstatus[?busnum=<n>&reset=1] - Per-bus diagnostics (poll-response integrity, poll timing, worker activity, identification timing; reset=1 restarts poll timing after reporting),"
                             " devman/typefile - Device type file status (path, state, counts, first error, CRC, capacity),"
                             " devman/typefile/apply - Restart to apply a changed device type file,"
+                            " devman/reident?deviceid=<deviceId>|type=<typeKeyOrIndex>|all=1|unidentified=1 - Identify devices again (an identified device keeps its type until a different one is found),"
+                            " devman/typepolicy?type=<typeKeyOrIndex>&policy=<enabled|disabled|disabledClaim> - Set a device type's policy (not saved) and identify the devices it affects again,"
                             " Note: typeKeyOrIndex can be either a device type key or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     endpointManager.addEndpoint("devlib", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
@@ -1070,6 +1072,10 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManBusStatus(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("typefile"))
         return apiDevManTypeFile(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("reident"))
+        return apiDevManReIdent(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("typepolicy"))
+        return apiDevManTypePolicy(reqStr, respStr, jsonParams);
 
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownCmd");
 }
@@ -2824,6 +2830,7 @@ RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respS
     json += ",\"bytes\":" + String((int)stats.bytesUsed) + ",\"maxBytes\":" + String((int)stats.maxBytes);
     json += ",\"maxFileBytes\":" + String((int)_typeFileLimits.maxFileBytes);
     json += ",\"identReady\":" + String(deviceTypeRecords.areRecordSourcesReady() ? "true" : "false");
+    json += ",\"restartRequired\":" + String(isTypeFileRestartRequired() ? "true" : "false");
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
 }
 
@@ -2849,3 +2856,152 @@ RaftRetCode DeviceManager::apiDevLib(const String &reqStr, String &respStr, cons
     RaftJson::appendStringField(json, "firstError", _typeFileResult.firstError.c_str());
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether the device type file differs from the one loaded at startup
+/// @note A change to device type records is applied by a restart (devman/typefile/apply): a client making several
+///       changes restarts once, when it chooses
+bool DeviceManager::isTypeFileRestartRequired()
+{
+    if (_typeFileChanged)
+        return true;
+    if (_typeFilePath.length() == 0)
+        return false;
+    String fsName;
+    String fileName = _typeFilePath;
+    if (_typeFilePath.startsWith("/"))
+    {
+        int nextSlash = _typeFilePath.indexOf('/', 1);
+        if (nextSlash > 1)
+        {
+            fsName = _typeFilePath.substring(1, nextSlash);
+            fileName = _typeFilePath.substring(nextSlash + 1);
+        }
+    }
+    uint32_t fileLen = 0;
+    bool presentNow = fileSystem.getFileInfo(fsName, fileName, fileLen);
+    if (presentNow != _typeFilePresent)
+        return true;
+    if (!presentNow || (fileLen > _typeFileLimits.maxFileBytes))
+        return false;
+    uint8_t* pContents = fileSystem.getFileContents(fsName, fileName, _typeFileLimits.maxFileBytes + 2);
+    if (!pContents)
+        return false;
+    uint16_t crcNow = DeviceTypeFileLoader::crc16(pContents, strlen((const char*)pContents));
+    SpiramAwareAllocator<uint8_t> allocator;
+    allocator.deallocate(pContents, 0);
+    return crcNow != _typeFileCrc16;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Ask for devices to be identified again
+uint32_t DeviceManager::requestReIdentify(const BusReIdentRequest& request, BusNumType busNum)
+{
+    uint32_t numAccepted = 0;
+    for (RaftBus* pBus : raftBusSystem.getBusList())
+    {
+        if (!pBus || ((request.scope == BusReIdentScope::Address) && (pBus->getBusNum() != busNum)))
+            continue;
+        RaftBusDevicesIF* pDevicesIF = pBus->getBusDevicesIF();
+        if (pDevicesIF && pDevicesIF->requestReIdentify(request))
+            numAccepted++;
+    }
+    return numAccepted;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set a device type's policy at runtime and identify the devices it affects again
+DeviceTypeRecords::PolicyResult DeviceManager::setTypePolicy(const char* deviceTypeKey, uint8_t policy)
+{
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (!deviceTypeKey || !deviceTypeRecords.getRecord(deviceTypeKey, deviceTypeIndex))
+        return DeviceTypeRecords::PolicyResult::NotFound;
+    uint8_t prevPolicy = deviceTypeRecords.getPolicy(deviceTypeIndex);
+    DeviceTypeRecords::PolicyResult result = deviceTypeRecords.setPolicy(deviceTypeIndex, policy);
+    if ((result != DeviceTypeRecords::PolicyResult::Set) || (prevPolicy == policy))
+        return result;
+
+    // Devices identified as a type no longer enabled are identified again (they become another type, or Lost);
+    // a type now enabled is tried for devices it outranks (devices that match nothing are tried again anyway, as
+    // the records have changed)
+    BusReIdentRequest request;
+    request.scope = (policy == DeviceTypeRecord::POLICY_ENABLED) ? BusReIdentScope::Outranked : BusReIdentScope::TypeIndex;
+    request.deviceTypeIndex = deviceTypeIndex;
+    requestReIdentify(request);
+    LOG_I(MODULE_PREFIX, "setTypePolicy %s %s", deviceTypeKey, DeviceTypeRecord::getPolicyStr(policy));
+    return result;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/reident (identify devices again)
+RaftRetCode DeviceManager::apiDevManReIdent(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    BusReIdentRequest request;
+    BusNumType busNum = 0;
+    String typeKeyOrIndex = jsonParams.getString("type", "");
+    if (jsonParams.getBool("all", false))
+    {
+        request.scope = BusReIdentScope::All;
+    }
+    else if (jsonParams.getBool("unidentified", false))
+    {
+        request.scope = BusReIdentScope::Unidentified;
+    }
+    else if (typeKeyOrIndex.length() > 0)
+    {
+        request.scope = BusReIdentScope::TypeIndex;
+        if (isdigit(typeKeyOrIndex[0]))
+            request.deviceTypeIndex = (DeviceTypeIndexType)typeKeyOrIndex.toInt();
+        if (!deviceTypeRecords.getRecord(request.deviceTypeIndex) &&
+                    !deviceTypeRecords.getRecord(typeKeyOrIndex.c_str(), request.deviceTypeIndex))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
+    }
+    else
+    {
+        RaftDeviceID deviceID;
+        RaftBus* pBus = nullptr;
+        String errorStr;
+        if (resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr) != RAFT_OK)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
+        if (!pBus)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+        request.scope = BusReIdentScope::Address;
+        request.address = deviceID.getAddress();
+        busNum = pBus->getBusNum();
+    }
+    uint32_t numBuses = requestReIdentify(request, busNum);
+    String extra = "\"buses\":" + String((int)numBuses);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, numBuses > 0, extra.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/typepolicy (set a device type's policy at runtime, not saved)
+RaftRetCode DeviceManager::apiDevManTypePolicy(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    String typeKeyOrIndex = jsonParams.getString("type", "");
+    String policyStr = jsonParams.getString("policy", "");
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    const DeviceTypeRecord* pRec = nullptr;
+    if ((typeKeyOrIndex.length() > 0) && isdigit(typeKeyOrIndex[0]))
+        pRec = deviceTypeRecords.getRecord((DeviceTypeIndexType)typeKeyOrIndex.toInt());
+    if (!pRec)
+        pRec = deviceTypeRecords.getRecord(typeKeyOrIndex.c_str(), deviceTypeIndex);
+    if (!pRec || !pRec->deviceType)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
+    uint8_t policy = DeviceTypeRecord::POLICY_ENABLED;
+    if (policyStr.equalsIgnoreCase("disabled"))
+        policy = DeviceTypeRecord::POLICY_DISABLED;
+    else if (policyStr.equalsIgnoreCase("disabledClaim"))
+        policy = DeviceTypeRecord::POLICY_DISABLED_CLAIM;
+    else if (!policyStr.equalsIgnoreCase("enabled"))
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failUnknownPolicy");
+    DeviceTypeRecords::PolicyResult result = setTypePolicy(pRec->deviceType, policy);
+    if (result != DeviceTypeRecords::PolicyResult::Set)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr,
+                    result == DeviceTypeRecords::PolicyResult::Protected ? "failProtected" : "failTypeNotFound");
+    String extra;
+    RaftJson::appendStringField(extra, "deviceTypeKey", pRec->deviceType);
+    RaftJson::appendStringField(extra, "policy", DeviceTypeRecord::getPolicyStr(policy));
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
+}
+

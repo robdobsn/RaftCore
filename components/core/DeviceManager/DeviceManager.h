@@ -14,6 +14,7 @@
 #include "DeviceNames.h"
 #include "DeviceFactory.h"
 #include "DeviceTypeFileLoader.h"
+#include "DeviceTypeRecords.h"
 
 class RaftBusDevicesIF;
 #include <unordered_map>
@@ -117,6 +118,28 @@ public:
     void registerForDeviceData(const char* deviceTypeKeyOrAddr, RaftDeviceDataChangeCB dataChangeCB,
             uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);            
             
+    /// @brief Ask for devices to be identified again (e.g. after a change to the device type records)
+    /// @param request which devices (BusReIdentScope - Address is a bus address, so busNum names its bus)
+    /// @param busNum bus number (for Address; ignored otherwise - every bus is asked)
+    /// @return number of buses that accepted the request
+    /// @note A device that is identified keeps its type until a different result is known; see
+    ///       RaftBusDevicesIF::requestReIdentify
+    uint32_t requestReIdentify(const BusReIdentRequest& request, BusNumType busNum = 0);
+
+    /// @brief Set a device type's policy at runtime (not saved), and identify the devices it affects again: those
+    ///        identified as it if it is no longer enabled, or those it now outranks if it is enabled
+    /// @param deviceTypeKey device type key
+    /// @param policy DeviceTypeRecord::POLICY_...
+    /// @return the result (a protected type can't be disabled)
+    DeviceTypeRecords::PolicyResult setTypePolicy(const char* deviceTypeKey, uint8_t policy);
+
+    /// @brief Note that the device type file has been changed by this device (or a change has been made that only
+    ///        a restart applies) - devman/typefile then reports restartRequired until the next restart
+    void markTypeFileChanged()
+    {
+        _typeFileChanged = true;
+    }
+
     /// @brief Register for device status changes
     /// @param statusChangeCB Callback for status change
     void registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB);
@@ -364,6 +387,17 @@ private:
     bool _typeFilePresent = false;
     uint16_t _typeFileCrc16 = 0;
     uint32_t _typeFileRecordsAvailable = 0;         // extended records free before the file was loaded
+    bool _typeFileChanged = false;                  // changed since it was loaded (markTypeFileChanged)
+
+    /// @brief Check whether the device type file differs from the one loaded at startup (so a restart is needed to
+    ///        apply it)
+    bool isTypeFileRestartRequired();
+
+    /// @brief Handle devman/reident (identify devices again)
+    RaftRetCode apiDevManReIdent(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devman/typepolicy (set a device type's policy at runtime)
+    RaftRetCode apiDevManTypePolicy(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
     /// @brief Read the device type file settings and register the file as a record source (before buses start)
     void setupTypeFile();

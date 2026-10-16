@@ -201,8 +201,9 @@ This is where the stages lead. Each stage below moves part of the way there.
 - **Override keeps the index if it is applied before identification starts** (D2, refined by §3.8).
   - An extended record with the same device type key as a base record, loaded before the type table is
     `Ready`, replaces that base record's *entry*. It does not get a new index.
-  - An override applied later (live reload, Stage 8) gets a **new** index. The key then resolves to the new
-    index, and the old index stays bound to the old record until nothing uses it.
+  - An override applied later (live reload) would get a **new** index, the key resolving to it and the old index
+    staying bound to the old record until nothing uses it. Live reload was dropped from Stage 8 (2026-10-16), so
+    after `Ready` an override with a base record's key just gets a new index for the rest of the session.
   - So a device type key always maps to exactly one *current* device type index, and an index never changes
     its meaning within a session (fixes P3/P8 consistency).
 - **Disable is a policy, not a deletion.**
@@ -222,8 +223,9 @@ This is where the stages lead. Each stage below moves part of the way there.
 - **Capacity comes from configuration, with defaults that depend on PSRAM.**
   - The idle cost is one 4-byte handle per slot. Nothing is reserved up front.
   - The real limit is a **byte budget**, not a record count (see §4).
-- **Records never move.** A replaced record is retired, not freed, until the next identification restart
-  (Stage 8). This keeps today's guarantee that pointers stay valid, and states it in code.
+- **Records never move.** A replaced record is retired, not freed, for the rest of the session (a record change is
+  applied by a restart - Stage 8 revised). This keeps today's guarantee that pointers stay valid, and states it in
+  code.
 - **Optional, for boards without PSRAM:** keep `devInfoJson` **in the file** rather than in RAM, and record
   only its offset and length.
   - `devInfoJson` is about 80% of a record's bytes, and it is read only for `typeinfo`, for `_conf` actions,
@@ -963,7 +965,7 @@ done:
 2. **Override keeps the index when applied before `Ready`** (§3.1, §3.8).
    - Adding an extended record with the key of a base record before `Ready` replaces that entry's handle.
    - The old record is retired, not freed.
-   - The device type key keeps a single index. (Overrides after `Ready` only exist from Stage 8 and get a new
+   - The device type key keeps a single index. (A record with a base record's key added after `Ready` gets a new
      index.)
    - The decoder is inherited when the `resp` schema is byte-identical (review §9.2-G).
 3. **An extended record may carry `"disable": true`** (with or without a body) to set the policy for that
@@ -1075,7 +1077,8 @@ file gave state `error` ("not valid JSON") and the compiled records were used.
 3. **Applying a change to the file.**
    - `devman/typefile/apply` (and an optional watch on writes to that path through FileManager) applies a
      change by a **reset**, with a reply first.
-   - This is the simple, safe first version. Stage 8 adds restart-without-reset.
+   - This is the simple, safe first version - and, since Stage 8 was revised (2026-10-16), the way record changes
+     are applied: `restartRequired` tells the client one is needed.
 4. **Status reporting.** `devman/typefile` returns the path, state, counts (added, replaced, disabled,
    rejected), the first error, the CRC, the capacity used and the byte budget used.
 5. **Static devices** register their records through the same path, so they share the budget and the
@@ -1212,43 +1215,48 @@ elements a pass and each pass is about 5 ms apart, against one element per 3 s b
 
 ---
 
-### Stage 8: Restart identification without a reset
+### Stage 8: Re-identification and live policy (revised 2026-10-16)
 
-**Aim:** apply a changed device type file, or a policy change, without rebooting (the second option in G6).
+**Aim (revised):** devices can be identified again on request, and a policy change takes effect at once. A change to
+device type *records* (the type file, or later a records API) is applied by a restart, as in Stage 6 - G6 allows
+"reset the system or restart identification".
 
-**Changes:**
-1. **Scoped re-identification** (review §9.2-D): `requestReIdentify({All | Unidentified | Address |
-   TypeIndex | StaleGeneration})`.
-   - It is serviced at the worker boundary and is make-before-break: polling continues on the current type
-     until a different result is known. Init is skipped if the same type matches again.
-   - `StaleGeneration` is the default after a change. It covers only the addresses whose candidates changed,
-     and devices whose record was replaced or disabled.
-2. **Reload sequence:**
-   1. parse and validate the new file into a staging area;
-   2. if valid, swap the type-table entries under the table mutex;
-   3. increase the generation;
-   4. rebuild the catalogue index;
-   5. let the `StaleGeneration` re-identification run.
-3. **Safe lifetime for retired records** (review §9.2-I).
-   - Raw `const char*` pointers into extended records must not outlive a call.
-   - Consumers that keep type data (DeviceManager subscriber cache, RaftROS, DataLogger) keep the index plus
-     the generation, and look the record up again when the generation changes.
-   - Retired records are freed only when no bus has an identification against the old generation, i.e.
-     once the generation is quiescent.
-   - Until this is done, `apply` uses the reset path from Stage 6.
-4. **Clients decode by index** (§3.8 rules 4 and 5): no change to devbin or devjson. raftjs (R1) clears
-   its index-keyed type cache on (re)subscribe and tracks the last index seen per device ID.
-5. **A live override gets a new index** (§3.8 rule 1). The old index stays resolvable until no device or
-   stored sample uses it.
+**Why revised:** changing records while running means replacing or freeing records that buses, paused
+identification jobs, consumers (AutoPub, DataLogger, DeviceManager) and REST calls on other tasks may still hold;
+giving a live override a new index while the old one stays resolvable; keeping buffered samples from being decoded
+with a new layout; and staging and rolling back a file that fails part-way. That is at least as much work as Stage 7
+and touches every consumer and raftjs again, for something expected to be rare - and identification already waits
+for the type file at startup (Stage 6), so a restart applies a change cleanly. Decided with Rob 2026-10-16.
 
-**Verify:**
-- Edit the file to replace one record → only devices of that type are re-identified, with no data gap for
-  other devices.
-- A soak test of 100 reloads while streaming: heap stays flat, and there are no stale decodes.
+**Status (2026-10-16): done in RaftCore and RaftI2C.**
+1. **Scoped re-identification:** `RaftBusDevicesIF::requestReIdentify(BusReIdentRequest)` with scopes All,
+   Unidentified, Address, TypeIndex and Outranked (devices identified as a type that a given type is now tried
+   before); `DeviceManager::requestReIdentify()`; `devman/reident?deviceid=|type=|all=1|unidentified=1` (brought
+   forward from Stage 10). Requests are queued and applied on the bus task. **Make-before-break:** an identified
+   device is polled as its type until the result is known; the same type matching changes nothing (no re-init, no
+   event); another type is initialised and reported as TypeChanged; no match is Lost; a bus error or a deferral keeps
+   the type and is tried again (3 times). Hook-identified (probe-only) devices are only re-identified by address.
+   Unidentified devices in scope are tried at once.
+2. **Live policy:** `DeviceManager::setTypePolicy()` and `devman/typepolicy?type=&policy=` (brought forward from
+   Stage 10; not saved): disabling re-identifies the devices of that type; enabling re-identifies the devices it now
+   outranks (and the generation change retries unmatched ones).
+3. **Restart for records, with a dirty flag:** `devman/typefile` reports `restartRequired` when the file on disk
+   differs from the one loaded (CRC, or presence) or `DeviceManager::markTypeFileChanged()` was called - so a
+   client making several changes restarts once, when it chooses (`devman/typefile/apply`). Rule for Stage 10: an API
+   that changes records edits the type file and calls `markTypeFileChanged()`; it doesn't change the live table.
+4. **Fixed on the way:** an identification job that paused across a records change stamped its outcome with the new
+   generation, so a NoMatch wasn't retried when the change could have matched it; outcomes now carry the generation
+   and hook epoch the job started with.
 
-**Repos:** RaftCore, RaftI2C, raftjs, RaftROS.
+**Tests:** `test_bus_ident` (55 checks) adds the scope rules. **Bench (FeatherS3):** `reident?all=1` - both devices
+same type, no event, no missed polls; disabling APDS9960 - Lost in 70 ms; enabling - identified again in 90 ms;
+with the MPU6050Alt type file, disabling MPU6050 - TypeChanged to MPU6050Alt in 50 ms, enabling - TypeChanged back
+(Outranked) in 45 ms; `restartRequired` false at boot, true after uploading a different file, false after `apply`.
 
-**Depends on:** Stages 6 and 7.
+**Not done (dropped; a possible future stage if live record editing becomes common):** reloading the file without a
+restart, live overrides with a new index (§3.8 rule 1's live case, D2's refinement), freeing retired records
+(§9.2-I), and the raftjs index-cache changes that go with them. Until then nothing is freed or re-assigned within a
+session, so record pointers stay valid for its life.
 
 ---
 
@@ -1308,10 +1316,10 @@ each measured with 0, 1 and 2 VCPs polling.
 |---|---|
 | `devman/types` | The type table: index, device type key, source, policy, generation. Paged |
 | `devman/typeinfo` | As today, plus `deviceTypeName`, `src`, `policy` and `generation` |
-| `devman/typepolicy?type=&policy=enabled\|disabled\|claim` | Change a record's policy at runtime, optionally saving it to the type file |
-| `devman/typefile`, `devman/typefile/apply` | Status and apply (Stages 6 and 8) |
+| `devman/typepolicy?type=&policy=enabled\|disabled\|claim` | Change a record's policy at runtime - **done in Stage 8** (without saving; saving to the type file remains here, and then sets `restartRequired`) |
+| `devman/typefile`, `devman/typefile/apply` | Status and apply (Stage 6; `restartRequired` Stage 8). Any endpoint here that changes records edits the type file and calls `markTypeFileChanged()` - it doesn't change the live table |
 | `devman/identinfo?deviceid=` | Identification state, attempts, candidates in order, the last error |
-| `devman/reident?deviceid=\|type=\|all` | Scoped re-identification (Stage 8) |
+| `devman/reident?deviceid=\|type=\|all` | Scoped re-identification - **done in Stage 8** |
 | `devman/reinit?deviceid=` | Run init again without re-identifying |
 | `devman/devenable?deviceid=&poll=0\|1` | Stop or resume polling of one device while it stays identified |
 | `devman/devconfig` | As today, plus `save=1` to persist settings keyed by device ID, re-applied when the device is identified again |
@@ -1421,7 +1429,7 @@ and its readings match the device's own reference (vendor tool or driver).
 | G3 with and without PSRAM | 2 (allocator and defaults), 0 (measurement) |
 | G4 processor efficiency | 2 (lock-free index reads, binary search by name), 3 (CSR index), 4 (compiled operations, `PollPlan`) |
 | G5 runtime disable | 5 |
-| G6 file at startup and on change | 6 (reset), 8 (restart identification) |
+| G6 file at startup and on change | 6 (reset; identification waits for the file), 8 (`restartRequired`; live re-identification and policy) |
 | G7 derivation at runtime, first-class extended records | 3 |
 | G8 scanning | 3 (lists from the index), 9 |
 | G9 polling | 1 |
@@ -1475,10 +1483,10 @@ listed in §9.6 and §10.6; those still open are decided at the stage that needs
 | # | Question | Decision |
 |---|---|---|
 | D1 | Names for the record sources | **Base** and **extended**, as already used in the code and in principles §2. (Revised 2026-10-15: "built-in"/"runtime" was first agreed, then dropped to avoid renaming code and external APIs.) `DeviceTypeRecordDynamic` keeps its name |
-| D2 | Should an override keep the base record's index? | Yes, if the override is applied before the type table is `Ready`: one key, one current index. A live override (Stage 8) gets a new index, so an index never changes meaning within a session. This refinement is confirmed by D14 (§3.8 rule 1) |
+| D2 | Should an override keep the base record's index? | Yes, if the override is applied before the type table is `Ready`: one key, one current index. A record with the key added after `Ready` gets a new index, so an index never changes meaning within a session (live reload was dropped from Stage 8, 2026-10-16). This refinement is confirmed by D14 (§3.8 rule 1) |
 | D3 | Default capacities and byte budgets | 32 records / 16 KB without PSRAM; 256 records / 256 KB with PSRAM. Confirm against Stage 0 measurements. **Stage 2:** a typical record measured 538 B, so the default without PSRAM is 20 KB (32 records) |
 | D4 | Keep `devInfoJson` in the file on boards without PSRAM? | An option, off by default. Enable it on boards that are short of RAM |
-| D5 | First version of "file changed" | Reset first (Stage 6); restart identification without a reset later (Stage 8) |
+| D5 | First version of "file changed" | Reset first (Stage 6); restart identification without a reset later (Stage 8). **Revised 2026-10-16:** a record change is always applied by a restart (`restartRequired` tells the client one is needed); Stage 8 does scoped re-identification and live policy only |
 | D6 | Can identification wait for ever for a missing or slow source? | No. Wait with a timeout (5 s proposed), then continue with the base records and log it |
 | D7 | Default and minimum poll interval | 100 ms default, 2 ms minimum |
 | D8 | Catch-up policy for late polls | No bursts. Skip to `now + interval` and count the miss |
@@ -1487,7 +1495,7 @@ listed in §9.6 and §10.6; those still open are decided at the stage that needs
 | D11 | Should the runtime decoder (review §9.2-G) be scheduled? | Decide after Stage 6 |
 | D12 | Term for the record identifier | **Device type key** (§3.9). Done 2026-10-15: documentation (principles §2, plan, wiki); `deviceTypeKey` added to the `typeinfo` response; inside the Raft libraries, non-API names (parameters, locals, comments, log text) renamed. Names that are part of an API or contract are unchanged |
 | D13 | What happens to `deviceType` and `devInfoJson.type` in the JSON? | **Revised and done 2026-10-15.** `deviceType` is optional: the generator fills it from the key and fails the build if it differs; the RaftCore catalogue omits it, and generated output is byte-identical. `devInfoJson.type` is **kept permanently** with its current values, because clients identify devices by it; the generator warns about new mismatches. (Originally: remove both, inserting `type` into responses for one release.) |
-| D14 | Adopt the index rules of §3.8? | Yes. Rules 1–3 and 5 go into Stage 7 (rule 1 for live overrides waits for Stage 8). **Rule 4 revised 2026-10-15:** no type table ID in the publish streams; clients clear index-keyed caches on (re)subscribe (see D16) |
+| D14 | Adopt the index rules of §3.8? | Yes. Rules 1–3 and 5 go into Stage 7 (rule 1's live-override case was dropped with live reload, Stage 8 revised 2026-10-16). **Rule 4 revised 2026-10-15:** no type table ID in the publish streams; clients clear index-keyed caches on (re)subscribe (see D16) |
 | D15 | Adopt the compatibility policy in §9.1? | **Yes** (decided 2026-10-15) |
 | D17 | Static devices with the same key but different content (C8)? | **Reject the second one** with a clear error, and require a distinct `type` in the configuration. Keys are not changed automatically (decided 2026-10-15) |
 
@@ -1545,7 +1553,7 @@ Rules:
 | 9 | **Type change at the same device ID** | raftjs | 5–8 | raftjs caches type info per device ID (`_cachedDeviceTypeRecs[deviceKey]`) and fetches it only when the device state has none. `removeDevice()` deletes the device state but **not** that cache entry, and nothing clears the cache on reconnect. So when a device's type changes at the same device ID, a deployed raftjs keeps decoding with the old type until the app is reloaded. A deletion notice from the firmware does not help. This already happens today (CRC re-identification), and Stages 5–8 make it more likely (disable, override, file changes, re-verification) | **No.** Needs raftjs change R1. Old apps must be reloaded after changing the type file |
 | 10 | **Device type catalogue JSON format** (RaftCore, Axiom, third-party, device-library files) | Generator, MicroPython generator, Axiom scripts, device library | 3, 4, 6 | D13 (done): `deviceType` is optional and, if present, must equal the key; the generators take the identifier from the key. Catalogues that still have the field stay valid. Axiom's scripts don't read `deviceType`; the Axiom branch's device library already accepts it being absent. `excludeFromAddrMap` → `probeOnly`: used by all 11 RSAO records, so both names are accepted. Stage 4's strict parser may reject records that build today (odd-length hex, a bare `pNN` used as write data, more than one `=`) | Yes, with the transition in D13 and D19 |
 | 11 | **Generated artefacts** (`poll_<key>` structs, field descriptors, MicroPython `decode_device_data(deviceType…)`) | RaftROS, DataLogger, MicroPython users | 2, 3 | Names come from the key, which equals `deviceType` everywhere, so they don't change. Stage 3 stops generating the address and scan tables; nothing outside `DeviceTypeRecords.cpp` should include them (to verify) | Yes |
-| 12 | **RaftCore C++ APIs** | RaftROS AutoPub, Axiom (DevicePower, DataLogger, VL53LxCX, RSAOSysMod), RaftSysMods `BLEBusDeviceManager` and `BusBLE`, RaftCore `BusSerial` | 0, 2, 3, 7, 8 | Public names are not renamed (Stage 0 rule), so no aliases are needed; `DeviceTypeRecord::deviceType` keeps its name and holds the device type key. `BusAddrStatus` gains fields: keep the existing constructor, which BLE calls positionally. New `RaftBusDevicesIF` virtual functions get default bodies. Stage 8's "no raw `const char*` kept beyond a call" means RaftROS AutoPub and DataLogger must keep an index plus the table ID instead of record pointers | Yes for 0–7; Stage 8 needs consumer changes in step |
+| 12 | **RaftCore C++ APIs** | RaftROS AutoPub, Axiom (DevicePower, DataLogger, VL53LxCX, RSAOSysMod), RaftSysMods `BLEBusDeviceManager` and `BusBLE`, RaftCore `BusSerial` | 0, 2, 3, 7, 8 | Public names are not renamed (Stage 0 rule), so no aliases are needed; `DeviceTypeRecord::deviceType` keeps its name and holds the device type key. `BusAddrStatus` gains fields: keep the existing constructor, which BLE calls positionally. New `RaftBusDevicesIF` virtual functions get default bodies. Stage 8 (revised) frees and re-assigns nothing within a session, so consumers may keep record pointers; a future live-reload stage would need them to keep an index plus the generation instead | Yes for 0–8 |
 | 13 | **Ident hook semantics** (`registerNewDeviceIdentHandler`) | Axiom RSAO | 7, 9 | Today an unidentified device is offered to the hook every ~3 s. Axiom's commissioning debounce relies on this: each retry refreshes `requestedMs` (review A2). Stage 7 stops re-running the hook on `NoMatch`, and Stage 9 asks hooks to register their address ranges. `Deferred` must still be retried, and the Axiom change has to land with Stage 7 | **No, unless Axiom changes in step** |
 | 14 | **RaftROS topic names** | ROS users (launch files, bags) | 2, 11 | Built from the device type key and the class map, whose values don't change. **Exception:** the C8 option of suffixing a key (`DemoDevice#2`) would rename topics, and `#` isn't valid in a ROS name. See D17 | Yes, with D17 |
 | 15 | **SysType configuration keys** | Product SysTypes | 1, 6, 9 | New keys are additions. `loopYieldMs` becomes the *maximum* sleep. `busScanPeriodMs`, `fastScanMaxUnyieldMs` and `slowScanMaxUnyieldMs` become caps on the share-based budget. None of them is set in the Axiom or RaftROS example SysTypes; other products are not known | Yes, if the old keys keep working as caps |

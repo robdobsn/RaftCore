@@ -15,6 +15,7 @@
 #include "RaftArduino.h"
 #include "RaftDeviceConsts.h"
 #include "DevicePollingInfo.h"
+#include "BusIdentState.h"
 
 // Forward declarations (full definitions not needed by the interface)
 class DeviceStatus;
@@ -241,6 +242,20 @@ public:
         (void)cmdJSON;
         (void)resultFn;
         return RaftRetCode::RAFT_NOT_IMPLEMENTED;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Ask for devices to be identified again (e.g. after a device type policy changes)
+    /// @param request which devices (BusReIdentScope)
+    /// @return true if the request was accepted - it is carried out on the bus task
+    /// @note A device that is identified keeps being polled as its type until a different result is known (it is
+    ///       then reported as TypeChanged, or Lost if nothing matches), and isn't initialised again if the same type
+    ///       matches. Devices identified by an identification hook (probe-only types) are only re-identified by
+    ///       address
+    virtual bool requestReIdentify(const BusReIdentRequest& request)
+    {
+        (void)request;
+        return false;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

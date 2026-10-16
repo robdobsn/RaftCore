@@ -64,7 +64,9 @@ public:
     BusIdentState identState = BusIdentState::Pending;
     bool reverifyRequested : 1 = false;
     bool identChangePending : 1 = false;    // the identity may have changed since it was last reported
+    bool reidentRequested : 1 = false;      // identify again (keeping the type until the result is known)
     uint8_t identAttempts = 0;
+    uint8_t reidentAttempts = 0;
     uint32_t nextIdentMs = 0;
     uint32_t identGeneration = 0;
     uint32_t identHookEpoch = 0;

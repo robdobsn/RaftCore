@@ -131,11 +131,43 @@ static void testRecordEvents()
     TEST_ASSERT(st.isChange && (st.identEvent == BusIdentEvent::None), "unidentified offline: no identity event");
 }
 
+static void testReIdentScope()
+{
+    printf("Running testReIdentScope...\n");
+    const DeviceTypeIndexType NONE = DEVICE_TYPE_INDEX_INVALID;
+    std::vector<DeviceTypeIndexType> candidates = {9, 4, 7};   // tried in this order at the address
+    BusReIdentRequest req;
+    req.scope = BusReIdentScope::All;
+    TEST_ASSERT(BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 4, candidates), "all: identified");
+    TEST_ASSERT(BusIdentSchedule::reIdentScopeIncludes(req, 0x29, NONE, candidates), "all: unidentified");
+    req.scope = BusReIdentScope::Unidentified;
+    TEST_ASSERT(!BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 4, candidates), "unidentified: not identified ones");
+    TEST_ASSERT(BusIdentSchedule::reIdentScopeIncludes(req, 0x29, NONE, candidates), "unidentified");
+    req.scope = BusReIdentScope::Address;
+    req.address = 0x129;
+    TEST_ASSERT(BusIdentSchedule::reIdentScopeIncludes(req, 0x129, 4, candidates), "address");
+    TEST_ASSERT(!BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 4, candidates), "address: other slot");
+    req.scope = BusReIdentScope::TypeIndex;
+    req.deviceTypeIndex = 4;
+    TEST_ASSERT(BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 4, candidates), "type: identified as it");
+    TEST_ASSERT(!BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 7, candidates), "type: other type");
+    TEST_ASSERT(!BusIdentSchedule::reIdentScopeIncludes(req, 0x29, NONE, candidates), "type: unidentified");
+    req.scope = BusReIdentScope::Outranked;
+    req.deviceTypeIndex = 4;
+    TEST_ASSERT(BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 7, candidates), "outranked: tried before its type");
+    TEST_ASSERT(!BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 9, candidates), "outranked: not before a stronger one");
+    TEST_ASSERT(!BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 4, candidates), "outranked: not itself");
+    TEST_ASSERT(BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 12, candidates), "outranked: own type no longer a candidate");
+    req.deviceTypeIndex = 20;
+    TEST_ASSERT(!BusIdentSchedule::reIdentScopeIncludes(req, 0x29, 12, candidates), "outranked: type not a candidate here");
+}
+
 int main()
 {
     testRetryPolicy();
     testDeriveEvent();
     testProducerDefault();
     testRecordEvents();
+    testReIdentScope();
     return testSummary("test_bus_ident");
 }

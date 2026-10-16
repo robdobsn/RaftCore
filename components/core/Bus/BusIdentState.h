@@ -19,7 +19,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <vector>
 #include "RaftDeviceConsts.h"
+#include "RaftBusConsts.h"
 
 // Identification state of a bus element
 enum class BusIdentState : uint8_t
@@ -39,6 +41,25 @@ enum class BusIdentEvent : uint8_t
     Identified = 1,     // identified (prevDeviceTypeIndex is the type it had before, if it was re-identified)
     TypeChanged = 2,    // re-identified as a different type, while online
     Lost = 3,           // no longer identified (re-identification found nothing, or the device has gone)
+};
+
+// Which devices to identify again (RaftBusDevicesIF::requestReIdentify). A device that is identified keeps being
+// polled as its type until a different result is known, and isn't initialised again if the same type matches
+enum class BusReIdentScope : uint8_t
+{
+    All = 0,            // every device on the bus
+    Unidentified = 1,   // devices not identified (tried at once, whatever their retry backoff)
+    Address = 2,        // the device at an address (with slot)
+    TypeIndex = 3,      // devices identified as a type (e.g. one that has been disabled)
+    Outranked = 4,      // devices identified as another type at an address where a type is now tried first (e.g.
+                        // one that has been enabled)
+};
+
+struct BusReIdentRequest
+{
+    BusReIdentScope scope = BusReIdentScope::All;
+    BusElemAddrType address = 0;
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 };
 
 class BusIdentSchedule
@@ -100,6 +121,42 @@ public:
         if (isIdentified)
             return (wasIdentified && (reportedTypeIndex != currentTypeIndex)) ? BusIdentEvent::TypeChanged : BusIdentEvent::Identified;
         return wasIdentified ? BusIdentEvent::Lost : BusIdentEvent::None;
+    }
+
+    /// @brief Check whether a device identified as a type is in the scope of a re-identification request
+    /// @param request the request
+    /// @param address the device's address
+    /// @param currentTypeIndex the type it is identified as
+    /// @param candidates the identification candidates at its address, in the order they are tried
+    static bool reIdentScopeIncludes(const BusReIdentRequest& request, BusElemAddrType address,
+                DeviceTypeIndexType currentTypeIndex, const std::vector<DeviceTypeIndexType>& candidates)
+    {
+        switch (request.scope)
+        {
+            case BusReIdentScope::All:
+                return true;
+            case BusReIdentScope::Unidentified:
+                return currentTypeIndex == DEVICE_TYPE_INDEX_INVALID;
+            case BusReIdentScope::Address:
+                return address == request.address;
+            case BusReIdentScope::TypeIndex:
+                return (currentTypeIndex != DEVICE_TYPE_INDEX_INVALID) && (currentTypeIndex == request.deviceTypeIndex);
+            case BusReIdentScope::Outranked:
+            {
+                if ((currentTypeIndex == DEVICE_TYPE_INDEX_INVALID) || (currentTypeIndex == request.deviceTypeIndex))
+                    return false;
+                // The type is tried before the device's own type (or its own type is no longer a candidate)
+                for (DeviceTypeIndexType idx : candidates)
+                {
+                    if (idx == request.deviceTypeIndex)
+                        return true;
+                    if (idx == currentTypeIndex)
+                        return false;
+                }
+                return false;
+            }
+        }
+        return false;
     }
 
     /// @brief Check whether a time (in ms, wrapping) has been reached
