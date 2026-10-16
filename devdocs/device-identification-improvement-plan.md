@@ -1296,7 +1296,17 @@ MPU6050 607-649 ms (before 469 and 758). Poll rates unchanged (`device-bench.js`
 at its rate with no misses; "all 10 ms", which needs 88% of the bus, as before). Probes per second are lower (341 vs
 450 at default rates) as the share cap applies and probes go to addresses that can be identified.
 
-**Not done - needs a multiplexer bench:** slot coverage by priority (slots with recent changes or known devices
+**Axiom018 with a multiplexer (2026-10-16, over Tailscale and the serial console):** LSM6DS on slot 7, VL53L5CX on
+slot 1 and VL6180 on slot 2 identified (VL6180 first at 0x29 with its `identPriority`); lists 25/22/56 with 13 in the
+background; the RSAO hook registered its two ranges; the main-bus check ran for each new slot device (12 in a run)
+without recording any against the main bus. Slot devices come online at boot about 1.4 s sooner (2.2 s after the
+bus starts against 3.7 s). Simulated unplug/replug of the VL6180 on slot 2 (polls, detection and scan probes NACKed
+for 5 s, 3 times; same hook on the previous RaftI2C): identified again 731, 996, 1,099 ms after it came back (before:
+2,868, 2,034, 2,573 ms), about 185 ms of it the VL6180's own identification (its init has a 100 ms pause) - close
+to the 1 s target. The LSM6DS on slot 7 misses about 10 polls in 100 s with gaps up to 0.3-0.5 s on both the new
+and previous firmware (§11).
+
+**Not done - needs more multiplexer work:** slot coverage by priority (slots with recent changes or known devices
 more often, with a guaranteed full cycle) and rescanning only a changed multiplexer's slots (item 4) - both change
 the slot sequence and can't be tested here. The I8 check and the slot positions of the new schedule are also
 untested on hardware with a multiplexer. The 1 s target for any slot of an 8-slot multiplexer is not measured.
@@ -1857,5 +1867,6 @@ under what conditions, so it can be checked again later.
 |---|---|---|---|
 | 2026-10-16 | Two `Publish SLOW` warnings (about 50 ms per publish) | Axiom streaming `devjson` at 100 Hz over WiFi during the VL6180 work (`main`, internal-RAM optimisation branch) - a heavier subscription than the dashboard normally uses | Not acted on. Look at it if it appears at normal rates: measure where the time goes (JSON building for every device, the WiFi send) and whether `devbin` at the same rate shows it |
 | 2026-10-16 | Polls at 10 Hz ran at about 107 ms and 50 Hz gave about 40 samples/s | `main` (VL6180 work) | Caused by `main` timing each poll from the previous one (`lastPollTimeUs`), so the wake-up latency adds to every interval. Already fixed on `feature/device-identification` by Stage 1 (fixed-rate schedule): measured 100.0 ms and 50.00 Hz on the FeatherS3 after merging `main` |
+| 2026-10-16 | LSM6DS on Axiom slot 7, polled at 20 Hz, misses about 10 polls in 100 s with gaps of 0.3-0.5 s | Axiom018 with the VL53L5CX (slot 1) running; the same before and after Stage 9 | Not investigated. Likely the VL53L5CX driver's long transfers (it switches the bus to 400 kHz) holding the bus; `busstatus` pollTiming shows it |
 | 2026-10-16 | Attribute lookup tables (`lut`) were ignored by the generated C decoders, so VL6180 and VL53L0X `valid` was inverted in DataLogger CSV, RaftROS and named values | All builds | Fixed on `feature/device-identification` (RaftCore `5982b13`), tested in `test_standard_decode`. Not yet checked with a VL6180 in a DataLogger session |
 
