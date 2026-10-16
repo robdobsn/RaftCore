@@ -273,6 +273,18 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set the addresses the new-device identification handler handles (inclusive ranges of 7-bit
+    ///        addresses); empty (the default) means every address
+    /// @param ranges address ranges, e.g. {{0x0F, 0x6F}}
+    /// @note The handler is only offered devices at these addresses, and only these addresses (and those a device
+    ///       type record can identify) are scanned often - addresses nothing can claim are scanned in a slow
+    ///       background sweep
+    virtual void setNewDeviceIdentAddrRanges(const std::vector<std::pair<uint32_t, uint32_t>>& ranges)
+    {
+        (void)ranges;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Register a handler serviced on the bus task, for application work that must
     ///        drive the bus itself
     /// @param busTaskServiceFn handler function (nullptr to clear)

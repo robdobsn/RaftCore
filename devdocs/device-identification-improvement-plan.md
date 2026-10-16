@@ -1265,6 +1265,42 @@ session, so record pointers stay valid for its life.
 **Aim:** new and changed devices are found quickly, scanning uses a bounded and adaptive share of the bus,
 and the main bus and all slots keep being covered (G8).
 
+**Status (2026-10-16): done in RaftCore, RaftI2C and Axiom, except the multiplexer items listed at the end.**
+What was done:
+- **Schedule** (`BusScanSchedule`, RaftCore, host-tested): the three lists from the catalogue index are scanned at
+  every slot position (main bus twice); list 0 a whole position at a time, and after each run of it, list 1 a chunk
+  of size/3 and list 2 of size/9 (fractions carried over) - the same share of probes per list as before, but a
+  list-0 address comes round after one chunk of each lower list instead of a whole lower list. Replaces the
+  previous list switching (which also scanned the first address after a list wrapped on the next list's slot).
+- **Background sweep (item 2, D9):** addresses in the lowest list that nothing can claim - no record identifies or
+  claims them, the identification hook doesn't handle them, not a multiplexer or `scanBoost` address - are probed
+  spread over `backgroundSweepMs` (10 s). `RaftBusDevicesIF::setNewDeviceIdentAddrRanges()` lets a hook declare its
+  addresses (the hook is then offered only those); a hook without ranges handles every address, as before. Axiom
+  RSAO registers its default address and assignable range (0x0F, 0x10-0x6F). FeatherS3 lists: 28/54/5 addresses
+  with 29 in the background.
+- **Confirmation probe:** an address that answers once is probed again on the next pass, so it is online within a
+  few ms instead of when the scan comes round (boot: seen to online 120-196 ms before, 5-7 ms now).
+- **Share (item 1):** slow scanning earns time at `scanShareMaxPct` (30%) scaled down by the poll load to
+  `scanShareMinPct` (10%), and each pass spends it. Fast mode is limited to `fastScanMaxMs` (2 s, item 4).
+- **I8 (item 4):** a device that answers on a slot but isn't known there is first probed on the main bus with the
+  slots disabled; if it answers there it is recorded on the main bus.
+- **Item 5** was done in Stage 7 (the scheduler identifies; the scanner reports).
+- `devman/busstatus` reports `scan` (mode, list sizes, background count, share in use, background, confirmation
+  and main-bus-check probe counts).
+
+**Bench (FeatherS3, no multiplexer, 2026-10-16):** simulated unplug/replug of the MPU6050 (0x68 NACKed for 5 s, 3
+times; same hook on the previous RaftI2C for comparison): identified again 45, 110, 45 ms after it came back (before:
+194, 206, 86 ms); with the APDS9960 polled at 10 ms (about 47% poll load) 50, 185, 264 ms (before: 471, 429, 474 ms).
+The 200 ms target for a high-priority main-bus address is met at light load. Boot identification: APDS9960 278-283 ms,
+MPU6050 607-649 ms (before 469 and 758). Poll rates unchanged (`device-bench.js`: every scenario the bus can carry
+at its rate with no misses; "all 10 ms", which needs 88% of the bus, as before). Probes per second are lower (341 vs
+450 at default rates) as the share cap applies and probes go to addresses that can be identified.
+
+**Not done - needs a multiplexer bench:** slot coverage by priority (slots with recent changes or known devices
+more often, with a guaranteed full cycle) and rescanning only a changed multiplexer's slots (item 4) - both change
+the slot sequence and can't be tested here. The I8 check and the slot positions of the new schedule are also
+untested on hardware with a multiplexer. The 1 s target for any slot of an 8-slot multiplexer is not measured.
+
 **Proposed changes**, to be confirmed against the Stage 0 measurements:
 1. **Budget as a share of the bus, not a fixed time per pass.**
    - Scanning gets a target share of bus time, for example 10% when polls are running and up to 50% when
