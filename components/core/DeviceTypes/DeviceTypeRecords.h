@@ -14,6 +14,7 @@
 #include "DevicePollingInfo.h"
 #include "RaftThreading.h"
 #include "CatalogueIndex.h"
+#include "DeviceTypeGrammar.h"
 #include <atomic>
 #include <memory>
 
@@ -127,8 +128,42 @@ public:
         // First value is a mask and second value is the expected value to check against
         // Result is true if any of the pairs match the read values
         std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>> checkValues;
-        uint16_t pauseAfterSendMs;
+        uint16_t pauseAfterSendMs = 0;
+        // Bytes to read (the length of the first check value; 0 for a step that only writes or pauses)
+        uint16_t readLen = 0;
+        // Each 2-byte word read must be followed by a valid Sensirion CRC-8 (":crc8w")
+        bool crc8w = false;
     };
+
+    // A record's command strings, compiled (see DeviceTypeGrammar)
+    struct CompiledRecord
+    {
+        DeviceTypeGrammar::Result detection;
+        DeviceTypeGrammar::Result init;
+        DeviceTypeGrammar::Result poll;
+    };
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get a record's compiled command strings (compiled when first asked for, then kept - an index always
+    ///        means the same record)
+    /// @param deviceTypeIndex device type index
+    /// @return compiled record, or nullptr if there is no such record
+    std::shared_ptr<const CompiledRecord> getCompiledRecord(DeviceTypeIndexType deviceTypeIndex) const;
+
+    /// @brief Get detection records for a device type index (from the compiled record)
+    /// @return false if the detection string has an error (the record must not match)
+    bool getDetectionRecs(DeviceTypeIndexType deviceTypeIndex, std::vector<DeviceDetectionRec>& detectionRecs) const;
+
+    /// @brief Get initialisation bus requests for a device type index (from the compiled record)
+    void getInitBusRequests(BusElemAddrType addr, DeviceTypeIndexType deviceTypeIndex, std::vector<BusRequestInfo>& initRequests);
+
+    /// @brief Get polling info for a device type index (from the compiled record)
+    void getPollInfo(BusElemAddrType addrAndSlot, DeviceTypeIndexType deviceTypeIndex, DevicePollingInfo& pollingInfo) const;
+
+    /// @brief Compile a record's command strings and log any problems
+    /// @param pDevTypeRec record
+    /// @param logWarnings log warnings as well as errors
+    static std::shared_ptr<CompiledRecord> compileRecord(const DeviceTypeRecord* pDevTypeRec, bool logWarnings);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get detection records
@@ -241,14 +276,19 @@ private:
     void applyDefaultExtendedRecordLimits();
     int32_t findExtendedPosByKey(const char* deviceTypeKey) const;
 
+    // Compiled records by device type index (see getCompiledRecord)
+    mutable RaftMutex _compiledMutex;
+    mutable std::vector<std::shared_ptr<const CompiledRecord>> _compiledRecords;
+
+    // Build bus requests and polling info from compiled steps
+    static void detectionRecsFromSteps(const DeviceTypeGrammar::Result& compiled, std::vector<DeviceDetectionRec>& detectionRecs);
+    void initRequestsFromSteps(BusElemAddrType addr, const DeviceTypeGrammar::Result& compiled,
+                std::vector<BusRequestInfo>& initRequests);
+    static void pollInfoFromSteps(BusElemAddrType addr, const DeviceTypeRecord* pDevTypeRec,
+                const DeviceTypeGrammar::Result& compiled, DevicePollingInfo& pollingInfo);
+
     // Helpers
     static bool extractBufferDataFromHexStr(const String& writeStr, std::vector<uint8_t>& writeData);
-    static bool extractMaskAndDataFromHexStr(const String& readStr, std::vector<uint8_t>& readDataMask, 
-                std::vector<uint8_t>& readDataCheck, bool maskToZeros, uint32_t& pauseAfterSendMs);
-    static bool extractCheckInfoFromHexStr(const String& readStr, std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>& checkValues,
-                bool maskToZeros);
-    static uint32_t extractReadDataSize(const String& readStr);
-    static uint32_t extractBarAccessMs(const String& readStr);
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "DevTypeRecs";

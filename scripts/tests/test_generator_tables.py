@@ -125,6 +125,16 @@ class GeneratorTableTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("0x78,0x79", result.stderr)
 
+    def test_grammar_issues_reported(self):
+        # An init value isn't written (only the bytes before "=" are) - reported, and the build still succeeds
+        result, header = self.run_with_records({"Trap": dict(make_record(), initValues="0x01=0x0220")})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('GRAMMAR WARNING: record "Trap" initValues: InitValueNotWritten at 5', result.stdout)
+        # A detection value the firmware can't use
+        result, _ = self.run_with_records({"Bad": dict(make_record(), detectionValues="0x86=A005")})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('GRAMMAR ERROR: record "Bad" detectionValues: BadCheck', result.stdout)
+
     def test_hex_read_value_size(self):
         # C11: "0x1234" is 2 bytes of data (it was counted as 3, including the prefix)
         size = DecodeGenerator({}).poll_data_bytes({"pollInfo": {"c": "0x00=0x1234&0x01=r1"}})

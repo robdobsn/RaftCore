@@ -16,8 +16,10 @@ MXC400xXC checks a single byte, `0x0E=0x02`).
 
 ## 2. Constraints that apply to every proposal
 
-1. **Detection stops at the first failed step** (`DeviceIdentMgr::checkDeviceTypeMatch`), so later steps don't
-   run on a device that failed an earlier one.
+1. **Detection stops at the first failed step** - since Stage 4 (2026-10-16). Before that a mismatch was noted and
+   the remaining steps (including their pauses) still ran; only a bus error stopped early. A NACK is a mismatch;
+   any other bus error now stops identification of that device for the time being (no fall-through to weaker
+   records or the RSAO probe).
 2. **A failed detection exposes the device to the RSAO probe.** If no record matches, the RSAO identification
    hook probes the device with a framed 0x99 command (addresses 0x10-0x6F). That is known to stop an STCC4
    until it is power-cycled (`stcc4-identification-notes.md`), and it may do harm to other devices. So a
@@ -36,7 +38,7 @@ MXC400xXC checks a single byte, `0x0E=0x02`).
 
 ## 3. Two improvements to detection itself
 
-- **CRC check (Sensirion CRC-8, poly 0x31, init 0xFF).** Sensirion devices follow every 2-byte word with a
+- **CRC check (Sensirion CRC-8, poly 0x31, init 0xFF)** - available since Stage 4 as the `:crc8w` suffix. Sensirion devices follow every 2-byte word with a
   CRC. Most have no product ID, only a per-unit serial number, so today the best check is "N bytes came back",
   which an unrelated register-pointer device can also pass. Requiring the CRCs to be valid makes a serial
   number a strong check: random data passes 2 CRCs about 1 time in 65,000 and 3 CRCs about 1 time in 16

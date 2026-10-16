@@ -4,6 +4,7 @@ import re
 import argparse
 
 from DecodeGenerator import DecodeGenerator
+import DeviceTypeGrammar
 from MicroPythonGenerator import MicroPythonGenerator
 
 # ProcessDevTypeJsonToC.py
@@ -100,6 +101,29 @@ def record_ident_fields(dev_type, dev_type_key):
         sys.exit(1)
     return scan_priority, flags, ident_priority, hw_type_id
 
+def report_grammar_issues(dev_type, dev_type_key, decode_generator=None):
+    """Print the grammar's errors and warnings for a record's command strings. Returns the number of errors"""
+    num_errors = 0
+    for field, result in DeviceTypeGrammar.check_record(dev_type):
+        source = dev_type.get("detectionValues", "") if field == "detection" else (
+            dev_type.get("initValues", "") if field == "init" else dev_type.get("pollInfo", {}).get("c", ""))
+        for code, pos in result.issues:
+            kind = "ERROR" if DeviceTypeGrammar.is_error(code) else "WARNING"
+            num_errors += 1 if kind == "ERROR" else 0
+            print(f"GRAMMAR {kind}: record \"{dev_type_key}\" {DeviceTypeGrammar.FIELD_NAMES[field]}: {code} at {pos} "
+                  f"in \"{source}\"")
+        # The poll size the firmware computes from the steps must equal the size this generator works out
+        if field == "poll" and decode_generator is not None and not dev_type.get("pollInfo", {}).get("ext", 0):
+            grammar_size = sum(step.read for step in result.steps)
+            try:
+                generator_size = decode_generator._get_polling_config_result_len_bytes(source)
+            except ValueError:
+                generator_size = None
+            if generator_size is not None and grammar_size != generator_size:
+                print(f"GRAMMAR WARNING: record \"{dev_type_key}\" pollInfo.c reads {grammar_size} bytes in the firmware "
+                      f"but the generator sizes it as {generator_size}")
+    return num_errors
+
 def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, gen_options):
     # Remove any leading or trailing square brackets
     json_paths = json_paths.strip()
@@ -179,6 +203,10 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # from them at runtime). A probe-only record (e.g. Robotical RSAOs, identified by an identification
         # hook rather than by bus address) isn't identified by address
         _, flags, _, _ = record_ident_fields(dev_type, dev_type["deviceType"])
+
+        # Command strings: report problems found by the grammar the firmware uses (D19: reported, not yet
+        # rejected - an error means the firmware won't use that detection string, or drops that step)
+        report_grammar_issues(dev_type, dev_type["deviceType"], decodeGenerator)
         if not (flags & FLAG_PROBE_ONLY):
             for addr in addr_list:
                 addr_to_record_keys.setdefault(addr, []).append(dev_type["deviceType"])

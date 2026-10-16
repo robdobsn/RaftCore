@@ -119,6 +119,7 @@ idf_component_register(
     "components/core/DeviceManager/DeviceManager.cpp"
     "components/core/DeviceManager/DemoDevice.cpp"
     "components/core/DeviceTypes/DeviceTypeRecords.cpp"
+    "components/core/DeviceTypes/DeviceTypeGrammar.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"

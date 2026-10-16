@@ -1,6 +1,6 @@
 # Device Identification and Device Type Management: Staged Improvement Plan
 
-Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 3 done on the `feature/device-identification`
+Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 4 done on the `feature/device-identification`
 branches (2026-10-15).
 
 Companion documents:
@@ -847,6 +847,43 @@ detection-strength ordering in Stage 7.
 **Aim:** invalid records are rejected with a reason when they are added, and identification and polling don't
 re-parse strings (G4; this is also a prerequisite for loading untrusted files in Stage 6).
 
+**Status (2026-10-16): done for the first release of D19** (problems reported, not yet rejected), except the
+`PollPlan` that removes the copy of `DevicePollingInfo` on every poll (see below). What was done:
+- **`DeviceTypeGrammar`** (RaftCore) compiles detection, init and poll strings into steps (write, read length or
+  `r{…}` expression, check alternatives, pause, CRC) and reports issues with their position. It replaces the
+  string helpers in `DeviceTypeRecords`. For every string it accepts it gives exactly what the previous parser gave
+  - checked by `test_device_type_grammar` against a copy of that parser for every string in every known
+  catalogue (RaftCore, Axiom, RSAO, RaftI2C test, device-library example: 269 strings, all identical) and 200,000
+  fuzzed strings (clean under ASan and UBSan).
+- **Rules:** a bare `pNN` is a pause (C4); odd-length hex is a warning, keeping the old padding (C9); `rN` in
+  detection reads and compares nothing (C10); a bad `r{…}` is an error (C13); more than one `=`, non-hex write
+  data, `0x` with no digits, `rN` above 65535 and pauses above 65535 ms are errors (the old parser turned them into
+  garbage or allocated without limit); init values that aren't written (`0x…`) or are byte counts (`0b…`) are
+  warnings. Errors: a detection string isn't used, an init or poll step is dropped.
+- **`:crc8w`** (for Stage 12): each 2-byte word read must be followed by a valid Sensirion CRC-8.
+- **Compiled once:** `DeviceTypeRecords::getCompiledRecord()` compiles a record's three strings when first needed
+  and keeps them by device type index (an index always means one record); an extended record is compiled when
+  added, so its problems are logged then. Identification uses the compiled steps: on the host, getting a
+  record's detection steps takes 0.78 us instead of 3.44 us.
+- **Identification (RaftI2C):** detection is tri-state (I4) - a NACK is no match, any other bus error stops the
+  attempt with no fall-through to weaker records and no identification hook (it is retried later). Detection
+  stops at the first step that doesn't match (before, every step and pause still ran). `decodePollResponses`
+  no longer copies the record.
+- **Generator:** reports the grammar's errors and warnings per record (`GRAMMAR ERROR/WARNING`, the build still
+  succeeds), and warns if the poll size it computes differs from the firmware's. `DeviceTypeGrammar.py` is a
+  copy of the C++ grammar; both run the shared vectors (`scripts/tests/grammar_vectors.json`) and a Python test
+  fuzzes them against each other (30,000 strings, identical including issue positions).
+- **Impact report** (`scripts/check_device_type_grammar.py`) over every known catalogue: no errors; three
+  warnings - MAX30101 `0x11=0x21`, TMP117 `0x01=0x0220` (init values not written) and MXC400xXC `0x01=0b00010000`
+  (a read, not a write). They are listed in Stage 12.
+- **Bench:** identification and poll rates unchanged from Stage 1 within run-to-run noise.
+
+**Not done:**
+- **The second release of D19** (reject instead of warn) - after this one has been out with the warnings.
+- **`PollPlan`:** the poll steps are compiled once, but `DevicePollingInfo` (with its vector of `BusRequestInfo`) is
+  still copied for every poll (review §5.1). Removing the copy is a RaftI2C polling change; it can be done with
+  Stage 7's changes to the bus task, and measured then.
+
 **Changes:**
 - **Tokenizer and compiler** (§3.4), replacing `extractBufferDataFromHexStr`,
   `extractMaskAndDataFromHexStr` and `extractReadDataSize`.
@@ -1196,7 +1233,11 @@ without disturbing a device that is already running, and initialises and polls i
    - alternative addresses missing from records: STCC4 0x65 (ADDR pin high), Qwiic LED Stick 0x22 (jumper),
      MT6701 0x46 (reprogrammed);
    - the Robotical servo and water pump records pause 500 ms in detection, blocking the bus each time a device
-     at one of their addresses is identified (fixed by Stage 7 item 11, or by shorter pauses).
+     at one of their addresses is identified (fixed by Stage 7 item 11, or by shorter pauses);
+   - init strings that don't do what they appear to (reported by the Stage 4 grammar): MAX30101 `0x11=0x21` and
+     TMP117 `0x01=0x0220` write only the register (should probably be `0x1121` and `0x010220`), and MXC400xXC
+     `0x01=0b00010000` reads a byte from register 0x01 instead of writing 0x10 to it. Check each against its
+     datasheet and fix (in RaftCore and Axiom).
 
 **Verify:** for each record changed - the device is identified from power-up and when already running (after a
 firmware restart without a power cycle), its neighbours at the same address are still identified correctly,
