@@ -150,6 +150,7 @@ void DeviceManager::postSetup()
     // Load the device type file (setup() of every SysMod has run, so the file system is mounted) - devices are
     // identified once it is loaded
     loadTypeFile();
+    loadDeviceSettings();
 
     // Register JSON data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
@@ -211,6 +212,10 @@ void DeviceManager::loop()
 {
     // Service the buses (which will handle device status changes and data updates via callbacks)
     raftBusSystem.loop();
+
+    // Complete re-initialisations that have finished
+    if (!_pendingReInits.empty())
+        servicePendingReInits();
 
     // Get a frozen copy of the static device list for online devices
     RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
@@ -330,7 +335,10 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
 
         // Settings made with devconfig are applied again when a device is identified again as the same type
         if ((addrStatus.identEvent == BusIdentEvent::Identified) || (addrStatus.identEvent == BusIdentEvent::TypeChanged))
+        {
             reapplyDevConfig(RaftDeviceID(bus.getBusNum(), addrStatus.address), addrStatus.deviceTypeIndex);
+            applyPollingSetting(RaftDeviceID(bus.getBusNum(), addrStatus.address));
+        }
 
         // Own the device's single bus data callback and fan it out to every
         // subscriber (registerForDeviceData), whenever they register - so a
@@ -1016,7 +1024,12 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/typefile - Device type file status (path, state, counts, first error, CRC, capacity),"
                             " devman/typefile/apply - Restart to apply a changed device type file,"
                             " devman/reident?deviceid=<deviceId>|type=<typeKeyOrIndex>|all=1|unidentified=1 - Identify devices again (an identified device keeps its type until a different one is found),"
-                            " devman/typepolicy?type=<typeKeyOrIndex>&policy=<enabled|disabled|disabledClaim> - Set a device type's policy (not saved) and identify the devices it affects again,"
+                            " devman/typepolicy?type=<typeKeyOrIndex>&policy=<enabled|disabled|disabledClaim>&save=<0|1> - Set a device type's policy and identify the devices it affects again (save=1 also writes it to the type file, applied at the next restart),"
+                            " devman/types?offset=<n>&count=<n> - Device type table (index, key, source, policy),"
+                            " devman/identinfo?deviceid=<deviceId> - Identification state of a device (attempts, candidates in order),"
+                            " devman/reinit?deviceid=<deviceId> - Run a device's initialisation again,"
+                            " devman/devenable?deviceid=<deviceId>&poll=<0|1>&save=<0|1> - Stop or resume polling a device,"
+                            " devman/reserved - Addresses claimed by device type records,"
                             " Note: typeKeyOrIndex can be either a device type key or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     endpointManager.addEndpoint("devlib", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
@@ -1074,6 +1087,16 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManTypeFile(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("reident"))
         return apiDevManReIdent(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("types"))
+        return apiDevManTypes(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("identinfo"))
+        return apiDevManIdentInfo(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("reinit"))
+        return apiDevManReInit(reqStr, respStr, jsonParams, sourceInfo);
+    if (cmdName.equalsIgnoreCase("devenable"))
+        return apiDevManDevEnable(reqStr, respStr, jsonParams);
+    if (cmdName.equalsIgnoreCase("reserved"))
+        return apiDevManReserved(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("typepolicy"))
         return apiDevManTypePolicy(reqStr, respStr, jsonParams);
 
@@ -1187,6 +1210,10 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
         String role = getDeviceRole(deviceID);
         if (!role.equalsIgnoreCase("normal"))
             RaftJson::appendStringField(extras, "role", role.c_str());
+        RaftJson::appendStringField(extras, "displayName", displayNameFor(deviceID, resolvedTypeIndex).c_str());
+        if (jsonParams.getBool("full", false) && deviceTypeRecords.getRecord(resolvedTypeIndex))
+            extras += ",\"record\":{" + DeviceTypeFileLoader::recordToFileEntry(*deviceTypeRecords.getRecord(resolvedTypeIndex),
+                        deviceTypeRecords.getPolicy(resolvedTypeIndex)) + "}";
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
     }
 
@@ -1211,6 +1238,10 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
 
     String extras = "\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(deviceTypeIndex);
     appendDeviceTypeKey(extras, deviceTypeIndex);
+    // The record in the type file format (so it can be copied into a type file)
+    if (jsonParams.getBool("full", false) && deviceTypeRecords.getRecord(deviceTypeIndex))
+        extras += ",\"record\":{" + DeviceTypeFileLoader::recordToFileEntry(*deviceTypeRecords.getRecord(deviceTypeIndex),
+                    deviceTypeRecords.getPolicy(deviceTypeIndex)) + "}";
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
 }
 
@@ -1910,6 +1941,20 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
     // Remember the settings, to apply again when the device is identified again as the same type (after it is
     // re-identified, re-initialised or absent for a while)
     rememberDevConfig(deviceID, pBus->getDeviceTypeIndex(addr), jsonParams);
+
+    // Save the settings (for this device's type) if asked
+    if (jsonParams.getBool("save", false))
+    {
+        auto it = _devConfigSettings.find(DeviceNames::packDeviceIDKey(deviceID));
+        const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(pBus->getDeviceTypeIndex(addr));
+        if ((it != _devConfigSettings.end()) && pRec && pRec->deviceType)
+        {
+            DeviceSettingsStore::Settings& saved = _settingsStore.getOrAdd(deviceID.toString());
+            saved.typeKey = pRec->deviceType;
+            saved.devConfig = it->second.values;
+            extra += String(",\"saved\":") + (saveDeviceSettings() ? "true" : "false");
+        }
+    }
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
 }
 
@@ -2071,10 +2116,14 @@ void DeviceManager::registerForDeviceData(const char* deviceTypeKeyOrAddr, RaftD
         {
             String busPart = idStr.substring(0, usPos);
             String addrPart = idStr.substring(usPos + 1);
-            // Drop any "@slot" suffix
+            // An "@slot" suffix gives the slot (the address in a device ID carries the slot above the 8-bit address)
+            uint32_t slotNum = 0;
             int atPos = addrPart.indexOf('@');
             if (atPos >= 0)
+            {
+                slotNum = strtoul(addrPart.substring(atPos + 1).c_str(), nullptr, 10);
                 addrPart = addrPart.substring(0, atPos);
+            }
             // Strip an optional 0x prefix from the address
             if (addrPart.startsWith("0x") || addrPart.startsWith("0X"))
                 addrPart = addrPart.substring(2);
@@ -2086,6 +2135,8 @@ void DeviceManager::registerForDeviceData(const char* deviceTypeKeyOrAddr, RaftD
             if (pNamedBus && addrIsHex)
             {
                 BusElemAddrType address = (BusElemAddrType)strtoul(addrPart.c_str(), nullptr, 16);
+                if (slotNum > 0)
+                    address = (address & 0xff) | ((slotNum & 0x3f) << 8);
                 RaftDeviceID deviceID(pNamedBus->getBusNum(), address);
                 if (deviceID.isValid())
                 {
@@ -2093,6 +2144,16 @@ void DeviceManager::registerForDeviceData(const char* deviceTypeKeyOrAddr, RaftD
                     return;
                 }
             }
+        }
+    }
+
+    // A device name
+    {
+        RaftDeviceID namedDeviceID;
+        if (_deviceNames.resolveName(deviceTypeKeyOrAddr, namedDeviceID))
+        {
+            registerForDeviceData(namedDeviceID, dataChangeCB, minTimeBetweenReportsMs, pCallbackInfo, unregister);
+            return;
         }
     }
 
@@ -2497,6 +2558,12 @@ RaftRetCode DeviceManager::apiDevManSetName(const String &reqStr, String &respSt
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidDeviceId");
 
     setDeviceName(deviceID, name);
+    if (jsonParams.getBool("save", false))
+    {
+        _settingsStore.getOrAdd(deviceID.toString()).name = name;
+        if (!saveDeviceSettings())
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failSave");
+    }
 
 #ifdef DEBUG_DEVICE_NAMES
     LOG_I(MODULE_PREFIX, "apiDevManSetName: %s -> %s", deviceIDStr.c_str(), name.c_str());
@@ -2525,6 +2592,12 @@ RaftRetCode DeviceManager::apiDevManSetRole(const String &reqStr, String &respSt
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidDeviceId");
 
     setDeviceRole(deviceID, role);
+    if (jsonParams.getBool("save", false))
+    {
+        _settingsStore.getOrAdd(deviceID.toString()).role = role.equalsIgnoreCase("normal") ? String() : role;
+        if (!saveDeviceSettings())
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failSave");
+    }
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
 }
 
@@ -2557,11 +2630,8 @@ RaftRetCode DeviceManager::apiDevManListDevs(const String &reqStr, String &respS
         devsJson += "\"";
         String name = lookupDeviceName(deviceID);
         if (name.length() > 0)
-        {
-            devsJson += ",\"name\":\"";
-            devsJson += name;
-            devsJson += "\"";
-        }
+            RaftJson::appendStringField(devsJson, "name", name.c_str());
+        RaftJson::appendStringField(devsJson, "displayName", displayNameFor(deviceID, dtIdx).c_str());
         if (!role.equalsIgnoreCase("normal"))
         {
             devsJson += ",\"role\":\"";
@@ -2698,6 +2768,9 @@ void DeviceManager::cmdResultReportCallback(BusRequestResult& reqResult)
 ///       "typeFileLimits" (maxFileBytes, maxReadBytes, maxSamples, maxRecordRingBytes)
 void DeviceManager::setupTypeFile()
 {
+    // Saved device settings file (loaded in postSetup)
+    _settingsFilePath = modConfig().getString("deviceSettingsFile", "/local/devsettings.json");
+
     if (modConfig().contains("typeFile"))
         _typeFilePath = modConfig().getString("typeFile", "");
     else
@@ -3002,6 +3075,388 @@ RaftRetCode DeviceManager::apiDevManTypePolicy(const String &reqStr, String &res
     String extra;
     RaftJson::appendStringField(extra, "deviceTypeKey", pRec->deviceType);
     RaftJson::appendStringField(extra, "policy", DeviceTypeRecord::getPolicyStr(policy));
+
+    // Save it in the type file (applied at the next restart - the change above applies now) if asked
+    if (jsonParams.getBool("save", false))
+    {
+        if (_typeFilePath.length() == 0)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNoTypeFile");
+        String fileText;
+        bool present = false;
+        if (!readFileText(_typeFilePath, _typeFileLimits.maxFileBytes, fileText, present))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeFileRead");
+        bool changed = false;
+        String newText = DeviceTypeFileLoader::setPolicyInFile(fileText.c_str(), pRec->deviceType, policy, changed);
+        if (changed)
+        {
+            if (!writeFileText(_typeFilePath, newText))
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeFileWrite");
+            markTypeFileChanged();
+        }
+        extra += String(",\"saved\":true,\"restartRequired\":") + (isTypeFileRestartRequired() ? "true" : "false");
+    }
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Saved device settings
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Split a file path: "/local/x.json" is file system "local", file "x.json"; a name without a file system
+///        is on the default file system
+void DeviceManager::splitFsPath(const String& path, String& fsName, String& fileName)
+{
+    fsName = "";
+    fileName = path;
+    if (path.startsWith("/"))
+    {
+        int nextSlash = path.indexOf('/', 1);
+        if (nextSlash > 1)
+        {
+            fsName = path.substring(1, nextSlash);
+            fileName = path.substring(nextSlash + 1);
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Read a text file
+/// @param path file path
+/// @param maxBytes largest file read
+/// @param text (out) contents (empty if there is no file)
+/// @param present (out) whether the file exists
+/// @return false if the file exists but couldn't be read (or is too big)
+bool DeviceManager::readFileText(const String& path, uint32_t maxBytes, String& text, bool& present)
+{
+    text = "";
+    String fsName, fileName;
+    splitFsPath(path, fsName, fileName);
+    uint32_t fileLen = 0;
+    present = fileSystem.getFileInfo(fsName, fileName, fileLen);
+    if (!present)
+        return true;
+    if (fileLen > maxBytes)
+        return false;
+    // getFileContents refuses a file of maxLen - 1 bytes or more, and null-terminates what it returns
+    uint8_t* pContents = fileSystem.getFileContents(fsName, fileName, maxBytes + 2);
+    if (!pContents)
+        return false;
+    text = (const char*)pContents;
+    SpiramAwareAllocator<uint8_t> allocator;
+    allocator.deallocate(pContents, 0);
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Write a text file
+bool DeviceManager::writeFileText(const String& path, const String& text)
+{
+    String fsName, fileName;
+    splitFsPath(path, fsName, fileName);
+    String contents = text;
+    return fileSystem.setFileContents(fsName, fileName, contents);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Load the saved device settings (names, roles, devconfig settings and polling) and apply them
+/// @note devconfig settings and polling are applied when the device is identified (as the type the settings were
+///       saved for); names and roles at once
+void DeviceManager::loadDeviceSettings()
+{
+    if (_settingsFilePath.length() == 0)
+        return;
+    String text;
+    bool present = false;
+    if (!readFileText(_settingsFilePath, MAX_DEVICE_SETTINGS_FILE_BYTES, text, present))
+    {
+        LOG_W(MODULE_PREFIX, "loadDeviceSettings %s could not be read", _settingsFilePath.c_str());
+        return;
+    }
+    if (!present)
+        return;
+    if (!_settingsStore.loadJson(text.c_str()))
+    {
+        LOG_W(MODULE_PREFIX, "loadDeviceSettings %s is not valid", _settingsFilePath.c_str());
+        return;
+    }
+    uint32_t numDevices = 0;
+    for (const auto& entry : _settingsStore.all())
+    {
+        RaftDeviceID deviceID = RaftDeviceID::fromString(String(entry.first.c_str()));
+        if (!deviceID.isValid())
+            continue;
+        const DeviceSettingsStore::Settings& settings = entry.second;
+        numDevices++;
+        if (settings.name.length() > 0)
+            setDeviceName(deviceID, settings.name);
+        if (settings.role.length() > 0)
+            setDeviceRole(deviceID, settings.role);
+        if ((settings.typeKey.length() > 0) && !settings.devConfig.empty())
+        {
+            DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+            if (deviceTypeRecords.getRecord(settings.typeKey.c_str(), deviceTypeIndex))
+            {
+                DevConfigSettings& devConfig = _devConfigSettings[DeviceNames::packDeviceIDKey(deviceID)];
+                devConfig.deviceTypeIndex = deviceTypeIndex;
+                devConfig.values = settings.devConfig;
+            }
+        }
+        if (settings.pollEnabled == 0)
+            _pollingStopped[DeviceNames::packDeviceIDKey(deviceID)] = true;
+    }
+    LOG_I(MODULE_PREFIX, "loadDeviceSettings %s settings for %d devices", _settingsFilePath.c_str(), (int)numDevices);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Save the device settings
+bool DeviceManager::saveDeviceSettings()
+{
+    if (_settingsFilePath.length() == 0)
+        return false;
+    bool ok = writeFileText(_settingsFilePath, _settingsStore.toJson());
+    if (!ok)
+        LOG_W(MODULE_PREFIX, "saveDeviceSettings %s could not be written", _settingsFilePath.c_str());
+    return ok;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Stop polling a device that has been identified if its polling has been stopped (devman/devenable)
+void DeviceManager::applyPollingSetting(RaftDeviceID deviceID)
+{
+    if (_pollingStopped.find(DeviceNames::packDeviceIDKey(deviceID)) == _pollingStopped.end())
+        return;
+    RaftBus* pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+    RaftBusDevicesIF* pBusDevices = pBus ? pBus->getBusDevicesIF() : nullptr;
+    if (pBusDevices)
+        pBusDevices->setDevicePollingEnabled(deviceID.getAddress(), false);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a device's display name (see getDeviceDisplayName)
+String DeviceManager::displayNameFor(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex) const
+{
+    String name = lookupDeviceName(deviceID);
+    if (name.length() > 0)
+        return name;
+    String typeName;
+    const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(deviceTypeIndex);
+    if (pRec)
+    {
+        if (pRec->devInfoJson)
+            typeName = RaftJson::getStringIm(pRec->devInfoJson, pRec->devInfoJson + strlen(pRec->devInfoJson), "name", "");
+        if ((typeName.length() == 0) && pRec->deviceType)
+            typeName = pRec->deviceType;
+    }
+    if (typeName.length() == 0)
+        return deviceID.toString();
+    return typeName + " " + deviceID.toString();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief A device's display name: its name if it has one, otherwise its type's display name and its device ID
+String DeviceManager::getDeviceDisplayName(RaftDeviceID deviceID) const
+{
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (deviceID.getBusNum() == RaftDeviceID::BUS_NUM_DIRECT_CONN)
+    {
+        RaftDevice* pDevice = const_cast<DeviceManager*>(this)->getDevice(deviceID);
+        if (pDevice)
+            deviceTypeIndex = pDevice->getDeviceTypeIndex();
+    }
+    else
+    {
+        RaftBus* pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+        if (pBus)
+            deviceTypeIndex = pBus->getDeviceTypeIndex(deviceID.getAddress());
+    }
+    return displayNameFor(deviceID, deviceTypeIndex);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Stage 10 endpoints
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/types?offset=<n>&count=<n> - the device type table (index, key, source and policy)
+RaftRetCode DeviceManager::apiDevManTypes(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    uint32_t offset = jsonParams.getLong("offset", 0);
+    uint32_t count = jsonParams.getLong("count", 50);
+    if (count > 200)
+        count = 200;
+    // Extended records are indexed after the base records
+    uint32_t total = DeviceTypeRecords::getNumBaseRecords() + deviceTypeRecords.getExtendedRecordStats().count;
+    String json = "\"total\":" + String((int)total) + ",\"generation\":" + String((int)deviceTypeRecords.getGeneration()) +
+                ",\"types\":[";
+    bool first = true;
+    for (uint32_t pos = offset; (pos < total) && (pos < offset + count); pos++)
+    {
+        DeviceTypeIndexType deviceTypeIndex = pos;
+        const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(deviceTypeIndex);
+        if (!pRec)
+            continue;
+        String entry = "{\"dtIdx\":" + String((int)deviceTypeIndex);
+        RaftJson::appendStringField(entry, "key", pRec->deviceType ? pRec->deviceType : "");
+        RaftJson::appendStringField(entry, "src", DeviceTypeRecords::getRecordSourceStr(deviceTypeRecords.getRecordSource(deviceTypeIndex)));
+        RaftJson::appendStringField(entry, "policy", DeviceTypeRecord::getPolicyStr(deviceTypeRecords.getPolicy(deviceTypeIndex)));
+        entry += "}";
+        if (!first)
+            json += ",";
+        first = false;
+        json += entry;
+    }
+    json += "]";
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/identinfo?deviceid=<id> - the identification state of a device on a bus
+RaftRetCode DeviceManager::apiDevManIdentInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    RaftDeviceID deviceID;
+    RaftBus* pBus = nullptr;
+    String errorStr;
+    if (resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr) != RAFT_OK)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
+    RaftBusDevicesIF* pBusDevices = pBus ? pBus->getBusDevicesIF() : nullptr;
+    if (!pBusDevices)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+    String info = pBusDevices->getIdentInfoJson(deviceID.getAddress());
+    if (info.length() == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNotSupported");
+    String extra = "\"deviceID\":\"" + deviceID.toString() + "\",\"ident\":" + info;
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/reinit?deviceid=<id> - run a device's initialisation again (its devconfig settings are then
+///        applied again). The response is deferred until it is done if the transport allows, otherwise it reports
+///        that the request was queued
+RaftRetCode DeviceManager::apiDevManReInit(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+            const APISourceInfo& sourceInfo)
+{
+    RaftDeviceID deviceID;
+    RaftBus* pBus = nullptr;
+    String errorStr;
+    if (resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr) != RAFT_OK)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
+    RaftBusDevicesIF* pBusDevices = pBus ? pBus->getBusDevicesIF() : nullptr;
+    if (!pBusDevices)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+
+    // Deferred: the result completes the response (from loop())
+    RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
+    if (sourceInfo.canDefer && pRestAPIEndpointManager &&
+                (pRestAPIEndpointManager->deferResponse(reqStr.c_str(), sourceInfo, REINIT_TIMEOUT_MS) == RAFT_RESP_DEFERRED))
+    {
+        std::shared_ptr<PendingReInit> pPending = std::make_shared<PendingReInit>();
+        pPending->deferToken = sourceInfo.deferToken;
+        pPending->startMs = millis();
+        pPending->reqStr = reqStr;
+        if (!pBusDevices->requestReInit(deviceID.getAddress(), [pPending](bool ok) { pPending->result = ok ? 1 : 0; }))
+        {
+            pRestAPIEndpointManager->getDeferredResponses().cancel(sourceInfo.deferToken);
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnline");
+        }
+        _pendingReInits.push_back(pPending);
+        return RAFT_RESP_DEFERRED;
+    }
+
+    // Not deferred
+    if (!pBusDevices->requestReInit(deviceID.getAddress(), nullptr))
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnline");
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, "\"queued\":true");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Complete the deferred responses of re-initialisations that have finished (or given up on)
+void DeviceManager::servicePendingReInits()
+{
+    RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
+    for (auto it = _pendingReInits.begin(); it != _pendingReInits.end();)
+    {
+        int result = (*it)->result.load();
+        bool timedOut = Raft::isTimeout(millis(), (*it)->startMs, REINIT_TIMEOUT_MS);
+        if ((result < 0) && !timedOut)
+        {
+            ++it;
+            continue;
+        }
+        if (pRestAPIEndpointManager)
+        {
+            String deferredRespStr;
+            if (result > 0)
+                Raft::setJsonBoolResult((*it)->reqStr.c_str(), deferredRespStr, true);
+            else
+                Raft::setJsonErrorResult((*it)->reqStr.c_str(), deferredRespStr, result == 0 ? "failInit" : "failTimeout");
+            pRestAPIEndpointManager->completeDeferred((*it)->deferToken, deferredRespStr);
+        }
+        it = _pendingReInits.erase(it);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/devenable?deviceid=<id>&poll=<0|1>&save=<0|1> - stop or resume polling a device. The
+///        setting is kept while the device is offline (and applied when it is identified again); save=1 keeps it
+///        over a restart
+RaftRetCode DeviceManager::apiDevManDevEnable(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    RaftDeviceID deviceID;
+    RaftBus* pBus = nullptr;
+    String errorStr;
+    if (resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr) != RAFT_OK)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
+    RaftBusDevicesIF* pBusDevices = pBus ? pBus->getBusDevicesIF() : nullptr;
+    if (!pBusDevices)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+    uint64_t key = DeviceNames::packDeviceIDKey(deviceID);
+
+    // Query only
+    String pollStr = jsonParams.getString("poll", "");
+    if (pollStr.length() == 0)
+    {
+        bool pollStopped = _pollingStopped.find(key) != _pollingStopped.end();
+        String extra = "\"deviceID\":\"" + deviceID.toString() + "\",\"poll\":" + (pollStopped ? "false" : "true");
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
+    }
+
+    // Set
+    bool pollEnabled = jsonParams.getBool("poll", true);
+    if (pollEnabled)
+        _pollingStopped.erase(key);
+    else
+        _pollingStopped[key] = true;
+    bool appliedNow = pBusDevices->setDevicePollingEnabled(deviceID.getAddress(), pollEnabled);
+    String extra = "\"deviceID\":\"" + deviceID.toString() + "\",\"poll\":" + (pollEnabled ? "true" : "false") +
+                ",\"online\":" + (appliedNow ? "true" : "false");
+    if (jsonParams.getBool("save", false))
+    {
+        _settingsStore.getOrAdd(deviceID.toString()).pollEnabled = pollEnabled ? -1 : 0;
+        extra += String(",\"saved\":") + (saveDeviceSettings() ? "true" : "false");
+    }
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extra.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Handle devman/reserved - the addresses a device type record identifies a device at (re-addressable
+///        devices keep off them)
+RaftRetCode DeviceManager::apiDevManReserved(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    String json = "\"addrs\":[";
+    bool first = true;
+    for (uint32_t addr = 0; addr <= 0x7f; addr++)
+    {
+        if (!deviceTypeRecords.isAddrReserved(addr))
+            continue;
+        char addrStr[8];
+        snprintf(addrStr, sizeof(addrStr), "\"0x%02x\"", (unsigned)addr);
+        if (!first)
+            json += ",";
+        first = false;
+        json += addrStr;
+    }
+    json += "]";
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
+}

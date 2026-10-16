@@ -587,3 +587,147 @@ String DeviceTypeFileLoader::checkAddresses(const char* pAddresses, uint32_t max
         p++;
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief A record as a type file entry - "<key>":{...}
+String DeviceTypeFileLoader::recordToFileEntry(const DeviceTypeRecord& rec, uint8_t policy)
+{
+    String json = "{";
+    auto appendStr = [&json](const char* name, const char* value) {
+        RaftJson::appendStringField(json, name, value ? value : "");
+    };
+    appendStr("addresses", rec.addresses);
+    appendStr("detectionValues", rec.detectionValues);
+    appendStr("initValues", rec.initValues);
+    String pollInfo = (rec.pollInfo && rec.pollInfo[0]) ? rec.pollInfo : "{}";
+    json += ",\"pollInfo\":" + pollInfo;
+    if (rec.devInfoJson && rec.devInfoJson[0])
+        json += ",\"devInfoJson\":" + String(rec.devInfoJson);
+    static const char* SCAN_PRIORITY_NAMES[] = {"high", "medium", "low"};
+    if (rec.scanPriority < sizeof(SCAN_PRIORITY_NAMES) / sizeof(SCAN_PRIORITY_NAMES[0]))
+        appendStr("scanPriority", SCAN_PRIORITY_NAMES[rec.scanPriority]);
+    if (rec.identPriority != 0)
+        json += ",\"identPriority\":" + String((int)rec.identPriority);
+    if (rec.hasHwTypeId())
+    {
+        char buf[8];
+        snprintf(buf, sizeof(buf), "0x%04x", (unsigned)rec.hwTypeId);
+        appendStr("deviceTypeId", buf);
+    }
+    if (rec.isProbeOnly())
+        json += ",\"excludeFromAddrMap\":true";
+    if (policy == DeviceTypeRecord::POLICY_DISABLED)
+        json += ",\"disable\":true";
+    else if (policy == DeviceTypeRecord::POLICY_DISABLED_CLAIM)
+        appendStr("disable", "claim");
+    json += "}";
+    String entry;
+    RaftJson::appendStringField(entry, "k", rec.deviceType ? rec.deviceType : "");
+    // appendStringField gives "k":"<key>" - keep the escaped key
+    return entry.substring(4) + ":" + json;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set a type's policy in type file text
+String DeviceTypeFileLoader::setPolicyInFile(const char* pFileJson, const char* key, uint8_t policy, bool& changed)
+{
+    changed = false;
+    String fileJson = pFileJson ? pFileJson : "";
+    const char* pStart = fileJson.c_str();
+    const char* pEnd = pStart + fileJson.length();
+    String keyStr = key ? key : "";
+
+    // The file's top-level members, and its devTypes entries (a missing or empty file is {"devTypes":{}})
+    std::vector<std::pair<String, String>> topMembers;
+    std::vector<std::pair<String, String>> entries;
+    bool hasDevTypes = false;
+    bool fileOk = (fileJson.length() == 0) || forEachMember(pStart, pEnd,
+            [&](const String& memberKey, const char* pValStart, const char* pValEnd) {
+                if (memberKey == "devTypes")
+                {
+                    hasDevTypes = true;
+                    forEachMember(pValStart, pValEnd, [&](const String& entryKey, const char* pEntryStart, const char* pEntryEnd) {
+                        entries.push_back({entryKey, String(pEntryStart).substring(0, pEntryEnd - pEntryStart)});
+                    });
+                }
+                topMembers.push_back({memberKey, String(pValStart).substring(0, pValEnd - pValStart)});
+            });
+    if (!fileOk)
+        return fileJson;
+
+    // Find the type's entry
+    int32_t entryIdx = -1;
+    for (uint32_t i = 0; i < entries.size(); i++)
+        if (entries[i].first == keyStr)
+            entryIdx = i;
+    String disableValue = (policy == DeviceTypeRecord::POLICY_DISABLED) ? "true" :
+                (policy == DeviceTypeRecord::POLICY_DISABLED_CLAIM) ? "\"claim\"" : "";
+
+    if (entryIdx < 0)
+    {
+        // No entry: one is added to disable the type; nothing is needed to enable it
+        if (disableValue.length() == 0)
+            return fileJson;
+        entries.push_back({keyStr, "{\"disable\":" + disableValue + "}"});
+    }
+    else
+    {
+        // The entry without "disable", noting whether it has anything other than a policy
+        String& entryJson = entries[entryIdx].second;
+        String rebuilt = "{";
+        bool policyOnly = true;
+        String oldDisable;
+        forEachMember(entryJson.c_str(), entryJson.c_str() + entryJson.length(),
+                [&](const String& fieldKey, const char* pValStart, const char* pValEnd) {
+                    String value = String(pValStart).substring(0, pValEnd - pValStart);
+                    if (fieldKey == "disable")
+                    {
+                        oldDisable = value;
+                        return;
+                    }
+                    if ((fieldKey != "deviceType") && (fieldKey != "_notes"))
+                        policyOnly = false;
+                    String fieldJson;
+                    RaftJson::appendStringField(fieldJson, "k", fieldKey.c_str());
+                    if (rebuilt.length() > 1)
+                        rebuilt += ",";
+                    rebuilt += fieldJson.substring(4) + ":" + value;
+                });
+        if (oldDisable == disableValue)
+            return fileJson;
+        if ((disableValue.length() == 0) && policyOnly)
+        {
+            entries.erase(entries.begin() + entryIdx);
+        }
+        else
+        {
+            if (disableValue.length() > 0)
+                rebuilt += String(rebuilt.length() > 1 ? "," : "") + "\"disable\":" + disableValue;
+            entryJson = rebuilt + "}";
+        }
+    }
+
+    // Write the file again: the other top-level members as they were, and devTypes
+    String devTypes = "{";
+    for (uint32_t i = 0; i < entries.size(); i++)
+    {
+        String entryKeyJson;
+        RaftJson::appendStringField(entryKeyJson, "k", entries[i].first.c_str());
+        devTypes += String(i > 0 ? "," : "") + entryKeyJson.substring(4) + ":" + entries[i].second;
+    }
+    devTypes += "}";
+    if (!hasDevTypes)
+        topMembers.push_back({"devTypes", devTypes});
+    String out = "{";
+    for (uint32_t i = 0; i < topMembers.size(); i++)
+    {
+        String memberKeyJson;
+        RaftJson::appendStringField(memberKeyJson, "k", topMembers[i].first.c_str());
+        out += String(i > 0 ? "," : "") + memberKeyJson.substring(4) + ":" +
+                    (topMembers[i].first == "devTypes" ? devTypes : topMembers[i].second);
+    }
+    out += "}";
+    changed = true;
+    return out;
+}
+

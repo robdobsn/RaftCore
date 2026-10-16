@@ -360,6 +360,90 @@ static void testCatalogueRoundTrip(const char* pCataloguePath)
     TEST_ASSERT(numDiffer == 0, "identification candidates are the same");
 }
 
+// Every record of the catalogue, written as a type file entry (typeinfo full=1) and loaded again, is the same record
+static void testRecordToFileEntry()
+{
+    printf("Running testRecordToFileEntry...\n");
+    DeviceTypeRecords source;
+    uint32_t numBase = DeviceTypeRecords::getNumBaseRecords();
+    String file = "{\"devTypes\":{";
+    for (uint32_t i = 0; i < numBase; i++)
+    {
+        const DeviceTypeRecord* pRec = source.getRecord(i);
+        file += String(i > 0 ? "," : "") + DeviceTypeFileLoader::recordToFileEntry(*pRec, source.getPolicy(i));
+    }
+    file += "}}";
+    DeviceTypeRecords table;
+    table.setExtendedRecordLimits(1000, 4 * 1024 * 1024);
+    DeviceTypeFileLoader::Result result = applyFile(table, file.c_str());
+    TEST_ASSERT(result.fileValid && (result.rejected == 0) && (result.replaced == numBase),
+                ("exported records load: " + std::string(result.firstError.c_str())).c_str());
+    uint32_t numDiffer = 0;
+    for (uint32_t i = 0; i < numBase; i++)
+    {
+        const DeviceTypeRecord* pB = source.getRecord(i);
+        const DeviceTypeRecord* pF = table.getRecord(i);
+        auto same = [](const char* a, const char* b) { return strcmp(a ? a : "", b ? b : "") == 0; };
+        if (!pF || !same(pB->addresses, pF->addresses) || !same(pB->detectionValues, pF->detectionValues) ||
+                    !same(pB->initValues, pF->initValues) || !same(pB->pollInfo, pF->pollInfo) ||
+                    !same(pB->devInfoJson, pF->devInfoJson) || (pB->pollDataSizeBytes != pF->pollDataSizeBytes) ||
+                    (pB->scanPriority != pF->scanPriority) || (pB->flags != pF->flags) ||
+                    (pB->identPriority != pF->identPriority) || (pB->hwTypeId != pF->hwTypeId))
+        {
+            numDiffer++;
+            printf("  %s differs after export\n", pB->deviceType);
+        }
+    }
+    TEST_ASSERT(numDiffer == 0, "exported records are the same records");
+
+    // A disabled record exports its policy
+    DeviceTypeIndexType idx = 0;
+    source.getRecord("MCP9808", idx);
+    String entry = DeviceTypeFileLoader::recordToFileEntry(*source.getRecord(idx), DeviceTypeRecord::POLICY_DISABLED_CLAIM);
+    TEST_ASSERT(entry.startsWith("\"MCP9808\":{") && (entry.indexOf("\"disable\":\"claim\"") > 0), "policy exported");
+}
+
+static void testSetPolicyInFile()
+{
+    printf("Running testSetPolicyInFile...\n");
+    bool changed = false;
+    // No file: an entry is added to disable; nothing to enable
+    String out = DeviceTypeFileLoader::setPolicyInFile("", "LSM6DS", DeviceTypeRecord::POLICY_DISABLED, changed);
+    TEST_ASSERT(changed && (out == "{\"devTypes\":{\"LSM6DS\":{\"disable\":true}}}"), "disable with no file");
+    out = DeviceTypeFileLoader::setPolicyInFile(nullptr, "LSM6DS", DeviceTypeRecord::POLICY_ENABLED, changed);
+    TEST_ASSERT(!changed && (out == ""), "enable with no file: no change");
+
+    // A file with notes and a full record: other content kept, disable added to the entry and removed again
+    const char* file = "{ \"_notes\": \"keep me\", \"devTypes\": { \"Foo\": { \"addresses\": \"0x51\", \"_notes\": \"n\" } } }";
+    out = DeviceTypeFileLoader::setPolicyInFile(file, "Foo", DeviceTypeRecord::POLICY_DISABLED_CLAIM, changed);
+    TEST_ASSERT(changed && (out == "{\"_notes\":\"keep me\",\"devTypes\":{\"Foo\":{\"addresses\":\"0x51\",\"_notes\":\"n\",\"disable\":\"claim\"}}}"),
+                ("claim added: " + std::string(out.c_str())).c_str());
+    String again = DeviceTypeFileLoader::setPolicyInFile(out.c_str(), "Foo", DeviceTypeRecord::POLICY_DISABLED_CLAIM, changed);
+    TEST_ASSERT(!changed && (again == out), "same policy: no change");
+    out = DeviceTypeFileLoader::setPolicyInFile(out.c_str(), "Foo", DeviceTypeRecord::POLICY_ENABLED, changed);
+    TEST_ASSERT(changed && (out == "{\"_notes\":\"keep me\",\"devTypes\":{\"Foo\":{\"addresses\":\"0x51\",\"_notes\":\"n\"}}}"),
+                "disable removed, record kept");
+
+    // A policy-only entry is removed when enabled; another key is added alongside
+    out = DeviceTypeFileLoader::setPolicyInFile("{\"devTypes\":{\"A\":{\"disable\":true},\"B\":{\"disable\":true}}}", "A",
+                DeviceTypeRecord::POLICY_ENABLED, changed);
+    TEST_ASSERT(changed && (out == "{\"devTypes\":{\"B\":{\"disable\":true}}}"), "policy-only entry removed");
+    out = DeviceTypeFileLoader::setPolicyInFile(out.c_str(), "C", DeviceTypeRecord::POLICY_DISABLED, changed);
+    TEST_ASSERT(changed && (out == "{\"devTypes\":{\"B\":{\"disable\":true},\"C\":{\"disable\":true}}}"), "entry added");
+
+    // The result loads with the policies it says
+    DeviceTypeRecords table;
+    DeviceTypeIndexType idx = 0;
+    DeviceTypeFileLoader::Result result = applyFile(table,
+                DeviceTypeFileLoader::setPolicyInFile("", "MCP9808", DeviceTypeRecord::POLICY_DISABLED, changed).c_str());
+    table.getRecord("MCP9808", idx);
+    TEST_ASSERT((result.disabled == 1) && (table.getPolicy(idx) == DeviceTypeRecord::POLICY_DISABLED), "written file loads");
+
+    // A file that isn't valid JSON is left alone
+    out = DeviceTypeFileLoader::setPolicyInFile("{bad", "X", DeviceTypeRecord::POLICY_DISABLED, changed);
+    TEST_ASSERT(!changed && (out == "{bad"), "invalid file not changed");
+}
+
 static void testRecordSources()
 {
     printf("Running testRecordSources...\n");
@@ -396,5 +480,7 @@ int main(int argc, char** argv)
     testOverridesAndPolicies();
     testCatalogueRoundTrip(argv[1]);
     testRecordSources();
+    testRecordToFileEntry();
+    testSetPolicyInFile();
     return testSummary("test_device_type_file");
 }

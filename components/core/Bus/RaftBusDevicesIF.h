@@ -245,6 +245,40 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Identification information for a device (state, attempts, candidates in the order tried, ...)
+    /// @param address device address
+    /// @return JSON object ("{}" if not supported or not known)
+    virtual String getIdentInfoJson(BusElemAddrType address) const
+    {
+        (void)address;
+        return "{}";
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Run an identified device's initialisation again (without identifying it again)
+    /// @param address device address
+    /// @param doneFn called with the result when done (on the bus task) - not called if false is returned
+    /// @return true if accepted
+    virtual bool requestReInit(BusElemAddrType address, std::function<void(bool ok)> doneFn)
+    {
+        (void)address;
+        (void)doneFn;
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Stop or resume polling a device (it stays identified; while not polled it is scanned for presence)
+    /// @param address device address
+    /// @param enabled true to poll
+    /// @return true if the device is known and the setting applied
+    virtual bool setDevicePollingEnabled(BusElemAddrType address, bool enabled)
+    {
+        (void)address;
+        (void)enabled;
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Ask for devices to be identified again (e.g. after a device type policy changes)
     /// @param request which devices (BusReIdentScope)
     /// @return true if the request was accepted - it is carried out on the bus task

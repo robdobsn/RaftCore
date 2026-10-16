@@ -1,7 +1,7 @@
 # Device Identification and Device Type Management: Staged Improvement Plan
 
-Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 5 done on the `feature/device-identification`
-branches (2026-10-15).
+Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 10 done on the `feature/device-identification`
+branches (Stages 0-5 2026-10-15, 6-10 2026-10-16; see each stage's status).
 
 Companion documents:
 - `device-type-management-principles.md`: the principles (P1–P15) and the canonical terms. Cited as *(P#)*.
@@ -1398,6 +1398,38 @@ Also:
 
 **Depends on:** Stages 5–8, for the items that rely on them.
 
+**Status (2026-10-16): done in RaftCore, RaftI2C and raftjs**, with these decisions:
+- **One settings file**, `/local/devsettings.json` (DevMan `deviceSettingsFile`), keyed by device ID:
+  `{"devices":{"1_68":{"name","role","type","devconfig":{...},"poll":false}}}` (`DeviceSettingsStore`, host
+  tested). `save=1` on `setname`, `setrole`, `devconfig` and `devenable` writes it. It is loaded in `postSetup`
+  after the type file. Names and roles apply at once. devconfig settings apply when the device is identified as
+  the saved `type` (the type key, so they survive index changes).
+- **`devenable`** sets `BusAddrRecord::pollingDisabled`. A device that is not polled stays identified and online,
+  and it can still be sent commands. The setting is held in DeviceManager by device ID, so it persists while the
+  device is offline, and it is re-applied on Identified/TypeChanged.
+- **`reinit`** is queued to the bus task (`DeviceIdentMgr::serviceReInitRequests`). That runs the init steps, then
+  re-applies the devconfig settings through the StillMatches path. The response is deferred and completed from
+  `loop()`, with a 5 s timeout. If the transport can't defer, it returns `queued`.
+- **`identinfo`** reports the BusStatusMgr state plus the candidates in the order they are tried, and the hook.
+  **`types`** is paged (default 50). **`reserved`** lists the addresses claimed by type records only, not
+  addresses a sysmod reserves.
+- **`typeinfo … full=1`** returns `record` in the type file format (`recordToFileEntry`, which round-trips every
+  catalogue record, host tested). **`typepolicy … save=1`** edits the type file (`setPolicyInFile`, host
+  tested) and sets `restartRequired`.
+- **The display name** is the name if one is set, else devInfoJson `name` (or the key) plus the device ID:
+  `getDeviceDisplayName()`, and `displayName` in `listdevs` and per-device `typeinfo`. `listdevs` now escapes
+  names.
+- **`pollstats`/`scanstats` dropped**: `busstatus` already has them, and it is now documented on the wiki.
+- **N9 fixed:** `registerForDeviceData("bus:addr@slot")` applies the slot, and a device name is resolved.
+- **raftjs:** wrappers only (`listDevices`, `setDeviceName/Role`, `getDeviceTypes`, `getIdentInfo`,
+  `reIdentify`, `reInitDevice`, `setDevicePolling`, `setTypePolicy`, `getTypeFileStatus`,
+  `getReservedAddresses`, `getDeviceDisplayName`), with tests.
+- **Bench:**
+  - On the FeatherS3, every endpoint was exercised. A restart kept the name, the stopped polling and devconfig
+    (100 ms interval re-applied). `typepolicy save=1` created a type file, then emptied it.
+  - On the Axiom (serial console), `identinfo` and `devenable` were checked on slot devices (`1_229`), and the
+    deferred `reinit` of the LSM6DS completed.
+
 ---
 
 ### Stage 11: Remaining naming changes visible to clients
@@ -1633,7 +1665,7 @@ Rules:
 | R2 | *(Withdrawn.)* No type table ID is needed by clients; see §3.8 rule 4 and D16 | — | — |
 | R3 | **Read `deviceTypeKey` when present** (the optional field was added to `RaftDevTypeInfoResponse` on 2026-10-15). `DeviceTypeInfo.type` stays as it is, since firmware keeps sending it (D13) | With R1 | Yes |
 | R4 | **New fields:** `displayName`, `deviceTypeKey`, `busNum` on the device state; deprecate the old meanings | Stage 11 | Yes (fall back to today's derivation) |
-| R5 | **New API wrappers:** `types`, `typepolicy`, `typefile`, `identinfo`, `reident`, `reinit`, `devenable`, `pollstats`, `scanstats` | Stage 10 | Return "unsupported" on `failUnknownAPI` |
+| R5 | **New API wrappers:** `types`, `typepolicy`, `typefile`, `identinfo`, `reident`, `reinit`, `devenable` (`pollstats`, `scanstats` dropped: in `busstatus`) | Stage 10 - done | The firmware response is returned, so older firmware gives `rslt` `fail` (unknown command) |
 | R6 | **Keep both `typeinfo` URL forms** and the per-record payload-format probe unchanged | Throughout | — |
 | R7 | **Tests:** replay captured traffic from old and new firmware (as in the legacy-compatibility work), plus a type-change-at-the-same-device-ID test for R1 | With R1 and R2 | — |
 

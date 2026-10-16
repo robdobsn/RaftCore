@@ -14,6 +14,8 @@
 #include "DeviceNames.h"
 #include "DeviceFactory.h"
 #include "DeviceTypeFileLoader.h"
+#include "DeviceSettingsStore.h"
+#include <memory>
 #include "DeviceTypeRecords.h"
 
 class RaftBusDevicesIF;
@@ -132,6 +134,10 @@ public:
     /// @param policy DeviceTypeRecord::POLICY_...
     /// @return the result (a protected type can't be disabled)
     DeviceTypeRecords::PolicyResult setTypePolicy(const char* deviceTypeKey, uint8_t policy);
+
+    /// @brief A device's display name: its name if it has one, otherwise its type's display name and its device ID
+    ///        (e.g. "Accelerometer 1_68")
+    String getDeviceDisplayName(RaftDeviceID deviceID) const;
 
     /// @brief Note that the device type file has been changed by this device (or a change has been made that only
     ///        a restart applies) - devman/typefile then reports restartRequired until the next restart
@@ -373,6 +379,44 @@ private:
     std::unordered_map<uint64_t, DevConfigSettings> _devConfigSettings;
     void rememberDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex, const RaftJson& jsonParams);
     void reapplyDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex);
+
+    // Saved device settings (names, roles, devconfig settings, polling) - DevMan "deviceSettingsFile"
+    DeviceSettingsStore _settingsStore;
+    String _settingsFilePath;
+    void loadDeviceSettings();
+    bool saveDeviceSettings();
+
+    // Devices whose polling is stopped (devman/devenable), by packed device ID - applied again when identified
+    std::unordered_map<uint64_t, bool> _pollingStopped;
+    void applyPollingSetting(RaftDeviceID deviceID);
+
+    // Re-initialisations waiting to complete a deferred response (the result is set on the bus task)
+    struct PendingReInit
+    {
+        uint32_t deferToken = 0;
+        uint32_t startMs = 0;
+        String reqStr;
+        std::atomic<int> result{-1};
+    };
+    std::vector<std::shared_ptr<PendingReInit>> _pendingReInits;
+    static constexpr uint32_t REINIT_TIMEOUT_MS = 5000;
+    static constexpr uint32_t MAX_DEVICE_SETTINGS_FILE_BYTES = 16384;
+    void servicePendingReInits();
+
+    // File helpers ("/local/x.json" is file system "local", file "x.json")
+    static void splitFsPath(const String& path, String& fsName, String& fileName);
+    bool readFileText(const String& path, uint32_t maxBytes, String& text, bool& present);
+    bool writeFileText(const String& path, const String& text);
+
+    // Display name for a device of a type
+    String displayNameFor(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex) const;
+
+    // Stage 10 endpoints
+    RaftRetCode apiDevManTypes(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManIdentInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManReInit(const String &reqStr, String &respStr, const RaftJson& jsonParams, const APISourceInfo& sourceInfo);
+    RaftRetCode apiDevManDevEnable(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManReserved(const String &reqStr, String &respStr, const RaftJson& jsonParams);
 
     // System configuration (for settings of other modules read for compatibility)
     RaftJsonIF& _sysConfig;

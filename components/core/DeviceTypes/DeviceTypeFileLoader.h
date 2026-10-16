@@ -28,6 +28,7 @@
 #include "RaftArduino.h"
 
 class DeviceTypeRecords;
+class DeviceTypeRecord;
 
 class DeviceTypeFileLoader
 {
@@ -77,6 +78,24 @@ public:
     ///        maxAddr
     /// @return empty if valid, otherwise the problem
     static String checkAddresses(const char* pAddresses, uint32_t maxAddr);
+
+    /// @brief A record as a type file entry - "<key>":{...} with the fields a type file uses (addresses, detection,
+    ///        init and poll strings, devInfoJson, scanPriority, identPriority, deviceTypeId, excludeFromAddrMap and
+    ///        disable for a policy that isn't enabled) - so it can be copied into a type file and loads as the same
+    ///        record
+    /// @param rec record
+    /// @param policy the record's policy
+    static String recordToFileEntry(const DeviceTypeRecord& rec, uint8_t policy);
+
+    /// @brief Set a type's policy in type file text: "disable": true or "claim" is set in the type's entry (an entry
+    ///        is added if there is none); for enabled, "disable" is removed (and an entry that only set a policy is
+    ///        removed). Everything else in the file is kept as it is
+    /// @param pFileJson the file (nullptr or empty: no file)
+    /// @param key device type key
+    /// @param policy DeviceTypeRecord::POLICY_...
+    /// @param changed (out) whether the file changed
+    /// @return the file text
+    static String setPolicyInFile(const char* pFileJson, const char* key, uint8_t policy, bool& changed);
 
 private:
     static void applyRecord(DeviceTypeRecords& table, const String& key, const char* pStart, const char* pEnd,
