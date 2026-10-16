@@ -1378,8 +1378,10 @@ without disturbing a device that is already running, and initialises and polls i
    records without detection last, so the others can now be identified. **Check on hardware** that the device the
    no-detection record describes doesn't pass the detection now tried first (an AHT20 against TrillRing's 8-bit check,
    an SHT40 against TrillHex's, a VEML6040 against MXC400xXC's, a QwiicLEDStick against TrillBar's) - giving those
-   records detection (item 1) removes the risk. Also changed by the ordering: VL6180 (8 bits) is now tried after
-   VL53L0X/L1X/L4CD/L5CX (16 bits) at 0x29 (see item 4), AS5600 (6 bits) after AdafruitSoilSensor and TrillCraft at
+   records detection (item 1) removes the risk. Also changed by the ordering: VL6180 (8 bits) would be tried after
+   VL53L0X/L1X/L4CD/L5CX (16 bits) at 0x29, so it was given `identPriority: 1` (2026-10-16, RaftCore and Axiom) to
+   keep it first, as on `main` - its detection only reads its read-only model ID, so trying it first is safe for
+   the other parts; review it with item 4. AS5600 (6 bits) after AdafruitSoilSensor and TrillCraft at
    0x36, MCP9808 before ADXL313 at 0x1d, CAP1188 before CAP1203 at 0x28.
 3. **Weak detection in records that have some** - for example MXC400xXC checks one byte (`0x0E=0x02`). Review
    these the same way.
@@ -1801,3 +1803,15 @@ confirmed on `main` by reading the code.
   the item 1 host test, with every shipped detection string and its expected mask and value bytes, so the
   regression cannot return. Confirm on hardware with any of the affected parts. Until the fix lands, the
   branch's workaround (explicit `0xA0,…,0xAF` alternatives for LTR-329) is an option for that record only.
+
+## 11. Observations for future work
+
+Things noticed along the way that are outside this plan, or not worth acting on yet. Each says what was seen and
+under what conditions, so it can be checked again later.
+
+| Date | Observation | Conditions | Status |
+|---|---|---|---|
+| 2026-10-16 | Two `Publish SLOW` warnings (about 50 ms per publish) | Axiom streaming `devjson` at 100 Hz over WiFi during the VL6180 work (`main`, internal-RAM optimisation branch) - a heavier subscription than the dashboard normally uses | Not acted on. Look at it if it appears at normal rates: measure where the time goes (JSON building for every device, the WiFi send) and whether `devbin` at the same rate shows it |
+| 2026-10-16 | Polls at 10 Hz ran at about 107 ms and 50 Hz gave about 40 samples/s | `main` (VL6180 work) | Caused by `main` timing each poll from the previous one (`lastPollTimeUs`), so the wake-up latency adds to every interval. Already fixed on `feature/device-identification` by Stage 1 (fixed-rate schedule): measured 100.0 ms and 50.00 Hz on the FeatherS3 after merging `main` |
+| 2026-10-16 | Attribute lookup tables (`lut`) were ignored by the generated C decoders, so VL6180 and VL53L0X `valid` was inverted in DataLogger CSV, RaftROS and named values | All builds | Fixed on `feature/device-identification` (RaftCore `5982b13`), tested in `test_standard_decode`. Not yet checked with a VL6180 in a DataLogger session |
+
