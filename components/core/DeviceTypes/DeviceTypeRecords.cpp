@@ -42,11 +42,19 @@ DeviceTypeRecords::DeviceTypeRecords()
 
 DeviceTypeRecords::~DeviceTypeRecords()
 {
-    // Free extended records
+    // Free extended records, base record overrides and retired overrides
     uint32_t count = _extCount.load(std::memory_order_acquire);
     for (uint32_t i = 0; i < count; i++)
         DeviceTypeRecordPacked::destroy(_extRecords[i]);
     delete[] _extRecords;
+    if (_baseOverridesStore)
+    {
+        for (uint32_t i = 0; i < BASE_DEV_TYPE_ARRAY_SIZE; i++)
+            DeviceTypeRecordPacked::destroy(_baseOverridesStore[i]);
+        delete[] _baseOverridesStore;
+    }
+    for (const DeviceTypeRecord* pRec : _retiredRecords)
+        DeviceTypeRecordPacked::destroy(pRec);
 
     // Delete mutex
     RaftMutex_destroy(_extRecordsMutex);
@@ -82,7 +90,8 @@ std::shared_ptr<const CatalogueIndex> DeviceTypeRecords::getCatalogueIndex() con
 #endif
         auto pIndex = std::make_shared<CatalogueIndex>();
         pIndex->build(generation, BASE_DEV_TYPE_ARRAY_SIZE, _extCount.load(std::memory_order_acquire),
-                [this](DeviceTypeIndexType idx) { return getRecord(idx); });
+                [this](DeviceTypeIndexType idx) { return getRecord(idx); },
+                [this](DeviceTypeIndexType idx) { return policyOf(idx); });
         _catalogueIndex = pIndex;
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
         LOG_I(MODULE_PREFIX, "getCatalogueIndex built generation %d in %d us, %d bytes", (int)generation,
@@ -108,9 +117,14 @@ std::vector<DeviceTypeIndexType> DeviceTypeRecords::getIdentCandidates(BusElemAd
 /// @brief Records known at an address
 std::vector<DeviceTypeIndexType> DeviceTypeRecords::getKnownTypesAtAddr(BusElemAddrType addr) const
 {
-    // The same records as the identification candidates until records can be disabled (a disabled record is
-    // still known, so its address stays reserved, but it isn't a candidate)
-    return getIdentCandidates(addr);
+    // The identification candidates plus the records whose policy is DISABLED_CLAIM (they still claim the address)
+    std::shared_ptr<const CatalogueIndex> pIndex = getCatalogueIndex();
+    uint32_t count = 0;
+    const DeviceTypeIndexType* pCands = pIndex->getIdentCandidates(addr, count);
+    std::vector<DeviceTypeIndexType> known = pCands ? std::vector<DeviceTypeIndexType>(pCands, pCands + count) :
+                std::vector<DeviceTypeIndexType>();
+    pIndex->appendClaimOnly(addr, known);
+    return known;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,7 +151,12 @@ const DeviceTypeRecord* DeviceTypeRecords::getRecordByHwTypeId(uint16_t hwTypeId
 const DeviceTypeRecord* DeviceTypeRecords::getRecord(DeviceTypeIndexType deviceTypeIndex) const
 {
     if (deviceTypeIndex < BASE_DEV_TYPE_ARRAY_SIZE)
+    {
+        const DeviceTypeRecord* const* pOverrides = _baseOverrides.load(std::memory_order_acquire);
+        if (pOverrides && pOverrides[deviceTypeIndex])
+            return pOverrides[deviceTypeIndex];
         return &baseDevTypeRecords[deviceTypeIndex];
+    }
     uint32_t extPos = deviceTypeIndex - BASE_DEV_TYPE_ARRAY_SIZE;
     if (extPos < _extCount.load(std::memory_order_acquire))
         return _extRecords[extPos];
@@ -179,7 +198,7 @@ const DeviceTypeRecord* DeviceTypeRecords::getRecord(const char* deviceTypeKey, 
         if (cmp == 0)
         {
             deviceTypeIndex = recIdx;
-            return &baseDevTypeRecords[recIdx];
+            return getRecord(recIdx);
         }
         if (cmp < 0)
             lo = mid + 1;
@@ -652,8 +671,40 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
     // A record with this key already added: the same content is the same record; different content is
     // rejected, since an index must always mean one record and a key one record (D17)
     AddResult result = AddResult::Added;
-    int32_t existingPos = findExtendedPosByKey(devTypeRec.deviceTypeName.c_str());
-    if (existingPos >= 0)
+    const char* pKey = devTypeRec.deviceTypeName.c_str();
+    int32_t existingPos = findExtendedPosByKey(pKey);
+    int32_t baseIdx = (existingPos < 0) ? findBaseIdxByKey(pKey) : -1;
+    const DeviceTypeRecord* pBaseOverride = nullptr;
+    if (baseIdx >= 0)
+    {
+        const DeviceTypeRecord* const* pOverrides = _baseOverrides.load(std::memory_order_acquire);
+        pBaseOverride = pOverrides ? pOverrides[baseIdx] : nullptr;
+    }
+    if ((baseIdx >= 0) && pBaseOverride && DeviceTypeRecordPacked::contentMatches(*pBaseOverride, devTypeRec))
+    {
+        // The same override again
+        result = AddResult::AlreadyPresent;
+        deviceTypeIndex = baseIdx;
+    }
+    else if (((existingPos >= 0) || (baseIdx >= 0)) && isProtectedLocked(pKey) &&
+                !((existingPos >= 0) && DeviceTypeRecordPacked::contentMatches(*_extRecords[existingPos], devTypeRec)))
+    {
+        // A protected type can't be replaced
+        result = AddResult::Protected;
+    }
+    else if ((baseIdx >= 0) && pBaseOverride)
+    {
+        // A base record can be overridden once - a second, different, override would change what its index means
+        result = AddResult::Conflict;
+    }
+    else if ((baseIdx >= 0) && !_ready)
+    {
+        // Override a base record before Ready: it keeps the base record's index (D2)
+        result = replaceBaseRecord(baseIdx, devTypeRec);
+        if (result == AddResult::Replaced)
+            deviceTypeIndex = baseIdx;
+    }
+    else if (existingPos >= 0)
     {
         if (DeviceTypeRecordPacked::contentMatches(*_extRecords[existingPos], devTypeRec))
         {
@@ -706,7 +757,7 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
     RaftMutex_unlock(_extRecordsMutex);
 
     // Compile the new record's command strings now, so any problems are reported when it is added
-    if (result == AddResult::Added)
+    if ((result == AddResult::Added) || (result == AddResult::Replaced))
         getCompiledRecord(deviceTypeIndex);
 
 #ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
@@ -725,7 +776,8 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
 /// @return true if added
 bool DeviceTypeRecords::addExtendedDeviceTypeRecord(const DeviceTypeRecordDynamic& devTypeRec, DeviceTypeIndexType& deviceTypeIndex)
 {
-    return addRecord(devTypeRec, deviceTypeIndex) == AddResult::Added;
+    AddResult result = addRecord(devTypeRec, deviceTypeIndex);
+    return (result == AddResult::Added) || (result == AddResult::Replaced);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -739,8 +791,229 @@ const char* DeviceTypeRecords::getAddResultStr(AddResult result)
         case AddResult::Conflict: return "Conflict";
         case AddResult::Full: return "Full";
         case AddResult::Invalid: return "Invalid";
+        case AddResult::Replaced: return "Replaced";
+        case AddResult::Protected: return "Protected";
     }
     return "Unknown";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Replace a base record with an extended record at its index (before Ready). Assumes the mutex is held
+/// @note the record's bytes count against the extended records' byte limit. If the record has no decode function
+///       and its response layout (devInfoJson "resp") is the same as the base record's, it uses the base
+///       record's decode function and field descriptions
+DeviceTypeRecords::AddResult DeviceTypeRecords::replaceBaseRecord(DeviceTypeIndexType baseIdx, const DeviceTypeRecordDynamic& devTypeRec)
+{
+    applyDefaultExtendedRecordLimits();
+    uint32_t recBytes = DeviceTypeRecordPacked::sizeFor(devTypeRec);
+    if (_extBytesUsed + recBytes > _extMaxBytes)
+        return AddResult::Full;
+    if (!_baseOverridesStore)
+    {
+        _baseOverridesStore = new (std::nothrow) const DeviceTypeRecord*[BASE_DEV_TYPE_ARRAY_SIZE]();
+        if (!_baseOverridesStore)
+            return AddResult::Full;
+        _baseOverrides.store(_baseOverridesStore, std::memory_order_release);
+    }
+    DeviceTypeRecord* pRec = const_cast<DeviceTypeRecord*>(DeviceTypeRecordPacked::create(devTypeRec));
+    if (!pRec)
+        return AddResult::Full;
+
+    // Inherit the decoder when the response layout is unchanged (review 9.2-G)
+    const DeviceTypeRecord& baseRec = baseDevTypeRecords[baseIdx];
+    if (!pRec->pollResultDecodeFn && sameResponseLayout(baseRec.devInfoJson, pRec->devInfoJson))
+    {
+        pRec->pollResultDecodeFn = baseRec.pollResultDecodeFn;
+        pRec->pollFieldDescs = baseRec.pollFieldDescs;
+        pRec->pollFieldCount = baseRec.pollFieldCount;
+        pRec->pollStructSize = baseRec.pollStructSize;
+    }
+
+    // Publish the override, then forget anything derived from the base record at this index
+    _extBytesUsed += recBytes;
+    _baseOverridesStore[baseIdx] = pRec;
+    std::atomic_thread_fence(std::memory_order_release);
+    if (RaftMutex_lock(_compiledMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        if (baseIdx < _compiledRecords.size())
+            _compiledRecords[baseIdx].reset();
+        RaftMutex_unlock(_compiledMutex);
+    }
+    _generation.fetch_add(1, std::memory_order_acq_rel);
+    return AddResult::Replaced;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether two devInfoJson strings have the same response layout ("resp"), ignoring whitespace
+///        outside strings
+bool DeviceTypeRecords::sameResponseLayout(const char* pDevInfoA, const char* pDevInfoB)
+{
+    if (!pDevInfoA || !pDevInfoB)
+        return false;
+    auto compact = [](const String& json) {
+        std::string out;
+        bool inString = false;
+        for (uint32_t i = 0; i < json.length(); i++)
+        {
+            char c = json[i];
+            if (c == '"' && ((i == 0) || (json[i - 1] != '\\')))
+                inString = !inString;
+            if (inString || !isspace((unsigned char)c))
+                out += c;
+        }
+        return out;
+    };
+    String respA = RaftJson(pDevInfoA).getString("resp", "");
+    String respB = RaftJson(pDevInfoB).getString("resp", "");
+    return (respA.length() > 0) && (compact(respA) == compact(respB));
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Find a base record by key (binary search)
+/// @return its index, or -1
+int32_t DeviceTypeRecords::findBaseIdxByKey(const char* deviceTypeKey)
+{
+    int32_t lo = 0;
+    int32_t hi = (int32_t)BASE_DEV_TYPE_ARRAY_SIZE - 1;
+    while (lo <= hi)
+    {
+        int32_t mid = (lo + hi) / 2;
+        uint16_t recIdx = baseDevTypeIndexByKey[mid];
+        int cmp = strcmp(baseDevTypeRecords[recIdx].deviceType, deviceTypeKey);
+        if (cmp == 0)
+            return recIdx;
+        if (cmp < 0)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return -1;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set a record's policy
+DeviceTypeRecords::PolicyResult DeviceTypeRecords::setPolicy(DeviceTypeIndexType deviceTypeIndex, uint8_t policy)
+{
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    if (!pRec || (policy > DeviceTypeRecord::POLICY_DISABLED_CLAIM))
+        return PolicyResult::NotFound;
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return PolicyResult::NotFound;
+    PolicyResult result = PolicyResult::Set;
+    if ((policy != DeviceTypeRecord::POLICY_ENABLED) && isProtectedLocked(pRec->deviceType))
+    {
+        result = PolicyResult::Protected;
+    }
+    else if (policyOf(deviceTypeIndex) != policy)
+    {
+        if (_policies.size() <= deviceTypeIndex)
+            _policies.resize(deviceTypeIndex + 1, POLICY_UNSET);
+        _policies[deviceTypeIndex] = policy;
+        _generation.fetch_add(1, std::memory_order_acq_rel);
+    }
+    RaftMutex_unlock(_extRecordsMutex);
+    return result;
+}
+
+DeviceTypeRecords::PolicyResult DeviceTypeRecords::setPolicy(const char* deviceTypeKey, uint8_t policy)
+{
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (!getRecord(deviceTypeKey, deviceTypeIndex))
+        return PolicyResult::NotFound;
+    return setPolicy(deviceTypeIndex, policy);
+}
+
+const char* DeviceTypeRecords::getPolicyResultStr(PolicyResult result)
+{
+    switch (result)
+    {
+        case PolicyResult::Set: return "Set";
+        case PolicyResult::NotFound: return "NotFound";
+        case PolicyResult::Protected: return "Protected";
+    }
+    return "Unknown";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a record's policy
+uint8_t DeviceTypeRecords::getPolicy(DeviceTypeIndexType deviceTypeIndex) const
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return DeviceTypeRecord::POLICY_ENABLED;
+    uint8_t policy = policyOf(deviceTypeIndex);
+    RaftMutex_unlock(_extRecordsMutex);
+    return policy;
+}
+
+/// @brief A record's policy (the one set at runtime, else its initial policy). Assumes the mutex is held
+uint8_t DeviceTypeRecords::policyOf(DeviceTypeIndexType deviceTypeIndex) const
+{
+    if ((deviceTypeIndex < _policies.size()) && (_policies[deviceTypeIndex] != POLICY_UNSET))
+        return _policies[deviceTypeIndex];
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    return pRec ? pRec->initialPolicy : DeviceTypeRecord::POLICY_ENABLED;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Protect a device type key
+void DeviceTypeRecords::setProtected(const char* deviceTypeKey)
+{
+    if (!deviceTypeKey || !deviceTypeKey[0] || !RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return;
+    if (!isProtectedLocked(deviceTypeKey))
+        _protectedKeys.push_back(deviceTypeKey);
+    RaftMutex_unlock(_extRecordsMutex);
+}
+
+bool DeviceTypeRecords::isProtected(const char* deviceTypeKey) const
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    bool isProt = isProtectedLocked(deviceTypeKey);
+    RaftMutex_unlock(_extRecordsMutex);
+    return isProt;
+}
+
+/// @brief Check whether a key is protected. Assumes the mutex is held
+bool DeviceTypeRecords::isProtectedLocked(const char* deviceTypeKey) const
+{
+    if (!deviceTypeKey)
+        return false;
+    for (const std::string& key : _protectedKeys)
+        if (key == deviceTypeKey)
+            return true;
+    return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Where a record comes from
+DeviceTypeRecords::RecordSource DeviceTypeRecords::getRecordSource(DeviceTypeIndexType deviceTypeIndex) const
+{
+    if (deviceTypeIndex < BASE_DEV_TYPE_ARRAY_SIZE)
+    {
+        const DeviceTypeRecord* const* pOverrides = _baseOverrides.load(std::memory_order_acquire);
+        return (pOverrides && pOverrides[deviceTypeIndex]) ? RecordSource::Override : RecordSource::Base;
+    }
+    return getRecord(deviceTypeIndex) ? RecordSource::Extended : RecordSource::None;
+}
+
+const char* DeviceTypeRecords::getRecordSourceStr(RecordSource source)
+{
+    switch (source)
+    {
+        case RecordSource::None: return "none";
+        case RecordSource::Base: return "base";
+        case RecordSource::Override: return "override";
+        case RecordSource::Extended: return "extended";
+    }
+    return "none";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether the identification hook must not be run at an address
+bool DeviceTypeRecords::isAddrHookBlocked(BusElemAddrType addr) const
+{
+    return getCatalogueIndex()->isAddrHookBlocked(addr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -59,6 +59,23 @@ NUM_SCAN_PRIORITY_LEVELS = 3
 FLAG_PROBE_ONLY = 0x01
 FLAG_HAS_HW_TYPE_ID = 0x02
 
+POLICY_ENABLED = 0
+POLICY_DISABLED = 1
+POLICY_DISABLED_CLAIM = 2
+
+def record_initial_policy(dev_type, dev_type_key):
+    """A record's initial policy from "disable": absent or false = enabled, true = disabled, "claim" = disabled with
+    the address still claimed (reserved, and the identification hook not run there)"""
+    value = dev_type.get("disable", False)
+    if value is False:
+        return POLICY_ENABLED
+    if value is True:
+        return POLICY_DISABLED
+    if value == "claim":
+        return POLICY_DISABLED_CLAIM
+    print(f"ERROR: record \"{dev_type_key}\" disable must be true, false or \"claim\"", file=sys.stderr)
+    sys.exit(1)
+
 def record_ident_fields(dev_type, dev_type_key):
     """Identification and scanning fields of a record, as emitted in its DeviceTypeRecord:
     (scanPriority, flags, identPriority, hwTypeId)
@@ -147,6 +164,17 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         with open(json_file_path.strip(), 'r') as json_file:
             file_json = json.load(json_file)
             file_dev_types = file_json.get('devTypes', {})
+            # Policy-only entries ({"disable": true} or {"disable": "claim"}, no record body) set the policy of a
+            # record from an earlier file and are not records themselves (D23)
+            for dev_type_key in list(file_dev_types.keys()):
+                entry = file_dev_types[dev_type_key]
+                if isinstance(entry, dict) and "disable" in entry and set(entry.keys()) <= {"disable", "deviceType", "_notes"}:
+                    del file_dev_types[dev_type_key]
+                    if dev_type_key in dev_ident_json['devTypes']:
+                        dev_ident_json['devTypes'][dev_type_key]["disable"] = entry["disable"]
+                    else:
+                        print(f"WARNING: {json_file_path.strip()}: \"{dev_type_key}\" sets a policy but no earlier file "
+                              f"has a record with that key - ignored")
             check_and_normalise_device_type_keys(file_dev_types, json_file_path.strip())
             # Merge device types from multiple JSON files (a later file's record replaces an earlier one's)
             for dev_type_key in file_dev_types:
@@ -297,7 +325,8 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
 
             # Identification and scanning fields: scanPriority, flags, identPriority, hwTypeId
             scan_priority, flags, ident_priority, hw_type_id = record_ident_fields(dev_type, dev_type_key)
-            header_file.write(f',\n        {scan_priority}, {flags}, {ident_priority}, 0x{hw_type_id:04x}')
+            header_file.write(f',\n        {scan_priority}, {flags}, {ident_priority}, 0x{hw_type_id:04x}, '
+                              f'{record_initial_policy(dev_type, dev_type_key)}')
 
             header_file.write('\n    },\n')
             dev_record_index += 1

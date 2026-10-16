@@ -157,8 +157,10 @@ static void testOverrideBaseKeyAndAddressLookups()
     const uint32_t numBase = DeviceTypeRecords::getNumBaseRecords();
     const char* baseKey = table.getRecord(0)->deviceType;
 
-    // An extended record with a base record's key is found by key in its place (the base record keeps its
-    // index and stays reachable by index)
+    // After Ready (identification has started), an extended record with a base record's key gets a new index and
+    // is found by key in its place (the base record keeps its index and stays reachable by index). Before Ready it
+    // would replace the base record at its index - see test_device_type_policy
+    table.markReady();
     DeviceTypeIndexType extIdx = 0;
     TEST_ASSERT(table.addRecord(makeRecord(baseKey, "0x52"), extIdx) == DeviceTypeRecords::AddResult::Added, "override added");
     DeviceTypeIndexType foundIdx = 0;

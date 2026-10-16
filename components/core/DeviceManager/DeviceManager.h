@@ -190,6 +190,9 @@ private:
     /// @param devManConfig Device manager configuration
     void setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
 
+    /// @brief Apply the type table settings (protected types, record policies) from the configuration
+    void applyTypeTableConfig(RaftJsonIF& devManConfig);
+
     /// @brief Create a static device and add it to the static device list
     /// @param pCreateFn create function for the device's class
     /// @param pDevClass device class name

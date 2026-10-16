@@ -1,6 +1,6 @@
 # Device Identification and Device Type Management: Staged Improvement Plan
 
-Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 4 done on the `feature/device-identification`
+Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 5 done on the `feature/device-identification`
 branches (2026-10-15).
 
 Companion documents:
@@ -921,6 +921,34 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
 
 **Aim:** base records can be disabled at runtime, and an override really replaces a base record
 (G5).
+
+**Status (2026-10-16): done in RaftCore and RaftI2C.** Axiom's hard-coded MAX17048/0x36 rule is not replaced yet
+(an Axiom change; the mechanism it needs is in place). What was done:
+- **Policy** per type-table entry (`DeviceTypeRecord::POLICY_ENABLED`, `POLICY_DISABLED`,
+  `POLICY_DISABLED_CLAIM`): an initial policy in each record, changeable with `DeviceTypeRecords::setPolicy()` (by
+  index or key) and from the SysType's `DevMan/typePolicy` map. The catalogue index takes it into account: only
+  enabled records are candidates; enabled and claim records reserve their addresses; claim records also block the
+  identification hook there (`isAddrHookBlocked()`). A type identified by the hook is not used if it is disabled.
+- **Override before Ready** (D2): a record with a base record's key replaces it at its index (`AddResult::Replaced`;
+  the base record stays in flash, a replaced override is retired until the table is destroyed). The decoder and
+  field descriptions are inherited when the `resp` layout is the same (ignoring whitespace). One override per base
+  record: a second, different one is a `Conflict` (it would change what an index already given to a device
+  means). After Ready a record with a base key gets a new index, as before. **Ready** is set by RaftI2C at the first
+  identification attempt (`markReady()`); Stage 6 will set it when the type file has been loaded.
+- **`disable` entries** (D23): a compiled record can carry `"disable": true` or `"disable": "claim"`, and a later
+  catalogue file can set an earlier record's policy with an entry that has only `disable`. (Extended records from a
+  type file get the same handling in Stage 6.)
+- **Protected types** (review §9.2-F): a `DevMan/Devices[]` entry with `role: "system"` and `expectType` protects
+  that key - it can't be disabled, overridden or replaced (`AddResult::Protected`, `PolicyResult::Protected`).
+- **Every policy change and override increases the generation**, so the catalogue index and the scanner's lists are
+  rebuilt; the compiled record of an overridden index is dropped. Devices already identified keep their type until
+  they are identified again (applying a change to them is Stage 7).
+- **`typeinfo`** reports `src` (`base`, `override`, `extended`) and `policy` (additional fields).
+- **Tests:** host `test_device_type_policy` (disable and the next candidate, claim, protection, override before and
+  after Ready, one override per key, decoder inheritance, generation, compiled record following an override);
+  generator tests for `disable` entries. On the bench, `typePolicy: {"APDS9960": "disabled"}` left the device at
+  0x39 online but unidentified, with the MPU6050 identified as usual and `typeinfo` reporting the policy. The
+  FeatherS3 has no identification hook, so "not probed by a hook" is covered by the host tests and code only.
 
 **Changes:**
 1. **Policy byte per type-table entry:** `Enabled`, `Disabled` or `DisabledClaim` (review §9.2-B).

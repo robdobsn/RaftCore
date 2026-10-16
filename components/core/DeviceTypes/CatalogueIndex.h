@@ -7,11 +7,12 @@
 // records. Built by DeviceTypeRecords when its generation changes; an index is never changed once built, so
 // a reader holding one needs no lock.
 //
-// - Identification candidates for each address (records that aren't probe-only), in identification order:
-//   descending identPriority, then extended records (in the order added) before base records (in catalogue
-//   order).
-// - Reserved addresses: addresses that a record identifies by address (used to keep re-addressable devices
-//   off them).
+// - Identification candidates for each address (records that aren't probe-only and whose policy is ENABLED), in
+//   identification order: descending identPriority, then extended records (in the order added) before base
+//   records (in catalogue order).
+// - Reserved addresses: addresses that a record identifies by address, or claims (policy DISABLED_CLAIM) - used
+//   to keep re-addressable devices off them. Hook-blocked addresses: those a DISABLED_CLAIM record claims (the
+//   identification hook isn't run there). A DISABLED record reserves nothing.
 // - Scan priority lists, from each record's scanPriority (as the generator built them).
 // - Hardware type ID -> device type index (extended records first).
 //
@@ -22,6 +23,7 @@
 #include <stdint.h>
 #include <vector>
 #include <algorithm>
+#include <string.h>
 #include "RaftUtils.h"
 #include "DeviceTypeRecord.h"
 #include "RaftDeviceConsts.h"
@@ -39,8 +41,9 @@ public:
     /// @param numBase number of base records (indexes 0 .. numBase-1)
     /// @param numExtended number of extended records (indexes numBase ..)
     /// @param getRecord function returning the record for an index
-    template <typename GetRecord>
-    void build(uint32_t generation, uint32_t numBase, uint32_t numExtended, GetRecord getRecord)
+    /// @param getPolicy function returning the policy for an index (DeviceTypeRecord::POLICY_...)
+    template <typename GetRecord, typename GetPolicy>
+    void build(uint32_t generation, uint32_t numBase, uint32_t numExtended, GetRecord getRecord, GetPolicy getPolicy)
     {
         _generation = generation;
 
@@ -64,6 +67,9 @@ public:
         uint16_t countByAddr[MAX_ADDR + 1] = {};
         bool anyIdentPriority = false;
         _hwTypeIds.clear();
+        _claimOnly.clear();
+        memset(_reservedBits, 0, sizeof(_reservedBits));
+        memset(_hookBlockedBits, 0, sizeof(_hookBlockedBits));
         std::vector<int> addrList;
         for (DeviceTypeIndexType idx : order)
         {
@@ -74,12 +80,27 @@ public:
                 _hwTypeIds.push_back({pRec->hwTypeId, idx});
             if (pRec->isProbeOnly() || !pRec->addresses || !pRec->addresses[0])
                 continue;
-            anyIdentPriority = anyIdentPriority || (pRec->identPriority != 0);
+            uint8_t policy = getPolicy(idx);
+            if (policy == DeviceTypeRecord::POLICY_DISABLED)
+                continue;
             parseAddresses(pRec->addresses, addrList);
+            if (policy == DeviceTypeRecord::POLICY_DISABLED_CLAIM)
+            {
+                // Not a candidate, but the address stays claimed
+                for (int addr : addrList)
+                {
+                    _claimOnly.push_back({(uint8_t)addr, idx});
+                    setBit(_reservedBits, addr);
+                    setBit(_hookBlockedBits, addr);
+                }
+                continue;
+            }
+            anyIdentPriority = anyIdentPriority || (pRec->identPriority != 0);
             for (int addr : addrList)
             {
                 addrRecs.push_back({(uint8_t)addr, idx});
                 countByAddr[addr]++;
+                setBit(_reservedBits, addr);
             }
             if (pRec->scanPriority != DeviceTypeRecord::SCAN_PRIORITY_NONE)
             {
@@ -159,12 +180,25 @@ public:
         return count > 0 ? &_candidates[_candStart[addr]] : nullptr;
     }
 
-    /// @brief Check whether a record identifies a device at this address (re-addressable devices keep off it)
+    /// @brief Check whether a record identifies or claims a device at this address (re-addressable devices keep off
+    ///        it)
     bool isAddrReserved(uint32_t addr) const
     {
-        uint32_t count = 0;
-        getIdentCandidates(addr, count);
-        return count > 0;
+        return getBit(_reservedBits, addr);
+    }
+
+    /// @brief Check whether the identification hook must not be run at an address (a DISABLED_CLAIM record claims it)
+    bool isAddrHookBlocked(uint32_t addr) const
+    {
+        return getBit(_hookBlockedBits, addr);
+    }
+
+    /// @brief Append the records that claim an address without being candidates (policy DISABLED_CLAIM)
+    void appendClaimOnly(uint32_t addr, std::vector<DeviceTypeIndexType>& indexes) const
+    {
+        for (const ClaimEntry& entry : _claimOnly)
+            if (entry.addr == addr)
+                indexes.push_back(entry.idx);
     }
 
     /// @brief Scan priority lists (list 0 is scanned most often)
@@ -191,7 +225,8 @@ public:
     uint32_t getBytesUsed() const
     {
         uint32_t bytes = sizeof(*this) + _candStart.capacity() * sizeof(uint16_t) +
-                _candidates.capacity() * sizeof(DeviceTypeIndexType) + _hwTypeIds.capacity() * sizeof(HwTypeIdEntry);
+                _candidates.capacity() * sizeof(DeviceTypeIndexType) + _hwTypeIds.capacity() * sizeof(HwTypeIdEntry) +
+                _claimOnly.capacity() * sizeof(ClaimEntry);
         for (const auto& list : _scanLists)
             bytes += sizeof(list) + list.capacity();
         return bytes;
@@ -227,4 +262,23 @@ private:
         DeviceTypeIndexType deviceTypeIndex;
     };
     std::vector<HwTypeIdEntry> _hwTypeIds;
+
+    // Records that claim an address without being candidates, and address bitmaps
+    struct ClaimEntry
+    {
+        uint8_t addr;
+        DeviceTypeIndexType idx;
+    };
+    std::vector<ClaimEntry> _claimOnly;
+    static constexpr uint32_t ADDR_BITMAP_WORDS = (MAX_ADDR + 32) / 32;
+    uint32_t _reservedBits[ADDR_BITMAP_WORDS] = {};
+    uint32_t _hookBlockedBits[ADDR_BITMAP_WORDS] = {};
+    static void setBit(uint32_t* pBits, uint32_t addr)
+    {
+        pBits[addr / 32] |= 1u << (addr % 32);
+    }
+    static bool getBit(const uint32_t* pBits, uint32_t addr)
+    {
+        return (addr <= MAX_ADDR) && ((pBits[addr / 32] & (1u << (addr % 32))) != 0);
+    }
 };

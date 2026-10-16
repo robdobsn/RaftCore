@@ -78,6 +78,7 @@ public:
         devTypeRec.flags = flags;
         devTypeRec.identPriority = identPriority;
         devTypeRec.hwTypeId = hwTypeId;
+        devTypeRec.initialPolicy = initialPolicy;
 
         return true;
     }
@@ -104,6 +105,7 @@ public:
     uint8_t flags = 0;
     int8_t identPriority = 0;
     uint16_t hwTypeId = 0;
+    uint8_t initialPolicy = DeviceTypeRecord::POLICY_ENABLED;
 
     /// @brief Set the hardware type ID (see DeviceTypeRecord::hwTypeId)
     void setHwTypeId(uint16_t id)

@@ -61,6 +61,7 @@ public:
         pRec->flags = src.flags;
         pRec->identPriority = src.identPriority;
         pRec->hwTypeId = src.hwTypeId;
+        pRec->initialPolicy = src.initialPolicy;
         return pRec;
     }
 
@@ -87,7 +88,8 @@ public:
                 (packed.pollDataSizeBytes == src.pollDataSizeBytes) &&
                 (packed.pollResultDecodeFn == src.pollResultDecodeFn) &&
                 (packed.scanPriority == src.scanPriority) && (packed.flags == src.flags) &&
-                (packed.identPriority == src.identPriority) && (packed.hwTypeId == src.hwTypeId);
+                (packed.identPriority == src.identPriority) && (packed.hwTypeId == src.hwTypeId) &&
+                (packed.initialPolicy == src.initialPolicy);
     }
 
 private:

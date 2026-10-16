@@ -72,6 +72,9 @@ void DeviceManager::setup()
     if (!deviceTypeRecords.setExtendedRecordLimits(maxExtendedRecords, maxExtendedBytes))
         LOG_W(MODULE_PREFIX, "setup type table limits not applied - records were added before setup");
 
+    // Protected types and record policies from the SysType (before buses start identifying devices)
+    applyTypeTableConfig(modConfig());
+
     // Setup buses
     raftBusSystem.setup("Buses", modConfig(),
             std::bind(&DeviceManager::busElemStatusCB, this, std::placeholders::_1, std::placeholders::_2),
@@ -84,6 +87,53 @@ void DeviceManager::setup()
 
     // Setup device classes (these are the keys into the device factory)
     setupStaticDevices("Devices", modConfig());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Apply the type table settings from the configuration
+/// @param devManConfig DeviceManager configuration
+/// @note Protected types: a Devices entry with role "system" and "expectType" protects that device type key - it
+///       can't be disabled, overridden or replaced. Policies: "typePolicy" maps device type keys to "enabled",
+///       "disabled" or "disabledClaim"
+void DeviceManager::applyTypeTableConfig(RaftJsonIF& devManConfig)
+{
+    // Protected types
+    std::vector<String> deviceConfigs;
+    devManConfig.getArrayElems("Devices", deviceConfigs);
+    for (RaftJson devConf : deviceConfigs)
+    {
+        String expectType = devConf.getString("expectType", "");
+        if ((expectType.length() > 0) && devConf.getString("role", "").equalsIgnoreCase("system"))
+            deviceTypeRecords.setProtected(expectType.c_str());
+    }
+
+    // Policies
+    std::vector<String> policyKeys;
+    devManConfig.getKeys("typePolicy", policyKeys);
+    for (const String& key : policyKeys)
+    {
+        String policyStr = devManConfig.getString(("typePolicy/" + key).c_str(), "");
+        uint8_t policy = DeviceTypeRecord::POLICY_ENABLED;
+        if (policyStr.equalsIgnoreCase("disabled"))
+        {
+            policy = DeviceTypeRecord::POLICY_DISABLED;
+        }
+        else if (policyStr.equalsIgnoreCase("disabledClaim"))
+        {
+            policy = DeviceTypeRecord::POLICY_DISABLED_CLAIM;
+        }
+        else if (!policyStr.equalsIgnoreCase("enabled"))
+        {
+            LOG_W(MODULE_PREFIX, "applyTypeTableConfig typePolicy %s: unknown policy %s", key.c_str(), policyStr.c_str());
+            continue;
+        }
+        DeviceTypeRecords::PolicyResult result = deviceTypeRecords.setPolicy(key.c_str(), policy);
+        if (result != DeviceTypeRecords::PolicyResult::Set)
+        {
+            LOG_W(MODULE_PREFIX, "applyTypeTableConfig typePolicy %s %s: %s", key.c_str(), policyStr.c_str(),
+                        DeviceTypeRecords::getPolicyResultStr(result));
+        }
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -450,7 +500,8 @@ void DeviceManager::setupStaticDevice(RaftDevice* pDevice)
                         pDevice->getConfiguredDeviceName().c_str(), devTypeRec.deviceTypeName.c_str());
         }
         else if ((addResult != DeviceTypeRecords::AddResult::Added) &&
-                    (addResult != DeviceTypeRecords::AddResult::AlreadyPresent))
+                    (addResult != DeviceTypeRecords::AddResult::AlreadyPresent) &&
+                    (addResult != DeviceTypeRecords::AddResult::Replaced))
         {
             DeviceTypeRecords::ExtendedRecordStats stats = deviceTypeRecords.getExtendedRecordStats();
             LOG_E(MODULE_PREFIX, "setup device %s type %s not added (%s, %d of %d records, %d of %d bytes)",
@@ -1116,7 +1167,14 @@ void DeviceManager::appendDeviceTypeKey(String& jsonFields, DeviceTypeIndexType 
 {
     DeviceTypeRecord devTypeRec;
     if (deviceTypeRecords.getDeviceInfo(deviceTypeIndex, devTypeRec) && devTypeRec.deviceType && devTypeRec.deviceType[0])
+    {
         RaftJson::appendStringField(jsonFields, "deviceTypeKey", devTypeRec.deviceType);
+        // Where the record comes from (base, override or extended) and its policy (enabled, disabled, disabledClaim)
+        RaftJson::appendStringField(jsonFields, "src",
+                    DeviceTypeRecords::getRecordSourceStr(deviceTypeRecords.getRecordSource(deviceTypeIndex)));
+        RaftJson::appendStringField(jsonFields, "policy",
+                    DeviceTypeRecord::getPolicyStr(deviceTypeRecords.getPolicy(deviceTypeIndex)));
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////

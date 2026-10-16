@@ -85,6 +85,24 @@ public:
     // numbering (e.g. the RSAO WHOAMI response). JSON "deviceTypeId". Valid if FLAG_HAS_HW_TYPE_ID is set
     uint16_t hwTypeId = 0;
 
+    // Policy: whether the record is used for identification. Only identification is affected - typeinfo,
+    // decoding and subscriptions are the same for every policy
+    //   ENABLED         an identification candidate
+    //   DISABLED        not a candidate: the next candidate, or the identification hook, gets the device
+    //   DISABLED_CLAIM  not a candidate, but the address still counts as claimed: it stays reserved and the
+    //                   identification hook isn't run there
+    // initialPolicy is the policy the record starts with (JSON "disable": true or "claim"); it can be changed at
+    // runtime (DeviceTypeRecords::setPolicy)
+    static constexpr uint8_t POLICY_ENABLED = 0;
+    static constexpr uint8_t POLICY_DISABLED = 1;
+    static constexpr uint8_t POLICY_DISABLED_CLAIM = 2;
+    uint8_t initialPolicy = POLICY_ENABLED;
+
+    static const char* getPolicyStr(uint8_t policy)
+    {
+        return policy == POLICY_DISABLED ? "disabled" : (policy == POLICY_DISABLED_CLAIM ? "disabledClaim" : "enabled");
+    }
+
     bool isProbeOnly() const
     {
         return (flags & FLAG_PROBE_ONLY) != 0;

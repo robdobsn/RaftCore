@@ -68,9 +68,30 @@ class GeneratorTableTests(unittest.TestCase):
 
     @staticmethod
     def ident_fields(header):
-        """The scanPriority, flags, identPriority, hwTypeId emitted at the end of each record"""
-        return [(int(a), int(b), int(c), int(d, 16)) for a, b, c, d in
-                re.findall(r",\n        (-?\d+), (\d+), (-?\d+), (0x[0-9a-f]{4})\n    \},", header)]
+        """The scanPriority, flags, identPriority, hwTypeId emitted at the end of each record (before the policy)"""
+        return [(int(a), int(b), int(c), int(d, 16)) for a, b, c, d, _ in
+                re.findall(r",\n        (-?\d+), (\d+), (-?\d+), (0x[0-9a-f]{4}), (\d+)\n    \},", header)]
+
+    @staticmethod
+    def policies(header):
+        """The initial policy emitted at the end of each record"""
+        return [int(p) for p in re.findall(r", 0x[0-9a-f]{4}, (\d+)\n    \},", header)]
+
+    def test_disable_entries(self):
+        # A record can be disabled in its own body, or by a policy-only entry in a later file (D23)
+        result, header = self.run_with_records(
+            {"A": make_record(), "B": dict(make_record(), disable=True), "C": make_record(), "D": make_record()},
+            {"C": {"disable": "claim"}, "D": {"disable": True}, "Missing": {"disable": True}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.record_keys(header), ["A", "B", "C", "D"])
+        self.assertEqual(self.policies(header), [0, 1, 2, 1])
+        self.assertIn('"Missing" sets a policy but no earlier file has a record with that key', result.stdout)
+        result, _ = self.run_with_records({"Bad": dict(make_record(), disable="yes")})
+        self.assertNotEqual(result.returncode, 0)
+
+    @staticmethod
+    def record_keys(header):
+        return re.findall(r'\{\n        R"JSON\(([^)]*)\)JSON"', header)
 
     def test_ident_fields(self):
         records = {

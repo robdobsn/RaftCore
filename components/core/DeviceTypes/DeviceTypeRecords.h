@@ -17,6 +17,7 @@
 #include "DeviceTypeGrammar.h"
 #include <atomic>
 #include <memory>
+#include <string>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @class DeviceTypeRecords
@@ -201,14 +202,19 @@ public:
         Conflict,           // a record with the same key and different content is present - not added (D17)
         Full,               // the configured number of records or bytes would be exceeded, or out of memory
         Invalid,            // the record has no key
+        Replaced,           // a base record with the same key was replaced, keeping its index (only before Ready)
+        Protected,          // the key is protected (a system device expects that type) - not added
     };
     static const char* getAddResultStr(AddResult result);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Add an extended device type record
     /// @param devTypeRec device type record
-    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID unless Added or AlreadyPresent)
+    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID unless Added, AlreadyPresent or
+    ///        Replaced)
     /// @return result
+    /// @note a record with the key of a base record replaces that base record (keeping its index) if the table isn't
+    ///       Ready yet; after that it gets a new index, and the key then means the new record
     AddResult addRecord(const DeviceTypeRecordDynamic& devTypeRec, DeviceTypeIndexType& deviceTypeIndex);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -241,6 +247,56 @@ public:
     static uint32_t getNumBaseRecords();
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set a record's policy (see DeviceTypeRecord::POLICY_...) - affects identification only
+    /// @param deviceTypeIndex device type index
+    /// @param policy policy
+    /// @return Set, NotFound or Protected (a protected type can't be disabled)
+    /// @note a change applies to devices identified from then on (devices already identified keep their type
+    ///       until they are identified again)
+    enum class PolicyResult
+    {
+        Set,
+        NotFound,
+        Protected,
+    };
+    PolicyResult setPolicy(DeviceTypeIndexType deviceTypeIndex, uint8_t policy);
+    PolicyResult setPolicy(const char* deviceTypeKey, uint8_t policy);
+    static const char* getPolicyResultStr(PolicyResult result);
+
+    /// @brief Get a record's policy
+    uint8_t getPolicy(DeviceTypeIndexType deviceTypeIndex) const;
+
+    /// @brief Protect a device type key: it can't be disabled, overridden or replaced (a system device expects it)
+    void setProtected(const char* deviceTypeKey);
+    bool isProtected(const char* deviceTypeKey) const;
+
+    /// @brief Where a record comes from
+    enum class RecordSource
+    {
+        None,
+        Base,           // compiled in
+        Override,       // replaces a base record, at its index
+        Extended,       // added at runtime with its own index
+    };
+    RecordSource getRecordSource(DeviceTypeIndexType deviceTypeIndex) const;
+    static const char* getRecordSourceStr(RecordSource source);
+
+    /// @brief Ready: identification has started, so an index may have been given to a device. From then on a
+    ///        record can't replace a base record at its index (D2: an index never changes meaning)
+    void markReady()
+    {
+        _ready = true;
+    }
+    bool isReady() const
+    {
+        return _ready;
+    }
+
+    /// @brief Check whether the identification hook must not be run at an address (a record there has the policy
+    ///        DISABLED_CLAIM)
+    bool isAddrHookBlocked(BusElemAddrType addr) const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device poll decode function
     /// @param deviceTypeIndex device type index
     /// @return poll decode function
@@ -265,6 +321,26 @@ private:
     // changed, when rebuilt; held under the mutex)
     std::atomic<uint32_t> _generation{1};
     mutable std::shared_ptr<const CatalogueIndex> _catalogueIndex;
+
+    // Policies set at runtime, by device type index (POLICY_UNSET: the record's initial policy), under the mutex
+    static constexpr uint8_t POLICY_UNSET = 0xff;
+    std::vector<uint8_t> _policies;
+    uint8_t policyOf(DeviceTypeIndexType deviceTypeIndex) const;
+
+    // Protected device type keys, under the mutex
+    std::vector<std::string> _protectedKeys;
+    bool isProtectedLocked(const char* deviceTypeKey) const;
+
+    // Base records replaced by an extended record (before Ready): an array of numBase pointers, allocated when the
+    // first is replaced (nullptr: not replaced). Read without a lock, like _extRecords. A replaced override is kept
+    // (in _retiredRecords) until the table is destroyed, so a pointer to it stays valid
+    std::atomic<const DeviceTypeRecord* const*> _baseOverrides{nullptr};
+    const DeviceTypeRecord** _baseOverridesStore = nullptr;
+    std::vector<const DeviceTypeRecord*> _retiredRecords;
+    std::atomic<bool> _ready{false};
+    AddResult replaceBaseRecord(DeviceTypeIndexType baseIdx, const DeviceTypeRecordDynamic& devTypeRec);
+    static bool sameResponseLayout(const char* pDevInfoA, const char* pDevInfoB);
+    static int32_t findBaseIdxByKey(const char* deviceTypeKey);
 
     // Default limits (D3)
     static constexpr uint32_t EXT_MAX_RECORDS_DEFAULT = 32;
