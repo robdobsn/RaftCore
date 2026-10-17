@@ -1,6 +1,6 @@
 # Device Type Record Management: Plan
 
-Status: decisions M1-M7 and M9 agreed, M8 to be reviewed (§5). **Phases 1a, 1b and 2 done (2026-10-17)** on the
+Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b and 2 done (2026-10-17)** on the
 `feature/device-type-records` branches of RaftCore and Axiom (see §6); phases 3-5 not started. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
@@ -233,6 +233,55 @@ not a problem (RaftCore's whole catalogue is 36 KB as a type file, under the 64 
 4. **Device type indexes** are all extended ones, in file order - fine by contract (one boot), and raftjs clears its
    caches on reconnect.
 
+### 3.9 Type settings: board and product choices outside the record
+
+(Added 2026-10-17.) A record describes the device. Some of what records hold - or what had to be put in a copy of a
+record - is a choice for the board or product the device is fitted to, not a property of the device:
+
+| Setting | Why it isn't the device's | Where it goes |
+|---|---|---|
+| Poll bus speed and the slots it applies to (`busHz`, `busHzSlots`) | The wiring, pull-ups, multiplexer ports and other parts on the bus decide what is safe. Axiom kept a copy of the LSM6DS record only to add 400 kHz on slots 1-4 and 7 | `typeSettings` (below); no longer in records |
+| Poll interval and samples kept | Defaults in the record (`pollInfo.i`, `s`); the right rate depends on the product (a data logger, a dashboard) | `typeSettings` (`intervalUs`, `numSamples`) |
+| Sample rate set through a `_conf.rate` action | The record lists what the device can do (`map`); which one is used is a choice | `typeSettings` (`sampleRateHz`) |
+| Scan priority | Whether the device is expected to be hot-plugged depends on the product (54 of 62 records say "high") | `typeSettings` (`scanPriority`) |
+
+**`typeSettings`** is a DevMan setting in the SysType's configuration (`SysTypes.json`), next to `typePolicy`:
+
+```json
+"DevMan": {
+    "typeSettings": {
+        "LSM6DS": { "busHz": 400000, "busHzSlots": "1,2,3,4,7" },
+        "VL6180": { "intervalUs": 50000, "scanPriority": "low" }
+    }
+}
+```
+
+- Each entry uses the names `devman/devconfig` takes (`intervalUs`, `numSamples`, `busHz`, `busHzSlots`,
+  `sampleRateHz`). It is applied when a device of the type is identified, through the same path as the devconfig
+  settings DeviceManager keeps for a device (Stage 7). A type setting is not remembered or saved as the device's
+  own setting.
+- **Layers**, each overriding the one before: the record's defaults; `typeSettings`; the device's saved settings
+  (Stage 10, `save=1`); a `devconfig` sent while running.
+- **`scanPriority`** (`high`, `medium`, `low` or `none`) isn't a device setting. It is set on the type, as
+  `typePolicy` is: the catalogue index (the scanner's priority lists) uses it in place of the record's.
+- **Why the SysType's runtime configuration** and not the record or `DeviceTypeSources.json`:
+  - SysTypes is where the board is described (bus pins, multiplexers, `typePolicy`);
+  - it applies to compiled records and to records from a type file alike, which matters for builds with no compiled
+    records;
+  - it can be changed without a rebuild;
+  - records stay the same for every board, and `DeviceTypeSources.json` only chooses records.
+- **Timing:** settings apply just after identification (as saved devconfig settings do), so the first polls may run
+  with the record's defaults. Initialisation runs at the bus's default speed (as before - the bus speed applies to
+  polls).
+- **Checking:** at startup each entry is checked. Unknown setting names and invalid values are logged and ignored. A
+  key that isn't a device type in this build is logged at the information level, since a type file may not be
+  present.
+- **Records no longer take `pollInfo.busHz`/`h` or `busHzSlots`/`hSlots`.** Only Axiom's copy of LSM6DS used them,
+  and it moves to `typeSettings`. The generator and the type file loader warn about a record that still has them.
+- **Two places for a policy:** `builtin.policy` in `DeviceTypeSources.json` sets a record's initial policy in the
+  build ("this product never has it"); DevMan `typePolicy` sets it at runtime (a board that can be reconfigured).
+- **Later:** `maxBusHz` in a record's `devInfoJson`, so a type setting faster than the device supports is reported.
+
 ---
 
 ## 4. Phases
@@ -242,6 +291,7 @@ not a problem (RaftCore's whole catalogue is 36 KB as a type file, under the 64 
 | **1a** | Make order explicit at RaftCore 0x26 and 0x29 (`identPriority`); split `DeviceTypeRecords.json` into `devtypes/records/`; `AssembleDevTypes.py` with `builtin` and `path` sources, the selection format (lock format designed in); keep `DEV_TYPE_JSON_FILES` and `DevTypes.json`; point RaftCore's tests and scripts at the assembled file; CI publishes the combined file as a release asset | RaftCore | Host tests of the assembler (selection, clashes, overrides, missing keys, compatibility with no selection file); the full selection gives the same identification order as today's catalogue (reference index test); every existing project builds unchanged |
 | **1b** | `git` sources, lock file, cache, `raftdevtypes/` override, manifest | RaftCore | Host tests with a local bare repo (tag, branch, commit, single file, lock honoured, offline build from cache, broken override link fails) |
 | **2** | Axiom moves to `DeviceTypeSources.json` + `devtypes/` (VL53L5CX, RSAO records, LSM6DS override) and deletes its fork | Axiom | Axiom018 builds; identification and records identical to today's on hardware (`devman/types`, `typeinfo full=1` per record) |
+| **2b** | `typeSettings` (3.9) in DeviceManager, the scan priority override in DeviceTypeRecords, records' `busHz`/`busHzSlots` removed (with a warning); Axiom's LSM6DS back to RaftCore's record, its bus speed in Axiom018's `typeSettings` | RaftCore, RaftI2C (if needed), Axiom | Host tests (parsing, checking and layering of type settings; scan priority override in the index); FeatherS3; on the Axiom, LSM6DS polled at 400 kHz on its slot as before (`devconfig` query, poll bus time) |
 | **3** | `devman/typefile/check`; staged apply; type file build (3.6) with host tests | RaftCore, raftjs (wrappers) | Host tests; FeatherS3: stage, check, apply, verify; a bad file is reported and not applied |
 | **4** | raft CLI `devtypes` commands (3.7), HTTP then serial | RaftCLI | Against the FeatherS3 (HTTP) and Axiom (serial) |
 | **5** | Optional: `fsImage`, other runtime routes, D11 on-device decoder (prerequisite for 3.8), GUI | as needed | Per item |
@@ -262,6 +312,9 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 | M6 | Same key from two non-local sources | **An error unless `include` names the source** (decided 2026-10-17) |
 | M7 | Check on the device before applying? | **Yes, `devman/typefile/check`** (additive endpoint) (decided 2026-10-17) |
 | M8 | Schedule D11 (on-device decoder from the attribute list)? | Kept in the plan (phase 5); **reviewed before any work starts** (2026-10-17). Needed for the all-runtime setup |
+| M10 | Board and product choices (bus speed, poll interval and samples, sample rate, scan priority) | **In DevMan `typeSettings` in the SysType's configuration, applied when a device of the type is identified, under the device's own settings** (decided 2026-10-17) |
+| M11 | Keep `busHz`/`busHzSlots` in records? | **No** - removed, with a warning for a record that still has them (decided 2026-10-17; only Axiom used them) |
+| M12 | `maxBusHz` in the record | Later (decided 2026-10-17) |
 | M9 | A combined catalogue file for consumers that read one | **Built by CI and published as a release asset; RaftCore's own tests use the assembled file** (decided 2026-10-17) |
 
 ---
