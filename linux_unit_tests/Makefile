@@ -32,7 +32,10 @@ SPIRAM_VARIANTS = idf6_modern:6:CONFIG_SPIRAM:8388608:0:1 idf5_modern:5:CONFIG_S
   idf6_psram_disabled:6:NONE:0:0:0 host_no_esp:0:NONE:0:0:0
 
 DEV_TYPE_GEN_DIR = gen
-DEV_TYPE_CATALOGUE = ../devtypes/DeviceTypeRecords.json
+# RaftCore's records (one file per record) assembled into one catalogue file, in key order, for the tests that read one
+DEV_TYPE_RECORDS_DIR = ../devtypes/records
+DEV_TYPE_RECORD_FILES = $(wildcard $(DEV_TYPE_RECORDS_DIR)/*.json)
+DEV_TYPE_CATALOGUE = $(DEV_TYPE_GEN_DIR)/DeviceTypeRecords.json
 DEV_TYPE_GEN_HEADER = $(DEV_TYPE_GEN_DIR)/DeviceTypeRecords_generated.h
 CATALOGUE_INDEX_EXPECTED = $(DEV_TYPE_GEN_DIR)/catalogue_index_expected.json
 
@@ -122,7 +125,7 @@ objs = $(addprefix $(OBJDIR)/,$(subst ../,,$(1:.cpp=.o)))
 
 all: $(TESTS)
 
-check: $(TESTS) $(CATALOGUE_INDEX_EXPECTED) test_reduced_catalogue
+check: $(DEV_TYPE_CATALOGUE) $(TESTS) $(CATALOGUE_INDEX_EXPECTED) test_reduced_catalogue
 	@failed=0; \
 	for t in $(TESTS); do \
 		echo "===== $$t"; \
@@ -180,8 +183,13 @@ $(OBJDIR)/%.o: ../../%.cpp
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c -o $@ $<
 
+# The RaftCore catalogue as one file, from the record files
+$(DEV_TYPE_CATALOGUE): $(DEV_TYPE_RECORD_FILES) ../scripts/AssembleDeviceTypes.py
+	mkdir -p $(DEV_TYPE_GEN_DIR)
+	python3 ../scripts/AssembleDeviceTypes.py --raftcore .. --all --out $@
+
 # Device type records: the built-in records are generated from the RaftCore catalogue by the real generator
-$(DEV_TYPE_GEN_HEADER): $(DEV_TYPE_CATALOGUE) ../scripts/ProcessDevTypeJsonToC.py ../scripts/DecodeGenerator.py
+$(DEV_TYPE_GEN_HEADER): $(DEV_TYPE_CATALOGUE) ../scripts/ProcessDevTypeJsonToC.py ../scripts/DecodeGenerator.py ../scripts/AssembleDeviceTypes.py
 	mkdir -p $(DEV_TYPE_GEN_DIR)
 	python3 ../scripts/ProcessDevTypeJsonToC.py $(DEV_TYPE_CATALOGUE) $(DEV_TYPE_GEN_HEADER) \
 		$(DEV_TYPE_GEN_DIR)/DevicePollRecords_generated.h > $(DEV_TYPE_GEN_DIR)/generator.log

@@ -1,0 +1,36 @@
+{
+    "addresses": "0x69",
+    "_notes": "default settings on power on: normal (not sleep) mode, 10 frames per second, no interrupt, moving average off",
+    "detectionValues": "",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x80=r128",
+        "i": 100,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Thermal Camera",
+        "desc": "",
+        "manu": "Panasonic",
+        "type": "AMG8833",
+        "clas": ["TCAM"],
+        "resp": {
+            "b": 128,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": "<h[64]",
+                    "resolution": "8x8",
+                    "u": "&deg;C",
+                    "r": [-55, 125],
+                    "s": -4,
+                    "d": 64,
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ]
+        },
+        "actions": []
+    }
+}

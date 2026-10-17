@@ -1,0 +1,31 @@
+{
+    "addresses": "0x36",
+    "detectionValues": "0x00=0b000000xx",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x0e=r2",
+        "i": 100,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Magnetic Encoder",
+        "desc": "",
+        "manu": "AMS",
+        "type": "AS5600",
+        "clas": ["ANG"],
+        "resp": {
+            "b": 2,
+            "a": [
+                {
+                    "n": "angle",
+                    "t": ">H",
+                    "u": "degrees",
+                    "r": [0, 360],
+                    "f": "3.1f",
+                    "o": "float",
+                    "d": 11.377777777777778
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,55 @@
+{
+    "_notes": "Bela Trill Ring - 1D circular capacitive touch, 28 ring channels + 2 button channels, up to 5 touches. CENTROID response: 5 loc + 5 size + 2 button values (uint16 BE). Address jumper-configurable 0x38-0x3F.",
+    "addresses": "0x38-0x3F",
+    "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000100",
+    "initValues": "0x000100=p15&0x0006=p30",
+    "pollInfo": {
+        "c": "0x04=r24",
+        "i": 50,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Trill Ring",
+        "desc": "Capacitive Touch Ring",
+        "manu": "Bela",
+        "type": "TrillRing",
+        "clas": ["TCH", "BTN"],
+        "resp": {
+            "b": 24,
+            "a": [
+                { "n": "loc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "loc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "loc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "loc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "loc4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "size0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "size1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "size2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "size3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "size4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "btn0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
+                { "n": "btn1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+            ]
+        },
+        "actions": [
+            { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+            {
+                "n": "_conf.mode",
+                "t": "B",
+                "r": [0, 3],
+                "d": 0,
+                "desc": "Sensor mode",
+                "map": {
+                    "centroid": { "w": "000100" },
+                    "raw":      { "w": "000101" },
+                    "baseline": { "w": "000102" },
+                    "diff":     { "w": "000103" }
+                }
+            },
+            { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
+            { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+            { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+        ]
+    }
+}

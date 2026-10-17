@@ -1,0 +1,55 @@
+{
+    "_notes": "Temperature and humidity sensor. Data format: Status(8bit) + Humidity(20bit) + Temperature(20bit). Conversion: humidity(%) = (H[19:0]/2^20)*100, temp(°C) = (T[19:0]/2^20)*200-50",
+    "addresses": "0x38",
+    "detectionValues": "",
+    "initValues": "0xbe0800=",
+    "pollInfo": {
+        "c": "=r6&0xac3300=",
+        "i": 500,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Temperature & Humidity Sensor",
+        "desc": "",
+        "manu": "Asair",
+        "type": "AHT20",
+        "clas": ["TEMP", "RH"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "status",
+                    "t": "B",
+                    "u": "",
+                    "f": "02x",
+                    "o": "uint8",
+                    "vs": false
+                },
+                {
+                    "n": "humidity",
+                    "t": ">I",
+                    "u": "%",
+                    "r": [0, 100],
+                    "m": "0xfffff000",
+                    "s": 12,
+                    "d": 10485.76,
+                    "f": "3.1f",
+                    "o": "float"
+                },
+                {
+                    "n": "temperature",
+                    "at": 2,
+                    "t": ">I",
+                    "u": "&deg;C",
+                    "r": [-40, 80],
+                    "m": "0x000fffff",
+                    "d": 5242.88,
+                    "a": -50,
+                    "f": "3.2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

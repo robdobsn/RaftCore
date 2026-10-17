@@ -1,0 +1,51 @@
+{
+    "_notes": "Sensirion SCD30 CO2/temperature/humidity. No detection values (unique address 0x61).",
+    "addresses": "0x61",
+    "detectionValues": "",
+    "initValues": "0xd100=p5&=r3&=p5&0x0010000081=p10&0x46000002e3=p10&0x5306000081",
+    "pollInfo": {
+        "c": "0x0202=p5&=r3&0x0202=p5&=r3&0x0300=p5&=r18",
+        "i": 5000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "CO2 Sensor",
+        "desc": "",
+        "manu": "Sensirion",
+        "type": "SCD30",
+        "clas": ["CO2", "TEMP", "RH"],
+        "resp": {
+            "b": 24,
+            "a": [
+                {
+                    "n": "CO2",
+                    "t": ">f",
+                    "at": [6, 7, 9, 10],
+                    "u": "ppm",
+                    "r": [0, 40000],
+                    "f": ".1f",
+                    "o": "float"
+                },
+                {
+                    "n": "temperature",
+                    "t": ">f",
+                    "at": [12, 13, 15, 16],
+                    "u": "C",
+                    "r": [-40, 125],
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "humidity",
+                    "t": ">f",
+                    "at": [18, 19, 21, 22],
+                    "u": "%RH",
+                    "r": [0, 100],
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

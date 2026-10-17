@@ -1,0 +1,59 @@
+{
+    "addresses": "0x6f",
+    "detectionValues": "0x00=0b01011101",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x03=r1",
+        "i": 100,
+        "s": 5
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "QWIIC Button",
+        "desc": "",
+        "manu": "Sparkfun",
+        "type": "QwiicButton",
+        "clas": ["BTN"],
+        "resp": {
+            "b": 1,
+            "a": [
+                {
+                    "n": "press",
+                    "t": "B",
+                    "u": "",
+                    "r": [0, 1],
+                    "m": "0x04",
+                    "s": 2,
+                    "f": "b",
+                    "o": "bool"
+                }
+            ]
+        },
+        "actions": [
+            {
+                "n": "brightness",
+                "t": "B",
+                "w": "19",
+                "r": [0,255]
+            },
+            {
+                "n": "granularity",
+                "t": "B",
+                "w": "1a",
+                "r": [1,255]
+            },
+            {
+                "n": "cycle time",
+                "t": "<H",
+                "w": "1b",
+                "r": [0,65535]
+            },
+            {
+                "n": "off time",
+                "t": "<H",
+                "w": "1d",
+                "r": [0,65535]
+            }
+        ]
+    }
+}

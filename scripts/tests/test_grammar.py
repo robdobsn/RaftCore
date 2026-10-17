@@ -19,7 +19,8 @@ import DeviceTypeGrammar  # noqa: E402
 
 VECTORS = pathlib.Path(__file__).resolve().parent / "grammar_vectors.json"
 CPP_TEST = SCRIPTS_DIR.parent / "linux_unit_tests" / "test_device_type_grammar"
-RAFTCORE_CATALOGUE = SCRIPTS_DIR.parent / "devtypes" / "DeviceTypeRecords.json"
+RAFTCORE_CATALOGUE = SCRIPTS_DIR.parent / "devtypes" / "records"
+import AssembleDeviceTypes  # noqa: E402
 
 
 def canonical(result):
@@ -59,7 +60,7 @@ class GrammarTests(unittest.TestCase):
         self.assertEqual(DeviceTypeGrammar.crc8(b"\xbe\xef"), 0x92)
 
     def test_raftcore_catalogue_has_no_errors(self):
-        catalogue = json.loads(RAFTCORE_CATALOGUE.read_text())["devTypes"]
+        catalogue, _ = AssembleDeviceTypes.load_catalogue(str(RAFTCORE_CATALOGUE))
         errors = []
         for key, dev_type in catalogue.items():
             for field, result in DeviceTypeGrammar.check_record(dev_type):

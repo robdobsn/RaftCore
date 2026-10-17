@@ -1,0 +1,42 @@
+{
+    "addresses": "0x53",
+    "detectionValues": "0x06=0b1011XXXX",
+    "initValues": "0x0010&0x0440&=p20&0x000A",
+    "pollInfo": {
+        "c": "0x0D=r5&0x0002=p100&0x000A",
+        "i": 250,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Light Sensor (UV and visible)",
+        "desc": "",
+        "manu": "Lite On",
+        "type": "LTR-390",
+        "clas": ["LGHT"],
+        "resp": {
+            "b": 5,
+            "a": [
+                {
+                    "n": "ambient",
+                    "t": "<H",
+                    "u": "lux",
+                    "r": [0, 64000],
+                    "d": 1.25,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "UVI",
+                    "at": 3,
+                    "t": "<H",
+                    "u": "index",
+                    "r": [0, 64000],
+                    "d": 24,
+                    "f": ".3f",
+                    "o": "float"
+                }
+            ]
+        },
+        "actions": []
+    }
+}

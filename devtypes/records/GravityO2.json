@@ -1,0 +1,45 @@
+{
+    "_notes": "DFRobot Gravity O2 sensor. No detection values; addresses 0x70-0x73 overlap the usual I2C mux range, so a board with a mux at those addresses must exclude them.",
+    "addresses": "0x70-0x73",
+    "detectionValues": "",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x03=r3",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Oxygen Sensor",
+        "desc": "",
+        "manu": "DFRobot",
+        "type": "GravityO2",
+        "clas": ["O2"],
+        "resp": {
+            "b": 3,
+            "a": [
+                {
+                    "n": "oxygen",
+                    "t": "BBB",
+                    "u": "%",
+                    "r": [0, 100],
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ],
+            "c": {
+                "n": "gravity_o2_calc",
+                "c": "float key = 20.9/120.0; float val = key * (buf[0] + (buf[1]/10.0) + (buf[2]/100.0)); out.oxygen = val;"
+            }
+        },
+        "actions": [
+            {
+                "n": "calibrate",
+                "t": "B",
+                "w": "08",
+                "r": [0, 255],
+                "d": 209
+            }
+        ]
+    }
+}

@@ -1,0 +1,46 @@
+{
+    "_notes": "ToF distance sensor with extended range up to 4m",
+    "addresses": "0x29",
+    "identPriority": 1,
+    "detectionValues": "0x010f=0xEACC",
+    "initValues": "0x002D01&0x0087&0x25012c00=p100&0x0060=p100",
+    "pollInfo": {
+        "c": "0x0089=r1&0x0096=r2",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Distance Sensor",
+        "desc": "",
+        "manu": "ST",
+        "type": "VL53L1X",
+        "clas": ["DIST"],
+        "resp": {
+            "b": 3,
+            "a": [
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [0, 1],
+                    "m": "0x04",
+                    "x": "0x04",
+                    "s": 2,
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                },
+                {
+                    "n": "dist",
+                    "t": ">H",
+                    "u": "mm",
+                    "r": [0, 4000],
+                    "f": "4d",
+                    "o": "uint16",
+                    "vft": "valid"
+                }
+            ]
+        }
+    }
+}

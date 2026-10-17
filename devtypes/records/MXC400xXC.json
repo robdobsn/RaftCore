@@ -1,0 +1,61 @@
+{
+    "_notes": "x in part code sets i2c address LSB from 0x10-0x17",
+    "addresses": "0x10-0x17",
+    "detectionValues": "0x0E=0x02",
+    "initValues": "0x01=0b00010000&=p250",
+    "pollInfo": {
+        "c": "0x03=r7",
+        "i": 100,
+        "s": 3
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Accelerometer",
+        "desc": "3-Axis Accel",
+        "manu": "Memsic",
+        "type": "MXC400xXC",
+        "clas": ["ACC"],
+        "resp": {
+            "b": 7,
+            "a": [
+                {
+                    "n": "ax",
+                    "t": ">h",
+                    "u": "g",
+                    "r": [-2.0, 2.0],
+                    "d": 16384,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "ay",
+                    "t": ">h",
+                    "u": "g",
+                    "r": [-2.0, 2.0],
+                    "d": 16384,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "az",
+                    "t": ">h",
+                    "u": "g",
+                    "r": [-2.0, 2.0],
+                    "d": 16384,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "temperature",
+                    "t": "b",
+                    "u": "&deg;C",
+                    "r": [-10, 40],
+                    "d": 0.586,
+                    "a": 25,
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

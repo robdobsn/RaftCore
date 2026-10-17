@@ -15,7 +15,9 @@ import unittest
 
 SCRIPTS_DIR = pathlib.Path(__file__).resolve().parents[1]
 GENERATOR = SCRIPTS_DIR / "ProcessDevTypeJsonToC.py"
-RAFTCORE_CATALOGUE = SCRIPTS_DIR.parent / "devtypes" / "DeviceTypeRecords.json"
+RAFTCORE_CATALOGUE = SCRIPTS_DIR.parent / "devtypes" / "records"
+sys.path.insert(0, str(SCRIPTS_DIR))
+import AssembleDeviceTypes  # noqa: E402
 
 
 def make_record(dev_info_type=None, device_type=None):
@@ -87,7 +89,7 @@ class DeviceTypeKeyTests(unittest.TestCase):
 
     def test_raftcore_catalogue(self):
         """Every RaftCore record is named by its key, with no deviceType in the file and no key warnings"""
-        catalogue = json.loads(RAFTCORE_CATALOGUE.read_text())["devTypes"]
+        catalogue, _ = AssembleDeviceTypes.load_catalogue(str(RAFTCORE_CATALOGUE))
         self.assertFalse([k for k, v in catalogue.items() if "deviceType" in v],
                          "deviceType is filled in from the key, so the RaftCore catalogue omits it")
         result, header = self.run_generator([RAFTCORE_CATALOGUE])

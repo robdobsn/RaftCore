@@ -39,7 +39,10 @@ def generate_systypes_file(env, build_systype, project_dir, current_dir, artifac
         print("------------------ Generated SysTypeInfoRecs.h successfully")
 
 def generate_device_records(env, current_dir, artifacts_folder):
-    json_file = os.path.join(current_dir, '..', 'devtypes', 'DeviceTypeRecords.json')
+    # RaftCore's records: one file per record (read as a folder), or the single catalogue file of an older RaftCore
+    json_file = os.path.join(current_dir, '..', 'devtypes', 'records')
+    if not os.path.isdir(json_file):
+        json_file = os.path.join(current_dir, '..', 'devtypes', 'DeviceTypeRecords.json')
     dev_type_recs_header = os.path.join(artifacts_folder, 'DeviceTypeRecords_generated.h')
     dev_poll_recs_header = os.path.join(artifacts_folder, 'DevicePollRecords_generated.h')
 

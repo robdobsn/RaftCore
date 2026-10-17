@@ -1,0 +1,64 @@
+{
+    "_notes": "ToF distance sensor with range up to 2m. Initialization sequence adapted from the Pololu library.",
+    "addresses": "0x29",
+    "identPriority": 1,
+    "detectionValues": "0xC0=0xEE&0xC1=0xAA",
+    "initValues": "0x8800&0x440040&0x8001&0xff01&0x0000&0x91=r1&0x0001&0xff00&0x8000&0x0001",
+    "pollInfo": {
+        "c": "0x14=r12&0x0b01&0x0001",
+        "i": 50,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Distance Sensor",
+        "desc": "",
+        "manu": "ST",
+        "type": "VL53L0X",
+        "clas": ["DIST"],
+        "resp": {
+            "b": 12,
+            "a": [
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [0, 1],
+                    "f": "b",
+                    "o": "bool",
+                    "m": "0x78",
+                    "s": 3,
+                    "vs": false,
+                    "lut": [
+                        {
+                            "r": "11",
+                            "v": 1
+                        },
+                        {
+                            "r": "",
+                            "v": 0
+                        }
+                    ]
+                },
+                {
+                    "n": "status",
+                    "t": "B",
+                    "at": 0,
+                    "r": [0, 255],
+                    "f": "02x",
+                    "vs": false
+                },
+                {
+                    "n": "dist",
+                    "at": 10,
+                    "t": ">H",
+                    "u": "mm",
+                    "r": [0, 2000],
+                    "f": "4d",
+                    "o": "uint16",
+                    "vft": "valid"
+                }
+            ]
+        }
+    }
+}

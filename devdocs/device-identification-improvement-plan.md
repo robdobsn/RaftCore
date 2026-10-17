@@ -1524,7 +1524,8 @@ without disturbing a device that is already running, and initialises and polls i
    an SHT40 against TrillHex's, a VEML6040 against MXC400xXC's, a QwiicLEDStick against TrillBar's) - giving those
    records detection (item 1) removes the risk. Also changed by the ordering: VL6180 (8 bits) would be tried after
    VL53L0X/L1X/L4CD/L5CX (16 bits) at 0x29, so it was given `identPriority: 1` (2026-10-16, RaftCore and Axiom) to
-   keep it first, as on `main` - its detection only reads its read-only model ID, so trying it first is safe for
+   keep it first, as on `main` (in RaftCore since `2`, with VL53L0X/L1X/L4CD at `1`, so that key order keeps today's
+   order - record management plan phase 1a) - its detection only reads its read-only model ID, so trying it first is safe for
    the other parts; review it with item 4. AS5600 (6 bits) after AdafruitSoilSensor and TrillCraft at
    0x36, MCP9808 before ADXL313 at 0x1d, CAP1188 before CAP1203 at 0x28.
 3. **Weak detection in records that have some** - for example MXC400xXC checks one byte (`0x0E=0x02`). Review

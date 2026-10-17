@@ -5,6 +5,7 @@ import argparse
 
 from DecodeGenerator import DecodeGenerator
 import DeviceTypeGrammar
+import AssembleDeviceTypes
 from MicroPythonGenerator import MicroPythonGenerator
 
 # ProcessDevTypeJsonToC.py
@@ -180,27 +181,32 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
     for json_file_path in json_files:
         if json_file_path.strip() == "":
             continue
-        with open(json_file_path.strip(), 'r') as json_file:
-            file_json = json.load(json_file)
-            file_dev_types = file_json.get('devTypes', {})
-            # Policy-only entries ({"disable": true} or {"disable": "claim"}, no record body) set the policy of a
-            # record from an earlier file and are not records themselves (D23)
-            for dev_type_key in list(file_dev_types.keys()):
-                entry = file_dev_types[dev_type_key]
-                if isinstance(entry, dict) and "disable" in entry and set(entry.keys()) <= {"disable", "deviceType", "_notes"}:
-                    del file_dev_types[dev_type_key]
-                    if dev_type_key in dev_ident_json['devTypes']:
-                        dev_ident_json['devTypes'][dev_type_key]["disable"] = entry["disable"]
-                    else:
-                        print(f"WARNING: {json_file_path.strip()}: \"{dev_type_key}\" sets a policy but no earlier file "
-                              f"has a record with that key - ignored")
-            check_and_normalise_device_type_keys(file_dev_types, json_file_path.strip())
-            # Merge device types from multiple JSON files (a later file's record replaces an earlier one's)
-            for dev_type_key in file_dev_types:
+        # A catalogue file ({"devTypes": {...}}) or a folder of record files (<Key>.json, in key order) - see
+        # AssembleDeviceTypes.py
+        try:
+            file_records, _ = AssembleDeviceTypes.load_catalogue(json_file_path.strip(), record_file=False)
+        except AssembleDeviceTypes.AssembleError as err:
+            print(f"ERROR: {err}", file=sys.stderr)
+            sys.exit(1)
+        file_dev_types = file_records
+        # Policy-only entries ({"disable": true} or {"disable": "claim"}, no record body) set the policy of a
+        # record from an earlier file and are not records themselves (D23)
+        for dev_type_key in list(file_dev_types.keys()):
+            entry = file_dev_types[dev_type_key]
+            if isinstance(entry, dict) and "disable" in entry and set(entry.keys()) <= {"disable", "deviceType", "_notes"}:
+                del file_dev_types[dev_type_key]
                 if dev_type_key in dev_ident_json['devTypes']:
-                    print(f"WARNING: {json_file_path.strip()}: record \"{dev_type_key}\" replaces a record with the "
-                          f"same key in an earlier file")
-            dev_ident_json['devTypes'].update(file_dev_types)
+                    dev_ident_json['devTypes'][dev_type_key]["disable"] = entry["disable"]
+                else:
+                    print(f"WARNING: {json_file_path.strip()}: \"{dev_type_key}\" sets a policy but no earlier file "
+                          f"has a record with that key - ignored")
+        check_and_normalise_device_type_keys(file_dev_types, json_file_path.strip())
+        # Merge device types from multiple JSON files (a later file's record replaces an earlier one's)
+        for dev_type_key in file_dev_types:
+            if dev_type_key in dev_ident_json['devTypes']:
+                print(f"WARNING: {json_file_path.strip()}: record \"{dev_type_key}\" replaces a record with the "
+                      f"same key in an earlier file")
+        dev_ident_json['devTypes'].update(file_dev_types)
 
     # Highest address the firmware identifies by
     max_valid_i2c_addr = 0x77

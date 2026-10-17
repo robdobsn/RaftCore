@@ -1,0 +1,45 @@
+{
+    "_notes": "init: 0x0940 (reset), 0x00=r1 (clear INT), 0x0903 (SpO2mode Red+IR), 0x085f (4 sample avg, FIFO rollover, FIFO Int 17), 0x0A27 (100 samples/s, 18bit), 0x0c40&0x0d40 (LEDs 12.6mA), 0x1121 (Slot interleaved)",
+    "addresses": "0x57",
+    "detectionValues": "0xff=0x15",
+    "initValues": "0x0940&0x0903&0x085f&0x00=r1&0x0a27&0x0c4040&0x11=0x21",
+    "pollInfo": {
+        "c": "0x04=r51",
+        "i": 200,
+        "s": 5
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Heart Sensor",
+        "desc": "Rate and SpO2",
+        "manu": "Vishay",
+        "type": "MAX30101",
+        "clas": ["HRM"],
+        "resp": {
+            "b": 51,
+            "a": [
+                {
+                    "n": "Red",
+                    "t": ">I",
+                    "u": "Red",
+                    "r": [0, 16777215],
+                    "f": "6d",
+                    "o": "uint32"
+                },
+                {
+                    "n": "IR",
+                    "t": ">I",
+                    "u": "IR",
+                    "r": [0, 16777215],
+                    "f": "6d",
+                    "o": "uint32"
+                }
+            ],
+            "c": {
+                "n": "max30101_fifo",
+                "c": "int N=(buf[0]+32-buf[2])%32;int k=3;int i=0;while(i<N){out.Red=(buf[k]<<16)|(buf[k+1]<<8)|buf[k+2];out.IR=(buf[k+3]<<16)|(buf[k+4]<<8)|buf[k+5];k+=6;i++;next;}"
+            },
+            "us": 40000
+        }
+    }
+}

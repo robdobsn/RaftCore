@@ -272,6 +272,19 @@ set(_build_config_name ${_systype_name})
 # DevTypes Generation
 ################################################
 
+# Device type selection (devdocs/device-type-record-management-plan.md): DeviceTypeSources.json in systypes/Common and
+# the SysType folder selects the records compiled in, from RaftCore's records and other sources. Without one, the
+# records are DEV_TYPE_JSON_FILES and DevTypes.json as before
+set(_raft_devtype_sources "")
+foreach(_raft_devtype_src_file "${CMAKE_SOURCE_DIR}/systypes/Common/DeviceTypeSources.json" "${BUILD_CONFIG_DIR}/DeviceTypeSources.json")
+    if(EXISTS "${_raft_devtype_src_file}")
+        list(APPEND _raft_devtype_sources "${_raft_devtype_src_file}")
+    endif()
+endforeach()
+
+# Files the generated headers depend on (a folder of records contributes each of its files)
+set(DEV_TYPE_JSON_DEPENDS "")
+
 # Check if DEV_TYPE_JSON_FILES is defined and not empty
 if (DEFINED DEV_TYPE_JSON_FILES AND NOT DEV_TYPE_JSON_FILES STREQUAL "")
     # Convert DEV_TYPE_JSON_FILES to a list if it's a single string
@@ -292,12 +305,19 @@ if (DEFINED DEV_TYPE_JSON_FILES AND NOT DEV_TYPE_JSON_FILES STREQUAL "")
     foreach(FILE_PATH ${DEV_TYPE_JSON_FILES})
         set(RESOLVED_FILE_PATH "")
         if (FILE_PATH MATCHES "^/devtypes(/|$)")
+            if (NOT _raft_devtype_sources STREQUAL "")
+                message(FATAL_ERROR "DEV_TYPE_JSON_FILES has ${FILE_PATH} and a DeviceTypeSources.json selects device types: "
+                    "select RaftCore's records in DeviceTypeSources.json (e.g. \"builtin\": {\"include\": [\"raftcore:*\"]}) instead")
+            endif()
             string(REGEX REPLACE "^/" "" RELATIVE_FILE_PATH "${FILE_PATH}")
             foreach(SEARCH_ROOT ${DEV_TYPE_JSON_SEARCH_ROOTS})
                 if (RESOLVED_FILE_PATH STREQUAL "")
                     set(CANDIDATE_FILE_PATH "${SEARCH_ROOT}/${RELATIVE_FILE_PATH}")
                     if (EXISTS "${CANDIDATE_FILE_PATH}")
                         set(RESOLVED_FILE_PATH "${CANDIDATE_FILE_PATH}")
+                    elseif ((RELATIVE_FILE_PATH STREQUAL "devtypes/DeviceTypeRecords.json") AND IS_DIRECTORY "${SEARCH_ROOT}/devtypes/records")
+                        # RaftCore's records are one file per record: the folder is read as the catalogue was
+                        set(RESOLVED_FILE_PATH "${SEARCH_ROOT}/devtypes/records")
                     endif()
                 endif()
             endforeach()
@@ -332,6 +352,50 @@ foreach(FILE_PATH ${POSSIBLE_FILES})
         list(APPEND DEV_TYPE_JSON_FILES ${FILE_PATH})
     endif()
 endforeach()
+
+# The selected records, assembled into one catalogue file (at configure time, so a selection error stops the build
+# here; a change to a selection file or a record re-runs it). It comes first, so DEV_TYPE_JSON_FILES and DevTypes.json
+# keep their precedence
+if (NOT _raft_devtype_sources STREQUAL "")
+    string(JOIN "," _raft_devtype_select_arg ${_raft_devtype_sources})
+    set(_raft_devtype_assembled "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords.json")
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/AssembleDeviceTypes.py"
+            --raftcore "${raftcore_SOURCE_DIR}" --select "${_raft_devtype_select_arg}" --section builtin
+            --out "${_raft_devtype_assembled}" --manifest "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeSources.manifest.json"
+            --list-inputs
+        RESULT_VARIABLE _raft_devtype_rslt
+        OUTPUT_VARIABLE _raft_devtype_inputs
+        ERROR_VARIABLE _raft_devtype_msgs
+    )
+    if (NOT _raft_devtype_rslt EQUAL 0)
+        message(FATAL_ERROR "Device type selection failed:\n${_raft_devtype_msgs}")
+    endif()
+    if (NOT _raft_devtype_msgs STREQUAL "")
+        message(STATUS "${_raft_devtype_msgs}")
+    endif()
+    string(REPLACE "\n" ";" _raft_devtype_inputs "${_raft_devtype_inputs}")
+    foreach(_raft_devtype_input ${_raft_devtype_inputs})
+        if (_raft_devtype_input MATCHES "^dir:(.*)$")
+            file(GLOB _raft_devtype_glob CONFIGURE_DEPENDS "${CMAKE_MATCH_1}/*.json")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_raft_devtype_glob})
+        elseif (_raft_devtype_input MATCHES "^file:(.*)$")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_MATCH_1}")
+        endif()
+    endforeach()
+    list(INSERT DEV_TYPE_JSON_FILES 0 "${_raft_devtype_assembled}")
+    message(STATUS "Device types selected by ${_raft_devtype_sources}")
+endif()
+
+# A folder of records counts its files
+foreach(FILE_PATH ${DEV_TYPE_JSON_FILES})
+    if (IS_DIRECTORY "${FILE_PATH}")
+        file(GLOB _raft_devtype_glob CONFIGURE_DEPENDS "${FILE_PATH}/*.json")
+        list(APPEND DEV_TYPE_JSON_DEPENDS ${_raft_devtype_glob})
+    else()
+        list(APPEND DEV_TYPE_JSON_DEPENDS "${FILE_PATH}")
+    endif()
+endforeach()
 # Debugging output
 set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
 set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
@@ -341,8 +405,9 @@ string(JOIN "," DEV_TYPE_JSON_ARG ${DEV_TYPE_JSON_FILES})
 add_custom_command(
     OUTPUT ${DEV_TYPE_RECS_HEADER} ${DEV_POLL_RECS_HEADER}
     COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py" "[${DEV_TYPE_JSON_ARG}]" "${DEV_TYPE_RECS_HEADER}" "${DEV_POLL_RECS_HEADER}"
-    DEPENDS ${DEV_TYPE_JSON_FILES}
+    DEPENDS ${DEV_TYPE_JSON_DEPENDS}
             "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py"
+            "${raftcore_SOURCE_DIR}/scripts/AssembleDeviceTypes.py"
             "${raftcore_SOURCE_DIR}/scripts/DecodeGenerator.py"
             "${raftcore_SOURCE_DIR}/scripts/PseudocodeHandler.py"
     COMMENT "\nGenerating Device Record headers from JSON"

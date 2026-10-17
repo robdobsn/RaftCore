@@ -1,7 +1,7 @@
 # Device Type Record Management: Plan
 
-Status: proposal, 2026-10-17; decisions M1-M7 and M9 agreed, M8 to be reviewed (§5).
-Nothing here is implemented yet. It follows the device identification plan
+Status: decisions M1-M7 and M9 agreed, M8 to be reviewed (§5). **Phase 1a done (2026-10-17)** on the RaftCore branch
+`feature/device-type-records` (see §6); phases 1b-5 not started. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -263,3 +263,62 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 | M7 | Check on the device before applying? | **Yes, `devman/typefile/check`** (additive endpoint) (decided 2026-10-17) |
 | M8 | Schedule D11 (on-device decoder from the attribute list)? | Kept in the plan (phase 5); **reviewed before any work starts** (2026-10-17). Needed for the all-runtime setup |
 | M9 | A combined catalogue file for consumers that read one | **Built by CI and published as a release asset; RaftCore's own tests use the assembled file** (decided 2026-10-17) |
+
+---
+
+## 6. Progress
+
+### Phase 1a (done 2026-10-17)
+
+- **Order made explicit:**
+  - 0x26: M5-Weight `identPriority -1`;
+  - 0x29: VL6180 `2`, VL53L0X/L1X/L4CD `1`.
+
+  With these, sorting by key gives today's candidate order at every address and the same scan lists (checked with
+  `reference_catalogue_index.py`).
+- **Split:**
+  - `devtypes/DeviceTypeRecords.json` is now `devtypes/records/<Key>.json` (49 files);
+  - `AssembleDeviceTypes.py --split` keeps each record as written and checks that it parses to the original;
+  - the generator's headers from the folder are byte-identical to those from the original catalogue sorted by key.
+- **`scripts/AssembleDeviceTypes.py`:**
+  - loads records from a folder (key order), a record file or a catalogue file;
+  - handles `DeviceTypeSources.json` with `builtin` and `path` sources, include/exclude/policy, local override, M6
+    and Common + SysType merging;
+  - writes the assembled catalogue and the manifest;
+  - has `--all` (every RaftCore record as one file) and `--split`.
+
+  `git` sources give "not supported yet". The `typeFile` section is read, but not yet used by the build.
+- **Build (`RaftBootstrapPhase2.cmake`):**
+  - `DeviceTypeSources.json` in `systypes/Common` and the SysType is assembled at configure time;
+  - an error stops the configure with the message;
+  - selection files and record files re-run it;
+  - the assembled file comes before `DEV_TYPE_JSON_FILES` and `DevTypes.json`;
+  - `/devtypes/...` together with a selection is an error;
+  - `/devtypes/DeviceTypeRecords.json` resolves to the records folder, and folders are allowed in
+    `DEV_TYPE_JSON_FILES`.
+
+  The generator reads folders; files keep their old meaning, so a file without `devTypes` has no records.
+- **Other consumers:**
+  - `RaftBootstrapLinux.cmake` and `LibraryBuildScript.py` (PlatformIO) read the folder;
+  - RaftCore's host tests assemble `gen/DeviceTypeRecords.json`;
+  - `check_device_type_grammar.py` and the Python tests read the folder;
+  - the release workflow attaches `DeviceTypeRecords.json` (M9).
+- **Tests:**
+  - `scripts/tests/test_assemble_device_types.py`, 15 tests: loading, every selection rule, errors, policies,
+    merging, output and manifest, split, and RaftCore's records assembled = folder;
+  - all host tests pass.
+- **Firmware builds:**
+  - Axiom018: the generated header is byte-identical;
+  - RaftROS FeatherS3 example (uses `/devtypes/DeviceTypeRecords.json`): the same 53 records, RaftCore's in key
+    order; on the board both devices are identified with the same candidate order as before, and ROS publishes them;
+  - a scratch copy with a `DeviceTypeSources.json` (3 RaftCore records, TrillRing disabled, a local record) on the
+    FeatherS3: `devman/types` showed the 8 expected types with TrillRing disabled, both devices were identified, and
+    TrillRing was no longer a candidate;
+  - editing a record and adding a record file each regenerated the headers, and a bad key stopped the configure with
+    its message.
+- **Docs:**
+  - wiki page *Selecting Device Types* (`DeviceTypeSources.md`);
+  - *Adding an I2C Device Type*, *Device Type Record Format*, *SysTypes*, *I2C Device Identification and
+    Polling* and Home updated;
+  - `devtypes/README.md`.
+

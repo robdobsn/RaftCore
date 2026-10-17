@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Impact report: grammar errors and warnings for every record in device type catalogues
 
-Usage: check_device_type_grammar.py <catalogue.json> [catalogue.json ...]
+Usage: check_device_type_grammar.py <catalogue.json, record file or records folder> [...]
 
 Reports, for each record, what the firmware's command grammar (DeviceTypeGrammar) finds in its detectionValues,
 initValues and pollInfo.c. An error means the firmware doesn't use that detection string or drops that step;
@@ -15,13 +15,15 @@ import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import DeviceTypeGrammar  # noqa: E402
+import AssembleDeviceTypes  # noqa: E402
 
 
 def main(paths):
     totals = {}
     any_errors = False
     for path in paths:
-        dev_types = json.loads(pathlib.Path(path).read_text()).get("devTypes", {})
+        # A catalogue file, a record file or a folder of record files
+        dev_types, _ = AssembleDeviceTypes.load_catalogue(path)
         print(f"== {path} ({len(dev_types)} records)")
         for key, dev_type in dev_types.items():
             for field, result in DeviceTypeGrammar.check_record(dev_type):

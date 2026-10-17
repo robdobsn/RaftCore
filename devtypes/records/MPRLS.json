@@ -1,0 +1,45 @@
+{
+    "_notes": "Honeywell MPRLS pressure sensor. No detection values, so the record claims any device at 0x18 - it must stay AFTER the MCP9808 and Robotical servo/pump records, which share the address and have detection values.",
+    "addresses": "0x18",
+    "detectionValues": "",
+    "initValues": "0xAA0000",
+    "pollInfo": {
+        "c": "=r4&0xAA0000",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Pressure Sensor",
+        "desc": "",
+        "manu": "Honeywell",
+        "type": "MPRLS",
+        "clas": ["PRES"],
+        "resp": {
+            "b": 4,
+            "a": [
+                {
+                    "n": "status",
+                    "t": "B",
+                    "r": [0, 255],
+                    "m": "0xff",
+                    "f": "02x",
+                    "o": "uint8",
+                    "vs": false
+                },
+                {
+                    "n": "pressure",
+                    "at": 0,
+                    "m": "0x00ffffff",
+                    "t": ">I",
+                    "u": "Pa",
+                    "r": [0, 173],
+                    "a": -21625,
+                    "d": 77.583,
+                    "f": "4.2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

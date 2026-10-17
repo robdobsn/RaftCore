@@ -10,13 +10,15 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from DecodeGenerator import DecodeGenerator
+import AssembleDeviceTypes
 
 
 @unittest.skipUnless(shutil.which("g++"), "g++ required for generated-decoder regression")
 class StandardDecodeTests(unittest.TestCase):
     def test_packed_aht20_and_both_shift_directions(self):
         root = pathlib.Path(__file__).resolve().parents[2]
-        aht = json.loads((root / "devtypes/DeviceTypeRecords.json").read_text())
+        catalogue, _ = AssembleDeviceTypes.load_catalogue(str(root / "devtypes" / "records"))
+        aht = {"devTypes": catalogue}
         records = {"AHT20": aht["devTypes"]["AHT20"]}
         records["SHIFT"] = {"devInfoJson": {"resp": {"b": 8, "a": [
             {"n": "right", "t": ">I", "o": "uint32", "s": 1},

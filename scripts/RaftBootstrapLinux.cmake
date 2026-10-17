@@ -73,7 +73,15 @@ file(APPEND ${_esp_attr_out} "#endif\n")
 
 set(_devtype_out "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
 set(_devpoll_out "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
-set(_devtype_json "${raftcore_SOURCE_DIR}/devtypes/DeviceTypeRecords.json")
+# RaftCore's records: one file per record (devtypes/records, read as a folder), or the single catalogue file of an
+# older RaftCore
+if(IS_DIRECTORY "${raftcore_SOURCE_DIR}/devtypes/records")
+    set(_devtype_json "${raftcore_SOURCE_DIR}/devtypes/records")
+    file(GLOB _devtype_json_depends CONFIGURE_DEPENDS "${_devtype_json}/*.json")
+else()
+    set(_devtype_json "${raftcore_SOURCE_DIR}/devtypes/DeviceTypeRecords.json")
+    set(_devtype_json_depends "${_devtype_json}")
+endif()
 set(_devtype_script "${raftcore_SOURCE_DIR}/scripts/ProcessDevTypeJsonToC.py")
 
 message(STATUS "\n------------------ Generating DeviceTypeRecords_generated.h")
@@ -81,8 +89,9 @@ message(STATUS "\n------------------ Generating DeviceTypeRecords_generated.h")
 add_custom_command(
     OUTPUT ${_devtype_out} ${_devpoll_out}
     COMMAND python3 ${_devtype_script} ${_devtype_json} ${_devtype_out} ${_devpoll_out}
-    DEPENDS ${_devtype_json}
+    DEPENDS ${_devtype_json_depends}
             ${_devtype_script}
+            "${raftcore_SOURCE_DIR}/scripts/AssembleDeviceTypes.py"
             "${raftcore_SOURCE_DIR}/scripts/DecodeGenerator.py"
             "${raftcore_SOURCE_DIR}/scripts/PseudocodeHandler.py"
     WORKING_DIRECTORY ${RAFT_BUILD_ARTIFACTS_FOLDER}
