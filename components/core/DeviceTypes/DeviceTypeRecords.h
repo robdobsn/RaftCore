@@ -308,6 +308,16 @@ public:
 
     static constexpr uint32_t RECORD_SOURCE_TIMEOUT_MS_DEFAULT = 10000;
 
+    /// @brief Note that firmware code supplies the data for a device type whose record has pollInfo.ext (such a
+    ///        device is not polled: the code puts its samples in as poll results, e.g. Axiom's VL53LxCX SysMod).
+    ///        A record from the type file with pollInfo.ext for a type no code supplies is reported, as it would
+    ///        never have data. Call from setup() (the type file is loaded in DeviceManager's postSetup)
+    /// @param deviceTypeKey device type key
+    void registerExtDataSource(const char* deviceTypeKey);
+
+    /// @brief Check whether firmware code supplies the data for a device type (registerExtDataSource)
+    bool hasExtDataSource(const char* deviceTypeKey) const;
+
     /// @brief Check whether the identification hook must not be run at an address (a record there has the policy
     ///        DISABLED_CLAIM)
     bool isAddrHookBlocked(BusElemAddrType addr) const;
@@ -368,6 +378,9 @@ private:
         bool ready = false;
     };
     mutable std::vector<RecordSource_> _recordSources;
+
+    // Device type keys whose data firmware code supplies (registerExtDataSource), under the mutex
+    std::vector<String> _extDataSources;
     mutable std::atomic<bool> _sourcesReady{true};
 
     // Default limits (D3)

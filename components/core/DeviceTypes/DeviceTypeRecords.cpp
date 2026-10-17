@@ -677,6 +677,33 @@ uint32_t DeviceTypeRecords::registerRecordSource(const char* pName, uint32_t tim
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Note that firmware code supplies the data for a device type whose record has pollInfo.ext
+void DeviceTypeRecords::registerExtDataSource(const char* deviceTypeKey)
+{
+    if (!deviceTypeKey || !deviceTypeKey[0] || !RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return;
+    bool present = false;
+    for (const String& key : _extDataSources)
+        present = present || (key == deviceTypeKey);
+    if (!present)
+        _extDataSources.push_back(deviceTypeKey);
+    RaftMutex_unlock(_extRecordsMutex);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether firmware code supplies the data for a device type
+bool DeviceTypeRecords::hasExtDataSource(const char* deviceTypeKey) const
+{
+    if (!deviceTypeKey || !RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    bool present = false;
+    for (const String& key : _extDataSources)
+        present = present || (key == deviceTypeKey);
+    RaftMutex_unlock(_extRecordsMutex);
+    return present;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Mark a record source as having supplied its records
 void DeviceTypeRecords::markRecordSourceReady(uint32_t sourceId)
 {
@@ -730,6 +757,17 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
     deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
     if (devTypeRec.deviceTypeName.length() == 0)
         return AddResult::Invalid;
+
+    // A hardware type ID already used by a record with another key makes lookups by the ID ambiguous (the record
+    // added later is found first) - reported, as code-registered records are trusted (N2)
+    if (devTypeRec.flags & DeviceTypeRecord::FLAG_HAS_HW_TYPE_ID)
+    {
+        DeviceTypeIndexType otherIdx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pOther = getRecordByHwTypeId(devTypeRec.hwTypeId, otherIdx);
+        if (pOther && pOther->deviceType && (devTypeRec.deviceTypeName != pOther->deviceType))
+            LOG_W(MODULE_PREFIX, "addRecord %s deviceTypeId 0x%04x is already used by %s", devTypeRec.deviceTypeName.c_str(),
+                        (unsigned)devTypeRec.hwTypeId, pOther->deviceType);
+    }
 
     // Lock
     if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))

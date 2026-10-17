@@ -7,7 +7,8 @@
 - A first record with no addresses doesn't crash the generator (C6).
 - An address above 0x77 is an error rather than silently dropped (C12).
 - A 0x... read value in poll info counts its hex digits, not the 0x prefix, towards the poll size (C11).
-- Warnings: a key in more than one file; a record with no detection values ahead of another at its address.
+- Warnings: a key in more than one file; a record with no detection values ahead of another at its address; a
+  hardware type ID used by more than one record (N2).
 """
 
 import json
@@ -116,6 +117,16 @@ class GeneratorTableTests(unittest.TestCase):
         result, header = self.run_with_records({"Dup": make_record()}, {"Dup": make_record(addresses="0x11")})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('record "Dup" replaces a record with the same key', result.stdout)
+
+    def test_duplicate_hw_type_id_warns(self):
+        # Two records with one hardware type ID: lookups by the ID find only the first (N2)
+        a = dict(make_record("0x10"), deviceTypeId="0x0084")
+        b = dict(make_record("0x11"), deviceTypeId=0x84)
+        c = dict(make_record("0x12"), deviceTypeId="0x0085")
+        result, _ = self.run_with_records({"A": a, "B": b, "C": c})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("deviceTypeId 0x0084 is used by A, B - lookups by hardware type ID return A", result.stderr)
+        self.assertNotIn("0x0085 is used by", result.stderr)
 
     def test_shadowing_warning(self):
         # A record that compares nothing is tried after records that compare something - unless its identPriority

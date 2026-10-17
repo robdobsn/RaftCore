@@ -475,7 +475,7 @@ involved.
 **Aim:** settle names before changing code, and take a baseline to measure every later stage against.
 
 **Status (2026-10-15): done**, except the measurements that need other hardware (scanning across mux slots,
-hot-plug timing). Naming: D1, D12, D13 and the `deviceTypeIndex` renames are done; the hardware type ID moved to
+hot-plug timing) - since made on the Axiom in Stage 9 (2026-10-16). Naming: D1, D12, D13 and the `deviceTypeIndex` renames are done; the hardware type ID moved to
 Stage 3 (D24). Measurements: the firmware statistics below, `scripts/bench/device-bench.js`, and the baseline in
 §2.4. Also ported from the device library branch (§10.7 item 12): the two DeviceManager regression tests, run
 on-device, and the on-device DeviceNames test now tests the real `DeviceNames` class.
@@ -1265,7 +1265,7 @@ session, so record pointers stay valid for its life.
 **Aim:** new and changed devices are found quickly, scanning uses a bounded and adaptive share of the bus,
 and the main bus and all slots keep being covered (G8).
 
-**Status (2026-10-16): done in RaftCore, RaftI2C and Axiom, except the multiplexer items listed at the end.**
+**Status (2026-10-16): done in RaftCore, RaftI2C and Axiom**, including the multiplexer items listed at the end.
 What was done:
 - **Schedule** (`BusScanSchedule`, RaftCore, host-tested): the three lists from the catalogue index are scanned at
   every slot position (main bus twice); list 0 a whole position at a time, and after each run of it, list 1 a chunk
@@ -1851,19 +1851,19 @@ Checked against review §5, §7 and §9 and principles P1–P15. Items already i
 
 | # | Issue | Source | Proposed stage |
 |---|---|---|---|
-| N1 | `addresses` is not validated: `parseIntList` accepts forms such as `0o51` and silently skips junk | Review §7.3; branch spec | 4 (the same strict parser) |
-| N2 | Two records with the same `hwTypeId` are not detected, so a library record can silently re-map every servo | Review §7.3 | 3 (the index builder rejects or warns) |
+| N1 | `addresses` is not validated: `parseIntList` accepts forms such as `0o51` and silently skips junk | Review §7.3; branch spec | 4 (the same strict parser) - **Done (Stages 4, 6)**: the generator and the type file loader check addresses strictly |
+| N2 | Two records with the same `hwTypeId` are not detected, so a library record can silently re-map every servo | Review §7.3 | 3 (the index builder rejects or warns) - **Done (2026-10-17)**: a type file record is rejected, the generator warns, and a code-registered record is logged |
 | N3 | A `disable` entry for a key that doesn't exist reports success | Review §7.3 | 6 (report as "unknown key") - **Done (Stage 6)** |
 | N4 | A file record with neither `addresses` nor `hwTypeId` can never match | Branch spec | 6 (warn) - **Done (Stage 6)** |
-| N5 | Records with no on-device decoder: native ROS announces an endpoint that never publishes, and DataLogger CSV skips them. Until D11 is decided, RaftROS should publish raw bytes or not announce the endpoint, and the limitation should be documented | Review §7.3, §9.2-G | 6 |
-| N6 | `typeinfo …&full=1` (on the branch) doesn't round-trip: it lacks `scanPriority`, `excludeFromAddrMap`/`probeOnly`, `hwTypeId`, the source and the policy. The library UI's "copy a record and add `disable`" workflow relies on it | Review §7.2 | 10: return the record in the file format, keyed by the device type key |
-| N7 | The fallback hook runs wherever no record *matched*, not where no record *exists*, so the destructive RSAO probe can hit a known sensor that failed detection | Review §5.11; STCC4 notes | 5 or 9: the hook runs only at addresses with no `AllKnown` record, unless that record is `Disabled` (not `DisabledClaim`). Together with the hook address ranges (D9) |
-| N8 | Per-device settings are lost on a short absence: OFFLINE moves straight to deletion, which erases the `BusAddrRecord` where Stage 7 keeps them | Principles P7 | 7: keep unsaved settings in DeviceManager, keyed by device ID, as well as the saved ones from Stage 10 |
-| N9 | `registerForDeviceData("<busName>_<addr>@<slot>")` drops the slot, and a device name doesn't resolve in every path (`resolveDeviceIDAndBus`) | Principles P9 | 10 |
-| N10 | The reserved-address set (for RSAO) is not exposed externally | Principles P10 | 10: an endpoint returning the bitmap from the catalogue index |
-| N11 | A board cannot disable or reprioritise records from its SysType ("this board never has X") | Principles P15 | 5/6: `disable` entries in a compiled catalogue or in SysTypes as another record source (D23) |
-| N12 | Device-specific code in the core (LSM6DS FIFO decode and timing) | Principles P4 | 1 (added as item 11) |
-| N13 | `ext` records and `busHz` switching were not considered by the scheduler | Branch spec (VL53L5CX, LSM6DS) | 1 (added as items 9 and 10) |
+| N5 | Records with no on-device decoder: native ROS announces an endpoint that never publishes, and DataLogger CSV skips them. Until D11 is decided, RaftROS should publish raw bytes or not announce the endpoint, and the limitation should be documented | Review §7.3, §9.2-G | 6 - **Done (2026-10-17)**: RaftROS doesn't announce a topic for a record with no on-device decoder (or one whose decoded record doesn't fit a mailbox, or when no mailbox is free); documented on the RaftROS wiki page |
+| N6 | `typeinfo …&full=1` (on the branch) doesn't round-trip: it lacks `scanPriority`, `excludeFromAddrMap`/`probeOnly`, `hwTypeId`, the source and the policy. The library UI's "copy a record and add `disable`" workflow relies on it | Review §7.2 | 10: return the record in the file format, keyed by the device type key - **Done (Stage 10)** |
+| N7 | The fallback hook runs wherever no record *matched*, not where no record *exists*, so the destructive RSAO probe can hit a known sensor that failed detection | Review §5.11; STCC4 notes | 5 or 9: the hook runs only at addresses with no `AllKnown` record, unless that record is `Disabled` (not `DisabledClaim`). Together with the hook address ranges (D9) - **Not done.** The hook still runs where no record *matched*; the hook address ranges (Stage 9) and Axiom's RSAO reserved and excluded addresses reduce the exposure |
+| N8 | Per-device settings are lost on a short absence: OFFLINE moves straight to deletion, which erases the `BusAddrRecord` where Stage 7 keeps them | Principles P7 | 7: keep unsaved settings in DeviceManager, keyed by device ID, as well as the saved ones from Stage 10 - **Done (Stage 7)** |
+| N9 | `registerForDeviceData("<busName>_<addr>@<slot>")` drops the slot, and a device name doesn't resolve in every path (`resolveDeviceIDAndBus`) | Principles P9 | 10 - **Done (Stage 10)** |
+| N10 | The reserved-address set (for RSAO) is not exposed externally | Principles P10 | 10: an endpoint returning the bitmap from the catalogue index - **Done (Stage 10)**: `devman/reserved` |
+| N11 | A board cannot disable or reprioritise records from its SysType ("this board never has X") | Principles P15 | 5/6: `disable` entries in a compiled catalogue or in SysTypes as another record source (D23) - **Done (Stage 5)**: `disable` entries in a compiled catalogue, and `typePolicy` in SysTypes |
+| N12 | Device-specific code in the core (LSM6DS FIFO decode and timing) | Principles P4 | 1 (added as item 11) - **Done (Stage 1)** |
+| N13 | `ext` records and `busHz` switching were not considered by the scheduler | Branch spec (VL53L5CX, LSM6DS) | 1 (added as items 9 and 10) - **Item 9 done (Stage 1)**; item 10 (bus speed in the tie-break) not done |
 | N14 | One global ident hook per bus, rather than per record or per class | Principles P4 | Not planned. D9's address ranges are the first step; revisit if a second hook user appears |
 | N15 | Hardware instance ID (RSAO serial) as a device's identity, so names and settings follow a re-addressed RSAO | Principles P9, P10 | Not planned; a candidate after Stage 10 |
 | N16 | Static device IDs are `0_<position in the static device list>`, so reordering the configuration changes them | Principles §2.2 | Not planned; note in the Stage 10 documentation |
@@ -1891,16 +1891,16 @@ branch's diary and its tests.
 | 3 | **Validate untrusted records where they enter**, using the runtime parser to compute the real poll size, check it against `resp.b`, and bound reads, samples and ring size. One bad record is rejected on its own, and the first error is kept | `DeviceLibraryLoader::applyJson` | Stage 6 (D22) |
 | 4 | **"Present" versus "applied", with a CRC of the applied bytes** that uses the same algorithm as `filehash`, so a client can tell whether the file on disk is the one in effect | `devlib` endpoint | Stage 6 status, with the same field names (D20) |
 | 5 | **An empty `devTypes` is a valid file** ("no custom types"), not an error reported on every boot | `applyJson` | Stage 6 |
-| 6 | **Test additions for real:** build with a reduced base catalogue and supply the rest from a file | `DeviceTypeRecords.testsplit.json`, `check-device-library-selection.mjs` | Stage 6 verification, as a test build only: identification results from "reduced base + file" must equal those from the full base build. This is the proof that extended records are first-class (G7) |
+| 6 | **Test additions for real:** build with a reduced base catalogue and supply the rest from a file | `DeviceTypeRecords.testsplit.json`, `check-device-library-selection.mjs` | Stage 6 verification, as a test build only: identification results from "reduced base + file" must equal those from the full base build. This is the proof that extended records are first-class (G7) - **Done (2026-10-17)**: `linux_unit_tests/test_reduced_catalogue`, built with half the RaftCore catalogue compiled and the other half loaded as a type file, gives the full catalogue's candidates, reserved addresses and scan lists (file records first among equals, as documented) |
 | 7 | **A hardware acceptance gate** checking: inventory under streaming; raw-read isolation; acceptance by the real host decoder; detection of panics or unexpected reboots; file upload, CRC and persistence across a restart; PSRAM diagnostics | `tests/hardware/axiom_device_gate.py`, `test_device_gate.py` | Stage 0: build the bench script on this design and run it at the end of every stage (§7) |
 | 8 | **Measure delivered rate as well as poll rate.** The branch measured a USB stream rate that fell from about 19–20 Hz to about 8 Hz with Wi-Fi enabled, an effect that predates its own changes | Diary 2026-10-15 | Stage 0: measure poll rate (at the bus) and delivered rate (at the client) separately, so G9 isn't judged on a number limited by the transport |
 | 9 | **An atomic request consumed once at the worker boundary**, for work requested from another task | RaftI2C `1f2eeef` (`_reIdentifyRequested.exchange`) | Stage 8 (`requestReIdentify`) |
 | 10 | **Capacity in the status** (`maxRecords`, `getMaxExtendedDeviceTypeRecords()`, `getNumExtendedDeviceTypeRecords()`) | RaftCore `8b4e63e`, `devlib` | Stage 2 API and Stage 6 status, together with the byte budget |
 | 11 | **The whole record from `typeinfo`** (`full=1`) | RaftCore `53b3ff4` | Stage 10 (N6), in the file format so it round-trips |
 | 12 | **DeviceManager regression tests:** `listdevs` keeps identified online devices that have no samples yet; direct devices reject bus-only `devconfig` and `cmdraw`. The fixes are on `main` but the tests are not | RaftCore `unit_tests/main/DeviceManager_regression_test.cpp` | Stage 0: port these two tests |
-| 13 | **Host tests for `SpiramAwareAllocator`** across PSRAM present, missing, disabled and exhausted | Axiom `tests/spiram-allocator/` | Stage 2 (PSRAM-aware storage depends on it): port into RaftCore unit tests |
+| 13 | **Host tests for `SpiramAwareAllocator`** across PSRAM present, missing, disabled and exhausted | Axiom `tests/spiram-allocator/` | Stage 2 (PSRAM-aware storage depends on it): port into RaftCore unit tests - **Done (2026-10-17)**: ported as `linux_unit_tests/spiram_allocator` (eight configurations, run by `make check`) |
 | 14 | **Error messages that name the record and the rule**, e.g. `"<key>: deviceType field says '<x>'"`, `"<key>: reads N bytes in one command, limit M"` | `applyJson` | Stage 4 and 6 error reporting |
-| 15 | **Data produced by firmware code, described by a record** (`pollInfo.ext`, the VL53L5CX ULD task) | VL53L5CX port | Stage 1 (N13), and the type file: an `ext` record can be supplied, but data only flows if the firmware contains the producer, which the loader should report |
+| 15 | **Data produced by firmware code, described by a record** (`pollInfo.ext`, the VL53L5CX ULD task) | VL53L5CX port | Stage 1 (N13), and the type file: an `ext` record can be supplied, but data only flows if the firmware contains the producer, which the loader should report - **Done (2026-10-17)**: `DeviceTypeRecords::registerExtDataSource()` (Axiom's VL53LxCX SysMod registers VL53L5CX); the loader warns for a file record with `pollInfo.ext` that no code supplies |
 
 ### 10.8 Bug found through the branch: binary detection patterns were parsed as hex (fixed 2026-10-15)
 
@@ -1943,7 +1943,9 @@ under what conditions, so it can be checked again later.
 | 2026-10-16 | LSM6DS on Axiom slot 7, polled at 20 Hz, misses about 10 polls in 100 s with gaps of 0.3-0.5 s | Axiom018 with the VL53L5CX (slot 1) running; the same before and after Stage 9 | Not investigated. Likely the VL53L5CX driver's long transfers (it switches the bus to 400 kHz) holding the bus; `busstatus` pollTiming shows it |
 | 2026-10-16 | Attribute lookup tables (`lut`) were ignored by the generated C decoders, so VL6180 and VL53L0X `valid` was inverted in DataLogger CSV, RaftROS and named values | All builds | Fixed on `feature/device-identification` (RaftCore `5982b13`), tested in `test_standard_decode`. Not yet checked with a VL6180 in a DataLogger session |
 
-## 12. DeviceManager optional in RaftCoreApp (done 2026-10-17)
+## 12. Related change: DeviceManager optional in RaftCoreApp (done 2026-10-17)
+
+(Not part of the stages above - not to be confused with Stage 12.)
 
 A minimal `RaftCoreApp` project (no SysMods, no devices) linked in all of the device code, because `RaftCoreApp`
 constructs a `DeviceManager`. Its virtual functions, and the REST handlers registered in its setup, keep everything
@@ -1967,3 +1969,16 @@ The FeatherS3 example with the option off was booted and checked:
 
 A separate RaftDevices library was considered and not done: it would save no more flash than this, and it would
 change every device project's `features.cmake`.
+
+## 13. Remaining work (as of 2026-10-17)
+
+Everything else in this plan is done. Still open:
+
+| Item | What | Notes |
+|---|---|---|
+| Stage 12 | Device type record improvements: detection for the records that have none, the shadowing cases, weak detection, the ST time-of-flight records, the record fixes listed there | Each needs the device to verify on hardware; one record at a time |
+| N7 | Run the identification hook only where no address-identified record exists (unless that record is `Disabled`) | Changes behaviour at addresses with known records whose detection fails; exposure is already reduced by the hook address ranges and Axiom's own reserved addresses |
+| Stage 4 `PollPlan` | Remove the copy of `DevicePollingInfo` made on every poll | Speed only |
+| Stage 1 items 3 and 10 (N13) | Tie-break on the selected multiplexer slot and on bus speed | Left until measurements show a need; the LSM6DS missed polls in §11 may be the first sign |
+| D19 second release | The strict record grammar rejects instead of warning | After a release with the warnings has been out |
+| Axiom (optional) | Replace `RSAOTypeRegistry` with `getRecordByHwTypeId()` | Not required |

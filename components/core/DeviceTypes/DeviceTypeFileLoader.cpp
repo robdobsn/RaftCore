@@ -320,6 +320,18 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
             return;
         }
         devTypeRec.setHwTypeId((uint16_t)hwTypeId);
+
+        // A hardware type ID names one record: one used by a record with another key would make lookups by the ID
+        // ambiguous (and the file's record would take over the devices of the other) - N2
+        DeviceTypeIndexType otherIdx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pOther = table.getRecordByHwTypeId((uint16_t)hwTypeId, otherIdx);
+        if (pOther && pOther->deviceType && !key.equals(pOther->deviceType))
+        {
+            char idStr[8];
+            snprintf(idStr, sizeof(idStr), "0x%04x", (unsigned)hwTypeId);
+            reject(result, key, String("deviceTypeId ") + idStr + " is already used by " + pOther->deviceType);
+            return;
+        }
     }
     if (rec.contains("identPriority"))
     {
@@ -390,6 +402,10 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         reject(result, key, "devInfoJson.resp.b out of range");
         return;
     }
+
+    // Data supplied by firmware code (pollInfo.ext): the device isn't polled, so without that code it has no data
+    if ((rec.getLong("pollInfo/ext", 0) != 0) && !table.hasExtDataSource(key.c_str()))
+        warn(result, key, "pollInfo.ext is set but no firmware code supplies this type's data, so it will have no data");
 
     // The record (pollInfo and devInfoJson are stored as JSON text without whitespace, as the generator emits them)
     String pollInfoJson = rec.getString("pollInfo", "");

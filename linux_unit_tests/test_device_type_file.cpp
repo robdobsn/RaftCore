@@ -172,7 +172,7 @@ static void testRecordFields()
     DeviceTypeRecords table;
     std::string json = R"({"devTypes":{)"
                 R"("Rsao":{"deviceTypeId":"0x00AB","excludeFromAddrMap":true,"addresses":"0x10-0x17","pollInfo":{"c":"0x01=r2","i":100,"s":1},"devInfoJson":{"resp":{"b":2}}},)"
-                R"("Num":{"deviceTypeId":171,"addresses":"0x52","identPriority":-5,"scanPriority":2,"detectionValues":"0x00=0x12"},)"
+                R"("Num":{"deviceTypeId":172,"addresses":"0x52","identPriority":-5,"scanPriority":2,"detectionValues":"0x00=0x12"},)"
                 R"("NoAddr":{"detectionValues":"0x00=0x12"},)"
                 R"("Warn":{"addresses":"0x53","detectionValues":"0x00=0x123","_notes":"ignored"})"
                 "}}";
@@ -187,9 +187,57 @@ static void testRecordFields()
     TEST_ASSERT(table.getRecordByHwTypeId(0xab, idx) == pRsao && (idx == rsaoIdx), "found by hwTypeId");
     const DeviceTypeRecord* pNum = table.getRecord("Num", idx);
     TEST_ASSERT(pNum && (pNum->identPriority == -5) && (pNum->scanPriority == 1), "identPriority and numeric scanPriority");
-    TEST_ASSERT(pNum && (pNum->hwTypeId == 171), "numeric deviceTypeId");
+    TEST_ASSERT(pNum && (pNum->hwTypeId == 172), "numeric deviceTypeId");
     TEST_ASSERT(result.warnings == 2, "warnings: no addresses or deviceTypeId; odd hex");
     TEST_ASSERT(result.firstWarning.startsWith("NoAddr: no addresses"), "first warning");
+}
+
+// A hardware type ID names one record: a file record with an ID already used by a record with another key is
+// rejected (it would take over that record's devices), and a code-registered one is added (trusted) - N2
+static void testDuplicateHwTypeId()
+{
+    printf("Running testDuplicateHwTypeId...\n");
+    DeviceTypeRecords table;
+    std::string json = R"({"devTypes":{)"
+                R"("RsaoA":{"deviceTypeId":"0x0084","excludeFromAddrMap":true,"addresses":"0x10"},)"
+                R"("RsaoB":{"deviceTypeId":132,"excludeFromAddrMap":true,"addresses":"0x10"},)"
+                R"("RsaoC":{"deviceTypeId":"0x0085","excludeFromAddrMap":true,"addresses":"0x10"})"
+                "}}";
+    DeviceTypeFileLoader::Result result = applyFile(table, json);
+    TEST_ASSERT((result.added == 2) && (result.rejected == 1), "the record with a duplicate ID is rejected");
+    TEST_ASSERT(result.firstError == "RsaoB: deviceTypeId 0x0084 is already used by RsaoA", result.firstError.c_str());
+    DeviceTypeIndexType idx;
+    const DeviceTypeRecord* pFound = table.getRecordByHwTypeId(0x84, idx);
+    TEST_ASSERT(pFound && (strcmp(pFound->deviceType, "RsaoA") == 0), "the ID still finds the first record");
+
+    // The same key again (the same content) keeps its own ID
+    result = applyFile(table, R"({"devTypes":{"RsaoA":{"deviceTypeId":"0x0084","excludeFromAddrMap":true,"addresses":"0x10"}}})");
+    TEST_ASSERT((result.rejected == 0) && (result.unchanged == 1), "the same record again is not a duplicate");
+
+    // Code-registered records are trusted: added, with a warning logged
+    DeviceTypeRecordDynamic dyn;
+    dyn.deviceTypeName = "CodeRec";
+    dyn.addresses = "0x11";
+    dyn.setHwTypeId(0x85);
+    TEST_ASSERT(table.addRecord(dyn, idx) == DeviceTypeRecords::AddResult::Added, "code-registered duplicate is added");
+}
+
+// A record with pollInfo.ext is reported unless firmware code supplies its data (§10.7 item 15)
+static void testExtDataSource()
+{
+    printf("Running testExtDataSource...\n");
+    DeviceTypeRecords table;
+    table.registerExtDataSource("ExtSupplied");
+    table.registerExtDataSource("ExtSupplied");
+    TEST_ASSERT(table.hasExtDataSource("ExtSupplied") && !table.hasExtDataSource("ExtOther"), "registered sources");
+    std::string json = R"({"devTypes":{)"
+                R"("ExtSupplied":{"addresses":"0x29","detectionValues":"0x00=0x12","pollInfo":{"ext":1},"devInfoJson":{"resp":{"b":2}}},)"
+                R"("ExtOther":{"addresses":"0x2a","detectionValues":"0x00=0x12","pollInfo":{"ext":1},"devInfoJson":{"resp":{"b":2}}})"
+                "}}";
+    DeviceTypeFileLoader::Result result = applyFile(table, json);
+    TEST_ASSERT((result.added == 2) && (result.rejected == 0), ("both added: " + std::string(result.firstError.c_str())).c_str());
+    TEST_ASSERT(result.warnings == 1, "one warning");
+    TEST_ASSERT(result.firstWarning.startsWith("ExtOther: pollInfo.ext is set but no firmware code"), result.firstWarning.c_str());
 }
 
 static void testOverridesAndPolicies()
@@ -477,6 +525,8 @@ int main(int argc, char** argv)
     testFileLevel();
     testRecordChecks();
     testRecordFields();
+    testDuplicateHwTypeId();
+    testExtDataSource();
     testOverridesAndPolicies();
     testCatalogueRoundTrip(argv[1]);
     testRecordSources();

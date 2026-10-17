@@ -118,6 +118,25 @@ def record_ident_fields(dev_type, dev_type_key):
         sys.exit(1)
     return scan_priority, flags, ident_priority, hw_type_id
 
+
+def duplicate_hw_type_id_warnings(dev_types):
+    """Warnings for hardware type IDs (deviceTypeId) used by more than one record
+
+    Lookups by hardware type ID (getRecordByHwTypeId) return only one of them - the first in catalogue order
+    """
+    keys_by_id = {}
+    for dev_type_key, dev_type in dev_types.items():
+        if "deviceTypeId" not in dev_type:
+            continue
+        value = dev_type["deviceTypeId"]
+        try:
+            hw_type_id = int(value, 0) if isinstance(value, str) else int(value)
+        except (TypeError, ValueError):
+            continue
+        keys_by_id.setdefault(hw_type_id, []).append(dev_type_key)
+    return [f"WARNING: deviceTypeId 0x{hw_type_id:04x} is used by {', '.join(keys)} - lookups by hardware type ID "
+            f"return {keys[0]}" for hw_type_id, keys in sorted(keys_by_id.items()) if len(keys) > 1]
+
 def report_grammar_issues(dev_type, dev_type_key, decode_generator=None):
     """Print the grammar's errors and warnings for a record's command strings. Returns the number of errors"""
     num_errors = 0
@@ -298,6 +317,10 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # Generate the DeviceTypeRecord array
         header_file.write('static const DeviceTypeRecord baseDevTypeRecords[] =\n')
         header_file.write('{\n')
+
+        # A hardware type ID should name one record (N2)
+        for warning in duplicate_hw_type_id_warnings(dev_ident_json['devTypes']):
+            print(warning, file=sys.stderr)
 
         # Iterate records
         dev_record_index = 0
