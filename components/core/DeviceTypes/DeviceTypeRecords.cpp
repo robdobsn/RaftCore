@@ -97,7 +97,8 @@ std::shared_ptr<const CatalogueIndex> DeviceTypeRecords::getCatalogueIndex() con
                     const DeviceTypeRecord* pRec = getRecord(idx);
                     return pRec ? DeviceTypeGrammar::detectionStrength(
                                 DeviceTypeGrammar::compile(pRec->detectionValues, DeviceTypeGrammar::Field::Detection)) : -1;
-                });
+                },
+                [this](DeviceTypeIndexType idx) { return scanPriorityOf(idx); });
         _catalogueIndex = pIndex;
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
         LOG_I(MODULE_PREFIX, "getCatalogueIndex built generation %d in %d us, %d bytes", (int)generation,
@@ -345,30 +346,10 @@ void DeviceTypeRecords::pollInfoFromSteps(BusElemAddrType addr, const DeviceType
     pollingInfo.pollIntervalUs = (pollIntervalMs < 0) ? DevicePollingInfo::POLL_INTERVAL_DEFAULT_US :
                 DevicePollingInfo::clampPollIntervalUs((uint64_t)pollIntervalMs * 1000);
 
-    // Get bus frequency override for polls (0 = use bus default)
-    // Accept both compact key "h" and verbose key "busHz"
-    pollingInfo.pollBusHz = pollInfo.getLong("h", 0);
-    if (pollingInfo.pollBusHz == 0)
-        pollingInfo.pollBusHz = pollInfo.getLong("busHz", 0);
-
-    // Get slot mask for bus frequency override (0 = all slots)
-    // Accept both compact key "hSlots" and verbose key "busHzSlots"
-    // Value is a JSON array of slot numbers, e.g. [4,5,6]
+    // The poll bus speed is a choice for the board, not part of the record: it is set by DevMan "typeSettings" or
+    // devconfig (records no longer take pollInfo busHz/busHzSlots - the generator and type file loader warn)
+    pollingInfo.pollBusHz = 0;
     pollingInfo.pollBusHzSlotMask = 0;
-    String slotMaskKey = "hSlots";
-    int slotsArrayLen = 0;
-    if (pollInfo.getType(slotMaskKey.c_str(), slotsArrayLen) != RaftJsonIF::RAFT_JSON_ARRAY || slotsArrayLen == 0)
-    {
-        slotMaskKey = "busHzSlots";
-        pollInfo.getType(slotMaskKey.c_str(), slotsArrayLen);
-    }
-    for (int slotIdx = 0; slotIdx < slotsArrayLen; slotIdx++)
-    {
-        String slotPath = slotMaskKey + "[" + String(slotIdx) + "]";
-        int slotNum = pollInfo.getLong(slotPath.c_str(), -1);
-        if (slotNum >= 0 && slotNum < 64)
-            pollingInfo.pollBusHzSlotMask |= (1ULL << slotNum);
-    }
 
     // Poll response integrity (CRC + trailer), e.g.
     //   "crc": { "t": "crc16ccitt", "trailer": 3, "reread": "0x22", "retries": 1 }
@@ -1057,6 +1038,47 @@ uint8_t DeviceTypeRecords::policyOf(DeviceTypeIndexType deviceTypeIndex) const
         return _policies[deviceTypeIndex];
     const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
     return pRec ? pRec->initialPolicy : DeviceTypeRecord::POLICY_ENABLED;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set a type's scan priority (in place of its record's)
+bool DeviceTypeRecords::setScanPriority(const char* deviceTypeKey, uint8_t scanPriority)
+{
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (!getRecord(deviceTypeKey, deviceTypeIndex))
+        return false;
+    if ((scanPriority >= CatalogueIndex::NUM_SCAN_PRIORITY_LEVELS) && (scanPriority != DeviceTypeRecord::SCAN_PRIORITY_NONE))
+        return false;
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    if (scanPriorityOf(deviceTypeIndex) != scanPriority)
+    {
+        if (_scanPriorities.size() <= deviceTypeIndex)
+            _scanPriorities.resize(deviceTypeIndex + 1, SCAN_PRIORITY_UNSET);
+        _scanPriorities[deviceTypeIndex] = scanPriority;
+        _generation.fetch_add(1, std::memory_order_acq_rel);
+    }
+    RaftMutex_unlock(_extRecordsMutex);
+    return true;
+}
+
+/// @brief A type's scan priority (the one set for the type, else its record's)
+uint8_t DeviceTypeRecords::getScanPriority(DeviceTypeIndexType deviceTypeIndex) const
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return DeviceTypeRecord::SCAN_PRIORITY_NONE;
+    uint8_t scanPriority = scanPriorityOf(deviceTypeIndex);
+    RaftMutex_unlock(_extRecordsMutex);
+    return scanPriority;
+}
+
+/// @brief A type's scan priority. Assumes the mutex is held
+uint8_t DeviceTypeRecords::scanPriorityOf(DeviceTypeIndexType deviceTypeIndex) const
+{
+    if ((deviceTypeIndex < _scanPriorities.size()) && (_scanPriorities[deviceTypeIndex] != SCAN_PRIORITY_UNSET))
+        return _scanPriorities[deviceTypeIndex];
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    return pRec ? pRec->scanPriority : DeviceTypeRecord::SCAN_PRIORITY_NONE;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

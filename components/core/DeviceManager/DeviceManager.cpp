@@ -77,6 +77,13 @@ void DeviceManager::setup()
     // Protected types and record policies from the SysType (before buses start identifying devices)
     applyTypeTableConfig(modConfig());
 
+    // Settings for device types chosen by the board or product
+    std::vector<String> typeSettingProblems;
+    _typeSettings.parse(modConfig(), "typeSettings", typeSettingProblems);
+    for (const String& problem : typeSettingProblems)
+        LOG_W(MODULE_PREFIX, "setup typeSettings %s - ignored", problem.c_str());
+    applyTypeScanPriorities(false);
+
     // Device type file: buses don't identify devices until it has been loaded (in postSetup, once the file system
     // is mounted)
     setupTypeFile();
@@ -143,6 +150,22 @@ void DeviceManager::applyTypeTableConfig(RaftJsonIF& devManConfig)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set the scan priorities of DevMan "typeSettings" on their types
+/// @param reportUnknown log the settings for keys that aren't device types (after the type file is loaded)
+void DeviceManager::applyTypeScanPriorities(bool reportUnknown)
+{
+    for (const DeviceTypeSettings::Entry& entry : _typeSettings.all())
+    {
+        DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+        bool known = deviceTypeRecords.getRecord(entry.typeKey.c_str(), deviceTypeIndex) != nullptr;
+        if (known && (entry.scanPriority != DeviceTypeSettings::SCAN_PRIORITY_UNSET))
+            deviceTypeRecords.setScanPriority(entry.typeKey.c_str(), (uint8_t)entry.scanPriority);
+        if (!known && reportUnknown)
+            LOG_I(MODULE_PREFIX, "typeSettings %s: not a device type in this build", entry.typeKey.c_str());
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Post setup
 /// @note This handles post-setup for statically added devices (dynamic devices are handled separately)
 void DeviceManager::postSetup()
@@ -151,6 +174,9 @@ void DeviceManager::postSetup()
     // identified once it is loaded
     loadTypeFile();
     loadDeviceSettings();
+
+    // Scan priorities for types the device type file added
+    applyTypeScanPriorities(true);
 
     // Register JSON data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
@@ -1980,8 +2006,9 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
         extra += ",\"sampleRateHz\":" + sampleRateHzStr;
 
     // Remember the settings, to apply again when the device is identified again as the same type (after it is
-    // re-identified, re-initialised or absent for a while)
-    rememberDevConfig(deviceID, pBus->getDeviceTypeIndex(addr), jsonParams);
+    // re-identified, re-initialised or absent for a while) - not when they are being applied from what is stored
+    if (!_applyingStoredSettings)
+        rememberDevConfig(deviceID, pBus->getDeviceTypeIndex(addr), jsonParams);
 
     // Save the settings (for this device's type) if asked
     if (jsonParams.getBool("save", false))
@@ -2038,20 +2065,34 @@ void DeviceManager::rememberDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType
 /// @param deviceTypeIndex the type it has been identified as (settings for another type are forgotten)
 void DeviceManager::reapplyDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex)
 {
+    // The device's own settings, if made for this type (settings for another type are forgotten)
+    std::vector<RaftJson::NameValuePair> deviceValues;
     auto it = _devConfigSettings.find(DeviceNames::packDeviceIDKey(deviceID));
-    if (it == _devConfigSettings.end())
-        return;
-    if (it->second.deviceTypeIndex != deviceTypeIndex)
+    if (it != _devConfigSettings.end())
     {
-        _devConfigSettings.erase(it);
-        return;
+        if (it->second.deviceTypeIndex == deviceTypeIndex)
+            deviceValues = it->second.values;
+        else
+            _devConfigSettings.erase(it);
     }
-    std::vector<RaftJson::NameValuePair> nameValues = it->second.values;
+
+    // Under them, the settings for the type (DevMan "typeSettings")
+    const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(deviceTypeIndex);
+    const DeviceTypeSettings::Entry* pTypeEntry = pRec ? _typeSettings.find(pRec->deviceType) : nullptr;
+    std::vector<RaftJson::NameValuePair> nameValues = DeviceTypeSettings::layer(
+                pTypeEntry ? pTypeEntry->devConfig : std::vector<RaftJson::NameValuePair>(), deviceValues);
+    if (nameValues.empty())
+        return;
     nameValues.push_back(RaftJson::NameValuePair("deviceid", deviceID.toString()));
     RaftJson jsonParams = RaftJson::getJSONFromNVPairs(nameValues, true);
     String respStr;
+    _applyingStoredSettings = true;
     apiDevManDevConfig("devman/devconfig", respStr, jsonParams);
-    LOG_I(MODULE_PREFIX, "reapplyDevConfig %s: %s", deviceID.toString().c_str(), respStr.c_str());
+    _applyingStoredSettings = false;
+    LOG_I(MODULE_PREFIX, "reapplyDevConfig %s (%s%s): %s", deviceID.toString().c_str(),
+                pTypeEntry && !pTypeEntry->devConfig.empty() ? "type settings" : "",
+                deviceValues.empty() ? "" : (pTypeEntry && !pTypeEntry->devConfig.empty() ? ", device settings" : "device settings"),
+                respStr.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -240,6 +240,18 @@ static void testExtDataSource()
     TEST_ASSERT(result.firstWarning.startsWith("ExtOther: pollInfo.ext is set but no firmware code"), result.firstWarning.c_str());
 }
 
+// The poll bus speed is a choice for the board (DevMan "typeSettings"): a record that still has it is warned about
+static void testRecordBusSpeedWarning()
+{
+    printf("Running testRecordBusSpeedWarning...\n");
+    DeviceTypeRecords table;
+    DeviceTypeFileLoader::Result result = applyFile(table, oneRecordFile("BusSpeed",
+                R"("addresses":"0x51","detectionValues":"0x00=0x12","pollInfo":{"c":"0x01=r2","i":100,"s":1,"busHz":400000},)"
+                R"("devInfoJson":{"name":"T","resp":{"b":2,"a":[{"n":"v","t":">H"}]}})"));
+    TEST_ASSERT((result.added == 1) && (result.warnings == 1), "added, with a warning");
+    TEST_ASSERT(result.firstWarning.startsWith("BusSpeed: pollInfo.busHz is no longer used"), result.firstWarning.c_str());
+}
+
 static void testOverridesAndPolicies()
 {
     printf("Running testOverridesAndPolicies...\n");
@@ -527,6 +539,7 @@ int main(int argc, char** argv)
     testRecordFields();
     testDuplicateHwTypeId();
     testExtDataSource();
+    testRecordBusSpeedWarning();
     testOverridesAndPolicies();
     testCatalogueRoundTrip(argv[1]);
     testRecordSources();

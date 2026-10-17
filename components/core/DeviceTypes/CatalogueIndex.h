@@ -44,9 +44,10 @@ public:
     /// @param getRecord function returning the record for an index
     /// @param getPolicy function returning the policy for an index (DeviceTypeRecord::POLICY_...)
     /// @param getStrength function returning the detection strength for an index (DeviceTypeGrammar::detectionStrength)
-    template <typename GetRecord, typename GetPolicy, typename GetStrength>
+    /// @param getScanPriority function returning the scan priority for an index (the record's, unless set for the type)
+    template <typename GetRecord, typename GetPolicy, typename GetStrength, typename GetScanPriority>
     void build(uint32_t generation, uint32_t numBase, uint32_t numExtended, GetRecord getRecord, GetPolicy getPolicy,
-                GetStrength getStrength)
+                GetStrength getStrength, GetScanPriority getScanPriority)
     {
         _generation = generation;
 
@@ -105,9 +106,10 @@ public:
                 countByAddr[addr]++;
                 setBit(_reservedBits, addr);
             }
-            if (pRec->scanPriority != DeviceTypeRecord::SCAN_PRIORITY_NONE)
+            uint8_t scanPriority = getScanPriority(idx);
+            if (scanPriority != DeviceTypeRecord::SCAN_PRIORITY_NONE)
             {
-                uint32_t level = pRec->scanPriority < NUM_SCAN_PRIORITY_LEVELS ? pRec->scanPriority : NUM_SCAN_PRIORITY_LEVELS - 1;
+                uint32_t level = scanPriority < NUM_SCAN_PRIORITY_LEVELS ? scanPriority : NUM_SCAN_PRIORITY_LEVELS - 1;
                 for (uint32_t i = 0; i < addrList.size(); i++)
                 {
                     // High priority: the first (primary) address in list 0, the others in list 1

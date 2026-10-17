@@ -248,6 +248,65 @@ static void testHwTypeIdAndGeneration()
     TEST_ASSERT(table.getGeneration() == gen1, "already present: generation unchanged");
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// A type's scan priority set in place of its record's (DevMan "typeSettings")
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+static void testTypeScanPriority()
+{
+    printf("Running testTypeScanPriority...\n");
+    DeviceTypeRecords table;
+    // An extended record alone at a free address, with no scan priority of its own
+    uint32_t addr = findFreeAddr(table, 0x50);
+    DeviceTypeRecordDynamic rec = makeRecord("ScanTest", ("0x" + String(addr, 16)).c_str());
+    rec.scanPriority = DeviceTypeRecord::SCAN_PRIORITY_NONE;
+    DeviceTypeIndexType idx;
+    TEST_ASSERT(table.addRecord(rec, idx) == DeviceTypeRecords::AddResult::Added, "record added");
+    TEST_ASSERT(table.getScanPriority(idx) == DeviceTypeRecord::SCAN_PRIORITY_NONE, "the record's (none)");
+    std::vector<std::vector<BusElemAddrType>> lists;
+    table.getScanPriorityLists(lists);
+    // (the last list holds every address not in a higher one)
+    TEST_ASSERT(!inList(lists[0], addr) && !inList(lists[1], addr) && inList(lists[2], addr), "only in the last list");
+
+    // Set high: in the first list, and the index rebuilt (a new generation)
+    uint32_t generation = table.getGeneration();
+    TEST_ASSERT(table.setScanPriority("ScanTest", 0), "set high");
+    TEST_ASSERT(table.getGeneration() != generation, "generation changed");
+    TEST_ASSERT(table.getScanPriority(idx) == 0, "high");
+    table.getScanPriorityLists(lists);
+    TEST_ASSERT(inList(lists[0], addr), "in the first list");
+
+    // Low, then none
+    TEST_ASSERT(table.setScanPriority("ScanTest", 2), "set low");
+    table.getScanPriorityLists(lists);
+    TEST_ASSERT(!inList(lists[0], addr) && inList(lists[2], addr), "in the last list");
+    generation = table.getGeneration();
+    TEST_ASSERT(table.setScanPriority("ScanTest", 2) && (table.getGeneration() == generation), "unchanged: no new generation");
+    TEST_ASSERT(table.setScanPriority("ScanTest", DeviceTypeRecord::SCAN_PRIORITY_NONE), "set none");
+    table.getScanPriorityLists(lists);
+    TEST_ASSERT(!inList(lists[0], addr) && inList(lists[2], addr), "only in the last list again");
+
+    // Errors
+    TEST_ASSERT(!table.setScanPriority("NoSuchType", 0), "unknown key");
+    TEST_ASSERT(!table.setScanPriority("ScanTest", 5), "invalid priority");
+
+    // A base record's priority can be changed too
+    std::vector<DeviceTypeIndexType> cands;
+    uint32_t baseAddr = 0;
+    for (uint32_t a = 0; (a <= CatalogueIndex::MAX_ADDR) && (baseAddr == 0); a++)
+    {
+        cands = table.getIdentCandidates(a);
+        if ((cands.size() == 1) && (cands[0] < DeviceTypeRecords::getNumBaseRecords()) && inList(lists[0], a))
+            baseAddr = a;
+    }
+    TEST_ASSERT(baseAddr != 0, "a base record alone at an address in the first list");
+    const DeviceTypeRecord* pBase = table.getRecord(cands[0]);
+    TEST_ASSERT(pBase && table.setScanPriority(pBase->deviceType, DeviceTypeRecord::SCAN_PRIORITY_NONE), "base record set none");
+    table.getScanPriorityLists(lists);
+    TEST_ASSERT(!inList(lists[0], baseAddr), "base record's address out of the first list");
+    TEST_ASSERT(pBase->scanPriority == 0, "the record itself is unchanged");
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 1)
@@ -257,5 +316,6 @@ int main(int argc, char** argv)
     testExtendedScanPriority();
     testCandidateOrder();
     testHwTypeIdAndGeneration();
+    testTypeScanPriority();
     return testSummary("test_catalogue_index");
 }

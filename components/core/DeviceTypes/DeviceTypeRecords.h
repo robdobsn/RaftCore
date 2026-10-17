@@ -266,6 +266,14 @@ public:
     /// @brief Get a record's policy
     uint8_t getPolicy(DeviceTypeIndexType deviceTypeIndex) const;
 
+    /// @brief Set a type's scan priority in place of its record's (a board or product choice - DevMan
+    ///        "typeSettings"): 0 high, 1 medium, 2 low, or DeviceTypeRecord::SCAN_PRIORITY_NONE
+    /// @return false if there is no record with the key, or the priority isn't valid
+    bool setScanPriority(const char* deviceTypeKey, uint8_t scanPriority);
+
+    /// @brief Get a type's scan priority (the one set for the type, else its record's)
+    uint8_t getScanPriority(DeviceTypeIndexType deviceTypeIndex) const;
+
     /// @brief Protect a device type key: it can't be disabled, overridden or replaced (a system device expects it)
     void setProtected(const char* deviceTypeKey);
     bool isProtected(const char* deviceTypeKey) const;
@@ -352,6 +360,11 @@ private:
     static constexpr uint8_t POLICY_UNSET = 0xff;
     std::vector<uint8_t> _policies;
     uint8_t policyOf(DeviceTypeIndexType deviceTypeIndex) const;
+
+    // Scan priorities set for types, by device type index (SCAN_PRIORITY_UNSET: the record's), under the mutex
+    static constexpr uint8_t SCAN_PRIORITY_UNSET = 0xfe;
+    std::vector<uint8_t> _scanPriorities;
+    uint8_t scanPriorityOf(DeviceTypeIndexType deviceTypeIndex) const;
 
     // Protected device type keys, under the mutex
     std::vector<std::string> _protectedKeys;

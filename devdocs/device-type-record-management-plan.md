@@ -1,6 +1,6 @@
 # Device Type Record Management: Plan
 
-Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b and 2 done (2026-10-17)** on the
+Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b, 2 and 2b done (2026-10-17)** on the
 `feature/device-type-records` branches of RaftCore and Axiom (see §6); phases 3-5 not started. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
@@ -440,4 +440,44 @@ Stage 12 of the identification plan (record improvements) can start after phase 
     - LSM6DS, VL6180 and VL53L5CX are identified, with the same candidate order.
 - **Seen on the way** (not changed): the serial console drops a response of about 8 KB (`typeinfo … full=1` for
   RoboticalVCP and RoboticalLiquidSensor, records of 3.4-3.9 KB) without an error.
+
+### Phase 2b: type settings (done 2026-10-17)
+
+- **`DeviceManager/DeviceTypeSettings.h`** (host-tested):
+  - reads DevMan `typeSettings`: values as numbers or text, `busHzSlots` as a list or text; names starting with `_`
+    are notes;
+  - checks each setting the way `devconfig` does; problems are logged at startup and left out;
+  - `layer()`: the device's own settings replace the type's.
+- **DeviceManager:**
+  - `reapplyDevConfig()` (on Identified and TypeChanged, and after re-verify and reinit) now applies the type's
+    settings under the device's remembered or saved ones;
+  - settings applied this way are not remembered as the device's own, so `save=1` saves only the device's settings;
+  - scan priorities are set on the types at setup, and again after the type file loads; at that point keys that
+    aren't device types are logged at the information level.
+- **DeviceTypeRecords:**
+  - `setScanPriority(key, level)` and `getScanPriority(idx)` (by index, like policies; a change starts a new
+    generation, so the scanner rebuilds its lists);
+  - `CatalogueIndex::build` takes the effective scan priority.
+- **Records:**
+  - `pollInfo.busHz`/`h`/`busHzSlots`/`hSlots` are no longer read;
+  - the generator and the type file loader warn about a record that has them.
+- **Axiom:**
+  - `devtypes/LSM6DS.json` removed, and `raftcore:LSM6DS` selected;
+  - Axiom018 `SysTypes.json` DevMan `typeSettings.LSM6DS` holds `busHz` 400000 and `busHzSlots` "1,2,3,4,7".
+- **Tests:**
+  - `test_device_type_settings` (22 checks);
+  - `test_catalogue_index`: type scan priority (high, low and none for an extended record, none for a base record; the
+    record itself unchanged; errors);
+  - generator and type file loader warnings for record bus speed;
+  - all host tests pass.
+- **Hardware:**
+  - **Axiom:** the LSM6DS gets the type settings when it is identified (boot log). `devconfig` reports 400 kHz on
+    slots 1, 2, 3, 4 and 7, as before. The bus time per poll is 3874 us against 3731 us before; at 100 kHz it would
+    be about four times longer.
+  - **FeatherS3** (scratch copy with `typeSettings` for MPU6050 and APDS9960):
+    - the type settings applied (20 ms interval, 3 samples);
+    - a device interval set over REST took precedence and was kept through re-identification;
+    - `save=1` saved only the device's interval;
+    - after a restart: the saved device interval (40 ms) with the type's 3 samples; with the file removed, the
+      type's 20 ms.
 

@@ -262,6 +262,12 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # rejected - an error means the firmware won't use that detection string, or drops that step)
         report_grammar_issues(dev_type, dev_type["deviceType"], decodeGenerator)
 
+        # The poll bus speed is a choice for the board (DevMan "typeSettings"), no longer part of a record
+        for bus_key in ("busHz", "h", "busHzSlots", "hSlots"):
+            if bus_key in dev_type.get("pollInfo", {}):
+                print(f"WARNING: record \"{dev_type['deviceType']}\" pollInfo.{bus_key} is no longer used - set the "
+                      f"poll bus speed in the SysType's DevMan typeSettings")
+
         # Decode code is compiled into the firmware: report anything outside the decode language (a record from a git
         # source with such code is rejected when the records are assembled - AssembleDeviceTypes.py)
         custom_decode = dev_type.get("devInfoJson", {}).get("resp", {}).get("c")

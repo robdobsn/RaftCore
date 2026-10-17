@@ -403,6 +403,13 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         return;
     }
 
+    // The poll bus speed is a choice for the board (DevMan "typeSettings"), no longer part of a record
+    for (const char* pBusKey : {"busHz", "h", "busHzSlots", "hSlots"})
+    {
+        if (rec.contains((String("pollInfo/") + pBusKey).c_str()))
+            warn(result, key, String("pollInfo.") + pBusKey + " is no longer used - set the poll bus speed in DevMan typeSettings");
+    }
+
     // Data supplied by firmware code (pollInfo.ext): the device isn't polled, so without that code it has no data
     if ((rec.getLong("pollInfo/ext", 0) != 0) && !table.hasExtDataSource(key.c_str()))
         warn(result, key, "pollInfo.ext is set but no firmware code supplies this type's data, so it will have no data");

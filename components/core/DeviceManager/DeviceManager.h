@@ -15,6 +15,7 @@
 #include "DeviceFactory.h"
 #include "DeviceTypeFileLoader.h"
 #include "DeviceSettingsStore.h"
+#include "DeviceTypeSettings.h"
 #include <memory>
 #include "DeviceTypeRecords.h"
 
@@ -227,6 +228,12 @@ private:
 
     /// @brief Apply the type table settings (protected types, record policies) from the configuration
     void applyTypeTableConfig(RaftJsonIF& devManConfig);
+
+    // Settings for device types chosen by the board or product (DevMan "typeSettings"): devconfig settings applied
+    // when a device of the type is identified (under the device's own), and scan priorities
+    DeviceTypeSettings _typeSettings;
+    bool _applyingStoredSettings = false;   // devconfig applied from type or remembered settings (not remembered again)
+    void applyTypeScanPriorities(bool reportUnknown);
 
     /// @brief Create a static device and add it to the static device list
     /// @param pCreateFn create function for the device's class

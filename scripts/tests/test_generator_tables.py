@@ -128,6 +128,16 @@ class GeneratorTableTests(unittest.TestCase):
         self.assertIn("deviceTypeId 0x0084 is used by A, B - lookups by hardware type ID return A", result.stderr)
         self.assertNotIn("0x0085 is used by", result.stderr)
 
+    def test_record_bus_speed_warns(self):
+        # The poll bus speed is a choice for the board (DevMan typeSettings), no longer part of a record
+        rec = make_record()
+        rec["pollInfo"]["busHz"] = 400000
+        rec["pollInfo"]["busHzSlots"] = [1, 2]
+        result, _ = self.run_with_records({"A": rec})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('record "A" pollInfo.busHz is no longer used', result.stdout)
+        self.assertIn('record "A" pollInfo.busHzSlots is no longer used', result.stdout)
+
     def test_shadowing_warning(self):
         # A record that compares nothing is tried after records that compare something - unless its identPriority
         # is higher, or the other record also compares nothing
