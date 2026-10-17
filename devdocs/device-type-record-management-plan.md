@@ -1,7 +1,7 @@
 # Device Type Record Management: Plan
 
-Status: decisions M1-M7 and M9 agreed, M8 to be reviewed (§5). **Phases 1a and 1b done (2026-10-17)** on the RaftCore
-branch `feature/device-type-records` (see §6); phases 2-5 not started. It follows the device identification plan
+Status: decisions M1-M7 and M9 agreed, M8 to be reviewed (§5). **Phases 1a, 1b and 2 done (2026-10-17)** on the
+`feature/device-type-records` branches of RaftCore and Axiom (see §6); phases 3-5 not started. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -367,4 +367,24 @@ Stage 12 of the identification plan (record improvements) can start after phase 
   - a FeatherS3 firmware build in the Docker build container with a git source (a local bare repo): fetched, locked
     and compiled in; repeat builds don't reconfigure; a moved tag kept the locked record; a new `raftdevtypes/acme`
     was picked up.
+
+### Phase 2 (done 2026-10-17, Axiom)
+
+- **The selection:**
+  - Axiom018 selects its records in `systypes/Axiom018/DeviceTypeSources.json`: 34 RaftCore records by key, and
+    `axiom:*` (Axiom's `devtypes/`, 13 files);
+  - 29 of Axiom's copies were identical to RaftCore's apart from `deviceType` and `_notes`, and 5 differed only by
+    RaftCore's explicit `identPriority` (phase 1a), so they now come from RaftCore;
+  - `devtypes/` holds LSM6DS (Axiom's `busHz`/`busHzSlots`), VL53L5CX and the 11 RSAO records;
+  - `AxiomDevTypes/`, with its one-off split scripts, is removed.
+- **Checked:**
+  - the same 47 records, the same candidate order at every address and the same scan lists (reference index);
+  - the generated record code is identical apart from the 5 `identPriority` values, and every poll struct is the
+    same; the binary is 16 bytes smaller;
+  - on the Axiom (serial console), compared with the firmware before:
+    - `typeinfo … full=1` for all 47 records is the same, apart from the 5 `identPriority` values and `dtIdx`;
+    - `devman/types` has the same keys, sources and policies, and `listdevs` is the same;
+    - LSM6DS, VL6180 and VL53L5CX are identified, with the same candidate order.
+- **Seen on the way** (not changed): the serial console drops a response of about 8 KB (`typeinfo … full=1` for
+  RoboticalVCP and RoboticalLiquidSensor, records of 3.4-3.9 KB) without an error.
 
