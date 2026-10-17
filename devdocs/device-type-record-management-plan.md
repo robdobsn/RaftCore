@@ -1,6 +1,6 @@
 # Device Type Record Management: Plan
 
-Status: proposal, 2026-10-17; decisions M1-M5, M7 and M9 agreed, M6 still proposed, M8 to be reviewed (§5).
+Status: proposal, 2026-10-17; decisions M1-M7 and M9 agreed, M8 to be reviewed (§5).
 Nothing here is implemented yet. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
@@ -259,7 +259,7 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 | M3 | Overrides: whole record or field patches? | **Whole record** (decided 2026-10-17) |
 | M4 | Name of the selection file | **`DeviceTypeSources.json`**, for consistency with `DeviceTypeRecords.json` (decided 2026-10-17) |
 | M5 | Record order | **`identPriority`, strength, then key; position never matters** (decided 2026-10-17) |
-| M6 | Same key from two non-local sources | Proposed: an error unless `include` names the source |
+| M6 | Same key from two non-local sources | **An error unless `include` names the source** (decided 2026-10-17) |
 | M7 | Check on the device before applying? | **Yes, `devman/typefile/check`** (additive endpoint) (decided 2026-10-17) |
 | M8 | Schedule D11 (on-device decoder from the attribute list)? | Kept in the plan (phase 5); **reviewed before any work starts** (2026-10-17). Needed for the all-runtime setup |
 | M9 | A combined catalogue file for consumers that read one | **Built by CI and published as a release asset; RaftCore's own tests use the assembled file** (decided 2026-10-17) |
