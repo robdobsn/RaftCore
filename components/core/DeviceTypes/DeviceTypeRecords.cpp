@@ -684,6 +684,17 @@ bool DeviceTypeRecords::hasExtDataSource(const char* deviceTypeKey) const
     return present;
 }
 
+/// @brief The device types whose data firmware code supplies
+std::vector<String> DeviceTypeRecords::getExtDataSources() const
+{
+    std::vector<String> keys;
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return keys;
+    keys = _extDataSources;
+    RaftMutex_unlock(_extRecordsMutex);
+    return keys;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Mark a record source as having supplied its records
 void DeviceTypeRecords::markRecordSourceReady(uint32_t sourceId)
@@ -1099,6 +1110,18 @@ bool DeviceTypeRecords::isProtected(const char* deviceTypeKey) const
     bool isProt = isProtectedLocked(deviceTypeKey);
     RaftMutex_unlock(_extRecordsMutex);
     return isProt;
+}
+
+/// @brief The protected device type keys
+std::vector<String> DeviceTypeRecords::getProtectedKeys() const
+{
+    std::vector<String> keys;
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return keys;
+    for (const std::string& key : _protectedKeys)
+        keys.push_back(String(key.c_str()));
+    RaftMutex_unlock(_extRecordsMutex);
+    return keys;
 }
 
 /// @brief Check whether a key is protected. Assumes the mutex is held

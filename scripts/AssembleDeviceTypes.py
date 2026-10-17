@@ -40,6 +40,12 @@ Usage:
                            [--cache-dir <dir>] [--lock <file>] [--override-dir <dir>] [--update]
     AssembleDeviceTypes.py --raftcore <dir> --all --out <catalogue.json>     (every RaftCore record, one file)
     AssembleDeviceTypes.py --split <catalogue.json> --out-dir <records dir>   (one file per record, as written)
+    AssembleDeviceTypes.py --raftcore <dir> --select <file>[,<file>] --typefile --out <devlib.json>
+                           [--compiled <catalogue.json>] [--max-bytes <n>] [--report <report.json>]
+        A device type file for the device's file system from the typeFile selection: minified, without _notes; each
+        record is new, an override of a compiled record or unchanged (left out); typeFile policies for compiled types
+        become {"disable": ...} entries. Records with no on-device decoder are listed. The compiled records are the
+        builtin selection of the same files unless --compiled gives them
 
 --list-inputs prints the files and folders read, one per line ("file:<path>" or "dir:<path>"), for the build's
 dependencies.
@@ -401,6 +407,7 @@ class Assembly:
         self.commits = OrderedDict()     # source name -> commit (git sources)
         self.lock = None
         self.lock_text = None            # the lock file's new content, if it changed
+        self.policy_only = OrderedDict() # typeFile: policies for types not in the file (key -> policy name)
         self.messages = []
         self.inputs = []                 # files and folders read
         self.fs_image = False
@@ -507,6 +514,10 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
     # Policies
     for key, policy in chosen["policy"].items():
         if key not in result.records:
+            # In a type file, a policy for a type that isn't in the file applies to a compiled record
+            if section == "typeFile":
+                result.policy_only[key] = policy
+                continue
             raise AssembleError(f"{section}.policy \"{key}\": not a selected record")
         value = POLICY_VALUES[policy]
         if value is None:
@@ -556,6 +567,70 @@ def write_if_changed(path, text):
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
     return True
+
+
+################################################################################################################
+# Runtime type files (devlib.json)
+################################################################################################################
+
+TYPE_FILE_MAX_BYTES_DEFAULT = 65536
+
+
+def _without_notes(record):
+    record = json.loads(json.dumps(record), object_pairs_hook=OrderedDict)
+    record.pop("_notes", None)
+    return record
+
+
+def _comparable(record):
+    record = _without_notes(record)
+    record.pop("deviceType", None)
+    return json.dumps(record, sort_keys=True)
+
+
+def _response_layout(record):
+    """The response layout as the firmware compares it (DeviceTypeRecords::sameResponseLayout): resp as compact JSON"""
+    resp = record.get("devInfoJson", {}).get("resp")
+    return None if resp is None else json.dumps(resp, separators=(",", ":"))
+
+
+def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
+    """A device type file from an assembled typeFile selection
+    result: the Assembly of the typeFile section; compiled: the records compiled into the firmware (key -> record)
+    Returns (file text, entries) - entries: [{key, kind: new | override | unchanged | policy, noDecoder}]. Unchanged
+    records (identical to the compiled one) are left out of the file"""
+    entries = []
+    dev_types = OrderedDict()
+    for key, record in result.records.items():
+        compiled_record = compiled.get(key)
+        has_data = record.get("devInfoJson", {}).get("resp", {}).get("b", 0) > 0
+        if compiled_record is not None and _comparable(record) == _comparable(compiled_record):
+            entries.append(OrderedDict([("key", key), ("kind", "unchanged")]))
+            continue
+        if compiled_record is not None:
+            no_decoder = has_data and _response_layout(record) != _response_layout(compiled_record)
+            kind = "override"
+        else:
+            no_decoder = has_data
+            kind = "new"
+        entry = OrderedDict([("key", key), ("kind", kind)])
+        if no_decoder:
+            entry["noDecoder"] = True
+        entries.append(entry)
+        dev_types[key] = _without_notes(record)
+    for key, policy in result.policy_only.items():
+        if key not in compiled:
+            raise AssembleError(f"typeFile.policy \"{key}\": not a selected record or a compiled one")
+        value = POLICY_VALUES[policy]
+        if value is None:
+            raise AssembleError(f"typeFile.policy \"{key}\": a type file can't enable a compiled type (only disable it)")
+        dev_types[key] = OrderedDict([("disable", value)])
+        entries.append(OrderedDict([("key", key), ("kind", "policy"), ("policy", policy)]))
+    text = json.dumps({"devTypes": OrderedDict((k, dev_types[k]) for k in sorted(dev_types, key=lambda k: k.encode("utf-8")))},
+                      separators=(",", ":"))
+    if len(text) > max_bytes:
+        raise AssembleError(f"the type file is {len(text)} bytes, more than the {max_bytes} byte limit")
+    return text, entries
 
 
 ################################################################################################################
@@ -618,6 +693,12 @@ def main(argv=None):
     parser.add_argument("--lock", help="lock file (written when a git source's commit changes)")
     parser.add_argument("--override-dir", help="folder of local copies that replace git sources (by source name)")
     parser.add_argument("--update", action="store_true", help="resolve git refs again and update the lock file")
+    parser.add_argument("--typefile", action="store_true",
+                        help="build a device type file (devlib.json) from the typeFile selection into --out")
+    parser.add_argument("--compiled", help="the records compiled into the firmware, as a catalogue file (default: the "
+                        "builtin selection of the same DeviceTypeSources.json)")
+    parser.add_argument("--max-bytes", type=int, default=TYPE_FILE_MAX_BYTES_DEFAULT, help="type file size limit")
+    parser.add_argument("--report", help="write what the type file does with each record, as JSON")
     parser.add_argument("--split", help="catalogue file to split into one file per record")
     parser.add_argument("--out-dir", help="folder for --split")
     args = parser.parse_args(argv)
@@ -642,6 +723,33 @@ def main(argv=None):
             raise AssembleError("--select (or --all) is needed")
         paths = [p for p in args.select.split(",") if p.strip()]
         git_options = GitOptions(args.cache_dir, args.lock, args.override_dir, args.update)
+        if args.typefile:
+            result = assemble(paths, args.raftcore, "typeFile", git_options)
+            if args.compiled:
+                compiled, _ = load_catalogue(args.compiled, record_file=False)
+            else:
+                compiled = assemble(paths, args.raftcore, "builtin", git_options).records
+            text, entries = build_type_file(result, compiled, args.max_bytes)
+            for message in result.messages:
+                print(f"DeviceTypeSources: {message}", file=sys.stderr)
+            write_if_changed(args.out, text)
+            if result.lock_text is not None:
+                write_if_changed(args.lock, result.lock_text)
+            counts = OrderedDict((kind, sum(1 for e in entries if e["kind"] == kind))
+                                 for kind in ("new", "override", "unchanged", "policy"))
+            no_decoder = [e["key"] for e in entries if e.get("noDecoder")]
+            print(f"Type file {args.out}: {len(text)} bytes (limit {args.max_bytes}); " +
+                  ", ".join(f"{n} {kind}" for kind, n in counts.items()) +
+                  (" (unchanged records are left out)" if counts["unchanged"] else ""))
+            for entry in entries:
+                print(f"  {entry['key']:28} {entry['kind']}{' - no on-device decoder' if entry.get('noDecoder') else ''}")
+            if no_decoder:
+                print("No on-device decoder (DataLogger, RaftROS and named values won't decode them; raftjs and the WebUI "
+                      "will): " + ", ".join(no_decoder))
+            if args.report:
+                write_if_changed(args.report, json.dumps(OrderedDict([("file", os.path.abspath(args.out)),
+                                 ("bytes", len(text)), ("maxBytes", args.max_bytes), ("entries", entries)]), indent=1) + "\n")
+            return 0
         result = assemble(paths, args.raftcore, args.section, git_options)
         for message in result.messages:
             print(f"DeviceTypeSources: {message}", file=sys.stderr)

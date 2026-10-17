@@ -483,6 +483,14 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
     }
     if (initialPolicy != DeviceTypeRecord::POLICY_ENABLED)
         result.disabled++;
+    RecordOutcome* pOutcome = outcomeFor(result, key);
+    if (pOutcome)
+    {
+        pOutcome->outcome = (addResult == DeviceTypeRecords::AddResult::Added) ? Outcome::Added :
+                    (addResult == DeviceTypeRecords::AddResult::Replaced) ? Outcome::Replaced : Outcome::Unchanged;
+        const DeviceTypeRecord* pAdded = table.getRecord(deviceTypeIndex);
+        pOutcome->noDecoder = pAdded && (pAdded->pollDataSizeBytes > 0) && !pAdded->pollResultDecodeFn;
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -491,7 +499,12 @@ void DeviceTypeFileLoader::applyPolicy(DeviceTypeRecords& table, const String& k
 {
     DeviceTypeRecords::PolicyResult policyResult = table.setPolicy(key.c_str(), policy);
     if (policyResult == DeviceTypeRecords::PolicyResult::Set)
+    {
         result.disabled++;
+        RecordOutcome* pOutcome = outcomeFor(result, key);
+        if (pOutcome)
+            pOutcome->outcome = Outcome::Disabled;
+    }
     else if (policyResult == DeviceTypeRecords::PolicyResult::NotFound)
         reject(result, key, "unknown key (no record to disable)");
     else
@@ -506,6 +519,12 @@ void DeviceTypeFileLoader::reject(Result& result, const String& key, const Strin
     String msg = key.length() > 0 ? key + ": " + why : why;
     if (result.firstError.length() == 0)
         result.firstError = msg;
+    RecordOutcome* pOutcome = key.length() > 0 ? outcomeFor(result, key) : nullptr;
+    if (pOutcome)
+    {
+        pOutcome->outcome = Outcome::Rejected;
+        pOutcome->error = why;
+    }
     LOG_W(MODULE_PREFIX, "rejected %s", msg.c_str());
 }
 
@@ -517,6 +536,13 @@ void DeviceTypeFileLoader::warn(Result& result, const String& key, const String&
     String msg = key + ": " + why;
     if (result.firstWarning.length() == 0)
         result.firstWarning = msg;
+    RecordOutcome* pOutcome = outcomeFor(result, key);
+    if (pOutcome)
+    {
+        if (pOutcome->warnings.length() > 0)
+            pOutcome->warnings += "; ";
+        pOutcome->warnings += why;
+    }
     LOG_W(MODULE_PREFIX, "warning %s", msg.c_str());
 }
 
@@ -752,5 +778,74 @@ String DeviceTypeFileLoader::setPolicyInFile(const char* pFileJson, const char* 
     out += "}";
     changed = true;
     return out;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief The outcome of an entry (added when first needed), if outcomes are kept
+DeviceTypeFileLoader::RecordOutcome* DeviceTypeFileLoader::outcomeFor(Result& result, const String& key)
+{
+    if (!result.keepRecordOutcomes)
+        return nullptr;
+    for (RecordOutcome& outcome : result.records)
+        if (outcome.key == key)
+            return &outcome;
+    RecordOutcome outcome;
+    outcome.key = key;
+    result.records.push_back(outcome);
+    return &result.records.back();
+}
+
+const char* DeviceTypeFileLoader::getOutcomeStr(Outcome outcome)
+{
+    switch (outcome)
+    {
+        case Outcome::Added: return "added";
+        case Outcome::Replaced: return "replaced";
+        case Outcome::Unchanged: return "unchanged";
+        case Outcome::Disabled: return "disabled";
+        case Outcome::Rejected: return "rejected";
+    }
+    return "rejected";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check a device type file: what applying it would do at the next startup, without changing anything
+void DeviceTypeFileLoader::checkJson(const DeviceTypeRecords& live, const std::vector<String>& liveFileKeys,
+            const char* pJson, const Limits& limits, Result& result)
+{
+    // A table as the device's is before its type file is loaded: the compiled records (a new table has them),
+    // records registered by code, protected types, ext data sources and the same limits
+    DeviceTypeRecords scratch;
+    DeviceTypeRecords::ExtendedRecordStats stats = live.getExtendedRecordStats();
+    scratch.setExtendedRecordLimits(stats.maxRecords, stats.maxBytes);
+    for (const String& key : live.getProtectedKeys())
+        scratch.setProtected(key.c_str());
+    for (const String& key : live.getExtDataSources())
+        scratch.registerExtDataSource(key.c_str());
+    uint32_t numBase = DeviceTypeRecords::getNumBaseRecords();
+    for (uint32_t pos = 0; pos < stats.count; pos++)
+    {
+        const DeviceTypeRecord* pRec = live.getRecord(numBase + pos);
+        if (!pRec || !pRec->deviceType)
+            continue;
+        bool fromFile = false;
+        for (const String& fileKey : liveFileKeys)
+            fromFile = fromFile || (fileKey == pRec->deviceType);
+        if (fromFile)
+            continue;
+        DeviceTypeRecordDynamic dyn(pRec->deviceType, pRec->addresses, pRec->detectionValues, pRec->initValues,
+                    pRec->pollInfo, pRec->pollDataSizeBytes, pRec->devInfoJson, pRec->pollResultDecodeFn);
+        dyn.scanPriority = pRec->scanPriority;
+        dyn.flags = pRec->flags;
+        dyn.identPriority = pRec->identPriority;
+        dyn.hwTypeId = pRec->hwTypeId;
+        dyn.initialPolicy = pRec->initialPolicy;
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        scratch.addRecord(dyn, idx);
+    }
+
+    // Apply the file to it
+    result.keepRecordOutcomes = true;
+    applyJson(scratch, pJson, limits, result);
 }
 

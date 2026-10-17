@@ -25,6 +25,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <vector>
 #include "RaftArduino.h"
 
 class DeviceTypeRecords;
@@ -42,6 +43,26 @@ public:
         uint32_t maxRecordRingBytes = 65536;    // poll result size (with timestamp) x samples
     };
 
+    // What happened to one entry of a file
+    enum class Outcome : uint8_t
+    {
+        Added,          // added with a new index
+        Replaced,       // replaced a compiled record (keeping its index)
+        Unchanged,      // identical to a record already present
+        Disabled,       // a policy entry for a type that is present (or set its policy)
+        Rejected,       // not applied (error says why)
+    };
+    struct RecordOutcome
+    {
+        String key;
+        Outcome outcome = Outcome::Rejected;
+        String error;               // why it was rejected
+        String warnings;            // problems that don't stop it being used ("; " between them)
+        bool noDecoder = false;     // a record with data but no on-device decoder (DataLogger, RaftROS and named
+                                    // values don't decode it; clients that decode, such as raftjs, do)
+    };
+    static const char* getOutcomeStr(Outcome outcome);
+
     // What was done with a file
     struct Result
     {
@@ -54,6 +75,8 @@ public:
         String firstError;          // "<key>: <why>" for the first entry rejected (or why the file was)
         String firstWarning;
         bool fileValid = false;     // the file had a "devTypes" object
+        bool keepRecordOutcomes = false;        // set to fill records
+        std::vector<RecordOutcome> records;     // what happened to each entry, in file order
 
         bool anyApplied() const
         {
@@ -67,6 +90,19 @@ public:
     /// @param limits limits for the file's records
     /// @param result (out) what was done
     static void applyJson(DeviceTypeRecords& table, const char* pJson, const Limits& limits, Result& result);
+
+    /// @brief Check a device type file: what applying it would do at the next startup, without changing anything.
+    ///        The file is applied to a scratch table holding what the device's table holds before its type file is
+    ///        loaded - the compiled records, records registered by code, protected types, the data sources of ext
+    ///        records and the same limits
+    /// @param live the device's device type records
+    /// @param liveFileKeys keys of the records the device's current type file added or replaced (left out of the
+    ///        scratch table, as the file being checked replaces it)
+    /// @param pJson file contents (null-terminated)
+    /// @param limits limits for the file's records
+    /// @param result (out) what applying the file would do (keepRecordOutcomes is set, so records is filled)
+    static void checkJson(const DeviceTypeRecords& live, const std::vector<String>& liveFileKeys, const char* pJson,
+                const Limits& limits, Result& result);
 
     /// @brief CRC16-CCITT of the file contents (the algorithm of the filehash endpoint, so the two can be compared)
     static uint16_t crc16(const uint8_t* pData, uint32_t len);
@@ -103,5 +139,6 @@ private:
     static void applyPolicy(DeviceTypeRecords& table, const String& key, uint8_t policy, Result& result);
     static void reject(Result& result, const String& key, const String& why);
     static void warn(Result& result, const String& key, const String& why);
+    static RecordOutcome* outcomeFor(Result& result, const String& key);
     static constexpr const char* MODULE_PREFIX = "DevTypeFile";
 };

@@ -277,6 +277,7 @@ public:
     /// @brief Protect a device type key: it can't be disabled, overridden or replaced (a system device expects it)
     void setProtected(const char* deviceTypeKey);
     bool isProtected(const char* deviceTypeKey) const;
+    std::vector<String> getProtectedKeys() const;
 
     /// @brief Where a record comes from
     enum class RecordSource
@@ -325,6 +326,9 @@ public:
 
     /// @brief Check whether firmware code supplies the data for a device type (registerExtDataSource)
     bool hasExtDataSource(const char* deviceTypeKey) const;
+
+    /// @brief The device types whose data firmware code supplies
+    std::vector<String> getExtDataSources() const;
 
     /// @brief Check whether the identification hook must not be run at an address (a record there has the policy
     ///        DISABLED_CLAIM)

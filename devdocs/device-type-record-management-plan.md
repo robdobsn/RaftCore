@@ -1,7 +1,7 @@
 # Device Type Record Management: Plan
 
-Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b, 2 and 2b done (2026-10-17)** on the
-`feature/device-type-records` branches of RaftCore and Axiom (see §6); phases 3-5 not started. It follows the device identification plan
+Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b, 2, 2b and 3 done (2026-10-17)** on the
+`feature/device-type-records` branches of RaftCore, Axiom and raftjs (see §6); phases 4-5 not started. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -481,4 +481,48 @@ Stage 12 of the identification plan (record improvements) can start after phase 
     - `save=1` saved only the device's interval;
     - after a restart: the saved device interval (40 ms) with the type's 3 samples; with the file removed, the
       type's 20 ms.
+
+### Phase 3: runtime type files (done 2026-10-17)
+
+- **The loader** (`DeviceTypeFileLoader`, host-tested):
+  - `Result.records`, filled when `keepRecordOutcomes` is set: per entry, `key`, outcome (added, replaced,
+    unchanged, disabled, rejected), `error`, `warnings`, and `noDecoder` (a record with data but no on-device
+    decoder);
+  - `checkJson()` applies a file to a scratch `DeviceTypeRecords`: the compiled records, the device's records
+    registered by code (not those from its current type file), protected types, ext data sources and the same
+    limits - what a restart gives - and leaves the device's table unchanged;
+  - new accessors `getProtectedKeys()` and `getExtDataSources()`.
+- **Endpoints:**
+  - `devman/typefile/check?file=<path>` (default: the type file): file, bytes, CRC, `valid`, counts, first error and
+    warning, `entries`;
+  - `devman/typefile/apply?file=<path>`: checks first; if nothing is rejected, the file is moved to the type file's
+    path and the device restarts, otherwise `failCheck` with the check's fields and nothing changes;
+  - `devman/typefile?entries=1`: the startup outcomes, which are kept from the load. The startup load also records
+    the keys the file added or replaced, which a check leaves out of its scratch table;
+  - a query after `devman/typefile` is no longer taken as an action.
+- **Type file build** (`AssembleDeviceTypes.py --typefile`, host-tested):
+  - from the `typeFile` selection, against the compiled records (the `builtin` selection, or `--compiled
+    <catalogue>`);
+  - each record is new, override or unchanged (left out); policies for compiled types become `{"disable": ...}`
+    entries (a type file can't enable a compiled type);
+  - `noDecoder` uses the firmware's rule (the compact `resp` JSON differs, or the record is new);
+  - minified, without `_notes`, within `--max-bytes` (64 KB); `--report` writes JSON.
+- **raftjs:**
+  - `getTypeFileStatus(entries)`, `checkTypeFile(file?)` and `applyTypeFile(file?)`, with the types
+    `DevManTypeFileEntry` and `DevManTypeFileCheck`;
+  - 210 tests pass.
+- **Tests:** `test_device_type_file` `testCheckJson` (17 checks: the device's table unchanged; the current file's
+  record added again; an override keeps its decoder with the same layout and has none with a new one; conflict
+  with a code record; protected; policy entry; unknown policy; ext data source), and 4 type file build tests. All
+  host tests pass.
+- **FeatherS3:**
+  - a file with a bad record: check reported it per entry, and apply refused it (the staged file was left as it
+    was);
+  - a good file: check, then apply from `/local/devlib.new.json`, then restart. The status after the restart had the
+    same CRC and the same outcome for each entry as the check, and ROS still published both devices (the MPU6050
+    override kept its decoder);
+  - a type file built by `AssembleDeviceTypes.py --typefile` for the FeatherS3's compiled records: the device's
+    check agreed with the script for every entry (new with no decoder, override, policy), and the unchanged record
+    was left out;
+  - the board was left with no type file.
 

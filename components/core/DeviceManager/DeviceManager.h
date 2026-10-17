@@ -447,6 +447,9 @@ private:
     uint16_t _typeFileCrc16 = 0;
     uint32_t _typeFileRecordsAvailable = 0;         // extended records free before the file was loaded
     bool _typeFileChanged = false;                  // changed since it was loaded (markTypeFileChanged)
+    std::vector<String> _typeFileKeys;              // records the type file added or replaced at startup
+    bool checkTypeFile(const String& path, DeviceTypeFileLoader::Result& result, String& json, String& fileError);
+    static String typeFileEntriesJson(const DeviceTypeFileLoader::Result& result);
 
     /// @brief Check whether the device type file differs from the one loaded at startup (so a restart is needed to
     ///        apply it)

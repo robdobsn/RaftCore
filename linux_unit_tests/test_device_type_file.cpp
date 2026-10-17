@@ -252,6 +252,91 @@ static void testRecordBusSpeedWarning()
     TEST_ASSERT(result.firstWarning.startsWith("BusSpeed: pollInfo.busHz is no longer used"), result.firstWarning.c_str());
 }
 
+// Checking a file (devman/typefile/check): what it would do at the next startup, against a table as the device's is
+// before its type file is loaded - without changing the device's table
+static const DeviceTypeFileLoader::RecordOutcome* findOutcome(const DeviceTypeFileLoader::Result& result, const char* key)
+{
+    for (const auto& outcome : result.records)
+        if (outcome.key == key)
+            return &outcome;
+    return nullptr;
+}
+
+static void testCheckJson()
+{
+    printf("Running testCheckJson...\n");
+    // The device's table: a record registered by code, a protected type, an ext data source, and its current type
+    // file (a new record and an override of a compiled one)
+    DeviceTypeRecords live;
+    DeviceTypeRecordDynamic code("CodeRec", "0x52", "0x00=0x12", "", R"({"c":"0x01=r2","i":100,"s":1})", 2,
+                R"({"name":"Code","resp":{"b":2,"a":[{"n":"v","t":">H"}]}})", nullptr);
+    DeviceTypeIndexType idx;
+    TEST_ASSERT(live.addRecord(code, idx) == DeviceTypeRecords::AddResult::Added, "code record");
+    live.setProtected("LSM6DS");
+    live.registerExtDataSource("ExtA");
+    TEST_ASSERT(live.getRecord("MCP9808", idx) != nullptr, "MCP9808 compiled");
+    String mcp = DeviceTypeFileLoader::recordToFileEntry(*live.getRecord(idx), DeviceTypeRecord::POLICY_ENABLED);
+    String mcpOverride = mcp;
+    mcpOverride.replace("\"initValues\":\"0x010000\"", "\"initValues\":\"0x010100\"");
+    TEST_ASSERT(mcpOverride != mcp, "override differs");
+    std::string current = std::string(R"({"devTypes":{"Alpha":{)") + GOOD_FIELDS + "}," + mcpOverride.c_str() + "}}";
+    DeviceTypeFileLoader::Result loaded;
+    loaded.keepRecordOutcomes = true;
+    DeviceTypeFileLoader::applyJson(live, current.c_str(), DeviceTypeFileLoader::Limits(), loaded);
+    TEST_ASSERT((loaded.added == 1) && (loaded.replaced == 1) && (loaded.records.size() == 2), "current file applied");
+    std::vector<String> fileKeys;
+    for (const auto& outcome : loaded.records)
+        fileKeys.push_back(outcome.key);
+    DeviceTypeRecords::ExtendedRecordStats statsBefore = live.getExtendedRecordStats();
+    uint32_t generationBefore = live.getGeneration();
+
+    // The file to check
+    std::string checked = std::string(R"({"devTypes":{)") +
+                R"("Alpha":{)" + GOOD_FIELDS + "}," +
+                mcpOverride.c_str() + "," +
+                R"("CodeRec":{"addresses":"0x52","detectionValues":"0x00=0x13","pollInfo":{"c":"0x01=r2","i":100,"s":1},"devInfoJson":{"name":"Other","resp":{"b":2,"a":[{"n":"v","t":">H"}]}}},)" +
+                R"("LSM6DS":{"disable":true},)" +
+                R"("TrillRing":{"disable":true},)" +
+                R"("ExtA":{"addresses":"0x2a","detectionValues":"0x00=0x12","pollInfo":{"ext":1},"devInfoJson":{"resp":{"b":2}}},)" +
+                R"("Nope":{"disable":true})" +
+                "}}";
+    DeviceTypeFileLoader::Result result;
+    DeviceTypeFileLoader::checkJson(live, fileKeys, checked.c_str(), DeviceTypeFileLoader::Limits(), result);
+    using O = DeviceTypeFileLoader::Outcome;
+    const auto* pAlpha = findOutcome(result, "Alpha");
+    TEST_ASSERT(pAlpha && (pAlpha->outcome == O::Added) && pAlpha->noDecoder, "a record from the current file is added again (no decoder)");
+    const auto* pMcp = findOutcome(result, "MCP9808");
+    TEST_ASSERT(pMcp && (pMcp->outcome == O::Replaced) && !pMcp->noDecoder, "override of a compiled record, decoder kept (same layout)");
+    const auto* pCode = findOutcome(result, "CodeRec");
+    TEST_ASSERT(pCode && (pCode->outcome == O::Rejected) && pCode->error.startsWith("a different record"), "conflicts with a code record");
+    const auto* pLsm = findOutcome(result, "LSM6DS");
+    TEST_ASSERT(pLsm && (pLsm->outcome == O::Rejected) && pLsm->error.startsWith("protected"), "protected type");
+    const auto* pTrill = findOutcome(result, "TrillRing");
+    TEST_ASSERT(pTrill && (pTrill->outcome == O::Disabled), "policy entry");
+    const auto* pExt = findOutcome(result, "ExtA");
+    TEST_ASSERT(pExt && (pExt->outcome == O::Added) && (pExt->warnings.length() == 0), "ext record with a data source: no warning");
+    const auto* pNope = findOutcome(result, "Nope");
+    TEST_ASSERT(pNope && (pNope->outcome == O::Rejected), "policy for an unknown type");
+    TEST_ASSERT((result.added == 2) && (result.replaced == 1) && (result.disabled == 1) && (result.rejected == 3), "counts");
+    TEST_ASSERT(result.records.size() == 7, "an outcome per entry");
+
+    // A changed response layout: no decoder for the override
+    String mcpNewLayout = mcp;
+    mcpNewLayout.replace("\"n\":\"temperature\"", "\"n\":\"tempC\"");
+    TEST_ASSERT(mcpNewLayout != mcp, "layout changed");
+    DeviceTypeFileLoader::Result layout;
+    DeviceTypeFileLoader::checkJson(live, fileKeys, (std::string("{\"devTypes\":{") + mcpNewLayout.c_str() + "}}").c_str(),
+                DeviceTypeFileLoader::Limits(), layout);
+    const auto* pLayout = findOutcome(layout, "MCP9808");
+    TEST_ASSERT(pLayout && (pLayout->outcome == O::Replaced) && pLayout->noDecoder, "override with a new layout: no decoder");
+
+    // The device's table is unchanged
+    DeviceTypeRecords::ExtendedRecordStats statsAfter = live.getExtendedRecordStats();
+    TEST_ASSERT((statsAfter.count == statsBefore.count) && (statsAfter.bytesUsed == statsBefore.bytesUsed) &&
+                (live.getGeneration() == generationBefore), "live table unchanged");
+    TEST_ASSERT(live.getPolicy(live.getRecord("TrillRing", idx) ? idx : 0) == DeviceTypeRecord::POLICY_ENABLED, "live policy unchanged");
+}
+
 static void testOverridesAndPolicies()
 {
     printf("Running testOverridesAndPolicies...\n");
@@ -540,6 +625,7 @@ int main(int argc, char** argv)
     testDuplicateHwTypeId();
     testExtDataSource();
     testRecordBusSpeedWarning();
+    testCheckJson();
     testOverridesAndPolicies();
     testCatalogueRoundTrip(argv[1]);
     testRecordSources();

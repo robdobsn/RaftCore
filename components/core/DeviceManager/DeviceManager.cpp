@@ -1047,8 +1047,9 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/listdevs?role=<roleFilter> - Enumerate instantiated/detected devices (optional role filter),"
                             " devman/slot?bus=<busNameOrNum>&slot=<n>&mode=<i2c|serial-full|serial-half> - Set slot mode (omit mode to query),"
                             " devman/busstatus[?busnum=<n>&reset=1] - Per-bus diagnostics (poll-response integrity, poll timing, worker activity, identification timing; reset=1 restarts poll timing after reporting),"
-                            " devman/typefile - Device type file status (path, state, counts, first error, CRC, capacity),"
-                            " devman/typefile/apply - Restart to apply a changed device type file,"
+                            " devman/typefile[?entries=1] - Device type file status (path, state, counts, first error, CRC, capacity; entries: what happened to each entry),"
+                            " devman/typefile/apply[?file=<path>] - Restart to apply a changed device type file (file: check that file first and use it as the device type file if nothing in it is rejected),"
+                            " devman/typefile/check[?file=<path>] - What a device type file would do at the next startup (per entry), without changing anything,"
                             " devman/reident?deviceid=<deviceId>|deviceTypeKey=<key>|deviceTypeIndex=<n>|type=<typeKeyOrIndex>|all=1|unidentified=1 - Identify devices again (an identified device keeps its type until a different one is found),"
                             " devman/typepolicy?deviceTypeKey=<key>|deviceTypeIndex=<n>|type=<typeKeyOrIndex>&policy=<enabled|disabled|disabledClaim>&save=<0|1> - Set a device type's policy and identify the devices it affects again (save=1 also writes it to the type file, applied at the next restart),"
                             " devman/types?offset=<n>&count=<n> - Device type table (index, key, source, policy),"
@@ -2922,7 +2923,13 @@ void DeviceManager::loadTypeFile()
         else
         {
             _typeFileCrc16 = DeviceTypeFileLoader::crc16(pContents, strlen((const char*)pContents));
+            _typeFileResult.keepRecordOutcomes = true;
             DeviceTypeFileLoader::applyJson(deviceTypeRecords, (const char*)pContents, _typeFileLimits, _typeFileResult);
+            // The records the file added or replaced (a file being checked replaces them - devman/typefile/check)
+            for (const DeviceTypeFileLoader::RecordOutcome& outcome : _typeFileResult.records)
+                if ((outcome.outcome == DeviceTypeFileLoader::Outcome::Added) ||
+                            (outcome.outcome == DeviceTypeFileLoader::Outcome::Replaced))
+                    _typeFileKeys.push_back(outcome.key);
             _typeFileState = _typeFileResult.fileValid ? "applied" : "error";
             SpiramAwareAllocator<uint8_t> allocator;
             allocator.deallocate(pContents, 0);
@@ -2949,12 +2956,58 @@ void DeviceManager::loadTypeFile()
 /// @brief Handle devman/typefile (status) and devman/typefile/apply (restart to apply a new file)
 RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
-    // Apply: a changed file is applied by a restart (the reply is sent first)
     String action = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
+    // devman/typefile?entries=1: the query isn't an action
+    if (action.indexOf('=') >= 0)
+        action = "";
+    String stagedPath = jsonParams.getString("file", "");
+
+    // Check a file: what it would do at the next startup, without changing anything
+    if (action.equalsIgnoreCase("check"))
+    {
+        if (stagedPath.length() == 0)
+            stagedPath = _typeFilePath;
+        DeviceTypeFileLoader::Result checkResult;
+        String fileError;
+        String json;
+        if (!checkTypeFile(stagedPath, checkResult, json, fileError))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, fileError.c_str());
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
+    }
+
+    // Apply: a changed file is applied by a restart (the reply is sent first). With file=<path>, that file (e.g. one
+    // just uploaded under another name) is checked first, and becomes the device type file only if nothing in it is
+    // rejected
     if (action.equalsIgnoreCase("apply"))
     {
         if (_typeFilePath.length() == 0)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNoTypeFile");
+        if ((stagedPath.length() > 0) && (stagedPath != _typeFilePath))
+        {
+            DeviceTypeFileLoader::Result checkResult;
+            String fileError;
+            String json;
+            if (!checkTypeFile(stagedPath, checkResult, json, fileError))
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, fileError.c_str());
+            if (!checkResult.fileValid || (checkResult.rejected > 0))
+            {
+                Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failCheck");
+                // Include what the check found (the result is {"req":..,"rslt":"fail","error":..} - add the fields)
+                if (respStr.endsWith("}"))
+                    respStr = respStr.substring(0, respStr.length() - 1) + "," + json + "}";
+                return RAFT_INVALID_DATA;
+            }
+            String text;
+            bool present = false;
+            if (!readFileText(stagedPath, _typeFileLimits.maxFileBytes, text, present) || !present)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failFileRead");
+            if (!writeFileText(_typeFilePath, text))
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeFileWrite");
+            String fsName, fileName;
+            splitFsPath(stagedPath, fsName, fileName);
+            fileSystem.deleteFile(fsName, fileName);
+            LOG_I(MODULE_PREFIX, "apiDevManTypeFile apply %s as %s", stagedPath.c_str(), _typeFilePath.c_str());
+        }
         LOG_I(MODULE_PREFIX, "apiDevManTypeFile apply - restarting to load %s", _typeFilePath.c_str());
         if (getSysManager())
             getSysManager()->systemRestart();
@@ -2986,7 +3039,65 @@ RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respS
     json += ",\"maxFileBytes\":" + String((int)_typeFileLimits.maxFileBytes);
     json += ",\"identReady\":" + String(deviceTypeRecords.areRecordSourcesReady() ? "true" : "false");
     json += ",\"restartRequired\":" + String(isTypeFileRestartRequired() ? "true" : "false");
+    if (jsonParams.getBool("entries", false))
+        json += ",\"entries\":" + typeFileEntriesJson(_typeFileResult);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief What happened to each entry of a device type file, as a JSON array
+String DeviceManager::typeFileEntriesJson(const DeviceTypeFileLoader::Result& result)
+{
+    String json = "[";
+    for (const DeviceTypeFileLoader::RecordOutcome& outcome : result.records)
+    {
+        if (json.length() > 1)
+            json += ",";
+        String entry;
+        RaftJson::appendStringField(entry, "key", outcome.key.c_str());
+        RaftJson::appendStringField(entry, "outcome", DeviceTypeFileLoader::getOutcomeStr(outcome.outcome));
+        if (outcome.error.length() > 0)
+            RaftJson::appendStringField(entry, "error", outcome.error.c_str());
+        if (outcome.warnings.length() > 0)
+            RaftJson::appendStringField(entry, "warnings", outcome.warnings.c_str());
+        if (outcome.noDecoder)
+            entry += ",\"noDecoder\":true";
+        json += "{" + entry + "}";
+    }
+    return json + "]";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check a device type file (what it would do at the next startup) and describe the result as JSON fields
+/// @return false if the file can't be read (fileError says why)
+bool DeviceManager::checkTypeFile(const String& path, DeviceTypeFileLoader::Result& result, String& json, String& fileError)
+{
+    String text;
+    bool present = false;
+    if (!readFileText(path, _typeFileLimits.maxFileBytes, text, present))
+    {
+        fileError = "failFileTooBigOrUnreadable";
+        return false;
+    }
+    if (!present)
+    {
+        fileError = "failFileNotFound";
+        return false;
+    }
+    DeviceTypeFileLoader::checkJson(deviceTypeRecords, _typeFileKeys, text.c_str(), _typeFileLimits, result);
+    char crcHex[8];
+    snprintf(crcHex, sizeof(crcHex), "%04x", (unsigned)DeviceTypeFileLoader::crc16((const uint8_t*)text.c_str(), text.length()));
+    json = "";
+    RaftJson::appendStringField(json, "file", path.c_str());
+    json += ",\"bytes\":" + String((int)text.length()) + ",\"crc\":\"" + String(crcHex) + "\"";
+    json += ",\"valid\":" + String(result.fileValid && (result.rejected == 0) ? "true" : "false");
+    json += ",\"added\":" + String((int)result.added) + ",\"replaced\":" + String((int)result.replaced);
+    json += ",\"unchanged\":" + String((int)result.unchanged) + ",\"disabled\":" + String((int)result.disabled);
+    json += ",\"rejected\":" + String((int)result.rejected) + ",\"warnings\":" + String((int)result.warnings);
+    RaftJson::appendStringField(json, "firstError", result.firstError.c_str());
+    RaftJson::appendStringField(json, "firstWarning", result.firstWarning.c_str());
+    json += ",\"entries\":" + typeFileEntriesJson(result);
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

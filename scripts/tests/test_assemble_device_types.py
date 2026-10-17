@@ -232,6 +232,87 @@ class AssembleTests(unittest.TestCase):
                          '        "c": "0x00=r1",\n        "i": 100\n    },\n    "clas": ["A"]\n}\n')
         self.assertEqual(json.loads((out / "Ann.json").read_text()), {"addresses": "0x11"})
 
+    # Runtime type files
+
+    def type_file_setup(self):
+        local = {"Bravo": record(name="Bravo core", initValues="0x0102"),        # override, same response layout
+                 "Charlie": record("0x12"),                                     # identical to RaftCore's: unchanged
+                 "Echo": record("0x14", _notes="a note")}                       # new
+        echo2 = record("0x15")
+        echo2["devInfoJson"]["resp"]["a"][0]["n"] = "w"
+        local["Alpha"] = record("0x11")                                           # identical: unchanged
+        self.write_records(self.project / "devtypes", local)
+        changed_layout = record("0x12")
+        changed_layout["devInfoJson"]["resp"]["a"][0]["n"] = "other"
+        self.write_records(self.project / "layout", {"Charlie": changed_layout})
+        return self.selection({"sources": {"raftcore": {"builtin": True}, "local": {"path": "../../devtypes"},
+                                           "layout": {"path": "../../layout"}},
+                               "builtin": {"include": ["raftcore:*"]},
+                               "typeFile": {"include": ["local:Alpha", "local:Bravo", "local:Echo"],
+                                            "policy": {"Charlie": "disabledClaim"}}})
+
+    def test_type_file(self):
+        sel = self.type_file_setup()
+        result = self.assemble(sel, section="typeFile")
+        compiled = self.assemble(sel).records
+        text, entries = A.build_type_file(result, compiled)
+        kinds = {e["key"]: (e["kind"], e.get("noDecoder", False)) for e in entries}
+        self.assertEqual(kinds, {"Alpha": ("unchanged", False), "Bravo": ("override", False), "Echo": ("new", True),
+                                 "Charlie": ("policy", False)})
+        self.assertNotIn(": ", text, "minified")
+        self.assertNotIn(", ", text, "minified")
+        dev_types = json.loads(text)["devTypes"]
+        self.assertEqual(list(dev_types), ["Bravo", "Charlie", "Echo"], "unchanged left out, key order")
+        self.assertNotIn("_notes", dev_types["Echo"])
+        self.assertEqual(dev_types["Charlie"], {"disable": "claim"})
+        self.assertEqual(dev_types["Bravo"]["initValues"], "0x0102")
+
+    def test_type_file_override_with_new_layout_has_no_decoder(self):
+        sel = self.type_file_setup()
+        content = json.loads(pathlib.Path(sel).read_text())
+        content["typeFile"] = {"include": ["layout:Charlie"]}
+        pathlib.Path(sel).write_text(json.dumps(content))
+        text, entries = A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
+        self.assertEqual(entries, [{"key": "Charlie", "kind": "override", "noDecoder": True}])
+
+    def test_type_file_errors(self):
+        sel = self.type_file_setup()
+        result = self.assemble(sel, section="typeFile")
+        with self.assertRaises(A.AssembleError) as ctx:
+            A.build_type_file(result, self.assemble(sel).records, max_bytes=100)
+        self.assertIn("byte limit", str(ctx.exception))
+        content = json.loads(pathlib.Path(sel).read_text())
+        content["typeFile"]["policy"] = {"Charlie": "enabled"}
+        pathlib.Path(sel).write_text(json.dumps(content))
+        with self.assertRaises(A.AssembleError) as ctx:
+            A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
+        self.assertIn("can't enable", str(ctx.exception))
+        content["typeFile"]["policy"] = {"Zulu": "disabled"}
+        pathlib.Path(sel).write_text(json.dumps(content))
+        with self.assertRaises(A.AssembleError) as ctx:
+            A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
+        self.assertIn("not a selected record or a compiled one", str(ctx.exception))
+
+    def test_type_file_command_line(self):
+        sel = self.type_file_setup()
+        out = self.tmp / "devlib.json"
+        report = self.tmp / "report.json"
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--select", sel, "--typefile", "--out", str(out),
+                                     "--report", str(report)]), 0)
+        self.assertEqual(list(json.loads(out.read_text())["devTypes"]), ["Bravo", "Charlie", "Echo"])
+        self.assertIn("1 new, 1 override, 1 unchanged, 1 policy", stdout.getvalue())
+        self.assertIn("No on-device decoder", stdout.getvalue())
+        info = json.loads(report.read_text())
+        self.assertEqual(info["bytes"], len(out.read_text()))
+        # --compiled: the compiled records given as a catalogue file
+        compiled = self.tmp / "compiled.json"
+        compiled.write_text(json.dumps({"devTypes": {"Alpha": record("0x11")}}))
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--select", sel, "--typefile", "--out", str(out),
+                                     "--compiled", str(compiled)]), 1, "Charlie's policy needs Charlie compiled")
+
     def test_raftcore_records_assembled_generate_the_same_headers(self):
         sel = self.selection({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["raftcore:*"]}})
         result = A.assemble([sel], str(RAFTCORE_DIR), "builtin")
