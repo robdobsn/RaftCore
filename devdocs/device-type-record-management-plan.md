@@ -1,6 +1,7 @@
 # Device Type Record Management: Plan
 
-Status: proposal, 2026-10-17. Nothing here is implemented yet. It follows the device identification plan
+Status: proposal, 2026-10-17; decisions M1-M5, M7 and M9 agreed, M6 still proposed, M8 to be reviewed (§5).
+Nothing here is implemented yet. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -77,7 +78,7 @@ with `identPriority` before the split - in RaftCore's catalogue, at 0x26 and 0x2
 "must stay after ... before ..." become priorities. The device type index follows the same order (it was only ever
 valid for one build and boot).
 
-### 3.3 Selection file: `DevTypeSources.json`
+### 3.3 Selection file: `DeviceTypeSources.json`
 
 A new build-only file - not `SysTypes.json`, which is runtime configuration compiled into the firmware, and not
 `DevTypes.json`, which already means a file of records. It is found as `DevTypes.json` is: `systypes/Common/` and
@@ -118,7 +119,7 @@ own by the raft CLI (3.7).
   key from two non-local sources is an error unless `include` names the source to use, so a third-party repo can't
   silently replace a RaftCore record.
 
-**Compatibility:** with no `DevTypeSources.json`, a build behaves exactly as now (`DEV_TYPE_JSON_FILES`,
+**Compatibility:** with no `DeviceTypeSources.json`, a build behaves exactly as now (`DEV_TYPE_JSON_FILES`,
 `DevTypes.json`). Those stay valid when the file exists: they are added as a `path` source after the others, so
 their records keep the current "later file replaces" behaviour.
 
@@ -131,14 +132,14 @@ A RaftCore Python script, `scripts/AssembleDevTypes.py`, runs at configure time 
    generator's checks, duplicate hardware type IDs - N2);
 3. write one merged `build/raft/DeviceTypeRecords.json` (records sorted as in 3.2), which the existing generator
    reads unchanged;
-4. write `build/raft/DevTypeSources.manifest.json`: for each record, its source, commit and file hash.
+4. write `build/raft/DeviceTypeSources.manifest.json`: for each record, its source, commit and file hash.
 
 Every record file and the selection files are build dependencies, so adding or changing one regenerates the
 headers. The manifest can later be reported by `devman/types` (source of each record) - additive.
 
 ### 3.5 Git sources, lock file and cache
 
-- **Lock file:** `systypes/<SysType>/DevTypeSources.lock` records the commit each source resolved to and the hash of
+- **Lock file:** `systypes/<SysType>/DeviceTypeSources.lock` records the commit each source resolved to and the hash of
   every record file used. A build with a lock uses it, so a tag or branch can't change a build silently; the raft CLI
   refreshes it on request (`raft devtypes update`). It sits next to the existing `dependencies.lock`.
 - **Cache:** fetched sources go to `build/raft/devtypes/<source>@<commit>` (shallow, limited to `path`), fetched
@@ -186,7 +187,7 @@ the type file, a file pushed by a phone app over BLE. Changes still apply at res
 
 The logic lives in RaftCore Python scripts, versioned with the firmware (and reusing `DeviceTypeGrammar.py`, which
 shares test vectors with the C++ grammar); the CLI is a front end. A command works on a project (`-s SysType`), or
-on a `DevTypeSources.json` anywhere with `--config <file>` (no project, no build needed; the lock file is kept next
+on a `DeviceTypeSources.json` anywhere with `--config <file>` (no project, no build needed; the lock file is kept next
 to it).
 
 | Command | Does |
@@ -240,7 +241,7 @@ not a problem (RaftCore's whole catalogue is 36 KB as a type file, under the 64 
 |---|---|---|---|
 | **1a** | Make order explicit at RaftCore 0x26 and 0x29 (`identPriority`); split `DeviceTypeRecords.json` into `devtypes/records/`; `AssembleDevTypes.py` with `builtin` and `path` sources, the selection format (lock format designed in); keep `DEV_TYPE_JSON_FILES` and `DevTypes.json`; point RaftCore's tests and scripts at the assembled file; CI publishes the combined file as a release asset | RaftCore | Host tests of the assembler (selection, clashes, overrides, missing keys, compatibility with no selection file); the full selection gives the same identification order as today's catalogue (reference index test); every existing project builds unchanged |
 | **1b** | `git` sources, lock file, cache, `raftdevtypes/` override, manifest | RaftCore | Host tests with a local bare repo (tag, branch, commit, single file, lock honoured, offline build from cache, broken override link fails) |
-| **2** | Axiom moves to `DevTypeSources.json` + `devtypes/` (VL53L5CX, RSAO records, LSM6DS override) and deletes its fork | Axiom | Axiom018 builds; identification and records identical to today's on hardware (`devman/types`, `typeinfo full=1` per record) |
+| **2** | Axiom moves to `DeviceTypeSources.json` + `devtypes/` (VL53L5CX, RSAO records, LSM6DS override) and deletes its fork | Axiom | Axiom018 builds; identification and records identical to today's on hardware (`devman/types`, `typeinfo full=1` per record) |
 | **3** | `devman/typefile/check`; staged apply; type file build (3.6) with host tests | RaftCore, raftjs (wrappers) | Host tests; FeatherS3: stage, check, apply, verify; a bad file is reported and not applied |
 | **4** | raft CLI `devtypes` commands (3.7), HTTP then serial | RaftCLI | Against the FeatherS3 (HTTP) and Axiom (serial) |
 | **5** | Optional: `fsImage`, other runtime routes, D11 on-device decoder (prerequisite for 3.8), GUI | as needed | Per item |
@@ -254,11 +255,11 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 | # | Question | Decision |
 |---|---|---|
 | M1 | Records in RaftCore or their own repo? | **RaftCore** (`devtypes/records/`) for now; a repo later is possible without changing projects (decided 2026-10-17) |
-| M2 | Selection in its own JSON file or in `features.cmake`? | **Own JSON file**, `DevTypeSources.json`, so the CLI can edit it safely (decided 2026-10-17) |
+| M2 | Selection in its own JSON file or in `features.cmake`? | **Own JSON file**, `DeviceTypeSources.json`, so the CLI can edit it safely (decided 2026-10-17) |
 | M3 | Overrides: whole record or field patches? | **Whole record** (decided 2026-10-17) |
-| M4 | Name of the selection file | Proposed `DevTypeSources.json`; to confirm |
-| M5 | Record order | Proposed: `identPriority`, strength, then key; position never matters |
+| M4 | Name of the selection file | **`DeviceTypeSources.json`**, for consistency with `DeviceTypeRecords.json` (decided 2026-10-17) |
+| M5 | Record order | **`identPriority`, strength, then key; position never matters** (decided 2026-10-17) |
 | M6 | Same key from two non-local sources | Proposed: an error unless `include` names the source |
-| M7 | Check on the device before applying? | Proposed: yes, `devman/typefile/check` (additive endpoint) |
-| M8 | Schedule D11 (on-device decoder from the attribute list)? | Needed for the all-runtime setup; to decide |
-| M9 | A combined catalogue file for consumers that read one | Proposed: built by CI and published as a release asset; RaftCore's own tests use the assembled file |
+| M7 | Check on the device before applying? | **Yes, `devman/typefile/check`** (additive endpoint) (decided 2026-10-17) |
+| M8 | Schedule D11 (on-device decoder from the attribute list)? | Kept in the plan (phase 5); **reviewed before any work starts** (2026-10-17). Needed for the all-runtime setup |
+| M9 | A combined catalogue file for consumers that read one | **Built by CI and published as a release asset; RaftCore's own tests use the assembled file** (decided 2026-10-17) |
