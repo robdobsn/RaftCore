@@ -1943,3 +1943,27 @@ under what conditions, so it can be checked again later.
 | 2026-10-16 | LSM6DS on Axiom slot 7, polled at 20 Hz, misses about 10 polls in 100 s with gaps of 0.3-0.5 s | Axiom018 with the VL53L5CX (slot 1) running; the same before and after Stage 9 | Not investigated. Likely the VL53L5CX driver's long transfers (it switches the bus to 400 kHz) holding the bus; `busstatus` pollTiming shows it |
 | 2026-10-16 | Attribute lookup tables (`lut`) were ignored by the generated C decoders, so VL6180 and VL53L0X `valid` was inverted in DataLogger CSV, RaftROS and named values | All builds | Fixed on `feature/device-identification` (RaftCore `5982b13`), tested in `test_standard_decode`. Not yet checked with a VL6180 in a DataLogger session |
 
+## 12. DeviceManager optional in RaftCoreApp (done 2026-10-17)
+
+A minimal `RaftCoreApp` project (no SysMods, no devices) linked in all of the device code, because `RaftCoreApp`
+constructs a `DeviceManager`. Its virtual functions, and the REST handlers registered in its setup, keep everything
+reachable. This was about 35 KB on main and about 94 KB with this work. A project can now set
+`set(RAFT_DEVICE_MANAGER OFF)` in `features.cmake`. RaftCore then defines `RAFT_CORE_NO_DEVICE_MANAGER` (PUBLIC,
+because it changes `RaftCoreApp`'s layout), `RaftCoreApp` doesn't create the `DeviceManager`, and
+`getDeviceManager()` returns nullptr. The build warns if RaftI2C or RaftMotorControl is in `RAFT_COMPONENTS`.
+
+| Build (ESP32-S3) | Default | `RAFT_DEVICE_MANAGER OFF` |
+|---|---|---|
+| Minimal `RaftCoreApp` | 1,007,264 | 898,288 (-109 KB; 1.7 KB of device code left) |
+| RaftROS FeatherS3 example (RaftSysMods, RaftWebServer, RaftI2C, RaftROS) | 1,436,592 | 1,375,696 (-61 KB) |
+| Axiom018 | 1,885,552 (unchanged) | - |
+
+Every `getDeviceManager()` caller in RaftCore, RaftSysMods, RaftROS, Axiom and SandBot already checked for null.
+The FeatherS3 example with the option off was booted and checked:
+- the web server and the RaftROS node run;
+- RaftROS logs that auto-publishing is disabled;
+- `devman` is absent from `caps`, and no device topics are published;
+- the boot log has no errors.
+
+A separate RaftDevices library was considered and not done: it would save no more flash than this, and it would
+change every device project's `features.cmake`.

@@ -213,6 +213,21 @@ idf_component_register(
 
 if(NOT CMAKE_SCRIPT_MODE_FILE)
   target_compile_definitions(${COMPONENT_LIB} PRIVATE ${RAFT_CORE_COMPILE_DEFINITIONS})
+
+  # DeviceManager (devices, buses, device type records and the devman/* endpoints) is included unless the
+  # project sets RAFT_DEVICE_MANAGER OFF (e.g. set(RAFT_DEVICE_MANAGER OFF) in features.cmake). Without it the
+  # linker drops the device code (about 100 KB). The definition is PUBLIC because it changes RaftCoreApp's layout
+  if(DEFINED RAFT_DEVICE_MANAGER AND NOT RAFT_DEVICE_MANAGER)
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC RAFT_CORE_NO_DEVICE_MANAGER)
+    foreach(_raft_dev_lib RaftI2C RaftMotorControl)
+      foreach(_raft_comp ${RAFT_COMPONENTS})
+        if(_raft_comp MATCHES "^${_raft_dev_lib}([@#].*)?$")
+          message(WARNING "RAFT_DEVICE_MANAGER is OFF but ${_raft_dev_lib} is in RAFT_COMPONENTS - its devices won't be set up")
+        endif()
+      endforeach()
+    endforeach()
+    message(STATUS "RaftCore: DeviceManager not included (RAFT_DEVICE_MANAGER OFF)")
+  endif()
 endif()
 
 # Enable NetBIOS name service (NBSTAT) responses so IP scanners can discover device hostnames
