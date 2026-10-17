@@ -10,6 +10,8 @@ format is described on the wiki page *Device Type Record Format*.
   `identPriority`; position never counts.
 - **Projects** select the records they compile in with `DeviceTypeSources.json` in their SysType folders (wiki page
   *Selecting Device Types*). `/devtypes/DeviceTypeRecords.json` in `DEV_TYPE_JSON_FILES` still means every record here.
+- **Board choices** (poll bus speed and slots, poll interval, samples kept, sample rate, scan priority) are not part
+  of a record: a SysType sets them in DevMan `typeSettings` (wiki page *DeviceManager Settings*).
 - **One file:** `python3 scripts/AssembleDeviceTypes.py --raftcore . --all --out DeviceTypeRecords.json` writes every
   record as one catalogue file (it is also attached to each release).
 

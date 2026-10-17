@@ -115,7 +115,8 @@ own by the raft CLI (3.7).
   (3.6). `include` takes `source:key`, `source:*`, or a bare key when only one source has it. `policy` sets
   `enabled`, `disabled` or `disabledClaim` (D23 entries). Either selection may be empty.
 - **Overrides replace the whole record** (decided): a record with the same key in a `path` source replaces the one
-  from another source, with a build message - Axiom's LSM6DS bus speed becomes `devtypes/LSM6DS.json` in Axiom. A
+  from another source, with a build message (Axiom's LSM6DS bus speed was first done this way in phase 2; it is now a
+  type setting, 3.9, and Axiom uses RaftCore's record). A
   key from two non-local sources is an error unless `include` names the source to use, so a third-party repo can't
   silently replace a RaftCore record.
 
@@ -290,7 +291,7 @@ record - is a choice for the board or product the device is fitted to, not a pro
 |---|---|---|---|
 | **1a** | Make order explicit at RaftCore 0x26 and 0x29 (`identPriority`); split `DeviceTypeRecords.json` into `devtypes/records/`; `AssembleDevTypes.py` with `builtin` and `path` sources, the selection format (lock format designed in); keep `DEV_TYPE_JSON_FILES` and `DevTypes.json`; point RaftCore's tests and scripts at the assembled file; CI publishes the combined file as a release asset | RaftCore | Host tests of the assembler (selection, clashes, overrides, missing keys, compatibility with no selection file); the full selection gives the same identification order as today's catalogue (reference index test); every existing project builds unchanged |
 | **1b** | `git` sources, lock file, cache, `raftdevtypes/` override, manifest | RaftCore | Host tests with a local bare repo (tag, branch, commit, single file, lock honoured, offline build from cache, broken override link fails) |
-| **2** | Axiom moves to `DeviceTypeSources.json` + `devtypes/` (VL53L5CX, RSAO records, LSM6DS override) and deletes its fork | Axiom | Axiom018 builds; identification and records identical to today's on hardware (`devman/types`, `typeinfo full=1` per record) |
+| **2** | Axiom moves to `DeviceTypeSources.json` + `devtypes/` (VL53L5CX, RSAO records, and an LSM6DS override - replaced by a type setting in 2b) and deletes its fork | Axiom | Axiom018 builds; identification and records identical to today's on hardware (`devman/types`, `typeinfo full=1` per record) |
 | **2b** | `typeSettings` (3.9) in DeviceManager, the scan priority override in DeviceTypeRecords, records' `busHz`/`busHzSlots` removed (with a warning); Axiom's LSM6DS back to RaftCore's record, its bus speed in Axiom018's `typeSettings` | RaftCore, RaftI2C (if needed), Axiom | Host tests (parsing, checking and layering of type settings; scan priority override in the index); FeatherS3; on the Axiom, LSM6DS polled at 400 kHz on its slot as before (`devconfig` query, poll bus time) |
 | **3** | `devman/typefile/check`; staged apply; type file build (3.6) with host tests | RaftCore, raftjs (wrappers) | Host tests; FeatherS3: stage, check, apply, verify; a bad file is reported and not applied |
 | **4** | raft CLI `devtypes` commands (3.7), HTTP then serial | RaftCLI | Against the FeatherS3 (HTTP) and Axiom (serial) |

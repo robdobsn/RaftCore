@@ -1788,7 +1788,7 @@ as in the compiled files. A compiled record can be pasted into a library file un
 | `_notes` (per record) | Ignored | Ignored | Yes |
 | `addresses` | Parsed by the generator into the address map | Passed through. A record with neither `addresses` nor `deviceTypeId` registers but can never match; the spec calls this "the one structural mistake the device cannot report" | Yes; Stage 6 should warn about it |
 | `detectionValues`, `initValues` | Not validated (C3 is now enforced at runtime) | Not validated, except for read lengths | Stage 4 adds validation for both |
-| `pollInfo` | `c`, `i`, `s`, `ext`, `busHz`/`h`, `busHzSlots`/`hSlots`, `crc` | Same keys, passed through as JSON text | Yes |
+| `pollInfo` | `c`, `i`, `s`, `ext`, `busHz`/`h`, `busHzSlots`/`hSlots`, `crc` | Same keys, passed through as JSON text. Since 2026-10-17 `busHz`/`busHzSlots` are no longer part of a record - they are DevMan `typeSettings` (record management plan 3.9, M11); a record with them gets a warning | Yes, with that exception |
 | `pollInfo.s` | Present in every shipped record | Missing or 0 is **accepted** (0 to 256 allowed) | No: C5. Stage 1 defaults `s` to 1 and clamps it |
 | `pollInfo.i` | Present in every shipped record | Not checked (review §7.3) | D7 clamps it |
 | `devInfoJson.resp.b` | The generator checks it against the size computed from `c` | Becomes `pollDataSizeBytes`, and is checked against the runtime parser's size | Yes |
@@ -1989,6 +1989,10 @@ A separate RaftDevices library was considered and not done: it would save no mor
 change every device project's `features.cmake`.
 
 ## 13. Remaining work (as of 2026-10-17)
+
+Follow-on: device type record management - one file per record, `DeviceTypeSources.json`, git sources, type settings,
+runtime type files and the raft CLI - is planned and tracked in `device-type-record-management-plan.md`. RaftCore's
+records are now `devtypes/records/<Key>.json`, so the Stage 12 record changes below are edits to those files.
 
 Everything else in this plan is done. Still open:
 
