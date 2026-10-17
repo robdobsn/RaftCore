@@ -11,6 +11,7 @@
 #include "limits.h"
 #include "RaftUtils.h"
 #include "DevicePollingInfo.h"
+#include "PollPlan.h"
 #include "PollDataAggregatorIF.h"
 #include "DevicePollTimingStats.h"
 #include "RaftDeviceConsts.h"
@@ -29,6 +30,7 @@ public:
     {
         deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
         deviceIdentPolling.clear();
+        pPollPlan.reset();
         pollTimingStats.reset();
         if (pDataAggregator)
             pDataAggregator->clear();
@@ -50,11 +52,34 @@ public:
     /// @param timeNowUs time in us (passed in to aid testing)
     void setPollIntervalUs(uint32_t pollIntervalUs, uint64_t timeNowUs);
 
-    /// @brief Get pending ident poll info
+    /// @brief Get the poll (or the next step of a split poll) that is due, if one is
+    /// @param timeNowUs time in us (passed in to aid testing)
+    /// @param job (out) the device's poll plan (shared, not copied), the first request to send and the bus speed
+    /// @return true if a poll is due
+    bool getPendingPollJob(uint64_t timeNowUs, DevicePollJob& job);
+
+    /// @brief Get pending ident poll info - as getPendingPollJob, with a copy of the polling info (including the
+    ///        requests)
     /// @param timeNowUs time in us (passed in to aid testing)
     /// @param pollInfo (out) polling info
     /// @return true if there is a pending request
     bool getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo& pollInfo);
+
+    /// @brief Make the poll plan from the polling info (its requests move into the plan). Done when the device
+    ///        is identified; also done at the first poll after the polling info is filled in some other way
+    void buildPollPlan()
+    {
+        pPollPlan = PollPlan::takeFrom(deviceIdentPolling);
+    }
+
+    /// @brief The poll requests (from the plan, or from the polling info if it has been filled since the plan was
+    ///        made)
+    const std::vector<BusRequestInfo>& getPollReqs() const
+    {
+        if (deviceIdentPolling.pollReqs.size() > 0 || !pPollPlan)
+            return deviceIdentPolling.pollReqs;
+        return pPollPlan->pollReqs;
+    }
 
     /// @brief Store poll results
     /// @param nextReqIdx index of next request to store (0 = full poll, 1+ = partial poll)
@@ -75,7 +100,7 @@ public:
     // Get number of poll requests
     uint32_t getNumPollRequests() const
     {
-        return deviceIdentPolling.pollReqs.size();
+        return getPollReqs().size();
     }
 
     /// @brief Get number of available poll responses
@@ -149,8 +174,12 @@ public:
     // Device type index
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
-    // Device ident polling - polling related to the device type
+    // Device ident polling - polling related to the device type (its requests are moved into pPollPlan)
     DevicePollingInfo deviceIdentPolling;
+
+    // What a poll sends and how responses are checked - shared by every poll, never changed (a new plan is made
+    // if the device is identified again)
+    std::shared_ptr<const PollPlan> pPollPlan;
 
     // How closely polls keep to the configured interval (from one full poll start to the next)
     DevicePollTimingStats pollTimingStats;
@@ -162,5 +191,9 @@ public:
     uint8_t publishSeqCounter = 0;
 
     // Debug
-    static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";    
+    static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";
+
+private:
+    // Advance the poll schedule if a poll (or a step of a split poll) is due
+    bool takeDuePoll(uint64_t timeNowUs);
 };

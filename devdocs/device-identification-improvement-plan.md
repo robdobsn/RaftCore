@@ -882,9 +882,26 @@ re-parse strings (G4; this is also a prerequisite for loading untrusted files in
 
 **Not done:**
 - **The second release of D19** (reject instead of warn) - after this one has been out with the warnings.
-- **`PollPlan`:** the poll steps are compiled once, but `DevicePollingInfo` (with its vector of `BusRequestInfo`) is
-  still copied for every poll (review §5.1). Removing the copy is a RaftI2C polling change; it can be done with
-  Stage 7's changes to the bus task, and measured then.
+- ~~**`PollPlan`**~~ - **done 2026-10-17**, see below.
+
+**`PollPlan` (done 2026-10-17):** a device's poll requests and response CRC settings are moved, when it is identified,
+into a `PollPlan` (RaftCore `DeviceTypes/PollPlan.h`) shared by every poll as a `shared_ptr<const PollPlan>`. The poll
+worker takes a `DevicePollJob`: the plan, the first request to send, and the bus speed settings, which are live
+(`devconfig` can change them). A request with a dynamic read length (e.g. the LSM6DS FIFO read) is copied for the
+poll, so the shared plan is never changed. A plan held by a poll stays valid if the device is identified again. The
+existing interfaces are unchanged:
+- `DevicePollingInfo` keeps its fields;
+- `DeviceStatus::getPendingIdentPollInfo()` still returns a full copy;
+- polling info filled in some other way gets a plan at its first poll;
+- `handlePollResult()` is unchanged.
+
+Measured:
+- Host test `test_poll_plan`: getting a poll makes no heap allocations. The copy made 3 (LSM6DS) or 4 (VL53L0X).
+  Both give the same polls at the same times.
+- FeatherS3 (temporary instrumentation in `BusStatusMgr`, removed afterwards): the copy took 170-250 us per poll,
+  under the status mutex, on top of the 55-100 us of choosing the poll. That time is gone.
+- Unchanged: poll rates on the FeatherS3 (10.0 and 20.0 Hz, none missed), and the LSM6DS FIFO reads on the Axiom
+  (bus time per poll 3728 us against 3738 us before).
 
 **Changes:**
 - **Tokenizer and compiler** (§3.4), replacing `extractBufferDataFromHexStr`,
@@ -1978,7 +1995,6 @@ Everything else in this plan is done. Still open:
 |---|---|---|
 | Stage 12 | Device type record improvements: detection for the records that have none, the shadowing cases, weak detection, the ST time-of-flight records, the record fixes listed there | Each needs the device to verify on hardware; one record at a time |
 | N7 | Run the identification hook only where no address-identified record exists (unless that record is `Disabled`) | Changes behaviour at addresses with known records whose detection fails; exposure is already reduced by the hook address ranges and Axiom's own reserved addresses |
-| Stage 4 `PollPlan` | Remove the copy of `DevicePollingInfo` made on every poll | Speed only |
 | Stage 1 items 3 and 10 (N13) | Tie-break on the selected multiplexer slot and on bus speed | Left until measurements show a need; the LSM6DS missed polls in §11 may be the first sign |
 | D19 second release | The strict record grammar rejects instead of warning | After a release with the warnings has been out |
 | Axiom (optional) | Replace `RSAOTypeRegistry` with `getRecordByHwTypeId()` | Not required |

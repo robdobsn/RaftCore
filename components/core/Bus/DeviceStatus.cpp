@@ -18,7 +18,7 @@
 bool DeviceStatus::getNextPollDueUs(uint64_t timeNowUs, uint64_t& dueUs)
 {
     DevicePollingInfo& polling = deviceIdentPolling;
-    if (polling.pollReqs.size() == 0)
+    if (getPollReqs().size() == 0)
         return false;
 
     // The first poll is due one interval after the device is first checked
@@ -34,11 +34,10 @@ bool DeviceStatus::getNextPollDueUs(uint64_t timeNowUs, uint64_t& dueUs)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get pending ident poll requests 
+/// @brief Advance the poll schedule if a poll (or a step of a split poll) is due
 /// @param timeNowUs time in us (passed in to aid testing)
-/// @param pollInfo (out) polling info
-/// @return true if there is a pending request
-bool DeviceStatus::getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo& pollInfo)
+/// @return true if a poll is due
+bool DeviceStatus::takeDuePoll(uint64_t timeNowUs)
 {
     // Check if a full poll or the next step of a split poll is due
     uint64_t dueUs = 0;
@@ -50,7 +49,6 @@ bool DeviceStatus::getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo
     {
         // Start of a full poll
         uint32_t intervalUs = DevicePollingInfo::clampPollIntervalUs(polling.pollIntervalUs);
-        pollInfo._pollDataResult.clear();
         pollTimingStats.recordPollStart(timeNowUs, intervalUs);
 
         // The next poll is due one interval after this one was due, so lateness doesn't accumulate. If this
@@ -66,9 +64,43 @@ bool DeviceStatus::getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo
         // sets the due time for the step after it)
         polling.nextStepDueUs = timeNowUs + (uint64_t)polling.partialPollPauseAfterSendMs * 1000;
     }
+    return true;
+}
 
-    // Copy polling info
-    pollInfo = polling;
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the poll (or the next step of a split poll) that is due, if one is
+/// @param timeNowUs time in us (passed in to aid testing)
+/// @param job (out) the device's poll plan (shared, not copied), the first request to send and the bus speed
+/// @return true if a poll is due
+bool DeviceStatus::getPendingPollJob(uint64_t timeNowUs, DevicePollJob& job)
+{
+    if (!takeDuePoll(timeNowUs))
+        return false;
+
+    // Requests filled in since the plan was made (or with no plan yet) become the plan
+    if (!pPollPlan || (deviceIdentPolling.pollReqs.size() > 0))
+        buildPollPlan();
+    job.pPlan = pPollPlan;
+    job.nextReqIdx = deviceIdentPolling.partialPollNextReqIdx;
+    job.pollBusHz = deviceIdentPolling.pollBusHz;
+    job.pollBusHzSlotMask = deviceIdentPolling.pollBusHzSlotMask;
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get pending ident poll requests - as getPendingPollJob, with a copy of the polling info
+/// @param timeNowUs time in us (passed in to aid testing)
+/// @param pollInfo (out) polling info
+/// @return true if there is a pending request
+bool DeviceStatus::getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo& pollInfo)
+{
+    if (!takeDuePoll(timeNowUs))
+        return false;
+
+    // Copy polling info (with the requests, which may be in the plan)
+    pollInfo = deviceIdentPolling;
+    if (pollInfo.pollReqs.size() == 0 && pPollPlan)
+        pollInfo.pollReqs = pPollPlan->pollReqs;
     return true;
 }
 

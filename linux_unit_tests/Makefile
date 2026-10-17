@@ -96,6 +96,7 @@ SOURCES_test_bus_scan_schedule = test_bus_scan_schedule.cpp $(COMMON_SOURCES)
 SOURCES_test_bus_ident = test_bus_ident.cpp $(CORE)/Bus/DeviceStatus.cpp $(COMMON_SOURCES)
 SOURCES_test_device_poll_timing = test_device_poll_timing.cpp $(CORE)/Bus/DeviceStatus.cpp $(COMMON_SOURCES)
 SOURCES_test_device_poll_scheduler = test_device_poll_scheduler.cpp $(CORE)/Bus/DeviceStatus.cpp $(COMMON_SOURCES)
+SOURCES_test_poll_plan = test_poll_plan.cpp $(CORE)/Bus/DeviceStatus.cpp $(CORE)/Bus/BusRequestInfo.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(COMMON_SOURCES)
 SOURCES_test_device_type_records = test_device_type_records.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(COMMON_SOURCES)
 SOURCES_test_device_type_table = test_device_type_table.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(COMMON_SOURCES)
 SOURCES_test_device_type_grammar = test_device_type_grammar.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/Bus/BusRequestInfo.cpp $(COMMON_SOURCES)
@@ -108,7 +109,7 @@ SOURCES_test_espnow_config = test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.c
 
 # Tests run by "make check"
 TESTS = test_raft_json test_raft_utils test_device_names test_device_settings test_device_data_subscribers test_device_type_records \
-  test_device_type_table test_device_type_grammar test_device_type_policy test_device_type_file test_catalogue_index test_bus_ident test_bus_scan_schedule test_device_poll_timing test_device_poll_scheduler test_protocol_exchange test_thread_safe_queue
+  test_device_type_table test_device_type_grammar test_device_type_policy test_device_type_file test_catalogue_index test_bus_ident test_bus_scan_schedule test_device_poll_timing test_device_poll_scheduler test_poll_plan test_protocol_exchange test_thread_safe_queue
 
 # Extra device type catalogues for test_device_type_records to sweep, e.g.
 #   make check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tests/TestDevTypeRecs.json"
@@ -185,7 +186,7 @@ $(DEV_TYPE_GEN_HEADER): $(DEV_TYPE_CATALOGUE) ../scripts/ProcessDevTypeJsonToC.p
 	python3 ../scripts/ProcessDevTypeJsonToC.py $(DEV_TYPE_CATALOGUE) $(DEV_TYPE_GEN_HEADER) \
 		$(DEV_TYPE_GEN_DIR)/DevicePollRecords_generated.h > $(DEV_TYPE_GEN_DIR)/generator.log
 
-$(call objs,test_device_type_records.cpp test_device_type_table.cpp test_catalogue_index.cpp test_device_type_grammar.cpp test_device_type_policy.cpp test_device_type_file.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp): $(DEV_TYPE_GEN_HEADER)
+$(call objs,test_device_type_records.cpp test_device_type_table.cpp test_catalogue_index.cpp test_device_type_grammar.cpp test_device_type_policy.cpp test_device_type_file.cpp test_poll_plan.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp): $(DEV_TYPE_GEN_HEADER)
 
 # The address map and scan lists the generator used to derive from the catalogue (for test_catalogue_index)
 $(CATALOGUE_INDEX_EXPECTED): $(DEV_TYPE_CATALOGUE) ../scripts/tests/reference_catalogue_index.py
