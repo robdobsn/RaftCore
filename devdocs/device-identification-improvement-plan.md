@@ -1,7 +1,7 @@
 # Device Identification and Device Type Management: Staged Improvement Plan
 
-Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 10 done on the `feature/device-identification`
-branches (Stages 0-5 2026-10-15, 6-10 2026-10-16; see each stage's status).
+Status: plan agreed 2026-10-15 (decisions in §8). Stages 0 to 11 done on the `feature/device-identification`
+branches (Stages 0-5 2026-10-15, 6-10 2026-10-16, 11 2026-10-17; see each stage's status).
 
 Companion documents:
 - `device-type-management-principles.md`: the principles (P1–P15) and the canonical terms. Cited as *(P#)*.
