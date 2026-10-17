@@ -32,7 +32,7 @@ This document captures the current code shape, the design constraints, the recom
 - File: [raftdevlibs/RaftCore/components/core/RaftDevice/RaftDevice.h](raftdevlibs/RaftCore/components/core/RaftDevice/RaftDevice.h)
 - Holds `_deviceID` (a `RaftDeviceID(busNum, address)`; for static devices the bus number is `BUS_NUM_DIRECT_CONN`).
 - Holds class name, configured device type, configured device name, and a `deviceTypeIndex`.
-- Each static device can optionally produce its own dynamic `DeviceTypeRecordDynamic` via `getDeviceTypeRecord(...)` — added to `deviceTypeRecords` in `setupStaticDevices` and assigned its own `deviceTypeIndex`. So **per-static-instance type records do exist**.
+- Each static device can optionally produce its own dynamic `DeviceTypeRecordDynamic` via `getDeviceTypeRecord(...)` — added to `deviceTypeRecords` in `setupStaticDevices` and assigned its own `deviceTypeIndex`. Records are keyed by device type key, so static devices with the same `type` share one record: a second registration with the same key and different content is rejected with an error (device identification plan D17, C8), and such devices need distinct `type` values in the configuration.
 
 ### 2.3 `DeviceTypeRecord` / `DeviceTypeRecords`
 

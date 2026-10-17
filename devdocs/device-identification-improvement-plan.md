@@ -1450,6 +1450,30 @@ Also:
 
 **Depends on:** Stage 10.
 
+**Status (2026-10-17): done in RaftCore, raftjs and the wiki.**
+- **REST:**
+  - `typeinfo`, `typepolicy`, `reident` and `demo` accept `deviceTypeKey=` and `deviceTypeIndex=`
+    (`DeviceManager::getRequestedType`). If more than one is given, the index is used first, then the key,
+    then `type=`.
+  - `type=` behaves as before: a value starting with a digit is tried as an index, then as a key.
+  - The wiki REST page documents the canonical forms ("Naming a device type"). Responses are unchanged.
+  - Bench on the FeatherS3: every form, the not-found and missing errors, and the legacy `bus=&type=` lookup.
+- **raftjs** (additions only):
+  - `DeviceState.displayName`, `deviceName`, `deviceTypeKey` and `busNum` (all optional fields), plus
+    `DeviceTypeInfo.typeDisplayName` and `deviceTypeKey`.
+  - These are taken from the firmware's `displayName` and `deviceTypeKey`. Older firmware falls back to the
+    same rule, and to `devinfo.type`.
+  - `DeviceTypeInfo.name`, `DeviceState.deviceType` and `busName` keep their values and are marked
+    `@deprecated`.
+  - The stale-name problem (principles §2.3) is fixed: `setDeviceName` and `setDeviceRole` update the cached
+    data and the state at once, and `addDeviceNameChangedCallback` reports changes.
+  - Tests cover new and older firmware, devjson, and the rename.
+  - Note for WebUI and app authors: raftjs `devdocs/device-identity-fields.md`.
+  - The dashboard example uses `displayName`.
+  - A raftjs minor release (2.6) is needed. The version number has not been changed.
+- **Wiki:** the publishing page has a section on showing devices in a client. The review §6 drift table was
+  checked again; every item is already fixed on the wiki. `system-device-tagging-plan.md` is corrected for C8.
+
 ---
 
 ### Stage 12: Device type record improvements

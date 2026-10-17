@@ -1009,13 +1009,13 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
     // REST API endpoints
     endpointManager.addEndpoint("devman", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                             std::bind(&DeviceManager::apiDevMan, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                            " devman/typeinfo?type=<typeKeyOrIndex> - Get type info,"
+                            " devman/typeinfo?deviceTypeKey=<key>|deviceTypeIndex=<n>|type=<typeKeyOrIndex> - Get type info,"
                             " devman/typeinfo?deviceid=<deviceId> - Get type info for a specific device (includes name/role sidecar fields when set),"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
                             " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count>&sampleRateHz=<hz>&busHz=<hz>&busHzSlots=<csv> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
-                            " devman/demo?type=<deviceType>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device,"
+                            " devman/demo?deviceTypeKey=<key>&rate=<sampleRateMs>&duration=<durationMs>&offlineIntvS=<N>&offlineDurS=<M> - Start demo device,"
                             " devman/setname?deviceid=<deviceId>&name=<friendlyName> - Assign friendly name to a device,"
                             " devman/setrole?deviceid=<deviceId>&role=<role> - Assign role (e.g. system) to a device (in-memory),"
                             " devman/listdevs?role=<roleFilter> - Enumerate instantiated/detected devices (optional role filter),"
@@ -1023,8 +1023,8 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/busstatus[?busnum=<n>&reset=1] - Per-bus diagnostics (poll-response integrity, poll timing, worker activity, identification timing; reset=1 restarts poll timing after reporting),"
                             " devman/typefile - Device type file status (path, state, counts, first error, CRC, capacity),"
                             " devman/typefile/apply - Restart to apply a changed device type file,"
-                            " devman/reident?deviceid=<deviceId>|type=<typeKeyOrIndex>|all=1|unidentified=1 - Identify devices again (an identified device keeps its type until a different one is found),"
-                            " devman/typepolicy?type=<typeKeyOrIndex>&policy=<enabled|disabled|disabledClaim>&save=<0|1> - Set a device type's policy and identify the devices it affects again (save=1 also writes it to the type file, applied at the next restart),"
+                            " devman/reident?deviceid=<deviceId>|deviceTypeKey=<key>|deviceTypeIndex=<n>|type=<typeKeyOrIndex>|all=1|unidentified=1 - Identify devices again (an identified device keeps its type until a different one is found),"
+                            " devman/typepolicy?deviceTypeKey=<key>|deviceTypeIndex=<n>|type=<typeKeyOrIndex>&policy=<enabled|disabled|disabledClaim>&save=<0|1> - Set a device type's policy and identify the devices it affects again (save=1 also writes it to the type file, applied at the next restart),"
                             " devman/types?offset=<n>&count=<n> - Device type table (index, key, source, policy),"
                             " devman/identinfo?deviceid=<deviceId> - Identification state of a device (attempts, candidates in order),"
                             " devman/reinit?deviceid=<deviceId> - Run a device's initialisation again,"
@@ -1217,22 +1217,15 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
     }
 
-    // Original type key / type index lookup mode
-    String typeKeyOrIndex = jsonParams.getString("type", "");
-    if (typeKeyOrIndex.length() == 0)
+    // Type lookup mode (deviceTypeKey, deviceTypeIndex, or type=<key or index>)
+    DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    bool typeGiven = false;
+    getRequestedType(jsonParams, deviceTypeIndex, typeGiven);
+    if (!typeGiven)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeMissing");
-
     String devInfo;
-    DeviceTypeIndexType deviceTypeIndex = 0;
-
-    if ((typeKeyOrIndex.length() > 0) && isdigit(typeKeyOrIndex[0]))
-    {
-        deviceTypeIndex = (DeviceTypeIndexType)typeKeyOrIndex.toInt();
+    if (deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID)
         devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeIdx(deviceTypeIndex, false);
-    }
-    if (devInfo.length() == 0)
-        devInfo = deviceTypeRecords.getDevTypeInfoJsonByTypeName(typeKeyOrIndex, false, deviceTypeIndex);
-
     if ((devInfo.length() == 0) || (devInfo == "{}"))
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
 
@@ -1261,6 +1254,54 @@ void DeviceManager::appendDeviceTypeKey(String& jsonFields, DeviceTypeIndexType 
         RaftJson::appendStringField(jsonFields, "policy",
                     DeviceTypeRecord::getPolicyStr(deviceTypeRecords.getPolicy(deviceTypeIndex)));
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device type a request names: deviceTypeIndex=<n>, deviceTypeKey=<key>, or type=<key or index>
+/// @param jsonParams request parameters
+/// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not found)
+/// @param given (out) whether any of the parameters was given
+/// @return the record, or nullptr if none was given or it wasn't found
+const DeviceTypeRecord* DeviceManager::getRequestedType(const RaftJson& jsonParams, DeviceTypeIndexType& deviceTypeIndex,
+            bool& given) const
+{
+    deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    given = true;
+
+    // Canonical forms
+    String indexStr = jsonParams.getString("deviceTypeIndex", "");
+    if (indexStr.length() > 0)
+    {
+        if (!isdigit(indexStr[0]))
+            return nullptr;
+        DeviceTypeIndexType idx = (DeviceTypeIndexType)indexStr.toInt();
+        const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(idx);
+        if (pRec)
+            deviceTypeIndex = idx;
+        return pRec;
+    }
+    String keyStr = jsonParams.getString("deviceTypeKey", "");
+    if (keyStr.length() > 0)
+        return deviceTypeRecords.getRecord(keyStr.c_str(), deviceTypeIndex);
+
+    // Older form: a value starting with a digit is tried as an index, then as a key
+    String typeKeyOrIndex = jsonParams.getString("type", "");
+    if (typeKeyOrIndex.length() == 0)
+    {
+        given = false;
+        return nullptr;
+    }
+    if (isdigit(typeKeyOrIndex[0]))
+    {
+        DeviceTypeIndexType idx = (DeviceTypeIndexType)typeKeyOrIndex.toInt();
+        const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(idx);
+        if (pRec)
+        {
+            deviceTypeIndex = idx;
+            return pRec;
+        }
+    }
+    return deviceTypeRecords.getRecord(typeKeyOrIndex.c_str(), deviceTypeIndex);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1590,7 +1631,7 @@ RaftRetCode DeviceManager::apiDevManCmdJson(const String &reqStr, String &respSt
 #ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
 RaftRetCode DeviceManager::apiDevManDemo(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
-    String deviceType = jsonParams.getString("type", "");
+    String deviceType = jsonParams.getString("deviceTypeKey", jsonParams.getString("type", "").c_str());
     if (deviceType.length() == 0)
         deviceType = "ACCDEMO";
 
@@ -3011,7 +3052,9 @@ RaftRetCode DeviceManager::apiDevManReIdent(const String &reqStr, String &respSt
 {
     BusReIdentRequest request;
     BusNumType busNum = 0;
-    String typeKeyOrIndex = jsonParams.getString("type", "");
+    DeviceTypeIndexType requestedTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    bool typeGiven = false;
+    const DeviceTypeRecord* pRequestedRec = getRequestedType(jsonParams, requestedTypeIndex, typeGiven);
     if (jsonParams.getBool("all", false))
     {
         request.scope = BusReIdentScope::All;
@@ -3020,13 +3063,11 @@ RaftRetCode DeviceManager::apiDevManReIdent(const String &reqStr, String &respSt
     {
         request.scope = BusReIdentScope::Unidentified;
     }
-    else if (typeKeyOrIndex.length() > 0)
+    else if (typeGiven)
     {
         request.scope = BusReIdentScope::TypeIndex;
-        if (isdigit(typeKeyOrIndex[0]))
-            request.deviceTypeIndex = (DeviceTypeIndexType)typeKeyOrIndex.toInt();
-        if (!deviceTypeRecords.getRecord(request.deviceTypeIndex) &&
-                    !deviceTypeRecords.getRecord(typeKeyOrIndex.c_str(), request.deviceTypeIndex))
+        request.deviceTypeIndex = requestedTypeIndex;
+        if (!pRequestedRec)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
     }
     else
@@ -3051,14 +3092,10 @@ RaftRetCode DeviceManager::apiDevManReIdent(const String &reqStr, String &respSt
 /// @brief Handle devman/typepolicy (set a device type's policy at runtime, not saved)
 RaftRetCode DeviceManager::apiDevManTypePolicy(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
-    String typeKeyOrIndex = jsonParams.getString("type", "");
     String policyStr = jsonParams.getString("policy", "");
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
-    const DeviceTypeRecord* pRec = nullptr;
-    if ((typeKeyOrIndex.length() > 0) && isdigit(typeKeyOrIndex[0]))
-        pRec = deviceTypeRecords.getRecord((DeviceTypeIndexType)typeKeyOrIndex.toInt());
-    if (!pRec)
-        pRec = deviceTypeRecords.getRecord(typeKeyOrIndex.c_str(), deviceTypeIndex);
+    bool typeGiven = false;
+    const DeviceTypeRecord* pRec = getRequestedType(jsonParams, deviceTypeIndex, typeGiven);
     if (!pRec || !pRec->deviceType)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failTypeNotFound");
     uint8_t policy = DeviceTypeRecord::POLICY_ENABLED;

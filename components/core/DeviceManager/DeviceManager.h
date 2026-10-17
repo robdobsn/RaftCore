@@ -278,6 +278,14 @@ private:
     /// @param deviceTypeIndex device type index
     void appendDeviceTypeKey(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const;
 
+    /// @brief Get the device type a request names: deviceTypeIndex=<n>, deviceTypeKey=<key>, or type=<key or index>
+    ///        (the older form: a value starting with a digit is tried as an index, then as a key)
+    /// @param jsonParams request parameters
+    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not found)
+    /// @param given (out) whether any of the parameters was given
+    /// @return the record, or nullptr if none was given or it wasn't found
+    const DeviceTypeRecord* getRequestedType(const RaftJson& jsonParams, DeviceTypeIndexType& deviceTypeIndex, bool& given) const;
+
     /// @brief Handle devman/cmdraw
     RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
                 const APISourceInfo& sourceInfo);
