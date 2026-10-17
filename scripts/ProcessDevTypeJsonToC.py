@@ -6,6 +6,7 @@ import argparse
 from DecodeGenerator import DecodeGenerator
 import DeviceTypeGrammar
 import AssembleDeviceTypes
+from PseudocodeHandler import PseudocodeHandler
 from MicroPythonGenerator import MicroPythonGenerator
 
 # ProcessDevTypeJsonToC.py
@@ -260,6 +261,14 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         # Command strings: report problems found by the grammar the firmware uses (D19: reported, not yet
         # rejected - an error means the firmware won't use that detection string, or drops that step)
         report_grammar_issues(dev_type, dev_type["deviceType"], decodeGenerator)
+
+        # Decode code is compiled into the firmware: report anything outside the decode language (a record from a git
+        # source with such code is rejected when the records are assembled - AssembleDeviceTypes.py)
+        custom_decode = dev_type.get("devInfoJson", {}).get("resp", {}).get("c")
+        if isinstance(custom_decode, dict) and custom_decode.get("c"):
+            attr_names = [attr.get("n", "") for attr in dev_type["devInfoJson"]["resp"].get("a", [])]
+            for problem in PseudocodeHandler().check_code(custom_decode["c"], attr_names):
+                print(f"DECODE CODE WARNING: record \"{dev_type['deviceType']}\" resp.c: {problem}")
         if not (flags & FLAG_PROBE_ONLY):
             for addr in addr_list:
                 addr_to_record_keys.setdefault(addr, []).append(dev_type["deviceType"])

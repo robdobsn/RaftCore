@@ -154,8 +154,9 @@ class AssembleTests(unittest.TestCase):
                                                                 "builtin": {"include": ["Nope"]}}))
         self.assertError("no source called \"other\"", self.selection({"sources": {"raftcore": {"builtin": True}},
                                                                         "builtin": {"include": ["other:Alpha"]}}))
-        self.assertError("git sources are not supported yet",
+        self.assertError("need a cache folder",
                          self.selection({"sources": {"g": {"git": "https://example.com/x.git", "ref": "v1"}}}))
+        self.assertError("\"ref\"", self.selection({"sources": {"g": {"git": "https://example.com/x.git"}}}))
         self.assertError("not found", self.selection({"sources": {"p": {"path": "missing"}}}))
         self.assertError("unknown key", self.selection({"sources": {}, "builtins": {}}))
 

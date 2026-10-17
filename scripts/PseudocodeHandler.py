@@ -59,6 +59,51 @@ class PseudocodeHandler:
                 value = float(value) if '.' in value else int(value)
             yield kind, value
 
+    # Names decode code may use besides its own variables and out.<attribute>
+    ALLOWED_NAMES = {"buf", "if", "else"}
+    TYPE_NAMES = {"int8_t", "uint8_t", "int16_t", "uint16_t", "int32_t", "uint32_t"}
+
+    def check_code(self, code, attr_names):
+        """Problems in decode code (resp.c.c) that would put something other than the decode language into the
+        generated C++: characters the lexer doesn't recognise (they would be dropped), names other than buf, the
+        record's out.<attribute>s, the code's own variables and the integer type names, and function calls. The code
+        is compiled into the firmware, so this is what makes a record from another source safe to compile
+        Returns a list of problems (empty if none)"""
+        problems = []
+        tokens_re = '|'.join('(?P<%s>%s)' % pair for pair in self.token_dict)
+        pos = 0
+        tokens = []
+        for mo in re.finditer(tokens_re, code):
+            if mo.start() > pos:
+                problems.append(f"unexpected characters {code[pos:mo.start()]!r} at {pos}")
+            pos = mo.end()
+            if mo.lastgroup not in ('WHITESPACE', 'NEWLINE'):
+                tokens.append((mo.lastgroup, mo.group()))
+        if pos < len(code):
+            problems.append(f"unexpected characters {code[pos:]!r} at {pos}")
+        # The code's own variables: names declared after int, float or an integer type name
+        variables = set()
+        for i in range(len(tokens) - 1):
+            kind, value = tokens[i]
+            if (kind in ('INT', 'FLOAT') or (kind == 'ID' and value in self.TYPE_NAMES)) and tokens[i + 1][0] == 'ID':
+                variables.add(tokens[i + 1][1])
+        attrs = set(attr_names)
+        for i, (kind, value) in enumerate(tokens):
+            if kind != 'ID':
+                continue
+            if value.startswith("out."):
+                if value[4:] not in attrs:
+                    problems.append(f"out.{value[4:]} is not an attribute of the record")
+                continue
+            if "." in value:
+                problems.append(f"{value} is not allowed (only out.<attribute> has a '.')")
+                continue
+            if value not in self.ALLOWED_NAMES and value not in self.TYPE_NAMES and value not in variables:
+                problems.append(f"{value} is not declared in the code")
+            if (i + 1 < len(tokens)) and tokens[i + 1][0] == 'LPAREN' and value != "if":
+                problems.append(f"{value}(...) - function calls are not allowed")
+        return problems
+
     def rewrite_array_writes(self, tokens, array_attrs, write_fn, out_prefix="out."):
         """Replace each array element write `out.<name>[<idx>] = <val>;` with one RAW token.
 

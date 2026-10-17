@@ -354,8 +354,9 @@ foreach(FILE_PATH ${POSSIBLE_FILES})
 endforeach()
 
 # The selected records, assembled into one catalogue file (at configure time, so a selection error stops the build
-# here; a change to a selection file or a record re-runs it). It comes first, so DEV_TYPE_JSON_FILES and DevTypes.json
-# keep their precedence
+# here; a change to a selection file, a record or the lock file re-runs it). It comes first, so DEV_TYPE_JSON_FILES and
+# DevTypes.json keep their precedence. Git sources are fetched into build/<SysType>/raft/devtypes and pinned by
+# systypes/<SysType>/DeviceTypeSources.lock (commit it); raftdevtypes/<source> in the project replaces a git source
 if (NOT _raft_devtype_sources STREQUAL "")
     string(JOIN "," _raft_devtype_select_arg ${_raft_devtype_sources})
     set(_raft_devtype_assembled "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords.json")
@@ -363,6 +364,8 @@ if (NOT _raft_devtype_sources STREQUAL "")
         COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/AssembleDeviceTypes.py"
             --raftcore "${raftcore_SOURCE_DIR}" --select "${_raft_devtype_select_arg}" --section builtin
             --out "${_raft_devtype_assembled}" --manifest "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeSources.manifest.json"
+            --cache-dir "${RAFT_BUILD_ARTIFACTS_FOLDER}/devtypes" --lock "${BUILD_CONFIG_DIR}/DeviceTypeSources.lock"
+            --override-dir "${CMAKE_SOURCE_DIR}/raftdevtypes"
             --list-inputs
         RESULT_VARIABLE _raft_devtype_rslt
         OUTPUT_VARIABLE _raft_devtype_inputs
@@ -383,6 +386,8 @@ if (NOT _raft_devtype_sources STREQUAL "")
             set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_MATCH_1}")
         endif()
     endforeach()
+    # A local copy added to (or removed from) raftdevtypes/ re-runs it too
+    file(GLOB _raft_devtype_overrides LIST_DIRECTORIES true CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/raftdevtypes/*")
     list(INSERT DEV_TYPE_JSON_FILES 0 "${_raft_devtype_assembled}")
     message(STATUS "Device types selected by ${_raft_devtype_sources}")
 endif()

@@ -1,7 +1,7 @@
 # Device Type Record Management: Plan
 
-Status: decisions M1-M7 and M9 agreed, M8 to be reviewed (§5). **Phase 1a done (2026-10-17)** on the RaftCore branch
-`feature/device-type-records` (see §6); phases 1b-5 not started. It follows the device identification plan
+Status: decisions M1-M7 and M9 agreed, M8 to be reviewed (§5). **Phases 1a and 1b done (2026-10-17)** on the RaftCore
+branch `feature/device-type-records` (see §6); phases 2-5 not started. It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -321,4 +321,50 @@ Stage 12 of the identification plan (record improvements) can start after phase 
   - *Adding an I2C Device Type*, *Device Type Record Format*, *SysTypes*, *I2C Device Identification and
     Polling* and Home updated;
   - `devtypes/README.md`.
+
+### Phase 1b (done 2026-10-17)
+
+- **Git sources** (`AssembleDeviceTypes.py`):
+  - spec `{"git", "ref", "path"}`; `path` defaults to `records`; `ref` is a tag, branch or full commit hash (a short
+    hash is an error with a hint);
+  - fetch: shallow, with `--filter=blob:none` and a sparse checkout of `path` and `raftdevtypes.json`. Each step
+    falls back when the server doesn't allow it, including a plain fetch when contents can't be fetched later by
+    hash (a real problem found by the tests with protocol v0);
+  - cached by commit in `build/<SysType>/raft/devtypes/<source>-<url hash>/<commit>`.
+- **Lock** (`systypes/<SysType>/DeviceTypeSources.lock`, format 1):
+  - it records each source's `git`, `ref` and `commit`, and each git record's `source`, `commit` and `sha256`;
+  - a source whose `git` and `ref` are unchanged uses the locked commit: by hash, or (if the server refuses) by the
+    ref, which must still be the locked commit, otherwise an error says to update;
+  - `--update` resolves again; a new or changed source updates the lock with a message;
+  - a cached record that differs from the lock is an error;
+  - no lock is written for a selection without git sources.
+- **Local copy:** `raftdevtypes/<source>` replaces a git source (message); a broken link is an error.
+- **Source manifest:** `raftdevtypes.json` `formatVersion` (1) and `minRaftCore` (against RaftCore's
+  `library.json` version) are checked.
+- **Decode code** (the trust item in 3.5): `PseudocodeHandler.check_code()` allows only the decode language:
+  - `buf`, `out.<attribute>`, the code's declared variables, integer type names (also as casts);
+  - `if`/`else`/`while`/`next`/`return`, numbers and operators.
+
+  Characters the lexer would have dropped, other names and function calls are problems. A record from a git source
+  with any is rejected. For other records the generator reports `DECODE CODE WARNING`, so existing builds don't
+  break; all 10 records with decode code in RaftCore, Axiom, RSAO and the RaftI2C tests pass. To do later:
+  - make it an error everywhere, after a release with the warnings;
+  - checks the language can't express: bounds of `buf` indexes, and loops that don't end.
+- **Build:**
+  - `RaftBootstrapPhase2.cmake` passes `--cache-dir`, `--lock` and `--override-dir`;
+  - the lock file is an input, so editing it re-runs the selection;
+  - a glob on `raftdevtypes/*` re-runs it when a local copy is added or removed.
+- **Tests:**
+  - `test_assemble_git_sources.py` (10, with local bare repos): tag, branch, commit and single file; a moved tag
+    keeps the lock; refetch by hash; `--update`; offline from the cache; a server without fetch by hash (protocol
+    v0); a tampered cache; the local copy and broken link; the source manifest; decode code from git rejected;
+    RaftCore + git key clash (M6); no lock without git sources;
+  - `test_decode_code_check.py` (4);
+  - all host tests pass.
+- **Checked by hand:**
+  - from GitHub: RaftCore at `v1.58.1`, path `devtypes/DeviceTypeRecords.json`, in about 1.5 s with a 312 KB cache
+    (only `devtypes` checked out);
+  - a FeatherS3 firmware build in the Docker build container with a git source (a local bare repo): fetched, locked
+    and compiled in; repeat builds don't reconfigure; a moved tag kept the locked record; a new `raftdevtypes/acme`
+    was picked up.
 
