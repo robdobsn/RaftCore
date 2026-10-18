@@ -54,36 +54,47 @@
                 "n": "temperatureOffset",
                 "t": ">H",
                 "w": "241d",
-                "r": [0, 65535],
-                "d": 1498
+                "crc": "crc8w",
+                "mul": 374.4857,
+                "r": [0, 20],
+                "d": 4,
+                "desc": "Temperature offset in degrees C. Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
             },
             {
                 "n": "altitude",
                 "t": ">H",
                 "w": "2427",
+                "crc": "crc8w",
                 "r": [0, 3000],
-                "d": 0
+                "d": 0,
+                "desc": "Altitude in m for pressure compensation. Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
             },
             {
                 "n": "ambientPressure",
                 "t": ">H",
                 "w": "e000",
+                "crc": "crc8w",
                 "r": [700, 1200],
-                "d": 1013
+                "d": 1013,
+                "desc": "Ambient pressure in hPa (overrides the altitude); accepted during periodic measurement"
             },
             {
                 "n": "autoCalibration",
                 "t": ">H",
                 "w": "2416",
+                "crc": "crc8w",
                 "r": [0, 1],
-                "d": 1
+                "d": 1,
+                "desc": "Automatic self-calibration on (1) or off (0). Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
             },
             {
                 "n": "calibrationTarget",
                 "t": ">H",
                 "w": "243a",
+                "crc": "crc8w",
                 "r": [0, 65535],
-                "d": 400
+                "d": 400,
+                "desc": "Automatic self-calibration target in ppm. Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
             }
         ]
     }
