@@ -78,6 +78,13 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**TMP117, verified on Axiom018 (2026-10-18):**
+- ID 0x0117. CONFIGURATION is 0x0220 after init.
+- The init fix works: after putting the part in shutdown (0x0620), a reinit restored 0x0220. The old init wrote only the pointer.
+- Reading 27.4 °C.
+- Identified on hot-plug; 20 re-identifications kept the type.
+- Display range set to −55 to 150 °C. No other change.
+
 **AHT20, verified on Axiom018 (2026-10-18):**
 - **Changes:**
   - detection `=0bX00XXXXX`;
