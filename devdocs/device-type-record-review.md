@@ -83,21 +83,21 @@ Date: 2026-10-18.
   - addresses 0x76-0x77; detection ID 0x61 and variant 0x02;
   - forced mode: each poll triggers, waits 200 ms and reads the 42-byte coefficient array and the 17-byte field, every 3 s;
   - decode: Bosch BME690 SensorAPI floating-point formulas;
-  - heater fixed at 0x69 (this unit's value; `computed-init-values.md`).
+  - heater: computed per unit by `initCode` since 2026-10-18 (`computed-init-values.md`); this unit gets 0x69.
 - **Results:**
   - visible at 0x76 only since Axiom018's multiplexer range was narrowed;
   - identified; init registers as set;
   - polls every 3 s;
   - 20 re-identifications kept the type;
   - the decode gives 24.04 °C, 1022.79 hPa, 59.8 % RH in raftjs, C++ and the reference.
-- **Open:** the gas ADC stayed at full scale (1023, range 13, so 5685 Ω, the lowest value range 13 can show) over the first several minutes, with gas valid and heater stable set and the device not moving to a higher range. The configuration matches Bosch's forced-mode example (heater 300 °C/100 ms there, 320 °C/152 ms here). A fresh sensor needing burn-in is the likely cause. Re-check after longer operation; if it stays pinned, look at the BME690's gas range handling.
+- **Gas reading:** the ADC stayed at full scale (1023, range 13, 5685 Ω) over the first minutes. That was burn-in: later it read 28.3 kΩ in range 11.
 
 **BME680: new record, verified on Axiom018 (2026-10-18):**
 - **Record:**
   - addresses 0x76-0x77; detection ID 0x61 and variant 0x00;
   - forced mode: each poll triggers, waits 200 ms and reads calibration and data, 61 bytes, every 3 s;
   - decode: Bosch's floating-point compensation plus gas resistance; gas is 0 unless valid and heater-stable.
-- **The heater set-point is a fixed 0x6E** (one unit's value). The right value is calculated per unit, which needs computed init values: `computed-init-values.md`, TODO.md.
+- **The heater set-point** was fixed at 0x6E at first. Since 2026-10-18 it is computed per unit by `initCode` (`computed-init-values.md`); on Axiom018 the unit gets 0x6E.
 - **Heater time:** 100 ms left the heater unstable; 152 ms is stable.
 - **Results:**
   - identified;

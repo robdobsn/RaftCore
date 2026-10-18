@@ -2,7 +2,7 @@
 
 Date: 2026-10-18.
 
-**Status:** proposed, not started.
+**Status:** implemented 2026-10-18 (section 6). The design below is as proposed, except the type-file rule (section 6).
 
 **Raised by:** the BME680 record (device type record review, Stage 12).
 
@@ -65,3 +65,33 @@ Add an optional **init code** block, written in the same decode language as `res
 - **Generator:** the init function is generated and compiled for a record with `initCode`; records without it are unchanged.
 - **Host test:** run init against a mock bus that returns a known calibration, and check the substituted write. For the BME680, the value from one unit's calibration is 0x6E at 320 °C and 25 °C.
 - **Hardware:** BME680 on Axiom018. Read 0x5A after init and compare it with the Python reference (`res_heat` for that unit). Then VL53L0X SPAD setup when a VL53L0X is available.
+
+## 6. Implementation (2026-10-18)
+
+**Implemented as designed in section 2**, with these details:
+- **Grammar** (C++ and Python, shared vectors): `{name}` in init write data is a one-byte slot, kept in `Step.slots` as an offset and a name. `BadPlaceholder` is an error for a slot outside init, unclosed, unnamed, or not on a byte boundary.
+- **Record:** `DeviceTypeRecord.initValuesFn` (`bool fn(const uint8_t* buf, uint32_t len, int32_t* values, uint32_t numValues)`) and `initValueNames` (comma separated). Both are appended to the generated table entry only for records with `initCode`.
+- **Generator** (`ProcessDevTypeJsonToC.py`, `init_values()`):
+  - compiles `initCode` with `PseudocodeHandler`, mapping `init.<name>` to `pValues[i]`, numbered in order of first use;
+  - the function first checks that the bytes read cover the reads before the first slot;
+  - errors for a slot with no `initCode`, or a slot `initCode` doesn't assign;
+  - warnings for `initCode` without slots, and for code outside the language (`check_code(..., code_kind="init")`).
+- **Runtime** (RaftCore, host-tested):
+  - `DeviceTypeRecords::InitValueState`, `noteInitStepRead()`, `initStepHasValueSlots()` and `getInitStepWrite()`. The latter computes the values once, then fills each slot with the value clamped to 0-255.
+  - RaftI2C `DeviceIdentMgr::runInitSteps` collects the bytes read and builds a slot step's request from the filled-in write data. The identification job keeps the state across resumable pauses; reinit and re-identification use a local one. If the values can't be computed, init fails (`BusError`) and is retried later.
+- **Type files:** a record may use slots only when it overrides a compiled record of the same key whose init code computes them, and the override then **inherits the compiled function**, as it inherits the decoder. `initCode` in a type file is ignored, with a warning, in that case and rejected otherwise. `build_type_file` applies the same rule before upload.
+- **Records:** BME680 and BME690 compute `res_heat_0` (`{heat}`) from par_g1-g3 (0xEB-0xEE) and res_heat_val/res_heat_range (0x00-0x02), at 320 °C and an assumed 25 °C ambient.
+- **Not done: VL53L0X SPAD setup.** Getting the SPAD count needs read-modify-writes in the middle of the sequence (register 0x83), so values computed at more than one point. That would mean running the init code again before each slot step with everything read so far. It also needs a VL53L0X to test.
+
+**Tests:**
+- Grammar vectors (8 new), and fuzzing against the legacy parser, with slots treated as intended differences.
+- `test_device_type_records` `testInitValues`: the generated BME680/BME690 functions on two real units' calibration bytes give 0x6E and 0x69; too few bytes fails; reads after computing aren't kept.
+- `test_device_type_file` `testInitValuesInTypeFile`: an override with a slot is accepted and uses the compiled function; a new key with a slot, a slot on a record without init code, and `initCode` on a new key are rejected.
+- Python: generator output and errors, type-file build rule, init code check.
+
+**Axiom018, with a BME690 on slot 1 and a BME680 on slot 2:**
+- Both identified. 0x5A reads each unit's own value, 0x69 and 0x6E; the init strings carry only the `{heat}` slot.
+- After `reinit`, whose soft reset clears 0x5A, the values were recomputed and rewritten.
+- 20 re-identifications kept the types.
+- Gas measurements are valid and heater-stable.
+
