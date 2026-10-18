@@ -76,6 +76,7 @@ Date: 2026-10-18.
   - 20 re-identifications while polled kept the type;
   - polls every 5 s with none missed;
   - raw reading 24.7 °C, 66.3 % RH.
+- **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 - **General point for other triggered sensors** (SGP30/40, AHT20, SCD4x): prefer trigger, pause, read in the poll, so the device is idle between polls and its busy time is barred.
 
 **Decisions taken:**
