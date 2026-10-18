@@ -107,6 +107,19 @@ Date: 2026-10-18.
   - the decode on the unit's bytes gives 24.36 °C, 1023.50 hPa, 56.7 % RH, 36649 Ω in raftjs, the generated C++ and Bosch's reference;
   - gas resistance rose from about 0.6 kΩ to 10.5 kΩ over the first minutes of heating (burn-in).
 
+**MICS6814Pimoroni: new record, verified on Axiom018 (2026-10-18):**
+- **Named for the board, not the sensor:** the record drives Pimoroni's IO Expander firmware (Nuvoton MS51) at 0x19 and relies on the breakout's wiring (heater on P1.5, the three elements on ADC channels 2-4, 56 kΩ load resistors). A bare MiCS-6814 would need a different record.
+- **Record:**
+  - detection: the IO Expander chip ID 0xE26A (0xFA-0xFB), at 0x19 only;
+  - init: reads the pin mode registers and ADCCON1, then `initCode` computes read-modify-write values (heater pin push-pull, ADC pins input-only), writes them, switches the heater on and enables the ADC;
+  - poll: for each channel, select it as a digital-input-disabled pin, start a conversion, wait 2 ms, read the 12-bit result; every 1 s;
+  - decode: resistance R = raw × 56000 / (4095 − raw) in Ω for reducing, NH3 and oxidising.
+- **Results:**
+  - identified at 0x219 (slot 2);
+  - after init: P0M1 0xFB, P0M2 0x00, P1M1 0x9F, P1M2 0x20, ADCCON1 0x01, P1 0xC7 (heater on);
+  - polls at 1.0 Hz, none missed;
+  - 10 re-identifications kept the type.
+
 **BME280: new record, verified on Axiom018 (2026-10-18):**
 - **Record:**
   - addresses 0x76-0x77, detection ID 0x60;
