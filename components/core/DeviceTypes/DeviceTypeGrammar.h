@@ -55,6 +55,7 @@ public:
         BadValue,               // a poll value that isn't rN, r{...}, 0x, 0b or a pause
         CrcLength,              // :crc8w on a check whose length isn't a multiple of 3
         BadPause,               // a pause longer than 65535 ms
+        BadPlaceholder,         // a {name} value slot outside an init string, unnamed, unclosed or not on a byte boundary
         // Warnings (the previous behaviour is kept)
         OddHex,                 // odd number of hex digits (the last digit is lost; the byte is padded with 0)
         BarePause,              // "pNN" without "=" - a pause (the previous parser wrote it as data, C4)
@@ -92,6 +93,14 @@ public:
         std::vector<Check> checks;          // detection: alternatives (any one matching is a match)
         bool crc8w = false;                 // detection: each 2-byte word read is followed by a valid CRC-8
         std::shared_ptr<PollReadLenExpr> readLenExpr;   // poll: read length computed from earlier results
+        // init: value slots in the write data - {name} placeholders, each one byte, written with a value the record's
+        // initCode computes from bytes read by earlier init steps
+        struct ValueSlot
+        {
+            uint16_t offset = 0;
+            std::string name;
+        };
+        std::vector<ValueSlot> slots;
     };
 
     struct Result

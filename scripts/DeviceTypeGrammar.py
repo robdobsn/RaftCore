@@ -13,7 +13,7 @@ import re
 FIELDS = ("detection", "init", "poll")
 
 ERRORS = ("NotHex", "MultipleEquals", "BadCheck", "BadReadExpr", "ReadExprNotAllowed", "BadReadLength", "BadValue",
-          "CrcLength", "BadPause")
+          "CrcLength", "BadPause", "BadPlaceholder")
 WARNINGS = ("OddHex", "BarePause", "InitValueNotWritten", "InitBinaryIsReadCount", "InitValueIgnored",
             "MixedCheckLengths", "BinaryNotWholeBytes")
 FIELD_NAMES = {"detection": "detectionValues", "init": "initValues", "poll": "pollInfo.c"}
@@ -35,6 +35,7 @@ class Step:
         self.checks = []        # list of (mask bytes, value bytes)
         self.crc8w = False
         self.expr = False       # read length is an r{...} expression
+        self.slots = []         # init: value slots in the write data, as (byte offset, name) - {name} placeholders
 
     def to_dict(self):
         out = {"write": self.write.hex(), "read": self.read, "pause": self.pause}
@@ -44,6 +45,8 @@ class Step:
             out["crc8w"] = True
         if self.expr:
             out["expr"] = True
+        if self.slots:
+            out["slots"] = [f"{offset}:{name}" for offset, name in self.slots]
         return out
 
 
@@ -170,20 +173,47 @@ def _set_pause(step, ms, ctx, pos):
     return True
 
 
-def _parse_write(name, ctx):
-    """Returns the bytes, or None if they aren't hex"""
+def _is_slot_name(name):
+    return bool(name) and (name[0].isalpha() or name[0] == "_") and all(c.isalnum() or c == "_" for c in name) and \
+        name.isascii()
+
+
+def _parse_write(name, ctx, field="detection"):
+    """Returns (bytes, slots), or None if they aren't hex. In an init string the hex may contain {name} placeholders:
+    each is one byte, written with the value the record's initCode computes (slots: (byte offset, name))"""
     start = 2 if (len(name) >= 2 and name[0] == "0" and name[1] in "xX") else 0
     digits = name[start:]
     if start == 2 and digits == "":
         ctx.issue("NotHex", 2)
         return None
-    for i, c in enumerate(digits):
+    out = bytearray()
+    slots = []
+    hex_run = ""
+    i = 0
+    while i < len(digits):
+        c = digits[i]
+        if c == "{":
+            end = digits.find("}", i + 1)
+            slot_name = digits[i + 1:end] if end > 0 else ""
+            # A placeholder: only in init strings, a name, and at a byte boundary
+            if field != "init" or end < 0 or not _is_slot_name(slot_name) or (len(hex_run) % 2 != 0):
+                ctx.issue("BadPlaceholder", start + i)
+                return None
+            out += _hex_to_bytes(hex_run)
+            hex_run = ""
+            slots.append((len(out), slot_name))
+            out.append(0)
+            i = end + 1
+            continue
         if c not in HEX_DIGITS:
             ctx.issue("NotHex", start + i)
             return None
-    if len(digits) % 2 != 0:
+        hex_run += c
+        i += 1
+    if len(hex_run) % 2 != 0:
         ctx.issue("OddHex", 0)
-    return _hex_to_bytes(digits)
+    out += _hex_to_bytes(hex_run)
+    return bytes(out), slots
 
 
 def _parse_check_value(lc, ctx, pos):
@@ -353,11 +383,11 @@ def compile(command_str, field):
             ms, _ = _strtol(name, 1)
             step_valid = _set_pause(step, ms, ctx, name_pos)
         else:
-            write = _parse_write(name, _Ctx(result, start_pos + name_pos))
+            write = _parse_write(name, _Ctx(result, start_pos + name_pos), field)
             if write is None:
                 step_valid = False
             else:
-                step.write = write
+                step.write, step.slots = write
                 if eq_pos >= 0:
                     step.has_value = True
                     value = step_str[eq_pos + 1:]

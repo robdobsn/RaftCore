@@ -92,8 +92,29 @@ namespace
             out[i / 2] = (hexNibble(digits[i]) << 4) | hexNibble(digits[i + 1]);
     }
 
-    // Write bytes from the name side; returns false (with an issue) if they aren't hex
-    bool parseWrite(const std::string& name, std::vector<uint8_t>& write, Ctx& ctx)
+    // Append hex digits as bytes (as hexToBytes: an odd last digit is lost, its byte is 0)
+    void appendHexBytes(const std::string& digits, std::vector<uint8_t>& out)
+    {
+        std::vector<uint8_t> bytes;
+        hexToBytes(digits, bytes);
+        out.insert(out.end(), bytes.begin(), bytes.end());
+    }
+
+    // A {name} placeholder's name: a letter or _, then letters, digits or _
+    bool isSlotName(const std::string& name)
+    {
+        if (name.empty() || !(isalpha((unsigned char)name[0]) || (name[0] == '_')))
+            return false;
+        for (char c : name)
+            if (!(isalnum((unsigned char)c) || (c == '_')))
+                return false;
+        return true;
+    }
+
+    // Write bytes from the name side; returns false (with an issue) if they aren't hex. In an init string the hex may contain {name} placeholders: each is one byte, written with
+    // the value the record's initCode computes (recorded in slots)
+    bool parseWrite(const std::string& name, std::vector<uint8_t>& write, std::vector<DeviceTypeGrammar::Step::ValueSlot>& slots,
+                DeviceTypeGrammar::Field field, Ctx& ctx)
     {
         size_t start = 0;
         if ((name.length() >= 2) && (name[0] == '0') && ((name[1] == 'x') || (name[1] == 'X')))
@@ -105,17 +126,40 @@ namespace
             ctx.issue(DeviceTypeGrammar::IssueCode::NotHex, 2);
             return false;
         }
+        std::string hexRun;
         for (size_t i = 0; i < digits.length(); i++)
         {
+            if (digits[i] == '{')
+            {
+                // A placeholder: only in init strings, a name, and at a byte boundary
+                size_t end = digits.find('}', i + 1);
+                std::string slotName = (end == std::string::npos) ? "" : digits.substr(i + 1, end - i - 1);
+                if ((field != DeviceTypeGrammar::Field::Init) || (end == std::string::npos) || !isSlotName(slotName) ||
+                            (hexRun.length() % 2 != 0))
+                {
+                    ctx.issue(DeviceTypeGrammar::IssueCode::BadPlaceholder, start + i);
+                    return false;
+                }
+                appendHexBytes(hexRun, write);
+                hexRun.clear();
+                DeviceTypeGrammar::Step::ValueSlot slot;
+                slot.offset = (uint16_t)write.size();
+                slot.name = slotName;
+                slots.push_back(slot);
+                write.push_back(0);
+                i = end;
+                continue;
+            }
             if (!isHexDigit(digits[i]))
             {
                 ctx.issue(DeviceTypeGrammar::IssueCode::NotHex, start + i);
                 return false;
             }
+            hexRun += digits[i];
         }
-        if (digits.length() % 2 != 0)
+        if (hexRun.length() % 2 != 0)
             ctx.issue(DeviceTypeGrammar::IssueCode::OddHex, 0);
-        hexToBytes(digits, write);
+        appendHexBytes(hexRun, write);
         return true;
     }
 
@@ -399,7 +443,7 @@ DeviceTypeGrammar::Result DeviceTypeGrammar::compile(const char* pStr, Field fie
         else
         {
             Ctx nameCtx{result, (uint32_t)(startPos + namePos)};
-            stepValid = parseWrite(name, step.write, nameCtx);
+            stepValid = parseWrite(name, step.write, step.slots, field, nameCtx);
             if (stepValid && (eqPos != std::string::npos))
             {
                 step.hasValue = true;
@@ -461,6 +505,7 @@ const char* DeviceTypeGrammar::getIssueName(IssueCode code)
         case IssueCode::BadValue: return "BadValue";
         case IssueCode::CrcLength: return "CrcLength";
         case IssueCode::BadPause: return "BadPause";
+        case IssueCode::BadPlaceholder: return "BadPlaceholder";
         case IssueCode::OddHex: return "OddHex";
         case IssueCode::BarePause: return "BarePause";
         case IssueCode::InitValueNotWritten: return "InitValueNotWritten";

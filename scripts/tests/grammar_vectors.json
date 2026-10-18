@@ -123,6 +123,22 @@
         {"name": "poll junk value", "field": "poll", "str": "0x10=zz&0x11=r1",
          "steps": [{"write": "11", "read": 1, "pause": 0}], "issues": ["BadValue"]},
         {"name": "init r expr not allowed", "field": "init", "str": "0x3e=r{$0.w12:max240}",
-         "steps": [], "issues": ["ReadExprNotAllowed"]}
+         "steps": [], "issues": ["ReadExprNotAllowed"]},
+        {"name": "init value slot", "field": "init", "str": "0xe0b6=p10&0xeb=r4&0x5a{rh0}&0x7110",
+         "steps": [{"write": "e0b6", "read": 0, "pause": 10}, {"write": "eb", "read": 4, "pause": 0}, {"write": "5a00", "read": 0, "pause": 0, "slots": ["1:rh0"]}, {"write": "7110", "read": 0, "pause": 0}], "issues": []},
+        {"name": "init two value slots", "field": "init", "str": "0x12{a}34{b_2}",
+         "steps": [{"write": "12003400", "read": 0, "pause": 0, "slots": ["1:a", "3:b_2"]}], "issues": []},
+        {"name": "value slot not in detection", "field": "detection", "str": "0x5a{rh0}=0x01",
+         "steps": [], "issues": ["BadPlaceholder"]},
+        {"name": "value slot not in poll", "field": "poll", "str": "0x5a{v}=r2&0x11=r1",
+         "steps": [{"write": "11", "read": 1, "pause": 0}], "issues": ["BadPlaceholder"]},
+        {"name": "value slot off byte boundary", "field": "init", "str": "0x5{a}",
+         "steps": [], "issues": ["BadPlaceholder"]},
+        {"name": "value slot unclosed", "field": "init", "str": "0x5a{a",
+         "steps": [], "issues": ["BadPlaceholder"]},
+        {"name": "value slot unnamed", "field": "init", "str": "0x5a{}",
+         "steps": [], "issues": ["BadPlaceholder"]},
+        {"name": "value slot name starts with digit", "field": "init", "str": "0x5a{1x}",
+         "steps": [], "issues": ["BadPlaceholder"]}
     ]
 }

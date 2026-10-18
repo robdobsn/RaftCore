@@ -31,6 +31,8 @@ def canonical(result):
                (" expr" if step.expr else "")
         for mask, value in step.checks:
             out += f" {mask.hex()}:{value.hex()}"
+        for offset, name in step.slots:
+            out += f" slot{offset}:{name}"
         out += "]"
     out += " |"
     for code, pos in result.issues:
@@ -48,9 +50,10 @@ class GrammarTests(unittest.TestCase):
                 result = DeviceTypeGrammar.compile(vec["str"], vec["field"])
                 self.assertEqual([code for code, _ in result.issues], vec["issues"])
                 expected = [dict(step, checks=step.get("checks", []) or [], crc8w=step.get("crc8w", False),
-                                 expr=step.get("expr", False)) for step in vec["steps"]]
+                                 expr=step.get("expr", False), slots=step.get("slots", [])) for step in vec["steps"]]
                 got = [{"write": s.write.hex(), "read": s.read, "pause": s.pause,
-                        "checks": [m.hex() + ":" + v.hex() for m, v in s.checks], "crc8w": s.crc8w, "expr": s.expr}
+                        "checks": [m.hex() + ":" + v.hex() for m, v in s.checks], "crc8w": s.crc8w, "expr": s.expr,
+                        "slots": [f"{offset}:{name}" for offset, name in s.slots]}
                        for s in result.steps]
                 for e in expected:
                     e.setdefault("checks", [])

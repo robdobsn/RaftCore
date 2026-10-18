@@ -112,6 +112,10 @@ static void testVectors(const char* path)
                     (step.getBool("expr", false) ? " expr" : "");
             for (const String& check : checks)
                 expStepsStr += std::string(" ") + check.c_str();
+            std::vector<String> slots;
+            step.getArrayElems("slots", slots);
+            for (const String& slot : slots)
+                expStepsStr += std::string(" slot") + slot.c_str();
             expStepsStr += "]";
         }
         for (const auto& step : result.steps)
@@ -120,6 +124,8 @@ static void testVectors(const char* path)
                     (step.crc8w ? " crc" : "") + (step.readLenExpr ? " expr" : "");
             for (const auto& check : step.checks)
                 gotStepsStr += " " + hex(check.mask) + ":" + hex(check.value);
+            for (const auto& slot : step.slots)
+                gotStepsStr += " slot" + std::to_string(slot.offset) + ":" + slot.name;
             gotStepsStr += "]";
         }
         if ((expIssuesStr != gotIssuesStr) || (expStepsStr != gotStepsStr))
@@ -151,8 +157,12 @@ static bool compareWithLegacy(const std::string& str, Field field, EquivStats& s
     std::string lc = str;
     for (char& c : lc)
         c = (char)tolower((unsigned char)c);
+    // Value slots ({name} in init strings) are new: the previous parser had none
+    bool hasSlots = false;
+    for (const auto& step : result.steps)
+        hasSlots = hasSlots || !step.slots.empty();
     bool intended = hasIssue(result, DeviceTypeGrammar::IssueCode::BarePause) || (lc.find(":crc8w") != std::string::npos) ||
-            ((field == Field::Detection) && (lc.find('r') != std::string::npos));
+            ((field == Field::Detection) && (lc.find('r') != std::string::npos)) || hasSlots;
     if (intended)
     {
         stats.intendedDiffs++;
@@ -381,6 +391,8 @@ static int dumpMode()
                     (step.crc8w ? " crc" : "") + (step.readLenExpr ? " expr" : "");
             for (const auto& check : step.checks)
                 out += " " + hex(check.mask) + ":" + hex(check.value);
+            for (const auto& slot : step.slots)
+                out += " slot" + std::to_string(slot.offset) + ":" + slot.name;
             out += "]";
         }
         out += " |";
