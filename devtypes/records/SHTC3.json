@@ -1,0 +1,44 @@
+{
+    "_notes": "Sensirion SHTC3 at 0x70 (fixed - also GravityO2's address and a common multiplexer address). Detection: wake-up (0x3517, harmless when awake, needed if left asleep), then the ID register (0xEFC8): bit 11 = 1 and bits 5-0 = 000111, with a valid CRC. Init: wake-up. Poll: measure, normal mode, T first, no clock stretching (0x7866), 13 ms (max 12.1 ms; the pause bars the address), then read 6 bytes: T_MSB,T_LSB,T_CRC,RH_MSB,RH_LSB,RH_CRC. T = -45 + 175*raw/2^16, RH = 100*raw/2^16.",
+    "addresses": "0x70",
+    "detectionValues": "0x3517=p1&0xefc8=p1&=0bXXXX1XXXXX000111XXXXXXXX:crc8w",
+    "initValues": "0x3517=p1",
+    "pollInfo": {
+        "c": "0x7866=p13&=r6",
+        "i": 5000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Temperature & Humidity Sensor",
+        "desc": "",
+        "manu": "Sensirion",
+        "type": "SHTC3",
+        "clas": ["TEMP","RH"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": ">H",
+                    "u": "&deg;C",
+                    "r": [-40,125],
+                    "d": 374.4914285714286,
+                    "a": -45,
+                    "f": "3.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "humidity",
+                    "at": 3,
+                    "t": ">H",
+                    "u": "%",
+                    "r": [0,100],
+                    "d": 655.36,
+                    "f": "3.1f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}
