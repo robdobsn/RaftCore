@@ -1,10 +1,10 @@
 {
-    "_notes": "Temperature and humidity sensor. Data format: Status(8bit) + Humidity(20bit) + Temperature(20bit). Conversion: humidity(%) = (H[19:0]/2^20)*100, temp(°C) = (T[19:0]/2^20)*200-50",
+    "_notes": "Aosong AHT20 (also AHT21/AHT25/DHT20) at 0x38. Data format: Status(8bit) + Humidity(20bit) + Temperature(20bit) (+ CRC, not read). Conversion: humidity(%) = (H[19:0]/2^20)*100, temp(°C) = (T[19:0]/2^20)*200-50. Detection: a bare read of the status byte with bits 6:5 = 0 - weak, but it passes idle (0x1C), measuring (busy bit 7 set: the AHT20 answers rather than NACKing) and just after a soft reset (0x80, calibration bit clear), so it can't fail on a genuine part; a Trill Ring's reply starts 0xFE. Init: calibrate (0xBE0800), 10 ms. Poll: trigger (0xAC3300), 80 ms (the measurement time; a read before then gives incomplete data with a valid CRC), read 6 bytes.",
     "addresses": "0x38",
-    "detectionValues": "",
-    "initValues": "0xbe0800=",
+    "detectionValues": "=0bX00XXXXX",
+    "initValues": "0xbe0800=p10",
     "pollInfo": {
-        "c": "=r6&0xac3300=",
+        "c": "0xac3300=p80&=r6",
         "i": 500,
         "s": 1
     },
@@ -42,7 +42,7 @@
                     "at": 2,
                     "t": ">I",
                     "u": "&deg;C",
-                    "r": [-40, 80],
+                    "r": [-40, 85],
                     "m": "0x000fffff",
                     "d": 5242.88,
                     "a": -50,
