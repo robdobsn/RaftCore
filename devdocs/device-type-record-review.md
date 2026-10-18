@@ -78,6 +78,25 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**AHT20, verified on Axiom018 (2026-10-18):**
+- **Changes:**
+  - detection `=0bX00XXXXX`;
+  - init `0xbe0800=p10`;
+  - poll `0xac3300=p80&=r6`, where before it read and then triggered.
+- **Status byte as measured:**
+  - 0x1C idle;
+  - 0x9C measuring: the busy bit is set, and the part answers rather than NACKing;
+  - 0x80 just after a soft reset: the calibration bit is clear, and it recovers by itself;
+  - 0x18 after calibration.
+
+  So only bits 6:5 are reliable. The review's stronger form (bits 4:3 = 1) would fail after a reset.
+- **Reads too early:** a read during the 80 ms measurement gives incomplete data with a valid CRC, so the poll waits the full time.
+- **Results:**
+  - reading 25.0 °C, 54.3 % RH;
+  - identified after a firmware restart, after a soft reset and re-identification, and after unplugging and replugging;
+  - 20 re-identifications while polled kept the type;
+  - polled every 500 ms.
+
 **SHTC3: new record, verified on Axiom018 (2026-10-18):**
 - **Record:**
   - address 0x70;
