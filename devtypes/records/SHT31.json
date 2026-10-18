@@ -1,0 +1,44 @@
+{
+    "_notes": "Sensirion SHT3x (SHT30, SHT31, SHT35 - same protocol) at 0x44 (ADDR low) or 0x45 (ADDR high), the SHT4x addresses: 2-byte commands, where the SHT4x has 1-byte ones, so each record's detection fails on the other part. Detection: read the status register (0xF32D) and require a valid CRC - only the CRC: the datasheet's reserved status bits aren't reliably 0 (bits 5 and 6 read 1 in periodic mode, status 0x8070), and the read works in both single-shot and periodic mode. Init: break (0x3093) in case periodic measurement was left running, which would make single-shot commands fail. Poll: single-shot, high repeatability, no clock stretching (0x2400), 16 ms (max 15.5 ms), then read 6 bytes: T_MSB,T_LSB,T_CRC,RH_MSB,RH_LSB,RH_CRC. The sensor NACKs while measuring; the pause after the trigger bars the address, so a detection starting then is retried rather than failing, and the sensor is idle between polls.",
+    "addresses": "0x44-0x45",
+    "detectionValues": "0xf32d=p1&=0bXXXXXXXXXXXXXXXXXXXXXXXX:crc8w",
+    "initValues": "0x3093=p2",
+    "pollInfo": {
+        "c": "0x2400=p16&=r6",
+        "i": 5000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Temperature & Humidity Sensor",
+        "desc": "",
+        "manu": "Sensirion",
+        "type": "SHT31",
+        "clas": ["TEMP","RH"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": ">H",
+                    "u": "&deg;C",
+                    "r": [-40,125],
+                    "d": 374.48571428571427,
+                    "a": -45,
+                    "f": "3.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "humidity",
+                    "at": 3,
+                    "t": ">H",
+                    "u": "%",
+                    "r": [0,100],
+                    "d": 655.35,
+                    "f": "3.1f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}
