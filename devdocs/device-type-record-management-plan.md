@@ -204,8 +204,8 @@ to it).
 | `raft devtypes pull <device>` | Get the device's type file and compare it with the project's |
 | `raft devtypes status <device>` | `devman/typefile`, and whether the device's file is the project's |
 
-Transport: HTTP (as `raft fs`), done in phase 4; serial (RICREST file transfer), for devices reached over USB, is in
-phase 5. The
+Transport: HTTP (as `raft fs`), done in phase 4. Serial, WebSocket and BLE (RICREST file transfer) are a RaftCLI
+project of their own: RaftCLI `devdocs/native-transports-plan.md`. The
 restart in `push` needs a reconnect, for which raftjs's reconnect logic is the model.
 
 A graphical tool is for later. The check endpoint means it needs only raftjs (it has `getTypeFileStatus`; it would
@@ -296,7 +296,7 @@ record - is a choice for the board or product the device is fitted to, not a pro
 | **2b** | `typeSettings` (3.9) in DeviceManager, the scan priority override in DeviceTypeRecords, records' `busHz`/`busHzSlots` removed (with a warning); Axiom's LSM6DS back to RaftCore's record, its bus speed in Axiom018's `typeSettings` | RaftCore, RaftI2C (if needed), Axiom | Host tests (parsing, checking and layering of type settings; scan priority override in the index); FeatherS3; on the Axiom, LSM6DS polled at 400 kHz on its slot as before (`devconfig` query, poll bus time) |
 | **3** | `devman/typefile/check`; staged apply; type file build (3.6) with host tests | RaftCore, raftjs (wrappers) | Host tests; FeatherS3: stage, check, apply, verify; a bad file is reported and not applied |
 | **4** | raft CLI `devtypes` commands (3.7) over HTTP | RaftCore (`DeviceTypesTool.py`), RaftCLI | Against the FeatherS3 (HTTP) |
-| **5** | Optional: serial transport for `push`/`pull`/`status` (RICREST file transfer), `fsImage`, other runtime routes, D11 on-device decoder (prerequisite for 3.8), GUI | as needed | Per item (serial: against the Axiom) |
+| **5** | Optional: `fsImage`, other runtime routes, D11 on-device decoder (prerequisite for 3.8), GUI | as needed | Per item |
 
 Stage 12 of the identification plan (record improvements) can start after phase 1a, one record per commit.
 
@@ -549,7 +549,7 @@ Stage 12 of the identification plan (record improvements) can start after phase 
     applies; waits for the device; checks it loaded the file (state applied, same CRC, nothing rejected);
   - `pull <ip>`: downloads the file, and lists the keys that differ from the project's;
   - `status <ip>`: the startup outcomes, limits, whether a restart is due and whether the file is the project's.
-- **Serial transport** is left for phase 5.
+- **Serial transport** (and WebSocket and BLE) is planned in RaftCLI `devdocs/native-transports-plan.md`.
 - **FeatherS3:** a `--config` selection with a new record (no decoder), an override and a policy. The dry run's device
   check agreed with the tool, and the upload was removed. The push applied and was verified after the restart. A
   second push did nothing. `pull` after a local change listed the changed key. A file changed on the device by
