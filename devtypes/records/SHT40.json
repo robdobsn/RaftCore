@@ -1,10 +1,10 @@
 {
-    "_notes": "Sensirion SHT4x (SHT40) at 0x44. Uses high-precision single-shot command 0xFD. Response is 6 bytes: T_MSB,T_LSB,T_CRC,RH_MSB,RH_LSB,RH_CRC.",
+    "_notes": "Sensirion SHT4x (SHT40, SHT41, SHT45 - indistinguishable over I2C) at 0x44-0x46. Detection: read the serial number (0x89, 10 ms) and require valid CRCs on both words. Poll: high-precision single-shot measurement (0xFD), 10 ms, then read 6 bytes: T_MSB,T_LSB,T_CRC,RH_MSB,RH_LSB,RH_CRC. The sensor NACKs while measuring (8.3 ms); the pause after the trigger bars the address, so a detection starting then is retried rather than failing, and the sensor is idle between polls.",
     "addresses": "0x44-0x46",
-    "detectionValues": "",
-    "initValues": "0xfd=&=p10",
+    "detectionValues": "0x89=p10&=0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:crc8w",
+    "initValues": "",
     "pollInfo": {
-        "c": "=r6&0xfd=",
+        "c": "0xfd=p10&=r6",
         "i": 5000,
         "s": 1
     },
