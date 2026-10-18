@@ -1,5 +1,5 @@
 {
-    "_notes": "Honeywell MPRLS pressure sensor. No detection values, so the record claims any device at 0x18 - it must stay AFTER the MCP9808 and Robotical servo/pump records, which share the address and have detection values.",
+    "_notes": "Honeywell MPRLS 0025PA (0-25 psi, transfer function A: 10-90% of 2^24 counts). No detection values, so the record claims any device at 0x18; the MCP9808 and Robotical servo/pump records, which share the address and have detection values, are tried first (detection strength order).",
     "addresses": "0x18",
     "detectionValues": "",
     "initValues": "0xAA0000",
@@ -32,10 +32,10 @@
                     "at": 0,
                     "m": "0x00ffffff",
                     "t": ">I",
-                    "u": "Pa",
-                    "r": [0, 173],
-                    "a": -21625,
-                    "d": 77.583,
+                    "u": "hPa",
+                    "r": [0, 1724],
+                    "a": -215.461,
+                    "d": 7786.654,
                     "f": "4.2f",
                     "o": "float"
                 }
