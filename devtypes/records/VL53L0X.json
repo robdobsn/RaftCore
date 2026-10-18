@@ -1,7 +1,7 @@
 {
     "_notes": "ToF distance sensor with range up to 2m. Initialization sequence adapted from the Pololu library.",
     "addresses": "0x29",
-    "identPriority": 1,
+    "identPriority": 3,
     "detectionValues": "0xC0=0xEE&0xC1=0xAA",
     "initValues": "0x8800&0x440040&0x8001&0xff01&0x0000&0x91=r1&0x0001&0xff00&0x8000&0x0001",
     "pollInfo": {
