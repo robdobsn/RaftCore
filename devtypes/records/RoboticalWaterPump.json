@@ -1,6 +1,6 @@
 {
     "addresses": "0x10-0x18",
-    "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x0098",
+    "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x0099",
     "initValues": "=p250&0x6004ff9c=p250&0x2001",
     "pollInfo": {
         "c": "=r4",
