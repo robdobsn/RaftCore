@@ -42,15 +42,20 @@
                 "n": "setBaseline",
                 "t": ">HH",
                 "w": "201e",
+                "crc": "crc8w",
                 "r": [0, 65535],
-                "d": 0
+                "d": 0,
+                "desc": "Restore the IAQ baseline: TVOC baseline, then eCO2 baseline (the reverse of the order get_iaq_baseline 0x2015 returns them)"
             },
             {
                 "n": "setHumidity",
                 "t": ">H",
                 "w": "2061",
-                "r": [0, 65535],
-                "d": 0
+                "crc": "crc8w",
+                "mul": 256,
+                "r": [0, 255],
+                "d": 0,
+                "desc": "Absolute humidity in g/m3 for compensation (0 turns compensation off)"
             }
         ]
     }
