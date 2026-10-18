@@ -77,6 +77,22 @@ Date: 2026-10-18.
   - polls every 5 s with none missed;
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
+
+**SHT31: new record for the SHT3x family, verified on Axiom018 (2026-10-18):**
+- **Record:**
+  - addresses 0x44-0x45, 2-byte commands;
+  - detection reads the status register (`0xf32d=p1&=0b`+24 X+`:crc8w`), CRC only;
+  - init sends break (0x3093);
+  - poll `0x2400=p16&=r6`;
+  - humidity is 100·raw/65535.
+- **Why CRC only:** the datasheet's reserved status bits aren't reliably 0. Status read 0x8010 in single-shot mode, but 0x8070 (bits 5 and 6 set) in periodic mode.
+- **SHT40 detection on an SHT3x:** 0x89 is accepted, then the read returns the last status word and 0xFF, so the second CRC fails. `SHT40` is tried first (it's stronger) and fails cleanly.
+- **Before this record:** until SHT40 had detection, an SHT3x was claimed as SHT40 and polled with the wrong commands. After that it was left to the RSAO probe, which NACKed harmlessly.
+- **Results:**
+  - reading 24.4 °C, 60.9 % RH;
+  - identified as SHT31 after a firmware restart without a power cycle, and after unplugging and replugging;
+  - 20 re-identifications while polled kept the type;
+  - polls every 5 s with none missed.
 - **General point for other triggered sensors** (SGP30/40, AHT20, SCD4x): prefer trigger, pause, read in the poll, so the device is idle between polls and its busy time is barred.
 
 **Decisions taken:**
