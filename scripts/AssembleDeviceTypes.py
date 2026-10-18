@@ -15,8 +15,8 @@ DeviceTypeSources.json:
 - sources: "builtin" (RaftCore's records), "path" (a folder of records, one record file or a catalogue file, relative
   to the DeviceTypeSources.json that names it), "git" ({"git": <url>, "ref": <tag, branch or full commit hash>,
   "path": <folder or record file in the repo, default "records">})
-- include/exclude: "*", "<source>:*", "<source>:<key>" or "<key>" (a key only one source has). include defaults to
-  "*". A key from a path source replaces the same key from another source (the later path source wins); the same key
+- include/exclude: "*", "<source>:*", "<source>:<key>" or "<key>" (a key only one source has). builtin's include
+  defaults to "*", typeFile's to nothing. A key from a path source replaces the same key from another source (the later path source wins); the same key
   from two other sources is an error unless include names the source
 - policy: "enabled", "disabled" or "disabledClaim" for a selected key
 - A SysType's file adds to Common's: sources are added (or replaced by name), include and exclude lists are joined,
@@ -408,6 +408,7 @@ class Assembly:
         self.lock = None
         self.lock_text = None            # the lock file's new content, if it changed
         self.policy_only = OrderedDict() # typeFile: policies for types not in the file (key -> policy name)
+        self.replaced = OrderedDict()    # key -> [(source name, record)] replaced by a path source's record
         self.messages = []
         self.inputs = []                 # files and folders read
         self.fs_image = False
@@ -438,7 +439,8 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
     names = list(sources)
     chosen = selection["sections"][section]
     result.fs_image = chosen["fsImage"]
-    includes = chosen["include"] if chosen["hasInclude"] else ["*"]
+    # builtin includes everything unless it says otherwise; a type file includes nothing unless it says otherwise
+    includes = chosen["include"] if chosen["hasInclude"] else (["*"] if section == "builtin" else [])
 
     # Candidates for each key: the sources it was selected from, and whether a source was named for it
     candidates = OrderedDict()
@@ -481,6 +483,7 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
                 replaced = [n for n in options if n != source]
                 if replaced:
                     result.messages.append(f"\"{key}\" from {source} replaces the record from {', '.join(replaced)}")
+                    result.replaced[key] = [(n, sources[n][0][key]) for n in replaced]
             elif len(options) > 1:
                 raise AssembleError(f"\"{key}\" is in sources {', '.join(options)} - name the source to use in "
                                     f"{section}.include (e.g. \"{options[0]}:{key}\")")
