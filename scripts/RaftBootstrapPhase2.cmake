@@ -401,6 +401,54 @@ foreach(FILE_PATH ${DEV_TYPE_JSON_FILES})
         list(APPEND DEV_TYPE_JSON_DEPENDS "${FILE_PATH}")
     endif()
 endforeach()
+# The type file for the file system image, if the selection's typeFile section has "fsImage": true. It is built
+# against the records this build compiles (the generator's input files) and copied into the FSImage folder at the
+# path the device loads it from (DevMan typeFile in SysTypes.json, default /local/devlib.json). The compiled records
+# are also written as one file, DeviceTypeRecords.compiled.json, which raft devtypes builds type files against
+set(_raft_devtype_fsimage_file "")
+if (NOT _raft_devtype_sources STREQUAL "")
+    string(JOIN "," _raft_devtype_compiled_arg ${DEV_TYPE_JSON_FILES})
+    set(_raft_devtype_fsimage_dir "${RAFT_BUILD_ARTIFACTS_FOLDER}/devtypes-fsimage")
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/AssembleDeviceTypes.py"
+            --raftcore "${raftcore_SOURCE_DIR}" --select "${_raft_devtype_select_arg}"
+            --fs-image "${_raft_devtype_fsimage_dir}" --systypes "${_merged_systypes_json}"
+            --compiled "${_raft_devtype_compiled_arg}"
+            --compiled-out "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords.compiled.json"
+            --cache-dir "${RAFT_BUILD_ARTIFACTS_FOLDER}/devtypes" --lock "${BUILD_CONFIG_DIR}/DeviceTypeSources.lock"
+            --override-dir "${CMAKE_SOURCE_DIR}/raftdevtypes"
+            --list-inputs
+        RESULT_VARIABLE _raft_devtype_rslt
+        OUTPUT_VARIABLE _raft_devtype_fsimage_out
+        ERROR_VARIABLE _raft_devtype_msgs
+    )
+    if (NOT _raft_devtype_rslt EQUAL 0)
+        message(FATAL_ERROR "Device type file for the file system image failed:\n${_raft_devtype_msgs}")
+    endif()
+    string(REPLACE "\n" ";" _raft_devtype_fsimage_out "${_raft_devtype_fsimage_out}")
+    foreach(_raft_devtype_line ${_raft_devtype_fsimage_out})
+        if (_raft_devtype_line MATCHES "^fsimage:(.*)$")
+            set(_raft_devtype_fsimage_file "${CMAKE_MATCH_1}")
+        elseif (_raft_devtype_line MATCHES "^file:(.*)$")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_MATCH_1}")
+        elseif (_raft_devtype_line MATCHES "^dir:(.*)$")
+            file(GLOB _raft_devtype_glob CONFIGURE_DEPENDS "${CMAKE_MATCH_1}/*.json")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_raft_devtype_glob})
+        endif()
+    endforeach()
+    if (NOT _raft_devtype_fsimage_file STREQUAL "")
+        if (NOT DEFINED FS_TYPE OR NOT DEFINED FS_IMAGE_PATH)
+            message(FATAL_ERROR "typeFile.fsImage is set in ${_raft_devtype_sources} but the SysType has no file "
+                "system image (FS_TYPE and FS_IMAGE_PATH in features.cmake)")
+        endif()
+        message(STATUS "${_raft_devtype_msgs}")
+    endif()
+else()
+    # No selection: nothing from an earlier build with one is left for the FSImage or raft devtypes to use
+    file(REMOVE_RECURSE "${RAFT_BUILD_ARTIFACTS_FOLDER}/devtypes-fsimage")
+    file(REMOVE "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords.compiled.json")
+endif()
+
 # Debugging output
 set(DEV_TYPE_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords_generated.h")
 set(DEV_POLL_RECS_HEADER "${RAFT_BUILD_ARTIFACTS_FOLDER}/DevicePollRecords_generated.h")
@@ -604,6 +652,22 @@ if(DEFINED UI_SOURCE_PATH)
         COMMAND ${CMAKE_COMMAND} -E echo "------------------ Copying Web UI files to file system --------------------"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${_web_ui_build_folder_path}" "${_full_fs_dest_image_path}"
         COMMENT "Copying WebUI files to the FS Image directory"
+    )
+endif()
+
+# The device type file (typeFile.fsImage in DeviceTypeSources.json - see DevTypes Generation above)
+if (NOT _raft_devtype_fsimage_file STREQUAL "")
+    file(RELATIVE_PATH _raft_devtype_fsimage_rel "${_raft_devtype_fsimage_dir}" "${_raft_devtype_fsimage_file}")
+    if (EXISTS "${_full_fs_source_image_path}/${_raft_devtype_fsimage_rel}")
+        message(WARNING "${_full_fs_source_image_path}/${_raft_devtype_fsimage_rel} is replaced in the file system "
+            "image by the type file built from DeviceTypeSources.json (typeFile.fsImage)")
+    endif()
+    get_filename_component(_raft_devtype_fsimage_reldir "${_full_fs_dest_image_path}/${_raft_devtype_fsimage_rel}" DIRECTORY)
+    add_custom_command(TARGET CopyFSAndWebUI POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "------------------ Copying the device type file to file system --------------------"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_raft_devtype_fsimage_reldir}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${_raft_devtype_fsimage_file}" "${_full_fs_dest_image_path}/${_raft_devtype_fsimage_rel}"
+        COMMENT "Copying the device type file (${_raft_devtype_fsimage_rel}) to the FS Image directory"
     )
 endif()
 

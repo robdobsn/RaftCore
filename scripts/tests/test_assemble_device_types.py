@@ -8,6 +8,10 @@
 - Policies are applied to selected records; errors for unknown keys, sources and policies.
 - A SysType's file adds to Common's (sources by name, lists joined, its policies win), paths relative to each file.
 - Output: records in key order, a manifest of where each came from; the file isn't rewritten if unchanged.
+- Sources: "builtin": true is still read as "bundled": true, with a message.
+- typeFile.fsImage: the build's --fs-image mode writes the type file at the device's path (from SysTypes.json) against
+  the compiled files merged as the generator merges them, within the device's size limit, and writes the compiled
+  records for the raft CLI; nothing is written (and an old file is removed) without fsImage.
 - Splitting a catalogue keeps each record as written; RaftCore's records assembled with "raftcore:*" generate the
   same headers as the records folder.
 """
@@ -21,7 +25,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 
 SCRIPTS_DIR = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -100,22 +104,22 @@ class AssembleTests(unittest.TestCase):
     # Selection
 
     def test_include_defaults_to_everything(self):
-        result = self.assemble(self.selection({"sources": {"raftcore": {"builtin": True}}}))
+        result = self.assemble(self.selection({"sources": {"raftcore": {"bundled": True}}}))
         self.assertEqual(list(result.records), ["Alpha", "Bravo", "Charlie"])
 
     def test_include_forms_and_exclude(self):
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}},
                               "builtin": {"include": ["raftcore:Bravo", "Charlie"], "exclude": []}})
         self.assertEqual(list(self.assemble(sel).records), ["Bravo", "Charlie"])
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}},
                               "builtin": {"include": ["raftcore:*"], "exclude": ["Alpha"]}})
         self.assertEqual(list(self.assemble(sel).records), ["Bravo", "Charlie"])
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": []}})
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": []}})
         self.assertEqual(list(self.assemble(sel).records), [])
 
     def test_local_source_replaces(self):
         self.write_records(self.project / "devtypes", {"Bravo": record(name="Bravo local"), "Delta": record("0x13")})
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}, "local": {"path": "../../devtypes"}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../devtypes"}},
                               "builtin": {"include": ["*"]}})
         result = self.assemble(sel)
         self.assertEqual(list(result.records), ["Alpha", "Bravo", "Charlie", "Delta"])
@@ -123,7 +127,7 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(result.origin["Bravo"][0], "local")
         self.assertTrue(any("Bravo" in m and "replaces" in m for m in result.messages))
         # Naming the source wins over the local replacement
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}, "local": {"path": "../../devtypes"}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../devtypes"}},
                               "builtin": {"include": ["raftcore:Bravo", "local:*"]}})
         result = self.assemble(sel)
         self.assertEqual(result.records["Bravo"]["devInfoJson"]["name"], "Bravo core")
@@ -137,22 +141,22 @@ class AssembleTests(unittest.TestCase):
 
     def test_same_key_from_two_non_local_sources(self):
         # M6: an error unless include names the source
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}, "again": {"builtin": True}}})
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}, "again": {"bundled": True}}})
         self.assertError("name the source to use", sel)
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}, "again": {"builtin": True}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}, "again": {"bundled": True}},
                               "builtin": {"include": ["raftcore:*"]}})
         self.assertEqual(list(self.assemble(sel).records), ["Alpha", "Bravo", "Charlie"])
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}, "again": {"builtin": True}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}, "again": {"bundled": True}},
                               "builtin": {"include": ["Alpha"]}})
         self.assertError("name the source to use", sel)
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}, "again": {"builtin": True}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}, "again": {"bundled": True}},
                               "builtin": {"include": ["raftcore:Alpha", "again:Alpha"]}})
         self.assertError("named from more than one source", sel)
 
     def test_errors(self):
-        self.assertError("no record \"Nope\"", self.selection({"sources": {"raftcore": {"builtin": True}},
+        self.assertError("no record \"Nope\"", self.selection({"sources": {"raftcore": {"bundled": True}},
                                                                 "builtin": {"include": ["Nope"]}}))
-        self.assertError("no source called \"other\"", self.selection({"sources": {"raftcore": {"builtin": True}},
+        self.assertError("no source called \"other\"", self.selection({"sources": {"raftcore": {"bundled": True}},
                                                                         "builtin": {"include": ["other:Alpha"]}}))
         self.assertError("need a cache folder",
                          self.selection({"sources": {"g": {"git": "https://example.com/x.git", "ref": "v1"}}}))
@@ -161,7 +165,7 @@ class AssembleTests(unittest.TestCase):
         self.assertError("unknown key", self.selection({"sources": {}, "builtins": {}}))
 
     def test_policies(self):
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}},
                               "builtin": {"policy": {"Alpha": "disabled", "Bravo": "disabledClaim"}}})
         result = self.assemble(sel)
         self.assertIs(result.records["Alpha"]["disable"], True)
@@ -171,14 +175,14 @@ class AssembleTests(unittest.TestCase):
         sel = self.selection({"sources": {"local": {"path": "../../devtypes"}},
                               "builtin": {"policy": {"Delta": "enabled"}}})
         self.assertNotIn("disable", self.assemble(sel).records["Delta"])
-        self.assertError("not a selected record", self.selection({"sources": {"raftcore": {"builtin": True}},
+        self.assertError("not a selected record", self.selection({"sources": {"raftcore": {"bundled": True}},
                                                                    "builtin": {"include": ["Alpha"], "policy": {"Bravo": "disabled"}}}))
-        self.assertError("must be one of", self.selection({"sources": {"raftcore": {"builtin": True}},
+        self.assertError("must be one of", self.selection({"sources": {"raftcore": {"bundled": True}},
                                                             "builtin": {"policy": {"Alpha": "off"}}}))
 
     def test_systype_adds_to_common(self):
         self.write_records(self.project / "systypes" / "Main" / "devtypes", {"Delta": record("0x13")})
-        common = self.selection({"sources": {"raftcore": {"builtin": True}},
+        common = self.selection({"sources": {"raftcore": {"bundled": True}},
                                  "builtin": {"include": ["raftcore:Alpha"], "policy": {"Alpha": "disabled"}}})
         main = self.selection({"sources": {"main": {"path": "devtypes"}},
                                "builtin": {"include": ["main:Delta"], "policy": {"Alpha": "enabled"}}}, "Main")
@@ -187,7 +191,7 @@ class AssembleTests(unittest.TestCase):
         self.assertNotIn("disable", result.records["Alpha"])
 
     def test_sections(self):
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["Alpha"]},
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["Alpha"]},
                               "typeFile": {"include": ["Bravo"], "fsImage": True}})
         self.assertEqual(list(self.assemble(sel, section="typeFile").records), ["Bravo"])
         self.assertTrue(self.assemble(sel, section="typeFile").fs_image)
@@ -196,7 +200,7 @@ class AssembleTests(unittest.TestCase):
     # Output
 
     def test_command_line_output_and_manifest(self):
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["Charlie", "Alpha"]}})
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["Charlie", "Alpha"]}})
         out = self.tmp / "out" / "DeviceTypeRecords.json"
         manifest = self.tmp / "out" / "manifest.json"
         args = ["--raftcore", str(self.raftcore), "--select", sel, "--out", str(out), "--manifest", str(manifest),
@@ -217,7 +221,7 @@ class AssembleTests(unittest.TestCase):
             A.main(args)
         self.assertEqual(out.stat().st_mtime_ns, mtime)
         # An error is reported and fails
-        bad = self.selection({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["Nope"]}})
+        bad = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["Nope"]}})
         self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--select", bad, "--out", str(out)]), 1)
 
     def test_split_keeps_records_as_written(self):
@@ -245,7 +249,7 @@ class AssembleTests(unittest.TestCase):
         changed_layout = record("0x12")
         changed_layout["devInfoJson"]["resp"]["a"][0]["n"] = "other"
         self.write_records(self.project / "layout", {"Charlie": changed_layout})
-        return self.selection({"sources": {"raftcore": {"builtin": True}, "local": {"path": "../../devtypes"},
+        return self.selection({"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../devtypes"},
                                            "layout": {"path": "../../layout"}},
                                "builtin": {"include": ["raftcore:*"]},
                                "typeFile": {"include": ["local:Alpha", "local:Bravo", "local:Echo"],
@@ -313,8 +317,94 @@ class AssembleTests(unittest.TestCase):
             self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--select", sel, "--typefile", "--out", str(out),
                                      "--compiled", str(compiled)]), 1, "Charlie's policy needs Charlie compiled")
 
+    def test_builtin_is_the_older_name_for_bundled(self):
+        sel = self.selection({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["raftcore:Alpha"]}})
+        result = self.assemble(sel)
+        self.assertEqual(list(result.records), ["Alpha"])
+        self.assertTrue(any('"bundled": true' in m for m in result.messages), result.messages)
+
+    def test_fs_image_only_in_type_file(self):
+        self.assertError("fsImage belongs in the typeFile section", self.selection(
+            {"sources": {"raftcore": {"bundled": True}}, "builtin": {"fsImage": True}}))
+
+    def test_merge_compiled_as_the_generator_does(self):
+        first = self.tmp / "first.json"
+        first.write_text(json.dumps({"devTypes": {"Alpha": record("0x11"), "Bravo": record("0x12")}}))
+        self.write_records(self.tmp / "folder", {"Bravo": record("0x13", name="Bravo later")})
+        policy = self.tmp / "policy.json"
+        policy.write_text(json.dumps({"devTypes": {"Alpha": {"disable": "claim"}, "Nobody": {"disable": True}}}))
+        merged = A.merge_compiled([str(first), str(self.tmp / "folder"), str(policy)])
+        self.assertEqual(list(merged), ["Alpha", "Bravo"])
+        self.assertEqual(merged["Bravo"]["devInfoJson"]["name"], "Bravo later")
+        self.assertEqual(merged["Alpha"]["disable"], "claim")
+
+    def test_type_file_location(self):
+        systypes = self.tmp / "SysTypes.json"
+        systypes.write_text(json.dumps({"DevMan": {}}))
+        self.assertEqual(A.type_file_location(str(systypes)), ("/local/devlib.json", 65536))
+        self.assertEqual(A.type_file_location(None), ("/local/devlib.json", 65536))
+        systypes.write_text(json.dumps({"DeviceLibrary": {"devLibFile": "/local/lib.json"}}))
+        self.assertEqual(A.type_file_location(str(systypes))[0], "/local/lib.json")
+        systypes.write_text(json.dumps({"DevMan": {"typeFile": "/local/types/t.json",
+                                                   "typeFileLimits": {"maxFileBytes": 2000}},
+                                        "DeviceLibrary": {"devLibFile": "/local/lib.json"}}))
+        self.assertEqual(A.type_file_location(str(systypes)), ("/local/types/t.json", 2000))
+        self.assertEqual(A.fs_image_relative_path("/local/types/t.json"), "types/t.json")
+        for bad in ("", "/sd/devlib.json", "/local/", "devlib.json"):
+            with self.assertRaises(A.AssembleError):
+                A.fs_image_relative_path(bad)
+
+    def run_fs_image(self, sel, systypes_content, compiled=None):
+        systypes = self.tmp / "SysTypes.merged"
+        systypes.write_text(json.dumps(systypes_content))
+        out_dir = self.tmp / "fsimage"
+        argv = ["--raftcore", str(self.raftcore), "--select", sel, "--fs-image", str(out_dir),
+                "--systypes", str(systypes), "--list-inputs"]
+        if compiled:
+            argv += ["--compiled", ",".join(compiled), "--compiled-out", str(self.tmp / "compiled.out.json")]
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = A.main(argv)
+        return code, out.getvalue(), err.getvalue(), out_dir
+
+    def test_fs_image_build(self):
+        sel = self.type_file_setup()
+        # fsImage not set: nothing written, and a folder left by an earlier build is removed
+        (self.tmp / "fsimage").mkdir()
+        (self.tmp / "fsimage" / "devlib.json").write_text("old")
+        code, out, err, out_dir = self.run_fs_image(sel, {})
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("fsimage:", out)
+        self.assertFalse(out_dir.exists())
+        # fsImage set: written at the device's type file path, against the compiled records given
+        content = json.loads(pathlib.Path(sel).read_text())
+        content["typeFile"]["fsImage"] = True
+        pathlib.Path(sel).write_text(json.dumps(content))
+        catalogue = self.tmp / "compiled.json"
+        compiled = self.assemble(sel).records
+        catalogue.write_text(A.catalogue_text(compiled))
+        code, out, err, out_dir = self.run_fs_image(sel, {"DevMan": {"typeFile": "/local/types/lib.json"}},
+                                                    [str(catalogue)])
+        self.assertEqual(code, 0, err)
+        written = out_dir / "types" / "lib.json"
+        self.assertIn("fsimage:" + str(written.resolve()), out.splitlines())
+        expected, _ = A.build_type_file(self.assemble(sel, section="typeFile"), compiled)
+        self.assertEqual(written.read_text(), expected)
+        self.assertIn("file:" + str((self.tmp / "SysTypes.merged").resolve()), out.splitlines())
+        # The compiled records are written for the raft CLI
+        written_compiled, _ = A.load_catalogue(str(self.tmp / "compiled.out.json"), record_file=False)
+        self.assertEqual(json.dumps(written_compiled), json.dumps(compiled))
+        # The device's size limit applies
+        code, _, err, _ = self.run_fs_image(sel, {"DevMan": {"typeFileLimits": {"maxFileBytes": 10}}})
+        self.assertEqual(code, 1)
+        self.assertIn("byte limit", err)
+        # A type file that isn't on /local can't go in the image
+        code, _, err, _ = self.run_fs_image(sel, {"DevMan": {"typeFile": ""}})
+        self.assertEqual(code, 1)
+        self.assertIn("no type file", err)
+
     def test_raftcore_records_assembled_generate_the_same_headers(self):
-        sel = self.selection({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["raftcore:*"]}})
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:*"]}})
         result = A.assemble([sel], str(RAFTCORE_DIR), "builtin")
         assembled = self.tmp / "assembled.json"
         assembled.write_text(A.catalogue_text(result.records))

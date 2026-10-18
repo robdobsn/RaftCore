@@ -8,17 +8,18 @@ devdocs/device-type-record-management-plan.md.
 
 DeviceTypeSources.json:
     {
-      "sources":  { "raftcore": { "builtin": true }, "local": { "path": "devtypes" } },
+      "sources":  { "raftcore": { "bundled": true }, "local": { "path": "devtypes" } },
       "builtin":  { "include": ["raftcore:LSM6DS", "local:*"], "exclude": [], "policy": { "TrillRing": "disabled" } },
-      "typeFile": { "include": [], "policy": {} }
+      "typeFile": { "include": [], "policy": {}, "fsImage": false }
     }
-- sources: "builtin" (RaftCore's records), "path" (a folder of records, one record file or a catalogue file, relative
+- sources: "bundled" (RaftCore's records; "builtin": true is an older name for it), "path" (a folder of records, one record file or a catalogue file, relative
   to the DeviceTypeSources.json that names it), "git" ({"git": <url>, "ref": <tag, branch or full commit hash>,
   "path": <folder or record file in the repo, default "records">})
 - include/exclude: "*", "<source>:*", "<source>:<key>" or "<key>" (a key only one source has). builtin's include
   defaults to "*", typeFile's to nothing. A key from a path source replaces the same key from another source (the later path source wins); the same key
   from two other sources is an error unless include names the source
 - policy: "enabled", "disabled" or "disabledClaim" for a selected key
+- typeFile.fsImage: true puts the type file in the SysType's file system image (see --fs-image)
 - A SysType's file adds to Common's: sources are added (or replaced by name), include and exclude lists are joined,
   policies merged (the SysType's win)
 
@@ -46,6 +47,16 @@ Usage:
         record is new, an override of a compiled record or unchanged (left out); typeFile policies for compiled types
         become {"disable": ...} entries. Records with no on-device decoder are listed. The compiled records are the
         builtin selection of the same files unless --compiled gives them
+
+    AssembleDeviceTypes.py --raftcore <dir> --select <file>[,<file>] --fs-image <dir> --systypes <SysTypes.json>
+                           --compiled <file or folder>[,...] [--compiled-out <catalogue.json>]
+                           [--cache-dir ...] [--lock ...] [--override-dir ...]
+        For the build: if typeFile.fsImage is true, the type file is written into <dir> at the path the device loads it
+        from (DevMan typeFile, else DeviceLibrary devLibFile, else /local/devlib.json, which must be on /local/), within
+        DevMan typeFileLimits.maxFileBytes; the compiled records are the generator's input files, merged as it merges
+        them. Prints "fsimage:<file written>" and the inputs; <dir> is emptied if fsImage isn't set. --compiled-out
+        writes the compiled records as one catalogue file (build/<SysType>/raft/DeviceTypeRecords.compiled.json), which
+        the raft CLI builds type files against
 
 --list-inputs prints the files and folders read, one per line ("file:<path>" or "dir:<path>"), for the build's
 dependencies.
@@ -144,7 +155,7 @@ def raftcore_records_path(raftcore_dir):
 
 def read_selection(paths):
     """Merge DeviceTypeSources.json files (Common first, then the SysType's)"""
-    merged = {"sources": OrderedDict(), "sections": {s: {"include": [], "exclude": [], "policy": OrderedDict(),
+    merged = {"sources": OrderedDict(), "messages": [], "sections": {s: {"include": [], "exclude": [], "policy": OrderedDict(),
                                                            "hasInclude": False, "fsImage": False} for s in SECTIONS}}
     for path in paths:
         content = _read_json(path)
@@ -159,6 +170,11 @@ def read_selection(paths):
                 raise AssembleError(f"{path}: source \"{name}\" must be an object")
             if ":" in name or name == "*":
                 raise AssembleError(f"{path}: source name \"{name}\" can't contain ':' or be '*'")
+            if "builtin" in spec and "bundled" not in spec:
+                # The older name for "bundled"
+                spec = OrderedDict((("bundled" if k == "builtin" else k), v) for k, v in spec.items())
+                merged["messages"].append(f"{os.path.basename(path)}: source \"{name}\": \"builtin\": true is now "
+                                          f"\"bundled\": true")
             merged["sources"][name] = (spec, base_dir, path)
         for section in SECTIONS:
             spec = content.get(section)
@@ -181,6 +197,8 @@ def read_selection(paths):
                     raise AssembleError(f"{path}: {section}.policy \"{key}\" must be one of {', '.join(POLICY_VALUES)}")
                 target["policy"][key] = policy
             if "fsImage" in spec:
+                if section != "typeFile":
+                    raise AssembleError(f"{path}: fsImage belongs in the typeFile section")
                 target["fsImage"] = bool(spec["fsImage"])
     return merged
 
@@ -376,7 +394,7 @@ def _load_git_source(name, spec, raftcore_dir, git_options, lock, messages, inpu
 
 def _load_source(name, spec, base_dir, raftcore_dir):
     """(records, files, is_local, input paths)"""
-    if spec.get("builtin"):
+    if spec.get("bundled"):
         path = raftcore_records_path(raftcore_dir)
         records, files = load_catalogue(path)
         return records, files, False, [path]
@@ -388,7 +406,7 @@ def _load_source(name, spec, base_dir, raftcore_dir):
             raise AssembleError(f"source \"{name}\": {path} not found")
         records, files = load_catalogue(path)
         return records, files, True, [path]
-    raise AssembleError(f"source \"{name}\": needs \"builtin\", \"path\" or \"git\"")
+    raise AssembleError(f"source \"{name}\": needs \"bundled\", \"path\" or \"git\"")
 
 
 def _parse_pattern(pattern, source_names):
@@ -420,6 +438,7 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
     selection = read_selection(selection_paths)
     result = Assembly()
     result.inputs.extend(os.path.abspath(p) for p in selection_paths)
+    result.messages.extend(selection["messages"])
     lock = Lock(git_options.lock_path)
     result.lock = lock
     if git_options.lock_path and os.path.isfile(git_options.lock_path):
@@ -577,6 +596,51 @@ def write_if_changed(path, text):
 ################################################################################################################
 
 TYPE_FILE_MAX_BYTES_DEFAULT = 65536
+TYPE_FILE_PATH_DEFAULT = "/local/devlib.json"
+
+
+def merge_compiled(paths):
+    """The records the generator compiles from its input files (ProcessDevTypeJsonToC.py): catalogue files or folders
+    of records, in order; a later file's record replaces an earlier one's, and a policy-only entry ({"disable": ...})
+    sets the policy of an earlier record"""
+    merged = OrderedDict()
+    for path in paths:
+        records, _ = load_catalogue(path, record_file=False)
+        for key, entry in records.items():
+            if isinstance(entry, dict) and "disable" in entry and set(entry) <= {"disable", "deviceType", "_notes"}:
+                if key in merged:
+                    merged[key]["disable"] = entry["disable"]
+                continue
+            merged[key] = json.loads(json.dumps(entry), object_pairs_hook=OrderedDict)
+    return merged
+
+
+def type_file_location(systypes_path):
+    """Where the device loads its type file, and the size limit, from a (merged) SysTypes.json:
+    returns (path on the device, max bytes)"""
+    config = _read_json(systypes_path) if systypes_path and os.path.isfile(systypes_path) else {}
+    devman = config.get("DevMan", {}) if isinstance(config, dict) else {}
+    if not isinstance(devman, dict):
+        devman = {}
+    if "typeFile" in devman:
+        path = devman["typeFile"]
+    else:
+        path = config.get("DeviceLibrary", {}).get("devLibFile", TYPE_FILE_PATH_DEFAULT) \
+            if isinstance(config.get("DeviceLibrary"), dict) else TYPE_FILE_PATH_DEFAULT
+    max_bytes = devman.get("typeFileLimits", {}).get("maxFileBytes", TYPE_FILE_MAX_BYTES_DEFAULT) \
+        if isinstance(devman.get("typeFileLimits"), dict) else TYPE_FILE_MAX_BYTES_DEFAULT
+    return path, int(max_bytes)
+
+
+def fs_image_relative_path(device_path):
+    """The path in the file system image of a file on the device's /local file system"""
+    if not isinstance(device_path, str) or not device_path:
+        raise AssembleError("typeFile.fsImage is set but the SysType has no type file (DevMan typeFile is empty)")
+    parts = device_path.strip("/").split("/", 1)
+    if len(parts) != 2 or parts[0] != "local" or not parts[1]:
+        raise AssembleError(f"typeFile.fsImage is set but the type file {device_path} isn't on /local/, which is "
+                            f"the file system image's")
+    return parts[1]
 
 
 def _without_notes(record):
@@ -683,6 +747,43 @@ def split_catalogue(catalogue_path, out_dir):
 # Command line
 ################################################################################################################
 
+def _build_fs_image(args):
+    """--fs-image: the type file for the SysType's file system image, if typeFile.fsImage is set"""
+    if not args.raftcore or not args.select:
+        raise AssembleError("--fs-image needs --raftcore and --select")
+    paths = [p for p in args.select.split(",") if p.strip()]
+    git_options = GitOptions(args.cache_dir, args.lock, args.override_dir, False)
+    result = assemble(paths, args.raftcore, "typeFile", git_options)
+    if os.path.isdir(args.fs_image):
+        shutil.rmtree(args.fs_image)
+    inputs = list(result.inputs)
+    compiled_paths = [p for p in (args.compiled or "").split(",") if p.strip()]
+    compiled = merge_compiled(compiled_paths) if compiled_paths else None
+    if args.compiled_out and compiled is not None:
+        write_if_changed(args.compiled_out, catalogue_text(compiled))
+    if result.fs_image:
+        device_path, max_bytes = type_file_location(args.systypes)
+        relative = fs_image_relative_path(device_path)
+        if compiled is None:
+            compiled = assemble(paths, args.raftcore, "builtin", git_options).records
+        text, entries = build_type_file(result, compiled, max_bytes)
+        out = os.path.join(args.fs_image, relative)
+        write_if_changed(out, text)
+        for message in result.messages:
+            print(f"DeviceTypeSources: {message}", file=sys.stderr)
+        counts = ", ".join(f"{sum(1 for e in entries if e['kind'] == k)} {k}" for k in ("new", "override", "policy"))
+        print(f"DeviceTypeSources: type file {device_path} in the file system image: {len(text)} bytes; {counts}",
+              file=sys.stderr)
+        print("fsimage:" + os.path.abspath(out))
+        if args.systypes:
+            inputs.append(os.path.abspath(args.systypes))
+        inputs.extend(os.path.abspath(p) for p in compiled_paths)
+    if args.list_inputs:
+        for path in inputs:
+            print(("dir:" if os.path.isdir(path) else "file:") + os.path.abspath(path))
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Assemble device type records (DeviceTypeSources.json)")
     parser.add_argument("--raftcore", help="RaftCore folder")
@@ -702,6 +803,11 @@ def main(argv=None):
                         "builtin selection of the same DeviceTypeSources.json)")
     parser.add_argument("--max-bytes", type=int, default=TYPE_FILE_MAX_BYTES_DEFAULT, help="type file size limit")
     parser.add_argument("--report", help="write what the type file does with each record, as JSON")
+    parser.add_argument("--fs-image", help="for the build: folder to write the type file into if typeFile.fsImage "
+                        "is set (at the device's type file path)")
+    parser.add_argument("--systypes", help="the SysType's (merged) SysTypes.json, for --fs-image")
+    parser.add_argument("--compiled-out", help="with --fs-image: write the compiled records (the --compiled files "
+                        "merged) as one catalogue file, for the raft CLI")
     parser.add_argument("--split", help="catalogue file to split into one file per record")
     parser.add_argument("--out-dir", help="folder for --split")
     args = parser.parse_args(argv)
@@ -712,6 +818,8 @@ def main(argv=None):
             keys = split_catalogue(args.split, args.out_dir)
             print(f"DeviceTypeSources: {len(keys)} records written to {args.out_dir}")
             return 0
+        if args.fs_image:
+            return _build_fs_image(args)
         if not args.raftcore or not args.out:
             raise AssembleError("--raftcore and --out are needed")
         if args.all:

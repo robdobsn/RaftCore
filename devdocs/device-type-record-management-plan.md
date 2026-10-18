@@ -1,8 +1,8 @@
 # Device Type Record Management: Plan
 
 Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b, 2, 2b and 3 done (2026-10-17), phase 4 done
-(2026-10-18)** on the `feature/device-type-records` branches of RaftCore, Axiom, raftjs and RaftCLI (see §6); phase 5
-(optional items) not started. It follows the device identification plan
+(2026-10-18)** on the `feature/device-type-records` branches of RaftCore, Axiom, raftjs and RaftCLI (see §6); of phase 5
+(optional items), `fsImage` is done (2026-10-18). It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -89,7 +89,7 @@ own by the raft CLI (3.7).
 ```json
 {
   "sources": {
-    "raftcore": { "builtin": true },
+    "raftcore": { "bundled": true },
     "local":    { "path": "devtypes" },
     "acme":     { "git": "https://github.com/acme/raft-devtypes.git", "ref": "v1.2.0", "path": "records" },
     "widget":   { "git": "git@github.com:bob/widget-fw.git", "ref": "3f2a9c1e7b...", "path": "devtypes/Widget.json" }
@@ -107,7 +107,8 @@ own by the raft CLI (3.7).
 ```
 
 - **Sources:**
-  - `builtin`: RaftCore's records, at the RaftCore version the build uses;
+  - `bundled`: RaftCore's records, at the RaftCore version the build uses (named `builtin` until 2026-10-18,
+    which is still read, with a message);
   - `path`: a folder relative to the file, or a single record file;
   - `git`: any repo the user's git can reach (private repos over SSH use the user's credentials). `ref` is a tag,
     branch or commit; `path` is a folder of records or one record file - so "this file in that repo at that
@@ -166,7 +167,8 @@ The `typeFile` selection builds a type file (`devlib.json`) from the same source
 - **no on-device decoder**: a new record, or an override that changes the response layout, has no compiled decoder.
   raftjs and the WebUI decode it; DataLogger CSV, RaftROS (which doesn't announce it - N5) and named values don't.
   Reported for each such record;
-- `fsImage: true` also puts it in the SysType's FSImage, so a factory flash carries it.
+- `fsImage: true` also puts it in the SysType's FSImage, so a factory flash carries it (done 2026-10-18 - §6
+  phase 5).
 
 **Firmware addition (additive):** `devman/typefile/check?file=<path>` runs the loader's checks on a file without
 applying it, and reports what `devman/typefile` would report (added, replaced, unchanged, disabled, rejected, first
@@ -556,3 +558,35 @@ Stage 12 of the identification plan (record improvements) can start after phase 
   second push did nothing. `pull` after a local change listed the changed key. A file changed on the device by
   `raft fs put` gave the warning on the next push. The board was left with no type file.
 - **Axiom project:** `list`, `check` and `diff` on Axiom018's selection (47 records, the 3 known grammar warnings).
+
+### Phase 5: `fsImage` and the `bundled` source flag (done 2026-10-18)
+
+- **`bundled`:** the source flag for RaftCore's records is now `"bundled": true` (it was `"builtin": true`, the same
+  word as the `builtin` section, which chooses what is compiled in). `"builtin": true` is still read, with a message.
+  Axiom018's selection uses the new name (assembles the same 47 records).
+- **`typeFile.fsImage: true`** (only in `typeFile`):
+  - at configure time, after the generator's input list is final, `AssembleDeviceTypes.py --fs-image` builds the
+    type file against the records the build compiles - the generator's input files (the selection, then
+    `DEV_TYPE_JSON_FILES` and `DevTypes.json`) merged as the generator merges them (`merge_compiled`) - so a record
+    identical to one from `DevTypes.json` is left out;
+  - the path is the device's: DevMan `typeFile` in the merged SysTypes.json, else `DeviceLibrary/devLibFile`, else
+    `/local/devlib.json`; it must be on `/local/` (the image's file system). The size limit is DevMan
+    `typeFileLimits.maxFileBytes` (default 64 KB);
+  - the file is written to `build/<SysType>/raft/devtypes-fsimage/` and copied into the FSImage folder after the
+    FSImage and WebUI copies, so it goes into the LittleFS/SPIFFS image. A file at the same path in the SysType's
+    FSImage folder is replaced, with a warning; no file system image (`FS_TYPE`/`FS_IMAGE_PATH`) is an error;
+  - without `fsImage`, nothing is added and an earlier build's file is removed.
+- **The compiled records for the raft CLI:** the same step writes them as one file,
+  `build/<SysType>/raft/DeviceTypeRecords.compiled.json` (removed when there's no selection). `raft devtypes` builds
+  type files against it when it exists (the device runs that build's firmware), else against the `builtin`
+  selection; `DeviceTypesTool.py --compiled` is the option, and `typefile` reports which it used. Before this the CLI
+  couldn't see records added by `DevTypes.json` and reported them as new.
+- **Tests:** 7 new host tests (the old flag name, `fsImage` only in `typeFile`, `merge_compiled`, the device path and
+  limit, the `--fs-image` build with and without `fsImage` and its errors, `--compiled` in the tool). 86 Python tests
+  pass.
+- **FeatherS3** (SysTypeFeatherS3C3Test, temporarily with a selection: RaftCore's records, then its `DevTypes.json`;
+  type file: a new record, an identical copy of `DevTypes.json`'s MPU6050, a TrillRing policy, `fsImage: true`): the
+  build reported 1 new and 1 policy (MPU6050 unchanged, left out) and put `devlib.json` in the LittleFS image;
+  after `raft flash` the device applied it at its first boot (Gizmo added, TrillRing disabled, CRC `107f`), and
+  `raft devtypes status` then said it was the project's type file. The SysType, build and board were restored (no
+  type file, empty `/local`).

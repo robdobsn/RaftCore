@@ -9,6 +9,7 @@
   compiled type.
 - diff shows a local copy against the record it replaces, and a type file override against the compiled record.
 - typefile writes the file the assembler builds, with the CRC the firmware reports.
+- --compiled (the build's DeviceTypeRecords.compiled.json) is what type files are built against when given.
 """
 
 import io
@@ -67,7 +68,7 @@ class DeviceTypesToolTests(unittest.TestCase):
 
     def with_local(self, builtin=None, type_file=None, local=None):
         self.write_records(self.project / "devtypes", local or {})
-        content = {"sources": {"raftcore": {"builtin": True}, "local": {"path": "../../devtypes"}},
+        content = {"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../devtypes"}},
                    "builtin": builtin or {"include": ["raftcore:*"]}}
         if type_file is not None:
             content["typeFile"] = type_file
@@ -82,7 +83,7 @@ class DeviceTypesToolTests(unittest.TestCase):
         self.assertIn("already exists", err)
 
     def test_add_remove(self):
-        self.write_sources({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["raftcore:Alpha"]}})
+        self.write_sources({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:Alpha"]}})
         self.assertEqual(self.run_tool("add", "raftcore:Bravo")[0], 0)
         self.assertEqual(self.read_sources()["builtin"]["include"], ["raftcore:Alpha", "raftcore:Bravo"])
         self.assertEqual(self.run_tool("remove", "raftcore:Alpha")[0], 0)
@@ -92,7 +93,7 @@ class DeviceTypesToolTests(unittest.TestCase):
         self.assertEqual(self.read_sources()["typeFile"]["include"], ["raftcore:Alpha"])
 
     def test_add_unknown_leaves_file(self):
-        self.write_sources({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["raftcore:Alpha"]}})
+        self.write_sources({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:Alpha"]}})
         before = self.sources.read_text()
         code, _, err = self.run_tool("add", "raftcore:Nope")
         self.assertEqual(code, 1)
@@ -100,7 +101,7 @@ class DeviceTypesToolTests(unittest.TestCase):
         self.assertEqual(json.loads(self.sources.read_text()), json.loads(before))
 
     def test_remove_wildcard_excludes(self):
-        self.write_sources({"sources": {"raftcore": {"builtin": True}}, "builtin": {"include": ["raftcore:*"]}})
+        self.write_sources({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:*"]}})
         self.assertEqual(self.run_tool("remove", "raftcore:Bravo")[0], 0)
         self.assertEqual(self.read_sources()["builtin"]["exclude"], ["raftcore:Bravo"])
         code, out, _ = self.run_tool("list", json_out=True)
@@ -178,6 +179,24 @@ class DeviceTypesToolTests(unittest.TestCase):
         self.assertEqual(report["bytes"], len(text))
         self.assertEqual(report["crc"], "%04x" % T.crc16(text.encode()))
         self.assertEqual([e["kind"] for e in report["entries"]], ["new", "policy"])
+
+    def test_compiled_records_from_the_build(self):
+        # The build compiles a record the selection doesn't have (e.g. from DevTypes.json): with --compiled the type
+        # file's identical copy is unchanged (left out), without it the record is new
+        self.with_local(type_file={"include": ["local:Delta"]}, local={"Delta": record("0x14", name="Delta")})
+        compiled = self.tmp / "DeviceTypeRecords.compiled.json"
+        compiled.write_text(json.dumps({"devTypes": {"Alpha": record("0x11", name="Alpha"),
+                                                     "Delta": record("0x14", name="Delta")}}))
+        out_path = self.tmp / "devlib.json"
+        code, out, _ = self.run_tool("typefile", "--out", str(out_path), json_out=True)
+        self.assertEqual([e["kind"] for e in json.loads(out)["entries"]], ["new"])
+        self.assertEqual(json.loads(out)["compiled"], "builtin")
+        code, out, _ = self.run_tool("--compiled", str(compiled), "typefile", "--out", str(out_path), json_out=True)
+        self.assertEqual(code, 0, out)
+        self.assertEqual([e["kind"] for e in json.loads(out)["entries"]], ["unchanged"])
+        self.assertEqual(json.loads(out)["compiled"], str(compiled.resolve()))
+        code, out, _ = self.run_tool("--compiled", str(compiled), "list", json_out=True)
+        self.assertEqual([r["kind"] for r in json.loads(out) if r["section"] == "typeFile"], ["unchanged"])
 
     def test_crc16(self):
         # CRC16-CCITT (init 0xffff, poly 0x1021): the standard check value

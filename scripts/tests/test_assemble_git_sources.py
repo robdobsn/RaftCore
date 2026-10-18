@@ -219,7 +219,7 @@ class GitSourceTests(unittest.TestCase):
         git("add", "-A", cwd=self.work)
         git("commit", "-q", "-m", "alpha", cwd=self.work)
         git("push", "-q", str(self.bare), "main", cwd=self.work)
-        extra = {"raftcore": {"builtin": True}}
+        extra = {"raftcore": {"bundled": True}}
         self.assertAssembleError("name the source to use", self.select("main", extra_sources=extra))
         result = self.run_assemble(self.select("main", include=["acme:Alpha", "raftcore:*"], extra_sources=extra),
                                    update=True)
@@ -227,7 +227,7 @@ class GitSourceTests(unittest.TestCase):
 
     def test_no_git_sources_no_lock(self):
         sel = self.project / "DeviceTypeSources.json"
-        sel.write_text(json.dumps({"sources": {"raftcore": {"builtin": True}}}))
+        sel.write_text(json.dumps({"sources": {"raftcore": {"bundled": True}}}))
         self.run_assemble(str(sel))
         self.assertFalse(self.lock.exists())
 

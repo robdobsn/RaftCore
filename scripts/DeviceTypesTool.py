@@ -12,6 +12,8 @@ Common options (before the command):
     --lock <file>           lock file for git sources
     --cache-dir <dir>       folder for fetched git sources
     --override-dir <dir>    folder of local copies that replace git sources (raftdevtypes/)
+    --compiled <file>       the records compiled into the firmware, as a catalogue file (e.g. the build's
+                            DeviceTypeRecords.compiled.json); default: the builtin selection
     --json                  machine-readable output (list, check, typefile)
 
 Commands:
@@ -93,6 +95,14 @@ def _print_json(value):
     print(json.dumps(value, indent=1))
 
 
+def _compiled_records(args, builtin):
+    """The records compiled into the firmware: --compiled, else the builtin selection"""
+    if args.compiled:
+        records, _ = A.load_catalogue(args.compiled, record_file=False)
+        return records
+    return builtin.records
+
+
 def _short_commit(result, source):
     commit = result.commits.get(source)
     return commit[:10] if commit else ""
@@ -116,7 +126,7 @@ def cmd_init(args):
     _write_json(path, OrderedDict([
         ("_notes", "Device type records compiled into the firmware (builtin) and for a device type file (typeFile). "
                    "See RaftCore's wiki page Selecting Device Types"),
-        ("sources", OrderedDict([("raftcore", OrderedDict([("builtin", True)]))])),
+        ("sources", OrderedDict([("raftcore", OrderedDict([("bundled", True)]))])),
         ("builtin", OrderedDict([("include", ["raftcore:*"])])),
     ]))
     print(f"Created {path} selecting every RaftCore record (raftcore:*). If features.cmake has "
@@ -130,7 +140,7 @@ def cmd_list(args):
     _write_lock(args, type_file if type_file.lock_text is not None else builtin)
     kinds = {}
     if type_file.records or type_file.policy_only:
-        _, entries = A.build_type_file(type_file, builtin.records, max_bytes=1 << 30)
+        _, entries = A.build_type_file(type_file, _compiled_records(args, builtin), max_bytes=1 << 30)
         kinds = {e["key"]: e for e in entries}
     rows = []
     for key, record in builtin.records.items():
@@ -155,8 +165,11 @@ def cmd_list(args):
         if row["section"] == "typeFile":
             extra = row["kind"] + (" (no on-device decoder)" if row["noDecoder"] else "")
         print(f"{row['key']:28} {row['section']:9} {row['source']:12} {row['commit']:11} {row['policy']:14} {extra}")
-    print(f"{len(builtin.records)} records compiled in, {len(type_file.records) + len(type_file.policy_only)} "
-          f"entries for the type file")
+    print(f"{len(builtin.records)} records selected for the firmware, "
+          f"{len(type_file.records) + len(type_file.policy_only)} entries for the type file" +
+          (f" (compared with the compiled records in {args.compiled})" if args.compiled else ""))
+    if type_file.fs_image:
+        print("The build puts the type file in the file system image (typeFile.fsImage)")
     for message in builtin.messages + type_file.messages:
         print(f"  {message}")
     return 0
@@ -298,7 +311,7 @@ def cmd_check(args):
     # The type file
     if type_file.records or type_file.policy_only:
         try:
-            A.build_type_file(type_file, builtin.records)
+            A.build_type_file(type_file, _compiled_records(args, builtin))
         except A.AssembleError as err:
             problems.append(f"type file: {err}")
     warnings = list(dict.fromkeys(warnings))
@@ -355,10 +368,11 @@ def cmd_diff(args):
                                                  f"{chosen}:{key}", lineterm=""):
                     print(line)
                 shown += 1
+    compiled_records = _compiled_records(args, builtin)
     for key, record in type_file.records.items():
-        if (args.key and key != args.key) or key not in builtin.records:
+        if (args.key and key != args.key) or key not in compiled_records:
             continue
-        compiled = builtin.records[key]
+        compiled = compiled_records[key]
         if A._comparable(record) == A._comparable(compiled):
             continue
         print(f"=== {key}: type file record overrides the compiled record")
@@ -373,8 +387,9 @@ def cmd_diff(args):
 
 def cmd_typefile(args):
     type_file = _assemble(args, "typeFile")
-    if args.compiled:
-        compiled, _ = A.load_catalogue(args.compiled, record_file=False)
+    compiled_from = args.typefile_compiled or args.compiled
+    if compiled_from:
+        compiled, _ = A.load_catalogue(compiled_from, record_file=False)
     else:
         compiled = _assemble(args, "builtin").records
     text, entries = A.build_type_file(type_file, compiled, args.max_bytes)
@@ -382,7 +397,8 @@ def cmd_typefile(args):
     A.write_if_changed(args.out, text)
     crc = "%04x" % crc16(text.encode("utf-8"))
     report = OrderedDict([("file", os.path.abspath(args.out)), ("bytes", len(text)), ("maxBytes", args.max_bytes),
-                          ("crc", crc), ("entries", entries)])
+                          ("crc", crc), ("compiled", os.path.abspath(compiled_from) if compiled_from else "builtin"),
+                          ("entries", entries)])
     if args.json:
         _print_json(report)
         return 0
@@ -391,6 +407,8 @@ def cmd_typefile(args):
     print(f"Type file {args.out}: {len(text)} bytes (limit {args.max_bytes}), CRC {crc}; " +
           ", ".join(f"{n} {kind}" for kind, n in counts.items()) +
           (" (unchanged records are left out)" if counts["unchanged"] else ""))
+    print(f"  compared with the compiled records in {compiled_from}" if compiled_from else
+          "  compared with the builtin selection (build the project for the records it actually compiles)")
     for entry in entries:
         print(f"  {entry['key']:28} {entry['kind']}{' - no on-device decoder' if entry.get('noDecoder') else ''}")
     no_decoder = [e["key"] for e in entries if e.get("noDecoder")]
@@ -423,6 +441,7 @@ def main(argv=None):
     parser.add_argument("--cache-dir")
     parser.add_argument("--override-dir")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--compiled")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init")
     sub.add_parser("list")
@@ -442,7 +461,7 @@ def main(argv=None):
     p.add_argument("key", nargs="?")
     p = sub.add_parser("typefile")
     p.add_argument("--out", required=True)
-    p.add_argument("--compiled")
+    p.add_argument("--compiled", dest="typefile_compiled")
     p.add_argument("--max-bytes", type=int, default=A.TYPE_FILE_MAX_BYTES_DEFAULT)
     args = parser.parse_args(argv)
     commands = {"init": cmd_init, "list": cmd_list, "add": cmd_add, "remove": cmd_remove, "new": cmd_new,
