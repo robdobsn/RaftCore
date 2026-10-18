@@ -78,6 +78,14 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**MCP9808, verified on Axiom018 (2026-10-18):**
+- Manufacturer 0x0054, device 0x0400. CONFIG 0x0000, alert limits 0, resolution 0.0625 °C.
+- Temperature raw 0xC1BC: the alert flags in bits 15:13 are masked out, giving 27.75 °C.
+- 20 re-identifications kept the type. The other candidate at 0x18 is MPRLS.
+- The Robotical servo and pump records aren't in Axiom018's selection, so their collateral writes at 0x18 couldn't be tested.
+- Negative temperatures (the `ss` fix) are verified by decode tests only.
+- No record change.
+
 **TMP117, verified on Axiom018 (2026-10-18):**
 - ID 0x0117. CONFIGURATION is 0x0220 after init.
 - The init fix works: after putting the part in shutdown (0x0620), a reinit restored 0x0220. The old init wrote only the pointer.
