@@ -78,6 +78,21 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**BME680: new record, verified on Axiom018 (2026-10-18):**
+- **Record:**
+  - addresses 0x76-0x77; detection ID 0x61 and variant 0x00;
+  - forced mode: each poll triggers, waits 200 ms and reads calibration and data, 61 bytes, every 3 s;
+  - decode: Bosch's floating-point compensation plus gas resistance; gas is 0 unless valid and heater-stable.
+- **The heater set-point is a fixed 0x6E** (one unit's value). The right value is calculated per unit, which needs computed init values: `computed-init-values.md`, TODO.md.
+- **Heater time:** 100 ms left the heater unstable; 152 ms is stable.
+- **Results:**
+  - identified;
+  - init registers as set;
+  - polls trigger measurements every 3 s;
+  - 20 re-identifications kept the type;
+  - the decode on the unit's bytes gives 24.36 °C, 1023.50 hPa, 56.7 % RH, 36649 Ω in raftjs, the generated C++ and Bosch's reference;
+  - gas resistance rose from about 0.6 kΩ to 10.5 kΩ over the first minutes of heating (burn-in).
+
 **BME280: new record, verified on Axiom018 (2026-10-18):**
 - **Record:**
   - addresses 0x76-0x77, detection ID 0x60;
