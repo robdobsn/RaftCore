@@ -25,6 +25,15 @@
 typedef uint32_t (*DeviceTypeRecordDecodeFn)(const uint8_t* pPollBuf, uint32_t pollBufLen, void* pStructOut, uint32_t structOutSize, 
             uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState);
 
+/// @brief Init value function - computes the values written in an init string's {name} value slots from the bytes the
+///        earlier init steps read (generated from the record's initCode; devdocs/computed-init-values.md)
+/// @param pReadBuf bytes read by the init steps before the first value slot, in order
+/// @param readBufLen number of bytes
+/// @param pValues (out) the values, in the order of the record's initValueNames
+/// @param numValues number of values
+/// @return false if the bytes read aren't enough (e.g. a read step failed)
+typedef bool (*DeviceTypeRecordInitFn)(const uint8_t* pReadBuf, uint32_t readBufLen, int32_t* pValues, uint32_t numValues);
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @enum AttrType
 /// @brief Attribute field type for decoded poll structs
@@ -97,6 +106,11 @@ public:
     static constexpr uint8_t POLICY_DISABLED = 1;
     static constexpr uint8_t POLICY_DISABLED_CLAIM = 2;
     uint8_t initialPolicy = POLICY_ENABLED;
+
+    // Init values: the function computing the values for the init string's {name} value slots, and their names
+    // (comma separated, in the order the function writes them) - only records with initCode, which must be compiled in
+    DeviceTypeRecordInitFn initValuesFn = nullptr;
+    const char* initValueNames = nullptr;
 
     static const char* getPolicyStr(uint8_t policy)
     {

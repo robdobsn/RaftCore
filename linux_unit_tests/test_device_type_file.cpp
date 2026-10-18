@@ -610,6 +610,56 @@ static void testRecordSources()
     TEST_ASSERT(table2.areRecordSourcesReady(), "ready after the timeout");
 }
 
+// Init values in a type file: value slots ({name}) need compiled init code - allowed in a record that overrides a
+// compiled record whose initCode computes them (the override uses that code), rejected otherwise
+static void testInitValuesInTypeFile()
+{
+    printf("Running testInitValuesInTypeFile...\n");
+    const char* bmeBody = R"("addresses":"0x76-0x77","detectionValues":"0xd0=0x61&0xf0=0x00",)"
+                R"("initValues":"0xe0b6=p10&0xeb=r4&0x00=r3&0x7201&0x5a{heat}&0x7110",)"
+                R"("pollInfo":{"c":"0x7425=p200&0x89=r25&0xe1=r16&0x00=r5&0x1d=r15","i":5000,"s":1},)"
+                R"("devInfoJson":{"name":"BME680 override","type":"BME680","resp":{"b":61,"a":[{"n":"t","t":"<f","o":"float"}]}})";
+    {
+        // Overriding BME680 (compiled with initCode computing "heat"): accepted, and the override uses the compiled code
+        DeviceTypeRecords table;
+        DeviceTypeIndexType baseIdx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pBase = table.getRecord("BME680", baseIdx);
+        TEST_ASSERT(pBase && pBase->initValuesFn, "BME680 is compiled with init code");
+        DeviceTypeFileLoader::Result result = applyFile(table, std::string(R"({"devTypes":{"BME680":{)") + bmeBody + "}}}");
+        TEST_ASSERT((result.replaced == 1) && (result.rejected == 0),
+                    ("override with a value slot accepted: " + std::string(result.firstError.c_str())).c_str());
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pRec = table.getRecord("BME680", idx);
+        TEST_ASSERT(pRec && (idx == baseIdx) && pBase && (pRec->initValuesFn == pBase->initValuesFn) &&
+                    pRec->initValueNames && (strcmp(pRec->initValueNames, "heat") == 0), "override uses the compiled init code");
+        TEST_ASSERT(pRec && strstr(pRec->devInfoJson, "BME680 override"), "override content");
+    }
+    {
+        // A new key with a value slot: no compiled init code - rejected
+        DeviceTypeRecords table;
+        DeviceTypeFileLoader::Result result = applyFile(table, std::string(R"({"devTypes":{"NewHeater":{)") + bmeBody + "}}}");
+        TEST_ASSERT((result.rejected == 1) && result.firstError.startsWith("NewHeater: initValues value slot {heat}"),
+                    ("value slot without compiled init code rejected: " + std::string(result.firstError.c_str())).c_str());
+    }
+    {
+        // A compiled record without init code (TMP117) given a value slot: rejected
+        DeviceTypeRecords table;
+        DeviceTypeFileLoader::Result result = applyFile(table,
+                    R"({"devTypes":{"TMP117":{"addresses":"0x48","detectionValues":"0x0F=0x0117","initValues":"0x01{cfg}",)"
+                    R"("pollInfo":{"c":"0x00=r2","i":1000,"s":1},"devInfoJson":{"type":"TMP117","resp":{"b":2,"a":[]}}}}})");
+        TEST_ASSERT((result.rejected == 1) && (result.replaced == 0), "value slot on a record without init code rejected");
+    }
+    {
+        // initCode for a new key: rejected (it must be compiled in)
+        DeviceTypeRecords table;
+        DeviceTypeFileLoader::Result result = applyFile(table,
+                    R"({"devTypes":{"NewDev":{"addresses":"0x30","initValues":"0x0101","initCode":{"c":"init.x=1;"},)"
+                    R"("pollInfo":{"c":"0x00=r1","i":1000,"s":1},"devInfoJson":{"type":"NewDev","resp":{"b":1,"a":[]}}}}})");
+        TEST_ASSERT((result.rejected == 1) && result.firstError.startsWith("NewDev: initCode needs"),
+                    ("initCode for a new key rejected: " + std::string(result.firstError.c_str())).c_str());
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 3)
@@ -629,6 +679,7 @@ int main(int argc, char** argv)
     testOverridesAndPolicies();
     testCatalogueRoundTrip(argv[1]);
     testRecordSources();
+    testInitValuesInTypeFile();
     testRecordToFileEntry();
     testSetPolicyInFile();
     return testSummary("test_device_type_file");

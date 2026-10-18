@@ -403,6 +403,61 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("no type file", err)
 
+    def init_code_record(self, key="Heater", slots="{heat}", code="init.heat=buf[0]+1;"):
+        rec = record("0x30", name=key)
+        rec["initValues"] = "0x10=r1&0x5a" + slots
+        if code is not None:
+            rec["initCode"] = {"n": "h", "c": code}
+        return rec
+
+    def run_generator(self, records):
+        catalogue = self.tmp / "gen.json"
+        catalogue.write_text(json.dumps({"devTypes": records}))
+        return subprocess.run([sys.executable, str(SCRIPTS_DIR / "ProcessDevTypeJsonToC.py"), str(catalogue),
+                               str(self.tmp / "t.h"), str(self.tmp / "p.h")], capture_output=True, text=True)
+
+    def test_generator_init_values(self):
+        # initCode with value slots: the init function and the value names are generated
+        run = self.run_generator({"Heater": self.init_code_record()})
+        self.assertEqual(run.returncode, 0, run.stderr)
+        header = (self.tmp / "t.h").read_text()
+        self.assertIn("int32_t* pValues", header)
+        self.assertIn("if ((readBufLen < 1) || (numValues < 1)) return false;", header)
+        self.assertIn("pValues[0]=buf[0]+1;", header)
+        self.assertIn('R"JSON(heat)JSON"', header)
+        # Value slots with no initCode, or a slot initCode doesn't compute: errors
+        run = self.run_generator({"Heater": self.init_code_record(code=None)})
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("no initCode", run.stderr)
+        run = self.run_generator({"Heater": self.init_code_record(slots="{other}")})
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("doesn't assign init.other", run.stderr)
+        # initCode that isn't the decode language: reported
+        run = self.run_generator({"Heater": self.init_code_record(code="init.heat=foo(1);")})
+        self.assertIn("INIT CODE WARNING", run.stdout)
+
+    def test_type_file_init_values(self):
+        heater = self.init_code_record()
+        self.write_records(self.raftcore / "devtypes" / "records", {"Heater": heater})
+        self.write_records(self.project / "devtypes", {"Heater": dict(heater, pollInfo={"c": "0x00=r1", "i": 500, "s": 1}),
+                                                       "NewHeater": self.init_code_record("NewHeater")})
+        base = {"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../devtypes"}},
+                "builtin": {"include": ["raftcore:*"]}}
+        # Overriding a compiled record whose initCode computes the slot: allowed
+        sel = self.selection(dict(base, typeFile={"include": ["local:Heater"]}))
+        text, entries = A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
+        self.assertEqual([e["kind"] for e in entries], ["override"])
+        # A new key with init values: no compiled init code
+        sel = self.selection(dict(base, typeFile={"include": ["local:NewHeater"]}))
+        with self.assertRaises(A.AssembleError) as ctx:
+            A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
+        self.assertIn("need init code compiled into the firmware", str(ctx.exception))
+
+    def test_init_code_checked(self):
+        self.assertEqual(A.check_decode_code("H", self.init_code_record()), [])
+        problems = A.check_decode_code("H", self.init_code_record(code="init.heat=1;out.x=2;"))
+        self.assertTrue(any(p.startswith("initCode:") for p in problems), problems)
+
     def test_raftcore_records_assembled_generate_the_same_headers(self):
         sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:*"]}})
         result = A.assemble([sel], str(RAFTCORE_DIR), "builtin")

@@ -424,6 +424,78 @@ void DeviceTypeRecords::getInitBusRequests(BusElemAddrType addr, DeviceTypeIndex
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check whether an init step has value slots
+bool DeviceTypeRecords::initStepHasValueSlots(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx) const
+{
+    std::shared_ptr<const CompiledRecord> pCompiled = getCompiledRecord(deviceTypeIndex);
+    return pCompiled && (stepIdx < pCompiled->init.steps.size()) && !pCompiled->init.steps[stepIdx].slots.empty();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get an init step's write data with its value slots filled in
+bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx, InitValueState& state,
+            std::vector<uint8_t>& writeData) const
+{
+    writeData.clear();
+    std::shared_ptr<const CompiledRecord> pCompiled = getCompiledRecord(deviceTypeIndex);
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    if (!pCompiled || !pRec || (stepIdx >= pCompiled->init.steps.size()))
+        return false;
+    const DeviceTypeGrammar::Step& step = pCompiled->init.steps[stepIdx];
+    writeData = step.write;
+    if (step.slots.empty())
+        return true;
+
+    // The value names, in the order the function writes them
+    std::vector<String> names;
+    String namesStr = pRec->initValueNames ? pRec->initValueNames : "";
+    int start = 0;
+    while (start < (int)namesStr.length())
+    {
+        int comma = namesStr.indexOf(',', start);
+        if (comma < 0)
+            comma = namesStr.length();
+        names.push_back(namesStr.substring(start, comma));
+        start = comma + 1;
+    }
+
+    // Compute the values from the bytes read so far (once)
+    if (!state.computed)
+    {
+        if (!pRec->initValuesFn || names.empty())
+        {
+            LOG_W(MODULE_PREFIX, "getInitStepWrite %s has value slots but no init values function", pRec->deviceType);
+            return false;
+        }
+        state.values.assign(names.size(), 0);
+        if (!pRec->initValuesFn(state.readData.data(), state.readData.size(), state.values.data(), state.values.size()))
+        {
+            LOG_W(MODULE_PREFIX, "getInitStepWrite %s init values not computed (%d bytes read)", pRec->deviceType,
+                        (int)state.readData.size());
+            return false;
+        }
+        state.computed = true;
+    }
+
+    // Fill in the slots
+    for (const DeviceTypeGrammar::Step::ValueSlot& slot : step.slots)
+    {
+        int valueIdx = -1;
+        for (uint32_t i = 0; i < names.size(); i++)
+            if (names[i] == slot.name.c_str())
+                valueIdx = i;
+        if ((valueIdx < 0) || (valueIdx >= (int)state.values.size()) || (slot.offset >= writeData.size()))
+        {
+            LOG_W(MODULE_PREFIX, "getInitStepWrite %s value slot {%s} not computed", pRec->deviceType, slot.name.c_str());
+            return false;
+        }
+        int32_t value = state.values[valueIdx];
+        writeData[slot.offset] = (uint8_t)(value < 0 ? 0 : (value > 255 ? 255 : value));
+    }
+    return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Build initialisation bus requests from compiled steps
 void DeviceTypeRecords::initRequestsFromSteps(BusElemAddrType addr, const DeviceTypeGrammar::Result& compiled,
             std::vector<BusRequestInfo>& initRequests)
@@ -924,6 +996,14 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::replaceBaseRecord(DeviceTypeInde
         pRec->pollFieldDescs = baseRec.pollFieldDescs;
         pRec->pollFieldCount = baseRec.pollFieldCount;
         pRec->pollStructSize = baseRec.pollStructSize;
+    }
+
+    // Inherit the init values function (a type file can't carry compiled init code; the loader checks the base record
+    // computes every value slot the override uses)
+    if (!pRec->initValuesFn)
+    {
+        pRec->initValuesFn = baseRec.initValuesFn;
+        pRec->initValueNames = baseRec.initValueNames;
     }
 
     // Publish the override, then forget anything derived from the base record at this index

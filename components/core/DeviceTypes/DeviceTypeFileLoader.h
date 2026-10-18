@@ -134,6 +134,7 @@ public:
     static String setPolicyInFile(const char* pFileJson, const char* key, uint8_t policy, bool& changed);
 
 private:
+    static bool compiledInitValueFor(const DeviceTypeRecords& table, const String& key, const char* pName);
     static void applyRecord(DeviceTypeRecords& table, const String& key, const char* pStart, const char* pEnd,
                 const Limits& limits, uint8_t initialPolicy, Result& result);
     static void applyPolicy(DeviceTypeRecords& table, const String& key, uint8_t policy, Result& result);

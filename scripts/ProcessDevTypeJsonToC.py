@@ -65,6 +65,53 @@ POLICY_ENABLED = 0
 POLICY_DISABLED = 1
 POLICY_DISABLED_CLAIM = 2
 
+INIT_VALUE_NAME_RE = re.compile(r"\binit\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def init_values(dev_type, dev_type_key):
+    """A record's init values (initCode, devdocs/computed-init-values.md): (names, C++ function) or (None, None) if it
+    has none. Errors (exit): {name} value slots in initValues with no initCode, or a slot whose value initCode doesn't
+    assign. The function computes the values from the bytes the init steps before the first slot read"""
+    compiled = DeviceTypeGrammar.compile(dev_type.get("initValues", ""), "init")
+    slot_names = []
+    read_before_slots = 0
+    seen_slot = False
+    for step in compiled.steps:
+        if step.slots:
+            seen_slot = True
+            slot_names += [name for _, name in step.slots]
+        elif not seen_slot:
+            read_before_slots += step.read
+    init_code = dev_type.get("initCode")
+    code = (init_code.get("c", "") if isinstance(init_code, dict) else (init_code or "")).strip()
+    if not code:
+        if slot_names:
+            print(f"ERROR: record \"{dev_type_key}\" initValues has value slots ({', '.join(sorted(set(slot_names)))}) but "
+                  f"no initCode to compute them", file=sys.stderr)
+            sys.exit(1)
+        return None, None
+    names = list(dict.fromkeys(INIT_VALUE_NAME_RE.findall(code)))
+    missing = [name for name in dict.fromkeys(slot_names) if name not in names]
+    if missing:
+        print(f"ERROR: record \"{dev_type_key}\" initCode doesn't assign init.{', init.'.join(missing)} (used in "
+              f"initValues)", file=sys.stderr)
+        sys.exit(1)
+    if not slot_names:
+        print(f"WARNING: record \"{dev_type_key}\" has initCode but initValues has no value slots to use it")
+    for problem in PseudocodeHandler().check_code(code, [], code_kind="init"):
+        print(f"INIT CODE WARNING: record \"{dev_type_key}\" initCode: {problem}")
+    handler = PseudocodeHandler()
+    body = handler.generate_cpp_code(list(handler.lexer(code)),
+                                     {rf"^init\.{name}$": f"pValues[{idx}]" for idx, name in enumerate(names)})
+    body = "\n".join("            " + line for line in body.strip().split("\n"))
+    fn = ("[](const uint8_t* buf, uint32_t readBufLen, int32_t* pValues, uint32_t numValues) -> bool {\n"
+          f"            if ((readBufLen < {read_before_slots}) || (numValues < {len(names)})) return false;\n"
+          f"{body}\n"
+          "            return true;\n"
+          "        }")
+    return names, fn
+
+
 def record_initial_policy(dev_type, dev_type_key):
     """A record's initial policy from "disable": absent or false = enabled, true = disabled, "claim" = disabled with
     the address still claimed (reserved, and the identification hook not run there)"""
@@ -382,6 +429,15 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             scan_priority, flags, ident_priority, hw_type_id = record_ident_fields(dev_type, dev_type_key)
             header_file.write(f',\n        {scan_priority}, {flags}, {ident_priority}, 0x{hw_type_id:04x}, '
                               f'{record_initial_policy(dev_type, dev_type_key)}')
+
+            # Init values (initCode): the function and the value names
+            init_names, init_fn = init_values(dev_type, dev_type_key)
+            if init_fn:
+                if gen_options.get("gen_decode", False):
+                    header_file.write(f',\n        {init_fn},\n        R"JSON({",".join(init_names)})JSON"')
+                else:
+                    print(f"WARNING: record \"{dev_type_key}\" has initCode, which isn't generated without decode "
+                          f"generation - its init will fail")
 
             header_file.write('\n    },\n')
             dev_record_index += 1

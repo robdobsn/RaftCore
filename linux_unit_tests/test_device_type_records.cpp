@@ -18,6 +18,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <stdio.h>
+#include <string.h>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -317,8 +318,13 @@ static void checkDetectionValues(const std::string& catalogue, const std::string
         }
         for (size_t j = 0; j < alts.size(); j++)
         {
+            // The :crc8w suffix (a CRC check on the bytes read) isn't part of the value
+            std::string alt = alts[j];
+            size_t crcPos = alt.find(":crc8w");
+            if (crcPos != std::string::npos)
+                alt = alt.substr(0, crcPos);
             Bytes refMask, refValue;
-            if (refDecode(alts[j], refMask, refValue) == RefKind::Other)
+            if (refDecode(alt, refMask, refValue) == RefKind::Other)
                 continue;
             const Bytes& gotMask = recs[i].checkValues[j].first;
             const Bytes& gotValue = recs[i].checkValues[j].second;
@@ -419,11 +425,70 @@ static void testCatalogueFile(const char* path)
     printf("  %u records checked\n", (unsigned)deviceTypes.size());
 }
 
+// Init values: a record's initCode computes the values for its init string's {name} value slots from the bytes the
+// earlier init steps read. The BME680 and BME690 records compute the gas heater set-point from their calibration -
+// here from the calibration read from two real units, whose values Bosch's formula gives as 0x6E and 0x69
+static void testInitValues()
+{
+    printf("Running testInitValues...\n");
+    struct Case
+    {
+        const char* key;
+        std::vector<uint8_t> read0xEB;      // par_g2 (2 bytes), par_g1, par_g3
+        std::vector<uint8_t> read0x00;      // res_heat_val, -, res_heat_range (bits 5:4)
+        uint8_t expected;
+    };
+    const Case cases[] = {
+        {"BME680", {0x9b, 0xc4, 0xc5, 0x12}, {0x21, 0xaa, 0x16}, 0x6e},
+        {"BME690", {0x19, 0xf1, 0xbe, 0x12}, {0x3b, 0xaa, 0x16}, 0x69},
+    };
+    for (const Case& c : cases)
+    {
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord(c.key, idx);
+        if (!pRec)
+        {
+            fail(c.key, "record not built in");
+            continue;
+        }
+        TEST_ASSERT(pRec->initValuesFn && pRec->initValueNames && (strcmp(pRec->initValueNames, "heat") == 0),
+                    "init values function and names generated");
+
+        // Find the value slot step; the steps before it are unchanged
+        std::shared_ptr<const DeviceTypeRecords::CompiledRecord> pCompiled = deviceTypeRecords.getCompiledRecord(idx);
+        uint32_t slotStep = 0;
+        while ((slotStep < pCompiled->init.steps.size()) && !deviceTypeRecords.initStepHasValueSlots(idx, slotStep))
+            slotStep++;
+        TEST_ASSERT(slotStep < pCompiled->init.steps.size(), "a step has a value slot");
+        DeviceTypeRecords::InitValueState state;
+        std::vector<uint8_t> write;
+        TEST_ASSERT(deviceTypeRecords.getInitStepWrite(idx, 0, state, write) && (write == pCompiled->init.steps[0].write),
+                    "a step without slots is written as compiled");
+
+        // Too few bytes read: the values can't be computed
+        DeviceTypeRecords::InitValueState shortState;
+        DeviceTypeRecords::noteInitStepRead(shortState, c.read0xEB);
+        TEST_ASSERT(!deviceTypeRecords.getInitStepWrite(idx, slotStep, shortState, write), "too few bytes read fails");
+
+        // The calibration read: the heater set-point is computed and written
+        DeviceTypeRecords::noteInitStepRead(state, c.read0xEB);
+        DeviceTypeRecords::noteInitStepRead(state, c.read0x00);
+        bool ok = deviceTypeRecords.getInitStepWrite(idx, slotStep, state, write);
+        TEST_ASSERT(ok && (write.size() == 2) && (write[0] == 0x5a) && (write[1] == c.expected), "heater set-point written");
+        printf("  %s: res_heat_0 = 0x%02x (expected 0x%02x)\n", c.key, write.size() > 1 ? write[1] : 0, c.expected);
+
+        // Bytes read after the values are computed aren't kept
+        DeviceTypeRecords::noteInitStepRead(state, {0x01, 0x02});
+        TEST_ASSERT(state.readData.size() == 7, "reads after computing aren't kept");
+    }
+}
+
 int main(int argc, char** argv)
 {
     testExplicitCases();
     testPollInfoDefaults();
     testBuiltInRecords();
+    testInitValues();
     for (int i = 1; i < argc; i++)
         testCatalogueFile(argv[i]);
 

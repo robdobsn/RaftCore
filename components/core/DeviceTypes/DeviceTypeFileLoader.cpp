@@ -266,6 +266,21 @@ void DeviceTypeFileLoader::applyJson(DeviceTypeRecords& table, const char* pJson
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check that the record with a key in the table has compiled init code computing a value
+/// @param pName value name, or nullptr for any init code
+bool DeviceTypeFileLoader::compiledInitValueFor(const DeviceTypeRecords& table, const String& key, const char* pName)
+{
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    const DeviceTypeRecord* pRec = table.getRecord(key.c_str(), idx);
+    if (!pRec || !pRec->initValuesFn || !pRec->initValueNames)
+        return false;
+    if (!pName)
+        return true;
+    String names = String(",") + pRec->initValueNames + ",";
+    return names.indexOf(String(",") + pName + ",") >= 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Check and add one record
 void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& key, const char* pStart,
             const char* pEnd, const Limits& limits, uint8_t initialPolicy, Result& result)
@@ -379,6 +394,31 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
             warn(result, key, what);
         }
         maxRead = std::max(maxRead, largestRead(compiled));
+
+        // Init values ({name} value slots computed by initCode) need init code compiled into the firmware: the record
+        // must override a compiled record of the same key whose init code provides every slot's value (the override
+        // uses that code, as it inherits the decoder)
+        for (const DeviceTypeGrammar::Step& step : compiled.steps)
+        {
+            for (const DeviceTypeGrammar::Step::ValueSlot& slot : step.slots)
+            {
+                if (!compiledInitValueFor(table, key, slot.name.c_str()))
+                {
+                    reject(result, key, "initValues value slot {" + String(slot.name.c_str()) + "} needs init code "
+                                "compiled into the firmware (a compiled " + key + " record whose initCode computes it)");
+                    return;
+                }
+            }
+        }
+    }
+    if (rec.contains("initCode"))
+    {
+        if (!compiledInitValueFor(table, key, nullptr))
+        {
+            reject(result, key, "initCode needs to be compiled into the firmware (it can't come from a type file)");
+            return;
+        }
+        warn(result, key, "initCode in a type file isn't used - the firmware's compiled init code is");
     }
     if (maxRead > limits.maxReadBytesPerCommand)
     {

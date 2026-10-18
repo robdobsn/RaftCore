@@ -63,11 +63,12 @@ class PseudocodeHandler:
     ALLOWED_NAMES = {"buf", "if", "else"}
     TYPE_NAMES = {"int8_t", "uint8_t", "int16_t", "uint16_t", "int32_t", "uint32_t"}
 
-    def check_code(self, code, attr_names):
+    def check_code(self, code, attr_names, code_kind="decode"):
         """Problems in decode code (resp.c.c) that would put something other than the decode language into the
         generated C++: characters the lexer doesn't recognise (they would be dropped), names other than buf, the
         record's out.<attribute>s, the code's own variables and the integer type names, and function calls. The code
-        is compiled into the firmware, so this is what makes a record from another source safe to compile
+        is compiled into the firmware, so this is what makes a record from another source safe to compile.
+        code_kind "init": init code (initCode), which assigns init.<name> values instead of out.<attribute>s
         Returns a list of problems (empty if none)"""
         problems = []
         tokens_re = '|'.join('(?P<%s>%s)' % pair for pair in self.token_dict)
@@ -91,12 +92,19 @@ class PseudocodeHandler:
         for i, (kind, value) in enumerate(tokens):
             if kind != 'ID':
                 continue
-            if value.startswith("out."):
+            if code_kind == "init":
+                if value.startswith("init.") and value.count(".") == 1 and value[5:]:
+                    continue
+                if value.startswith("out."):
+                    problems.append(f"{value} - init code assigns init.<name> values, not out.<attribute>s")
+                    continue
+            elif value.startswith("out."):
                 if value[4:] not in attrs:
                     problems.append(f"out.{value[4:]} is not an attribute of the record")
                 continue
             if "." in value:
-                problems.append(f"{value} is not allowed (only out.<attribute> has a '.')")
+                problems.append(f"{value} is not allowed (only " + ("init.<name>" if code_kind == "init" else "out.<attribute>") +
+                                " has a '.')")
                 continue
             if value not in self.ALLOWED_NAMES and value not in self.TYPE_NAMES and value not in variables:
                 problems.append(f"{value} is not declared in the code")
@@ -372,7 +380,7 @@ if __name__ == "__main__":
             ]
             substitutions["int"] = "let "
             substitutions["float"] = "let "
-            substitutions["out\.(.*)"] = "attrValues['\\1'].push(0); attrValues['\\1'][attrValues['\\1'].length-1] "
+            substitutions[r"out\.(.*)"] = "attrValues['\\1'].push(0); attrValues['\\1'][attrValues['\\1'].length-1] "
             substitutions["next"] = ""
 
     # Generate the output code based on the specified language
