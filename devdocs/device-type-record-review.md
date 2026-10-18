@@ -16,7 +16,10 @@ Date: 2026-10-18.
 - **Identification unchanged:** the same 5 devices with the same type indexes as before the flash. At 0x29 the candidate order is now VL53L0X, VL6180, VL53L1X, VL53L4CD, VL53L5CX, LTR-329, and the VL6180 is identified.
 - **VL6180:** 0x001C reads 0x31 after a firmware restart without a power cycle. On the old firmware, after a 50 Hz setting, it stayed at 0x03.
 - **LSM6DS:** after `devconfig sampleRateHz=104`, FIFO_CTRL1/2 read 0x3FC (1020 words); on the old firmware they read 0x030 (48 words).
-- **MAX17048 (0x736):** didn't answer on this unit (no battery; also absent before the flash), so the wider detection is still unverified.
+- **MAX17048 (0x736):** with no battery fitted it didn't answer, and it was absent before the flash too.
+  - With a battery fitted: identified as MAX17048 (FuelGauge, role system, as `expectType` asks).
+  - Version register 0x0012. That value was accepted before as well, so this confirms the wider check still identifies the part; other revisions are untested.
+  - Candidate order at 0x736: MAX17048, AdafruitSoilSensor, AS5600.
 - No warnings or errors in the boot log.
 - **Which LSM6DS the Axiom has:** WHO_AM_I reads **0x69**, an original LSM6DS3, not a 0x6A-family part as the desk review assumed.
 - **FIFO after 25 s with polling stopped** (`devenable poll=0`):
