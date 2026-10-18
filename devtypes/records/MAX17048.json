@@ -1,6 +1,6 @@
 {
     "addresses": "0x36",
-    "detectionValues": "0x08=0b000000000001001x",
+    "detectionValues": "0x08=0b000000000001XXXX",
     "initValues": "0x0c9716&=p100&0x14a0d7",
     "pollInfo": {
         "c": "0x02=r2&0x04=r2&0x16=r2&0x1a=r1",
