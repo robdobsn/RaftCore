@@ -1,8 +1,8 @@
 {
     "_notes": "x in part code sets i2c address LSB from 0x10-0x17",
     "addresses": "0x10-0x17",
-    "detectionValues": "0x0E=0x02",
-    "initValues": "0x01=0b00010000&=p250",
+    "detectionValues": "0x0E=0x02,0x03",
+    "initValues": "0x0110=p5&0x0d00=",
     "pollInfo": {
         "c": "0x03=r7",
         "i": 100,
@@ -49,8 +49,8 @@
                     "n": "temperature",
                     "t": "b",
                     "u": "&deg;C",
-                    "r": [-10, 40],
-                    "d": 0.586,
+                    "r": [-40, 85],
+                    "d": 1.7065,
                     "a": 25,
                     "f": ".2f",
                     "o": "float"
