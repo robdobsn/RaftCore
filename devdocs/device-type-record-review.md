@@ -11,7 +11,7 @@ Date: 2026-10-18.
 **Held or moved:**
 - **LSM6DS (all items):** held for an Axiom test. Its gyro scale change is held by decision.
 - **QwiicLEDStick 0x22:** moved to §3.3; adding the address needs detection first.
-- **SGP30 and SCD40 actions:** waiting for CRC support in actions (decision 5).
+- **SGP30 and SCD40 actions:** done (decision 5). raftjs actions take `"crc": "crc8w"`, and both records' actions use it. SCD40's four idle-only settings still need measurement stopped, which the record doesn't do; their descriptions say so.
 
 **Checks:**
 - `DeviceTypesTool check` over all records gives 0 errors and 0 warnings; the three init grammar warnings are gone.
