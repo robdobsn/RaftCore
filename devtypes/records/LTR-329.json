@@ -2,7 +2,7 @@
     "_notes": "Detection per datasheet DS86-2014-0006: PART_ID (0x86) part number 0xA (revision nibble ignored), MANUFAC_ID (0x87) 0x05.",
     "addresses": "0x29",
     "detectionValues": "0x86=0b1010XXXX&0x87=0x05",
-    "initValues": "0x8002&=p20&0x8001",
+    "initValues": "0x8002&=p20&0x8501&0x8001",
     "pollInfo": {
         "c": "0x88=r4",
         "i": 100,
@@ -19,16 +19,16 @@
             "a": [
                 {
                     "n": "ir",
-                    "t": "<h",
-                    "u": "lux",
+                    "t": "<H",
+                    "u": "",
                     "r": [0, 64000],
                     "f": "d",
                     "o": "uint16"
                 },
                 {
                     "n": "visible",
-                    "t": "<h",
-                    "u": "lux",
+                    "t": "<H",
+                    "u": "",
                     "r": [0, 64000],
                     "f": "d",
                     "o": "uint16"
