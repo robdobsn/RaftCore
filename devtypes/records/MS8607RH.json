@@ -1,0 +1,36 @@
+{
+    "_notes": "TE MS8607 humidity part at 0x40 (fixed; the pressure and temperature part is MS8607PT at 0x76). HTU21-style commands: reset 0xFE, measure RH without clock stretching 0xF5 (with stretching, 0xE5, holds the clock longer than the bus timeout), user register read 0xE7. Detection: the user register's fixed bits (reserved bits 5:3 = 0, bit 1 = 1 by default) - weak, so it is tried after the records with an ID (identPriority -1); 0x40 is also used by parts with no record (INA219, PCA9685). Init: reset, 15 ms. Poll: measure (0xF5), 20 ms (max 16 ms at 12 bits; the pause bars the address, as an address probe between trigger and read loses the result), read 3 bytes (RH, CRC with init 0x00 - not checked). RH = -6 + 125*raw/2^16 (status bits 1:0 masked), not temperature-compensated (the MS8607 compensation uses the temperature from the other part: RH + (20 - T) * -0.18).",
+    "addresses": "0x40",
+    "identPriority": -1,
+    "detectionValues": "0xe7=0bX000XX1X",
+    "initValues": "0xfe=p15",
+    "pollInfo": {
+        "c": "0xf5=p20&=r3",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Humidity Sensor",
+        "desc": "MS8607 humidity part",
+        "manu": "TE",
+        "type": "MS8607RH",
+        "clas": ["RH"],
+        "resp": {
+            "b": 3,
+            "a": [
+                {
+                    "n": "humidity",
+                    "t": ">H",
+                    "u": "%",
+                    "r": [0,100],
+                    "m": "0xfffc",
+                    "d": 524.288,
+                    "a": -6,
+                    "f": "3.1f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

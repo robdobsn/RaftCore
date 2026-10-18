@@ -1,0 +1,45 @@
+{
+    "_notes": "TE MS8607 pressure and temperature part at 0x76 (fixed; the humidity part is MS8607RH at 0x40). Commands, not registers: reset 0x1E, convert pressure 0x40-0x4A / temperature 0x50-0x5A (by oversampling), ADC read 0x00 (3 bytes), PROM read 0xA0-0xAC (7 words: word 0 holds a CRC-4, words 1-6 the coefficients C1-C6). Detection: an ADC read, then a second one, which returns 0 whatever went before (datasheet: a repeated ADC read gives 0) - a pattern rather than an ID (a BME280's register 0x00 also reads 0), so it is tried after the records with an ID (identPriority -1). Init: reset, 5 ms. Poll: pressure conversion at OSR 8192 (0x4A, max 16.4 ms), 20 ms (the address is barred), read; temperature conversion (0x5A), 20 ms, read; C1-C6. Decode: TE's first- and second-order compensation (also right for the MS5637 and MS5837-02BA, which share the maths; not the MS5611 or MS5837-30BA). The PROM CRC-4 isn't checked (the grammar can't). 0x76 is also a common multiplexer address (Axiom018 reserved it until 2026-10-18).",
+    "addresses": "0x76",
+    "identPriority": -1,
+    "detectionValues": "0x00=r3&0x00=0x000000",
+    "initValues": "0x1e=p5",
+    "pollInfo": {
+        "c": "0x4a=p20&0x00=r3&0x5a=p20&0x00=r3&0xa2=r2&0xa4=r2&0xa6=r2&0xa8=r2&0xaa=r2&0xac=r2",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Pressure & Temperature Sensor",
+        "desc": "MS8607 pressure part",
+        "manu": "TE",
+        "type": "MS8607PT",
+        "clas": ["PRES","TEMP"],
+        "resp": {
+            "b": 18,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": "<f",
+                    "u": "&deg;C",
+                    "r": [-40,85],
+                    "f": "3.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "pressure",
+                    "t": "<f",
+                    "u": "hPa",
+                    "r": [10,2000],
+                    "f": "4.2f",
+                    "o": "float"
+                }
+            ],
+            "c": {
+                "n": "ms8607_pt",
+                "c": "int D1=(buf[0]<<16)|(buf[1]<<8)|buf[2];int D2=(buf[3]<<16)|(buf[4]<<8)|buf[5];int C1=(buf[6]<<8)|buf[7];int C2=(buf[8]<<8)|buf[9];int C3=(buf[10]<<8)|buf[11];int C4=(buf[12]<<8)|buf[13];int C5=(buf[14]<<8)|buf[15];int C6=(buf[16]<<8)|buf[17];float dT=D2-C5*256.0;float t=2000.0+dT*C6/8388608.0;float off=C2*131072.0+C4*dT/64.0;float sens=C1*65536.0+C3*dT/128.0;float t2=0.0;float off2=0.0;float sens2=0.0;if(t<2000.0){t2=3.0*dT*dT/8589934592.0;off2=61.0*(t-2000.0)*(t-2000.0)/16.0;sens2=29.0*(t-2000.0)*(t-2000.0)/16.0;if(t<-1500.0){off2=off2+17.0*(t+1500.0)*(t+1500.0);sens2=sens2+9.0*(t+1500.0)*(t+1500.0);}}if(t>=2000.0){t2=5.0*dT*dT/274877906944.0;}t=t-t2;off=off-off2;sens=sens-sens2;float p=(D1*sens/2097152.0-off)/32768.0;out.temperature=t/100.0;out.pressure=p/100.0;"
+            }
+        }
+    }
+}
