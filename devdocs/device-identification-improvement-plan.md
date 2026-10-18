@@ -1547,6 +1547,11 @@ without disturbing a device that is already running, and initialises and polls i
      `0x01=0b00010000` reads a byte from register 0x01 instead of writing 0x10 to it. Check each against its
      datasheet and fix (in RaftCore and Axiom).
 
+**Review (2026-10-18):** every record has been desk-reviewed against its datasheet and drivers -
+`device-type-record-review.md`, with proposed changes, what needs hardware, and decisions needed. It also notes
+that since Stage 7 detection pauses of 10 ms or more no longer block the bus during scheduled identification (they
+still do in `reIdentifyDevice()` / `identifyDevice()`).
+
 **Verify:** for each record changed - the device is identified from power-up and when already running (after a
 firmware restart without a power cycle), its neighbours at the same address are still identified correctly,
 and its readings match the device's own reference (vendor tool or driver).
