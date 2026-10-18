@@ -78,6 +78,25 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**PCT2075: new record, verified on Axiom018 (2026-10-18):**
+- **Record:**
+  - 27 addresses;
+  - detection on the registers' fixed bits (25 bits, read-only);
+  - `identPriority` -1, because it is a pattern, not an ID;
+  - init: normal mode;
+  - poll: the temperature register, signed / 256.
+- **Overlaps:**
+  - a TMP117 passes the patterns about 1 time in 32, and an idle CAP1188 can too, hence the -1;
+  - GravityO2 (no detection) still claims 0x70-0x73 first, and the generator warns about it. Giving GravityO2 detection would remove the warning; that needs the sensor.
+- **Results:**
+  - registers temperature 0x1B20 (27.1 °C), configuration 0x00, Thyst 0x4B00, Tos 0x5000, Tidle 0x01;
+  - before this record it was unmatched and given the RSAO probe;
+  - identified at boot;
+  - 20 re-identifications kept the type;
+  - polled every 1 s.
+
+**MS8607 (not supported, 2026-10-18):** two parts. Humidity at 0x40 (HTU21-style, CRC with init 0x00) is unmatched today and given the RSAO probe. Pressure/temperature at 0x76 needs the PROM coefficients and the compensation maths, and **collides with Axiom018's multiplexer at 0x76**, so it can't be used on an Axiom slot. Records are deferred; test them on a board without a mux at 0x76.
+
 **MCP9808, verified on Axiom018 (2026-10-18):**
 - Manufacturer 0x0054, device 0x0400. CONFIG 0x0000, alert limits 0, resolution 0.0625 °C.
 - Temperature raw 0xC1BC: the alert flags in bits 15:13 are masked out, giving 27.75 °C.
