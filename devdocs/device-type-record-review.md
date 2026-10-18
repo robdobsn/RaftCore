@@ -107,6 +107,14 @@ Date: 2026-10-18.
   - the decode on the unit's bytes gives 24.36 °C, 1023.50 hPa, 56.7 % RH, 36649 Ω in raftjs, the generated C++ and Bosch's reference;
   - gas resistance rose from about 0.6 kΩ to 10.5 kΩ over the first minutes of heating (burn-in).
 
+**STCC4 (Adafruit STCC4 + SHT41 board), verified on Axiom018 (2026-10-18):**
+- Identified at 0x364 (slot 3). The SHT41 doesn't appear on the bus: it is on the STCC4's own controller bus, and the STCC4 uses it for compensation and returns its temperature and humidity.
+- Polls at 1.0 Hz, none missed; CRCs valid.
+- 10 re-identifications and a `reinit` (which resends start-measurement while measuring) kept it identified and measuring.
+- Readings with polling paused, sampled every 20 s: 23.8 °C, 61 % RH; CO2 fell from 3682 ppm just after power-up to 2462 ppm over 6 minutes, still settling. Status 0x0100 for the first 2 minutes, then 0x0000.
+- **Detection stays empty.** Detection strings can now pause, so the product-ID command (0x365B) would work at first identification, but the STCC4 rejects it while measuring. Re-verification would then fail and leave the sensor open to the RSAO probe, which stops it measuring (`stcc4-identification-notes.md`).
+- A manual `cmdraw` read of 0xEC05 NACKs while the record polls: each measurement can be read once, and the poll reads it first.
+
 **MICS6814Pimoroni: new record, verified on Axiom018 (2026-10-18):**
 - **Named for the board, not the sensor:** the record drives Pimoroni's IO Expander firmware (Nuvoton MS51) at 0x19 and relies on the breakout's wiring (heater on P1.5, the three elements on ADC channels 2-4, 56 kΩ load resistors). A bare MiCS-6814 would need a different record.
 - **Record:**

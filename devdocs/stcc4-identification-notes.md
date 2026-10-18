@@ -1,6 +1,6 @@
 # STCC4 CO2 sensor: identification, polling and the RSAO probe hazard
 
-Notes behind the `STCC4` record in `devtypes/DeviceTypeRecords.json`. The sensor is the
+Notes behind the `STCC4` record (`devtypes/records/STCC4.json`). The sensor is the
 Sensirion STCC4 miniature CO2 sensor, normally paired with an SHT41 for RH/T compensation,
 at the fixed I2C address 0x64.
 
