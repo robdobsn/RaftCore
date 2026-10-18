@@ -1,0 +1,60 @@
+{
+    "_notes": "Bosch BME680 (temperature, pressure, humidity, gas) at 0x76 (SDO low) or 0x77 (SDO high, Adafruit default). Detection: chip ID (0xD0) 0x61 and variant (0xF0) 0x00 - a BME688 (variant 0x01) has another data layout. Forced mode only, so each poll triggers a measurement (ctrl_meas 0x74 = 0x25: temperature and pressure x1, forced), waits 200 ms (TPH plus the 152 ms heater time) and reads the calibration (0x89 25 bytes, 0xE1 16 bytes, 0x00 5 bytes) and the data (0x1D 15 bytes); the decode code applies Bosch's floating-point compensation and gas-resistance calculation (range lookup tables as if-chains); gas is 0 unless gas valid and heater stable are both set. Init: soft reset, 10 ms; ctrl_hum 0x01; config 0x00 (filter off); gas_wait_0 0x66 (152 ms); res_heat_0 0x6E; ctrl_gas_1 0x10 (run gas, heater profile 0). res_heat_0 is FIXED: the right value is calculated per unit from its calibration (par_g1-g3, res_heat_range, res_heat_val) and the ambient temperature, which a fixed init string can't do; 0x6E is the value for one unit at 320 C (0x6D-0x6E over 15-35 C ambient), so on other units the hot plate temperature differs by some tens of degrees and gas resistance is a relative trend, not comparable between units. See devdocs/computed-init-values.md for the proposed fix. 0x76 is also a common multiplexer address (Axiom018's).",
+    "addresses": "0x76-0x77",
+    "detectionValues": "0xd0=0x61&0xf0=0x00",
+    "initValues": "0xe0b6=p10&0x7201&0x7500&0x6466&0x5a6e&0x7110",
+    "pollInfo": {
+        "c": "0x7425=p200&0x89=r25&0xe1=r16&0x00=r5&0x1d=r15",
+        "i": 3000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Environmental Sensor",
+        "desc": "Temperature, pressure, humidity, gas",
+        "manu": "Bosch",
+        "type": "BME680",
+        "clas": ["TEMP","PRES","RH","GAS"],
+        "resp": {
+            "b": 61,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": "<f",
+                    "u": "&deg;C",
+                    "r": [-40,85],
+                    "f": "3.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "pressure",
+                    "t": "<f",
+                    "u": "hPa",
+                    "r": [300,1100],
+                    "f": "4.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "humidity",
+                    "t": "<f",
+                    "u": "%",
+                    "r": [0,100],
+                    "f": "3.1f",
+                    "o": "float"
+                },
+                {
+                    "n": "gas",
+                    "t": "<f",
+                    "u": "&Omega;",
+                    "r": [0,2000000],
+                    "f": "8.0f",
+                    "o": "float"
+                }
+            ],
+            "c": {
+                "n": "bme680_compensate",
+                "c": "int t1=buf[33]|(buf[34]<<8);int t2=buf[1]|(buf[2]<<8);if(t2>32767){t2=t2-65536;}int t3=buf[3];if(t3>127){t3=t3-256;}int p1=buf[5]|(buf[6]<<8);int p2=buf[7]|(buf[8]<<8);if(p2>32767){p2=p2-65536;}int p3=buf[9];if(p3>127){p3=p3-256;}int p4=buf[11]|(buf[12]<<8);if(p4>32767){p4=p4-65536;}int p5=buf[13]|(buf[14]<<8);if(p5>32767){p5=p5-65536;}int p7=buf[15];if(p7>127){p7=p7-256;}int p6=buf[16];if(p6>127){p6=p6-256;}int p8=buf[19]|(buf[20]<<8);if(p8>32767){p8=p8-65536;}int p9=buf[21]|(buf[22]<<8);if(p9>32767){p9=p9-65536;}int p10=buf[23];int h1=(buf[27]<<4)|(buf[26]&15);int h2=(buf[25]<<4)|(buf[26]>>4);int h3=buf[28];if(h3>127){h3=h3-256;}int h4=buf[29];if(h4>127){h4=h4-256;}int h5=buf[30];if(h5>127){h5=h5-256;}int h6=buf[31];int h7=buf[32];if(h7>127){h7=h7-256;}int rse=buf[45]&240;if(rse>127){rse=rse-256;}rse=rse/16;int aP=(buf[48]<<12)|(buf[49]<<4)|(buf[50]>>4);int aT=(buf[51]<<12)|(buf[52]<<4)|(buf[53]>>4);int aH=(buf[54]<<8)|buf[55];int aG=(buf[59]<<2)|(buf[60]>>6);int gr=buf[60]&15;float v1=(aT/16384.0-t1/1024.0)*t2;float d=aT/131072.0-t1/8192.0;float v2=d*d*t3*16.0;float tf=v1+v2;float tc=tf/5120.0;out.temperature=tc;v1=tf/2.0-64000.0;v2=v1*v1*p6/131072.0;v2=v2+v1*p5*2.0;v2=v2/4.0+p4*65536.0;v1=(p3*v1*v1/16384.0+p2*v1)/524288.0;v1=(1.0+v1/32768.0)*p1;float p=0.0;if(v1>0.0){p=1048576.0-aP;p=(p-v2/4096.0)*6250.0/v1;float w1=p9*p*p/2147483648.0;float w2=p*p8/32768.0;float q=p/256.0;float w3=q*q*q*p10/131072.0;p=p+(w1+w2+w3+p7*128.0)/16.0;}out.pressure=p/100.0;float e1=aH-(h1*16.0+h3/2.0*tc);float e2=e1*(h2/262144.0*(1.0+h4/16384.0*tc+h5/1048576.0*tc*tc));float hum=e2+(h6/16384.0+h7/2097152.0*tc)*e2*e2;if(hum>100.0){hum=100.0;}if(hum<0.0){hum=0.0;}out.humidity=hum;float k1=0.0;if(gr==5){k1=-1.0;}if(gr==7){k1=-0.8;}if(gr==10){k1=-0.2;}if(gr==11){k1=-0.5;}if(gr==13){k1=-1.0;}float k2=0.0;if(gr==4){k2=0.1;}if(gr==5){k2=0.7;}if(gr==7){k2=-0.8;}if(gr==8){k2=-0.1;}float g1=1340.0+5.0*rse;float g2=g1*(1.0+k1/100.0);float g3=1.0+k2/100.0;float gas=0.0;if((buf[60]&48)==48){gas=1.0/(g3*0.000000125*(1<<gr)*((aG-512.0)/g2+1.0));}out.gas=gas;"
+            }
+        }
+    }
+}
