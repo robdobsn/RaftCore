@@ -4,7 +4,7 @@
     "detectionValues": "",
     "initValues": "",
     "pollInfo": {
-        "c": "0x03=r3",
+        "c": "0x0A=r2&0x03=r3",
         "i": 1000,
         "s": 1
     },
@@ -16,20 +16,20 @@
         "type": "GravityO2",
         "clas": ["O2"],
         "resp": {
-            "b": 3,
+            "b": 5,
             "a": [
                 {
                     "n": "oxygen",
-                    "t": "BBB",
+                    "t": "BBBBB",
                     "u": "%",
-                    "r": [0, 100],
+                    "r": [0, 25],
                     "f": ".2f",
                     "o": "float"
                 }
             ],
             "c": {
                 "n": "gravity_o2_calc",
-                "c": "float key = 20.9/120.0; float val = key * (buf[0] + (buf[1]/10.0) + (buf[2]/100.0)); out.oxygen = val;"
+                "c": "int k=(buf[1]<<8)|buf[0]; float key=20.9/120.0; if(k!=0){key=k/1000.0;} out.oxygen=key*(buf[2]+(buf[3]/10.0)+(buf[4]/100.0));"
             }
         },
         "actions": [
