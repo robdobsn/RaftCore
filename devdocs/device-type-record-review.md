@@ -78,6 +78,20 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**BME690: new record, verified on Axiom018 (2026-10-18):**
+- **Record:**
+  - addresses 0x76-0x77; detection ID 0x61 and variant 0x02;
+  - forced mode: each poll triggers, waits 200 ms and reads the 42-byte coefficient array and the 17-byte field, every 3 s;
+  - decode: Bosch BME690 SensorAPI floating-point formulas;
+  - heater fixed at 0x69 (this unit's value; `computed-init-values.md`).
+- **Results:**
+  - visible at 0x76 only since Axiom018's multiplexer range was narrowed;
+  - identified; init registers as set;
+  - polls every 3 s;
+  - 20 re-identifications kept the type;
+  - the decode gives 24.04 °C, 1022.79 hPa, 59.8 % RH in raftjs, C++ and the reference.
+- **Open:** the gas ADC stayed at full scale (1023, range 13, so 5685 Ω, the lowest value range 13 can show) over the first several minutes, with gas valid and heater stable set and the device not moving to a higher range. The configuration matches Bosch's forced-mode example (heater 300 °C/100 ms there, 320 °C/152 ms here). A fresh sensor needing burn-in is the likely cause. Re-check after longer operation; if it stays pinned, look at the BME690's gas range handling.
+
 **BME680: new record, verified on Axiom018 (2026-10-18):**
 - **Record:**
   - addresses 0x76-0x77; detection ID 0x61 and variant 0x00;
