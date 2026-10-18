@@ -61,17 +61,24 @@ int main(int argc, char** argv)
         orderFields[key.c_str()] = {identPriority, strength};
     }
 
-    // The base records are the reduced catalogue; the rest comes from the file
+    // The base records are the reduced catalogue; the rest comes from the file (split_catalogue.py: about half, records
+    // with initCode always compiled)
+    RaftJson fileRecs(fileJson.c_str());
+    std::vector<String> fileKeys;
+    fileRecs.getKeys("devTypes", fileKeys);
+    std::set<std::string> fromFile;
+    for (const String& key : fileKeys)
+        fromFile.insert(key.c_str());
     DeviceTypeRecords table;
     uint32_t numBase = DeviceTypeRecords::getNumBaseRecords();
-    TEST_ASSERT((numBase > 0) && (numBase == (keys.size() + 1) / 2), "the base catalogue is the reduced one");
+    TEST_ASSERT((numBase > 0) && (fileKeys.size() > 0) && (numBase == keys.size() - fileKeys.size()),
+                "the base catalogue is the reduced one");
+    // Room for the file's records whatever the default limits (this is about identification, not memory)
+    table.setExtendedRecordLimits(256, 256 * 1024);
     DeviceTypeFileLoader::Result result;
     DeviceTypeFileLoader::applyJson(table, fileJson.c_str(), DeviceTypeFileLoader::Limits(), result);
-    TEST_ASSERT((result.added == keys.size() - numBase) && (result.rejected == 0),
+    TEST_ASSERT((result.added == fileKeys.size()) && (result.rejected == 0),
                 ("every file record is added: " + std::string(result.firstError.c_str())).c_str());
-    std::set<std::string> fromFile;
-    for (uint32_t pos = 1; pos < keys.size(); pos += 2)
-        fromFile.insert(keys[pos].c_str());
 
     // Candidates at every address
     uint32_t addrMismatches = 0;
