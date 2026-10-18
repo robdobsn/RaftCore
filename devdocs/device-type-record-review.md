@@ -9,7 +9,15 @@ Date: 2026-10-18.
 - **Init, address and action fixes (§3.2):** ADXL313, TMP117, RoboticalWaterPump, QwiicLEDStick (brightness only), LPS25, STCC4, MMC5603, MAX17048, VL53L0X (identPriority), SGP40 (actions removed).
 
 **Held or moved:**
-- **LSM6DS (all items):** held for an Axiom test. Its gyro scale change is held by decision.
+- **LSM6DS:** 0x6C dropped, rate settings keep the FIFO depth, 0x6B added (2026-10-18). 0x69 parts are still matched; their FIFO-full protection needs a record of its own. The gyro scale change is still held by decision.
+- **VL6180:** init restores 0x001C (2026-10-18).
+
+**Axiom018 (2026-10-18), firmware built from these records, app-only flash:**
+- **Identification unchanged:** the same 5 devices with the same type indexes as before the flash. At 0x29 the candidate order is now VL53L0X, VL6180, VL53L1X, VL53L4CD, VL53L5CX, LTR-329, and the VL6180 is identified.
+- **VL6180:** 0x001C reads 0x31 after a firmware restart without a power cycle. On the old firmware, after a 50 Hz setting, it stayed at 0x03.
+- **LSM6DS:** after `devconfig sampleRateHz=104`, FIFO_CTRL1/2 read 0x3FC (1020 words); on the old firmware they read 0x030 (48 words).
+- **MAX17048 (0x736):** didn't answer on this unit (no battery; also absent before the flash), so the wider detection is still unverified.
+- No warnings or errors in the boot log.
 - **QwiicLEDStick 0x22:** moved to §3.3; adding the address needs detection first.
 - **SGP30 and SCD40 actions:** done (decision 5). raftjs actions take `"crc": "crc8w"`, and both records' actions use it. SCD40's four idle-only settings still need measurement stopped, which the record doesn't do; their descriptions say so.
 
