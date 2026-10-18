@@ -78,6 +78,21 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**SHTC3: new record, verified on Axiom018 (2026-10-18):**
+- **Record:**
+  - address 0x70;
+  - detection wakes the sensor, then reads the ID register (`0x3517=p1&0xefc8=p1&=0bXXXX1XXXXX000111`+8 X+`:crc8w`);
+  - init wakes it;
+  - poll `0x7866=p13&=r6`;
+  - divisors 2^16.
+- **Why it matters:** GravityO2 (0x70-0x73, no detection) claimed the SHTC3 as an oxygen sensor. SHTC3 is now tried first.
+- **Results:**
+  - ID 0x0887 with a valid CRC;
+  - asleep, the ID read NACKs, and the wake-up restores it;
+  - reading 24.9 °C, 61.8 % RH;
+  - identified as SHTC3 after a firmware restart, after being put to sleep and re-identified, and after unplugging and replugging (removal seen in about 3 s, found again in under 1 s);
+  - 20 re-identifications while polled kept the type.
+
 **SHT31: new record for the SHT3x family, verified on Axiom018 (2026-10-18):**
 - **Record:**
   - addresses 0x44-0x45, 2-byte commands;
