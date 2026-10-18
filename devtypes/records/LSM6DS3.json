@@ -1,8 +1,8 @@
 {
-    "_notes": "FIFO-enabled 6-axis IMU. FIFO continuous mode at matched sensor ODR. FIFO depth is LIMITED to the watermark (FIFO_CTRL4.STOP_ON_FTH=1, FTH=1020 words via FIFO_CTRL1/2) so DIFF_FIFO can never wrap to 0: with an unlimited depth a host pause of >6.6 s (e.g. an RSAO test-mode or commissioning session) filled the 4096-word FIFO, the count read 0 and the {$0.w12} poll read nothing forever (devdocs/lsm6ds-fifo-full-deadlock.md, 2026-09-11). Two-phase I2C read: first reads FIFO_STATUS1-4 (word count), then reads only the required FIFO data bytes from 0x3E. FIFO_PATTERN (STATUS3/4) used to skip to next aligned group boundary before decoding. Each sample = 6 words (gx,gy,gz,ax,ay,az). Detection: WHO_AM_I 0x6A (LSM6DSL, LSM6DSM, LSM6DS3TR-C) and 0x69 (LSM6DS3, LSM6DS33). On 0x69 parts STOP_ON_FTH is CTRL4_C bit 0, not FIFO_CTRL4 bit 7, so the FIFO-full protection doesn't take effect there (they poll normally; a long host pause can still fill the FIFO) - they need a record of their own. 0x6C parts (LSM6DSO/DSOX/DSO32) have a different FIFO and aren't matched. The _conf.rate entries keep the 1020-word watermark.",
+    "_notes": "ST LSM6DS3 / LSM6DS33 (WHO_AM_I 0x69), FIFO-enabled 6-axis IMU (Axiom). STOP_ON_FTH on this part is CTRL4_C (0x13) bit 0, so init writes FIFO_CTRL4 = 0x00 and CTRL4_C = 0x01 (measured on Axiom018: the FIFO then stops at the 1020-word threshold). The 0x6A parts are LSM6DS3TRC. Two-phase I2C read: first reads FIFO_STATUS1-4 (word count), then reads only the required FIFO data bytes from 0x3E. FIFO_PATTERN (STATUS3/4) used to skip to next aligned group boundary before decoding. Each sample = 6 words (gx,gy,gz,ax,ay,az). FIFO depth is limited to the 1020-word watermark (FIFO_CTRL1/2) by STOP_ON_FTH, so DIFF_FIFO can never wrap to 0 (with an unlimited depth a host pause of >6.6 s filled the 4096-word FIFO, the count read 0 and the {$0.w12} poll read nothing forever - devdocs/lsm6ds-fifo-full-deadlock.md). The _conf.rate entries keep the watermark. Gyro 70 mdps/LSB at 2000 dps.",
     "addresses": "0x6a-0x6b",
-    "detectionValues": "0x0f=0x69,0x6a",
-    "initValues": "0x0a00&0x1244&0x1048&0x114c&0x1640&0x0809&0x0980&0x06fc&0x0703&0x0a26",
+    "detectionValues": "0x0f=0x69",
+    "initValues": "0x0a00&0x1244&0x1048&0x114c&0x1640&0x0809&0x0900&0x1301&0x06fc&0x0703&0x0a26",
     "pollInfo": {
         "c": "0x3a=r4&0x3e=r{$0.w12:mask0FFF*2:max240}",
         "i": 50,
@@ -13,7 +13,7 @@
         "name": "Accelerometer & Gyroscope",
         "desc": "6-Axis IMU",
         "manu": "ST",
-        "type": "LSM6DS",
+        "type": "LSM6DS3",
         "clas": ["ACC", "GYRO"],
         "resp": {
             "b": 244,

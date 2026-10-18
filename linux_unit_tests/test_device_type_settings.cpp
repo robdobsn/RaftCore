@@ -28,7 +28,7 @@ static void testParse()
 {
     printf("Running testParse...\n");
     RaftJson config(R"({"typeSettings":{
-        "LSM6DS":{"busHz":400000,"busHzSlots":[1,2,3,4,7],"intervalUs":"20000"},
+        "LSM6DS3":{"busHz":400000,"busHzSlots":[1,2,3,4,7],"intervalUs":"20000"},
         "VL6180":{"scanPriority":"low","sampleRateHz":50,"numSamples":4},
         "MCP9808":{"busHzSlots":"4, 5","scanPriority":"none","_notes":"why"},"_notes":"about these"}})");
     DeviceTypeSettings settings;
@@ -36,8 +36,8 @@ static void testParse()
     settings.parse(config, "typeSettings", problems);
     TEST_ASSERT(problems.empty(), problems.empty() ? "" : problems[0].c_str());
     TEST_ASSERT(settings.all().size() == 3, "three types");
-    const DeviceTypeSettings::Entry* pLsm = settings.find("LSM6DS");
-    TEST_ASSERT(pLsm && (pLsm->devConfig.size() == 3), "LSM6DS settings");
+    const DeviceTypeSettings::Entry* pLsm = settings.find("LSM6DS3");
+    TEST_ASSERT(pLsm && (pLsm->devConfig.size() == 3), "LSM6DS3 settings");
     TEST_ASSERT(pLsm && (valueOf(pLsm->devConfig, "busHz") == "400000"), "busHz as text");
     TEST_ASSERT(pLsm && (valueOf(pLsm->devConfig, "busHzSlots") == "1,2,3,4,7"), "busHzSlots list as text");
     TEST_ASSERT(pLsm && (valueOf(pLsm->devConfig, "intervalUs") == "20000"), "intervalUs given as text");

@@ -123,9 +123,9 @@ static void testPlanLifetimeAndLazyPlan()
     printf("Running testPlanLifetimeAndLazyPlan...\n");
     DeviceTypeRecords table;
     DeviceStatus status;
-    TEST_ASSERT(makeStatus(table, "LSM6DS", 0x6a, status, false), "status made without a plan");
+    TEST_ASSERT(makeStatus(table, "LSM6DS3", 0x6a, status, false), "status made without a plan");
     uint32_t numReqs = status.getNumPollRequests();
-    TEST_ASSERT(numReqs == 2, "LSM6DS has two poll requests");
+    TEST_ASSERT(numReqs == 2, "LSM6DS3 has two poll requests");
     uint64_t dueUs = 0;
     status.getNextPollDueUs(0, dueUs);
 
@@ -162,7 +162,7 @@ static void testSplitPollStep()
     printf("Running testSplitPollStep...\n");
     DeviceTypeRecords table;
     DeviceStatus status;
-    TEST_ASSERT(makeStatus(table, "LSM6DS", 0x6a, status, true), "status made");
+    TEST_ASSERT(makeStatus(table, "LSM6DS3", 0x6a, status, true), "status made");
     status.deviceIdentPolling.pollBusHz = 400000;
     status.deviceIdentPolling.pollBusHzSlotMask = 0x10;
     uint64_t dueUs = 0;
@@ -180,7 +180,7 @@ static void testSplitPollStep()
 
 int main()
 {
-    testNoAllocationPerPoll("LSM6DS");
+    testNoAllocationPerPoll("LSM6DS3");
     testNoAllocationPerPoll("VL53L0X");
     testPlanLifetimeAndLazyPlan();
     testSplitPollStep();

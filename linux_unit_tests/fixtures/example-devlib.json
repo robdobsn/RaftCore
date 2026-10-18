@@ -48,8 +48,8 @@
       }
     },
 
-    "LSM6DS": {
-      "_notes": "SUPPRESSION. Everything except the name is ignored when disable is true, so a record can be disabled by copying it and adding one field. This unit has an LSM6DS on the main bus at 0x6a, which should stop being identified.",
+    "LSM6DS3": {
+      "_notes": "SUPPRESSION. Everything except the name is ignored when disable is true, so a record can be disabled by copying it and adding one field. This unit has an LSM6DS3 on the main bus at 0x6a, which should stop being identified.",
       "disable": true
     }
   }

@@ -76,14 +76,14 @@ static void testBranchExampleFile(const char* pExamplePath)
     printf("Running testBranchExampleFile...\n");
     DeviceTypeRecords table;
     DeviceTypeIndexType mcpIdx = DEVICE_TYPE_INDEX_INVALID, lsmIdx = DEVICE_TYPE_INDEX_INVALID;
-    TEST_ASSERT(table.getRecord("MCP9808", mcpIdx) && table.getRecord("LSM6DS", lsmIdx), "base records present");
+    TEST_ASSERT(table.getRecord("MCP9808", mcpIdx) && table.getRecord("LSM6DS3", lsmIdx), "base records present");
     std::string json = readFile(pExamplePath);
     TEST_ASSERT(json.length() > 0, "example file read");
     DeviceTypeFileLoader::Result result = applyFile(table, json);
     TEST_ASSERT(result.fileValid, "file valid");
     TEST_ASSERT(result.added == 1, "one record added (ExampleTempSensor)");
     TEST_ASSERT(result.replaced == 1, "one record replaced (MCP9808)");
-    TEST_ASSERT(result.disabled == 1, "one type disabled (LSM6DS)");
+    TEST_ASSERT(result.disabled == 1, "one type disabled (LSM6DS3)");
     TEST_ASSERT(result.rejected == 0, ("nothing rejected: " + std::string(result.firstError.c_str())).c_str());
 
     // The override has the base record's index, and its content
@@ -99,8 +99,8 @@ static void testBranchExampleFile(const char* pExamplePath)
     const DeviceTypeRecord* pNew = table.getRecord("ExampleTempSensor", idx);
     TEST_ASSERT(pNew && (table.getRecordSource(idx) == DeviceTypeRecords::RecordSource::Extended), "new record extended");
     TEST_ASSERT(pNew && (pNew->pollDataSizeBytes == 2), "new record poll size");
-    TEST_ASSERT(table.getPolicy(lsmIdx) == DeviceTypeRecord::POLICY_DISABLED, "LSM6DS disabled");
-    TEST_ASSERT(table.getRecord("LSM6DS", idx) != nullptr, "a disabled type can still be looked up");
+    TEST_ASSERT(table.getPolicy(lsmIdx) == DeviceTypeRecord::POLICY_DISABLED, "LSM6DS3 disabled");
+    TEST_ASSERT(table.getRecord("LSM6DS3", idx) != nullptr, "a disabled type can still be looked up");
 }
 
 static void testFileLevel()
@@ -272,7 +272,7 @@ static void testCheckJson()
                 R"({"name":"Code","resp":{"b":2,"a":[{"n":"v","t":">H"}]}})", nullptr);
     DeviceTypeIndexType idx;
     TEST_ASSERT(live.addRecord(code, idx) == DeviceTypeRecords::AddResult::Added, "code record");
-    live.setProtected("LSM6DS");
+    live.setProtected("LSM6DS3");
     live.registerExtDataSource("ExtA");
     TEST_ASSERT(live.getRecord("MCP9808", idx) != nullptr, "MCP9808 compiled");
     String mcp = DeviceTypeFileLoader::recordToFileEntry(*live.getRecord(idx), DeviceTypeRecord::POLICY_ENABLED);
@@ -295,7 +295,7 @@ static void testCheckJson()
                 R"("Alpha":{)" + GOOD_FIELDS + "}," +
                 mcpOverride.c_str() + "," +
                 R"("CodeRec":{"addresses":"0x52","detectionValues":"0x00=0x13","pollInfo":{"c":"0x01=r2","i":100,"s":1},"devInfoJson":{"name":"Other","resp":{"b":2,"a":[{"n":"v","t":">H"}]}}},)" +
-                R"("LSM6DS":{"disable":true},)" +
+                R"("LSM6DS3":{"disable":true},)" +
                 R"("TrillRing":{"disable":true},)" +
                 R"("ExtA":{"addresses":"0x2a","detectionValues":"0x00=0x12","pollInfo":{"ext":1},"devInfoJson":{"resp":{"b":2}}},)" +
                 R"("Nope":{"disable":true})" +
@@ -309,7 +309,7 @@ static void testCheckJson()
     TEST_ASSERT(pMcp && (pMcp->outcome == O::Replaced) && !pMcp->noDecoder, "override of a compiled record, decoder kept (same layout)");
     const auto* pCode = findOutcome(result, "CodeRec");
     TEST_ASSERT(pCode && (pCode->outcome == O::Rejected) && pCode->error.startsWith("a different record"), "conflicts with a code record");
-    const auto* pLsm = findOutcome(result, "LSM6DS");
+    const auto* pLsm = findOutcome(result, "LSM6DS3");
     TEST_ASSERT(pLsm && (pLsm->outcome == O::Rejected) && pLsm->error.startsWith("protected"), "protected type");
     const auto* pTrill = findOutcome(result, "TrillRing");
     TEST_ASSERT(pTrill && (pTrill->outcome == O::Disabled), "policy entry");
@@ -343,17 +343,17 @@ static void testOverridesAndPolicies()
     DeviceTypeRecords table;
     DeviceTypeIndexType mcpIdx = DEVICE_TYPE_INDEX_INVALID, lsmIdx = DEVICE_TYPE_INDEX_INVALID;
     table.getRecord("MCP9808", mcpIdx);
-    table.getRecord("LSM6DS", lsmIdx);
-    table.setProtected("LSM6DS");
+    table.getRecord("LSM6DS3", lsmIdx);
+    table.setProtected("LSM6DS3");
     std::string json = R"({"devTypes":{)"
-                R"("LSM6DS":{"disable":true},)"                                            // protected
+                R"("LSM6DS3":{"disable":true},)"                                            // protected
                 R"("NoSuchType":{"disable":true},)"                                        // unknown key
                 R"("MCP9808":{"disable":"claim","addresses":"0x18"},)"                     // present: policy only
                 R"("NewDisabled":{"disable":true,"addresses":"0x55","detectionValues":"0x00=0x12"})"   // new: added disabled
                 "}}";
     DeviceTypeFileLoader::Result result = applyFile(table, json);
     TEST_ASSERT((result.rejected == 2) && (result.disabled == 2) && (result.added == 1), "policies applied");
-    TEST_ASSERT(result.firstError.startsWith("NoSuchType: unknown key") || result.firstError.startsWith("LSM6DS: protected"),
+    TEST_ASSERT(result.firstError.startsWith("NoSuchType: unknown key") || result.firstError.startsWith("LSM6DS3: protected"),
                 "rejections reported");
     TEST_ASSERT(table.getPolicy(lsmIdx) == DeviceTypeRecord::POLICY_ENABLED, "protected type not disabled");
     TEST_ASSERT(table.getPolicy(mcpIdx) == DeviceTypeRecord::POLICY_DISABLED_CLAIM, "claim policy");
@@ -553,9 +553,9 @@ static void testSetPolicyInFile()
     printf("Running testSetPolicyInFile...\n");
     bool changed = false;
     // No file: an entry is added to disable; nothing to enable
-    String out = DeviceTypeFileLoader::setPolicyInFile("", "LSM6DS", DeviceTypeRecord::POLICY_DISABLED, changed);
-    TEST_ASSERT(changed && (out == "{\"devTypes\":{\"LSM6DS\":{\"disable\":true}}}"), "disable with no file");
-    out = DeviceTypeFileLoader::setPolicyInFile(nullptr, "LSM6DS", DeviceTypeRecord::POLICY_ENABLED, changed);
+    String out = DeviceTypeFileLoader::setPolicyInFile("", "LSM6DS3", DeviceTypeRecord::POLICY_DISABLED, changed);
+    TEST_ASSERT(changed && (out == "{\"devTypes\":{\"LSM6DS3\":{\"disable\":true}}}"), "disable with no file");
+    out = DeviceTypeFileLoader::setPolicyInFile(nullptr, "LSM6DS3", DeviceTypeRecord::POLICY_ENABLED, changed);
     TEST_ASSERT(!changed && (out == ""), "enable with no file: no change");
 
     // A file with notes and a full record: other content kept, disable added to the entry and removed again

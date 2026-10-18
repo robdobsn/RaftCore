@@ -9,7 +9,7 @@ devdocs/device-type-record-management-plan.md.
 DeviceTypeSources.json:
     {
       "sources":  { "raftcore": { "bundled": true }, "local": { "path": "devtypes" } },
-      "builtin":  { "include": ["raftcore:LSM6DS", "local:*"], "exclude": [], "policy": { "TrillRing": "disabled" } },
+      "builtin":  { "include": ["raftcore:LSM6DS3", "local:*"], "exclude": [], "policy": { "TrillRing": "disabled" } },
       "typeFile": { "include": [], "policy": {}, "fsImage": false }
     }
 - sources: "bundled" (RaftCore's records; "builtin": true is an older name for it), "path" (a folder of records, one record file or a catalogue file, relative

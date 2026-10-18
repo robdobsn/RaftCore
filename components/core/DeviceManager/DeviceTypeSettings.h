@@ -6,7 +6,7 @@
 // slots it applies to, the poll interval, samples kept, sample rate and scan priority - from the DevMan setting
 // "typeSettings" in the SysType's configuration:
 //
-//   "typeSettings": { "LSM6DS": { "busHz": 400000, "busHzSlots": "1,2,3,4,7" }, "VL6180": { "scanPriority": "low" } }
+//   "typeSettings": { "LSM6DS3": { "busHz": 400000, "busHzSlots": "1,2,3,4,7" }, "VL6180": { "scanPriority": "low" } }
 //
 // Names starting with "_" (e.g. "_notes") are ignored at both levels.
 //

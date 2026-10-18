@@ -19,7 +19,7 @@ Common options (before the command):
 Commands:
     init                      create the --edit file selecting every RaftCore record ("raftcore:*")
     list                      the records selected for the firmware and for the type file, with their sources
-    add <pattern>... [--typefile]     add to the selection (e.g. raftcore:LSM6DS, local:*)
+    add <pattern>... [--typefile]     add to the selection (e.g. raftcore:LSM6DS3, local:*)
     remove <pattern>... [--typefile]  remove from the selection (a record selected by a wildcard is excluded)
     new <key> [--source <name>] [--address 0xHH]   a new record file in a path source, ready to fill in
     check                     the grammar, decode code and generator checks, without a build
