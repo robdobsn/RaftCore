@@ -1387,6 +1387,8 @@ each measured with 0, 1 and 2 VCPs polling.
 
 ---
 
+**Update 2026-10-18 (RaftI2C):** online devices polled less often than once a second are now scanned as well. Before, an online polled device wasn't scanned at all, so its removal was seen only after 3 failed polls: 10-15 s at a 5 s interval. Devices polled at 1 s or faster are still left to their polls (`BusScanner::PRESENCE_FROM_POLLS_MAX_INTERVAL_US`). Verified on Axiom018 with an SHT41: removal is seen within a few seconds, with no spurious offline over 5 minutes.
+
 ### Stage 10: DeviceManager APIs
 
 **Aim:** finer-grained management of device types and devices (G10). Every endpoint has a C++ equivalent on
