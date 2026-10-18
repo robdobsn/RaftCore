@@ -15,10 +15,6 @@ in `device-identification-improvement-plan.md` and `device-type-record-managemen
 | RoboticalAxiom1 | 19 commits, +0.6k | 3 commits, +1.5k / -3.9k (its catalogue fork removed) |
 | RaftCLI | - | 3 commits, +0.9k (`raft devtypes`) |
 
-The largest areas, in order: the device type table and its runtime index, the shared grammar, the type file loader,
-the identification scheduler, the poll scheduler, the scan schedule, the DeviceManager APIs and settings store, the
-record assembler with its git sources, and the CLI tool.
-
 ## 2. Identification branch (Stages 0-11)
 
 | Stage | Change | Goals |
@@ -27,7 +23,7 @@ record assembler with its git sources, and the CLI tool.
 | 1 | Polls on a fixed phase, earliest due first, within a time budget; the bus worker sleeps until the next poll; scanning runs last; LSM6DS-specific code removed from generic paths | G9 |
 | 2 | Compiled records `const` in flash, with a key-sorted index. Extended records packed into one allocation each (PSRAM-aware); lock-free reads; explicit add results (added, present, conflict, full) | G1, G2, G3, G4 |
 | 3 | `CatalogueIndex` built at runtime from all records: candidates per address, scan lists, reserved addresses, hardware type ID lookup. New record fields: `identPriority`, `scanPriority`, `probeOnly` | G7, G4 |
-| 4 | One grammar for detection, init and poll strings, compiled once, with errors reported. Proven identical to the old parser on 269 real strings and 200,000 fuzzed ones. `PollPlan` removes a per-poll copy | G4, G7 |
+| 4 | One grammar for detection, init and poll strings, compiled once, with errors reported. Identical to the old parser on all 269 real strings. `PollPlan` removes a per-poll copy | G4, G7 |
 | 5 | Per-type policy (enabled, disabled, disabled-claim); overrides of compiled records before identification starts; protected types (`expectType`) | G5 |
 | 6 | Device type file loaded at startup, with each record checked; identification waits for it (with a timeout) | G6 |
 | 7 | Identification state per element with a retry policy, scheduled within a time budget; init outcomes handled; candidates tried by priority and detection strength | G8, G9 |
@@ -40,7 +36,7 @@ Also on this branch:
 - the `RAFT_DEVICE_MANAGER` build option, so DeviceManager can be left out;
 - RaftROS AutoPub follows identity changes and doesn't announce topics it can't publish;
 - a flash size review against `main`;
-- fixes found along the way (e.g. AutoPub double delete, generator crashes C6/C11/C12).
+- fixes found along the way (generator crashes, an AutoPub double delete).
 
 **Benefits:**
 - Polling meets configured rates.
