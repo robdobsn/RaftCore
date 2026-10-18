@@ -2,7 +2,7 @@
     "_notes": "High-Accuracy Temperature Sensor. Detection: 0x0F (DevID) = 0x0117. Init: 0x01 (Config) = 0x0220 (1s continuous mode, 8 avg). Poll: 0x00 (Temp) = 2 bytes.",
     "addresses": "0x48-0x4B",
     "detectionValues": "0x0F=0x0117",
-    "initValues": "0x01=0x0220",
+    "initValues": "0x010220=",
     "pollInfo": {
         "c": "0x00=r2",
         "i": 1000,
