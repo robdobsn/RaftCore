@@ -9,7 +9,7 @@ Date: 2026-10-18.
 - **Init, address and action fixes (§3.2):** ADXL313, TMP117, RoboticalWaterPump, QwiicLEDStick (brightness only), LPS25, STCC4, MMC5603, MAX17048, VL53L0X (identPriority), SGP40 (actions removed).
 
 **Held or moved:**
-- **LSM6DS:** 0x6C dropped, rate settings keep the FIFO depth, 0x6B added (2026-10-18). 0x69 parts are still matched; their FIFO-full protection needs a record of its own. The gyro scale change is still held by decision.
+- **LSM6DS:** 0x6C dropped, rate settings keep the FIFO depth, 0x6B added, gyro scale fixed, then split into `LSM6DS3` and `LSM6DS3TRC` (all 2026-10-18; see the Axiom results below).
 - **VL6180:** init restores 0x001C (2026-10-18).
 
 **Axiom018 (2026-10-18), firmware built from these records, app-only flash:**
@@ -36,6 +36,19 @@ Date: 2026-10-18.
     - d = 14.2857 (70 mdps/LSB) predicts 93.0° (error 5.6°);
     - the best fit is 67.8 mdps/LSB.
   - The record's gyro therefore reads **low**: true rate ≈ 1.15 × reported. The table in §2 said high; that was wrong.
+- **Gyro scale applied** (decision 2026-10-18): d = 14.285714.
+- **LSM6DS split by WHO_AM_I** (decision 2026-10-18; keys chosen by Rob):
+  - `LSM6DS3` (0x69): FIFO_CTRL4 = 0x00, CTRL4_C = 0x01 (ST's STOP_ON_FTH);
+  - `LSM6DS3TRC` (0x6A: LSM6DS3TR-C, LSM6DSL, LSM6DSM): the previous settings.
+  - The `LSM6DS` key is gone. The type key isn't persisted anywhere in released firmware: saved device settings and type files are new on these branches, and the devbin stream and RaftROS topics don't use it. Clients that compare `devinfo.type` with "LSM6DS" need the new keys, and SysType configs that name it need updating.
+  - Axiom018 is updated. raftjs's simulated channel and RaftI2C's TestWebUI have their own embedded records and are unchanged.
+- **Axiom018 with the split:**
+  - identified as `LSM6DS3`;
+  - `typeSettings` (400 kHz on slots 1-4, 7) applied under the new key;
+  - init leaves FIFO_CTRL4 = 0x00 and CTRL4_C = 0x01;
+  - with polling paused for 25 s, the FIFO stops at 1020 words (`fc e3`), and once polling resumes it drains to a normal count.
+
+  The `LSM6DS3TRC` record (0x6A) is unverified on hardware: there is no such part on this bench.
 - **QwiicLEDStick 0x22:** moved to §3.3; adding the address needs detection first.
 - **SGP30 and SCD40 actions:** done (decision 5). raftjs actions take `"crc": "crc8w"`, and both records' actions use it. SCD40's four idle-only settings still need measurement stopped, which the record doesn't do; their descriptions say so.
 
