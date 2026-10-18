@@ -2,7 +2,27 @@
 
 Date: 2026-10-18.
 
-**Status:** desk review of all 49 RaftCore records. No record has been changed yet.
+**Status:** desk review of all 49 RaftCore records done.
+
+**Progress (2026-10-18):** most of §3.1 and §3.2 is applied on `feature/device-type-records`, one record per commit. Done:
+- **Scaling (§3.1):** MCP9808, AMG8833, AdafruitSoilSensor, MXC400xXC, MPRLS (hPa), SGP30, VEML7700, LTR-329, VCNL4040, M5Encoder, MAX30101, GravityO2.
+- **Init, address and action fixes (§3.2):** ADXL313, TMP117, RoboticalWaterPump, QwiicLEDStick (brightness only), LPS25, STCC4, MMC5603, MAX17048, VL53L0X (identPriority), SGP40 (actions removed).
+
+**Held or moved:**
+- **LSM6DS (all items):** held for an Axiom test. Its gyro scale change is held by decision.
+- **QwiicLEDStick 0x22:** moved to §3.3; adding the address needs detection first.
+- **SGP30 and SCD40 actions:** waiting for CRC support in actions (decision 5).
+
+**Checks:**
+- `DeviceTypesTool check` over all records gives 0 errors and 0 warnings; the three init grammar warnings are gone.
+- Host unit tests and script tests pass.
+- Sample frames decoded through raftjs give the expected values for every scaling change. The VL53L0X priority change needs an identification check on the Axiom.
+
+**Decisions taken:**
+- The scaling fixes are applied, except the LSM6DS gyro.
+- MPRLS reports hPa.
+- GravityO2's layout change is accepted.
+- Sensirion actions get CRC support.
 
 **Method:** each record was checked against its datasheet and reference drivers (vendor, Adafruit, SparkFun, Linux IIO, Pololu, Bela, M5Stack). The check covered:
 - addresses;
@@ -136,9 +156,7 @@ Grouped by how they can be verified. Exact strings are from the review and compi
   - `"detectionValues": "0x0E=0x02,0x03"`.
 - **MAX30101:** `"initValues": "0x0940=p10&0x0903&0x085f&0x00=r1&0x0a27&0x0c4040&0x1121"`.
 - **RoboticalWaterPump:** `0x00=0x0098` → `0x00=0x0099`, as in Axiom.
-- **QwiicLEDStick:**
-  - brightness action `"w": "77", "r": [0,31], "d": 31`;
-  - addresses `0x22-0x23`.
+- **QwiicLEDStick:** brightness action `"w": "77", "r": [0,31], "d": 31`. Address 0x22 goes with detection (§3.3).
 - **SGP40:** remove `actions`.
 - **SGP30 and SCD40:** remove the actions (or flag them), until actions can carry CRCs.
 - **LPS25:**
