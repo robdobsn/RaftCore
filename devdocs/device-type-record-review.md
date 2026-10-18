@@ -78,6 +78,20 @@ Date: 2026-10-18.
   - raw reading 24.7 °C, 66.3 % RH.
 - **Also an SHT45 on slot 1:** identified as `SHT40` at 0x144; serial `12fe ab 7d71 33` with valid CRCs; reading 24.6 °C, 60.0 % RH; polled normally.
 
+**BME280: new record, verified on Axiom018 (2026-10-18):**
+- **Record:**
+  - addresses 0x76-0x77, detection ID 0x60;
+  - init: reset, standby 500 ms, humidity x1, then temperature and pressure x1 in normal mode;
+  - poll: calibration and data, 41 bytes;
+  - decode: Bosch's floating-point compensation in the decode language.
+- **Before this record** the PCT2075 record claimed it, because its registers 0x00-0x07 read 0, which fits the PCT2075 bit patterns. PCT2075 detection now also requires pointer 0x07 = 0xFFFF; that needs re-checking with the PCT2075.
+- **Results:**
+  - identified as BME280; init registers F2=0x01, F4=0x27, F5=0x80;
+  - 20 re-identifications kept the type;
+  - polled every 1 s;
+  - the decode on the sensor's bytes gives 25.23 °C, 1023.80 hPa, 52.6 % RH in raftjs, in the generated C++ and in Bosch's reference.
+- **Lesson for pattern-only detection:** `identPriority` -1 doesn't protect parts that have no record. Include a check that zero-reading registers fail.
+
 **PCT2075: new record, verified on Axiom018 (2026-10-18):**
 - **Record:**
   - 27 addresses;
