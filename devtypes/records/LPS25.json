@@ -1,7 +1,7 @@
 {
-    "addresses": "0x5D",
+    "addresses": "0x5C-0x5D",
     "detectionValues": "0x0f=0b10111101",
-    "initValues": "0x2104=&0x20C0=",
+    "initValues": "0x2104=p5&0x20C4=",
     "pollInfo": {
         "c": "0xA7=r6",
         "i": 1000,
