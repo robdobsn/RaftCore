@@ -84,7 +84,7 @@ Date: 2026-10-18.
   - init: reset, standby 500 ms, humidity x1, then temperature and pressure x1 in normal mode;
   - poll: calibration and data, 41 bytes;
   - decode: Bosch's floating-point compensation in the decode language.
-- **Before this record** the PCT2075 record claimed it, because its registers 0x00-0x07 read 0, which fits the PCT2075 bit patterns. PCT2075 detection now also requires pointer 0x07 = 0xFFFF; that needs re-checking with the PCT2075.
+- **Before this record** the PCT2075 record claimed it, because its registers 0x00-0x07 read 0, which fits the PCT2075 bit patterns. PCT2075 detection now also requires pointer 0x07 = 0xFFFF. Re-checked with the PCT2075 re-attached: 0x07 reads 0xFFFF, it is identified as PCT2075 on hot-plug, and 20 re-identifications kept the type.
 - **Results:**
   - identified as BME280; init registers F2=0x01, F4=0x27, F5=0x80;
   - 20 re-identifications kept the type;
