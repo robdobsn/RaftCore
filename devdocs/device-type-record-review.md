@@ -124,7 +124,26 @@ Date: 2026-10-18.
   - 20 re-identifications kept the type;
   - polled every 1 s.
 
-**MS8607 (not supported, 2026-10-18):** two parts. Humidity at 0x40 (HTU21-style, CRC with init 0x00) is unmatched today and given the RSAO probe. Pressure/temperature at 0x76 needs the PROM coefficients and the compensation maths, and **collides with Axiom018's multiplexer at 0x76**, so it can't be used on an Axiom slot. Records are deferred; test them on a board without a mux at 0x76.
+**MS8607: two new records, verified on Axiom018 (2026-10-18).** Axiom018's multiplexer range was narrowed to 0x75, freeing 0x76. Its 0x76 had been unscanned on the slots, not colliding, as first thought.
+- **`MS8607PT`** (0x76):
+  - detection: a repeated ADC read gives 0;
+  - `identPriority` -1;
+  - poll: pressure and temperature conversions with 20 ms barred pauses, plus C1-C6;
+  - decode: TE's second-order compensation.
+- **`MS8607RH`** (0x40):
+  - detection: the user register's fixed bits, `identPriority` -1;
+  - poll: `0xf5=p20&=r3`;
+  - decode: RH without temperature compensation.
+- **Hand testing:**
+  - the humidity result was lost to scanner probes between trigger and read, which the record's barred pause avoids;
+  - clock-stretching measure exceeds the bus timeout.
+- **Results:**
+  - PROM CRC-4 valid;
+  - both parts identified at boot;
+  - polled every 1 s with none missed;
+  - 20 re-identifications kept the types;
+  - the decode gives 24.67 °C, 1024.18 hPa in raftjs, C++ and TE's reference.
+- **Related:** multiplexer addresses as a list (RaftI2C `devdocs/multiplexer-address-list.md`).
 
 **MCP9808, verified on Axiom018 (2026-10-18):**
 - Manufacturer 0x0054, device 0x0400. CONFIG 0x0000, alert limits 0, resolution 0.0625 °C.
