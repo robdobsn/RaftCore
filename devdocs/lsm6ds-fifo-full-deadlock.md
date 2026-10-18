@@ -72,6 +72,17 @@ twice the old 6.6 s fill time); afterwards the IMU kept streaming - 963 samples 
 full sensor rate), az ≈ -0.97 g, FIFO status showing a normal word count. Before the fix the same
 pause left it at zero samples indefinitely.
 
+## Update 2026-10-18: why the fix works on the Axiom
+
+The Axiom's part is an original LSM6DS3 (WHO_AM_I 0x69). On that part ST documents STOP_ON_FTH as CTRL4_C (0x13) bit 0; FIFO_CTRL4 bit 7, which the fix sets, is listed as unused there (it is STOP_ON_FTH on the 0x6A-family LSM6DSL/DS3TR-C).
+
+Measured on Axiom018, with polling stopped for 25 s:
+- with FIFO_CTRL4 = 0x00, the FIFO is full and the count reads 0 (the deadlock);
+- with the fix's 0x80, it is full and overrun, and the count reads 2048, so polls still drain it;
+- with CTRL4_C = 0x01, it stops at the 1020-word threshold.
+
+The fix works on this part, but through undocumented behaviour. The documented setting is CTRL4_C = 0x01, and that needs a record of its own for 0x69 parts. See `device-type-record-review.md`.
+
 ## Fix options considered
 
 1. **Never let the counter wrap.** Set `FIFO_CTRL4.STOP_ON_FTH` = 1 with a watermark below

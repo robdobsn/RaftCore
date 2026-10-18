@@ -18,6 +18,24 @@ Date: 2026-10-18.
 - **LSM6DS:** after `devconfig sampleRateHz=104`, FIFO_CTRL1/2 read 0x3FC (1020 words); on the old firmware they read 0x030 (48 words).
 - **MAX17048 (0x736):** didn't answer on this unit (no battery; also absent before the flash), so the wider detection is still unverified.
 - No warnings or errors in the boot log.
+- **Which LSM6DS the Axiom has:** WHO_AM_I reads **0x69**, an original LSM6DS3, not a 0x6A-family part as the desk review assumed.
+- **FIFO after 25 s with polling stopped** (`devenable poll=0`):
+
+  | FIFO setting | FIFO_STATUS1/2 | Meaning |
+  |-|-|-|
+  | FIFO_CTRL4 = 0x00 (before the 2026-09-11 fix) | `00 e0` | full, count 0: the deadlock |
+  | The record's FIFO_CTRL4 = 0x80 | `00 e8` | full and overrun, count 2048 (undocumented on 0x69; it still drains) |
+  | CTRL4_C = 0x01 (ST's STOP_ON_FTH on 0x69) | `fc e3` | stopped at the 1020-word threshold, as designed |
+
+  So the current record avoids the deadlock on this part only through undocumented behaviour. The documented fix is CTRL4_C bit 0, which must stay 0 on 0x6A parts, so the two chips need separate records.
+- **Gyro scale, by rotation:**
+  - The unit was tipped onto its side: 91.4° by the accelerometer.
+  - FIFO at 12.5 Hz nominal; the measured rate was 13.43 samples/s.
+  - Integrating the full 3-D rotation and comparing the predicted gravity direction with the measured one:
+    - the record's d = 16.384 predicts 81.3° (error 10.4°);
+    - d = 14.2857 (70 mdps/LSB) predicts 93.0° (error 5.6°);
+    - the best fit is 67.8 mdps/LSB.
+  - The record's gyro therefore reads **low**: true rate ≈ 1.15 × reported. The table in §2 said high; that was wrong.
 - **QwiicLEDStick 0x22:** moved to §3.3; adding the address needs detection first.
 - **SGP30 and SCD40 actions:** done (decision 5). raftjs actions take `"crc": "crc8w"`, and both records' actions use it. SCD40's four idle-only settings still need measurement stopped, which the record doesn't do; their descriptions say so.
 
@@ -80,7 +98,7 @@ This follows Stage 12 of `device-identification-improvement-plan.md` and extends
 | Record | Verdict | Main finding | Layout / scaling | HW |
 |-|-|-|-|-|
 | ADXL313 | S | Init sets the Sleep bit (`0x2d0c`), giving 8 Hz updates; range is ±2 g, not the stated ±4 g | rate changes | light |
-| LSM6DS | S | Gyro `d` 16.384 should be 14.2857 (70 mdps/LSB): reads 14.7% high. Detection accepts LSM6DSO (0x6C), which has a different FIFO. FIFO-full fix ineffective on 0x69 parts. `_conf.rate` entries cut FIFO depth to about 77 ms | scaling | Axiom (0x6A) |
+| LSM6DS | S | Gyro `d` 16.384 should be 14.2857 (70 mdps/LSB): reads about 13% low (confirmed by rotation on the Axiom). Detection accepts LSM6DSO (0x6C), which has a different FIFO. FIFO-full fix ineffective on 0x69 parts. `_conf.rate` entries cut FIFO depth to about 77 ms | scaling | Axiom (0x6A) |
 | MXC400xXC | S | Temperature `d` 0.586 should be 1.7065. Init reads instead of writing the reset. ID 0x03 not accepted | scaling | yes |
 | MMC5603 | m | ODR 100 Hz exceeds the 75 Hz limit at BW=00 | - | light |
 | AS5600 | m | Detection is 6 bits; 20 possible from config registers | - | yes |
