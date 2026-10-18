@@ -60,6 +60,24 @@ Date: 2026-10-18.
 - Host unit tests and script tests pass.
 - Sample frames decoded through raftjs give the expected values for every scaling change. The VL53L0X priority change needs an identification check on the Axiom.
 
+**SHT40, verified on Axiom018 with an SHT41 at slot 1 (2026-10-18):**
+- **Changes:**
+  - detection reads the serial number and checks both CRCs (`0x89=p10&=0b`+48 X+`:crc8w`);
+  - the poll is now trigger, wait 10 ms, read (`0xfd=p10&=r6`), where before it read and then triggered;
+  - init is empty.
+- **Why the poll changed:**
+  - The sensor NACKs while measuring: 0x89 straight after a trigger was NACKed.
+  - With read-then-trigger, a detection or re-identification starting just after a poll would fail as a no-match and expose the device to the RSAO probe.
+  - With trigger-then-read, that window is covered by the pause's address bar. A barred access is a bus error and is retried, not counted as a mismatch.
+- **Results:**
+  - the serial number reads with valid CRCs;
+  - an immediate read after 0x89 NACKs, so the pause is needed;
+  - identified first time after a firmware restart without a power cycle, and after unplugging and replugging the sensor;
+  - 20 re-identifications while polled kept the type;
+  - polls every 5 s with none missed;
+  - raw reading 24.7 °C, 66.3 % RH.
+- **General point for other triggered sensors** (SGP30/40, AHT20, SCD4x): prefer trigger, pause, read in the poll, so the device is idle between polls and its busy time is barred.
+
 **Decisions taken:**
 - The scaling fixes are applied, except the LSM6DS gyro.
 - MPRLS reports hPa.
