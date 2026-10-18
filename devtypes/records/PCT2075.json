@@ -1,8 +1,8 @@
 {
-    "_notes": "NXP PCT2075, LM75-compatible temperature sensor, 0.125 C, at any of 27 addresses (A0-A2 tri-state): 0x28-0x2F, 0x35-0x37 (Adafruit default 0x37), 0x48-0x4F, 0x70-0x77. No ID register, so detection checks the registers' fixed bits (read-only): temperature low 5 bits 0 (11-bit, left-justified), configuration bits 7-5 0, Thyst and Tos low 7 bits 0 (9-bit), Tidle bits 7-5 0. Being a pattern rather than an ID, it is tried after the records with an ID at the same address (identPriority -1) - a TMP117 or an idle CAP1188 can pass it - except records with no detection (GravityO2 at 0x70-0x73), which claim the address first. Init: configuration 0 (normal mode, in case it was left shut down). Poll: temperature register; signed 16-bit / 256 (the low 5 bits are 0).",
+    "_notes": "NXP PCT2075, LM75-compatible temperature sensor, 0.125 C, at any of 27 addresses (A0-A2 tri-state): 0x28-0x2F, 0x35-0x37 (Adafruit default 0x37), 0x48-0x4F, 0x70-0x77. No ID register, so detection checks the registers' fixed bits (read-only): temperature low 5 bits 0 (11-bit, left-justified), configuration bits 7-5 0, Thyst and Tos low 7 bits 0 (9-bit), Tidle bits 7-5 0, and pointer 0x07 (no register) reads 0xFFFF - a part whose low registers read 0 (e.g. a BME280, which matched all the bit patterns) or a TMP117 (offset register 0x0000) fails that. Being a pattern rather than an ID, it is tried after the records with an ID at the same address (identPriority -1) - a TMP117 or an idle CAP1188 can pass it - except records with no detection (GravityO2 at 0x70-0x73), which claim the address first. Init: configuration 0 (normal mode, in case it was left shut down). Poll: temperature register; signed 16-bit / 256 (the low 5 bits are 0).",
     "addresses": "0x28-0x2F,0x35-0x37,0x48-0x4F,0x70-0x77",
     "identPriority": -1,
-    "detectionValues": "0x00=0bXXXXXXXXXXX00000&0x01=0b000XXXXX&0x02=0bXXXXXXXXX0000000&0x03=0bXXXXXXXXX0000000&0x04=0b000XXXXX",
+    "detectionValues": "0x00=0bXXXXXXXXXXX00000&0x01=0b000XXXXX&0x02=0bXXXXXXXXX0000000&0x03=0bXXXXXXXXX0000000&0x04=0b000XXXXX&0x07=0xFFFF",
     "initValues": "0x0100=",
     "pollInfo": {
         "c": "0x00=r2",
