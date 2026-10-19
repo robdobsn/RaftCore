@@ -18,6 +18,7 @@
 #include "DeviceTypeRecords.h"
 #include "DeviceTypeRuntimeDecoder.h"
 #include "DeviceTypeFileLoader.h"
+#include "DeviceTypeCodeInterpreter.h"
 #include "RaftJson.h"
 
 static uint32_t fieldBytes(const AttrFieldDesc& desc, const DeviceTypeRuntimeDecoder::Field* pField)
@@ -59,13 +60,15 @@ static void testMatchesCompiledDecoders()
             continue;   // nothing to decode (e.g. an output-only device)
         if (devInfo.contains("resp/c"))
         {
+            numCustom++;
+#ifndef RAFT_RUNTIME_DECODE_CODE
             // Custom decode code needs the code interpreter: no runtime decoder
             String problem;
             DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem);
             TEST_ASSERT(!pDecoder && (problem.indexOf("code") >= 0), (std::string(pRec->deviceType) + ": custom decode refused").c_str());
             delete pDecoder;
-            numCustom++;
             continue;
+#endif
         }
         String problem;
         DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem);
@@ -109,7 +112,8 @@ static void testMatchesCompiledDecoders()
             std::vector<uint8_t> buf(bufLen);
             for (auto& b : buf)
                 b = randomByte(rng);
-            const uint16_t maxRecs = 4;
+            static const uint16_t MAX_RECS[] = {1, 4, 32};
+            const uint16_t maxRecs = MAX_RECS[rng() % 3];
             std::vector<uint8_t> outCompiled(structSize * maxRecs, 0xa5), outRuntime(structSize * maxRecs, 0xa5);
             RaftBusDeviceDecodeState stateCompiled, stateRuntime;
             stateCompiled.lastReportTimestampUs = stateRuntime.lastReportTimestampUs = (rng() % 2) ? 0 : 6553500;
@@ -149,8 +153,12 @@ static void testMatchesCompiledDecoders()
         numCompared++;
         delete pDecoder;
     }
-    printf("  %u records compared with their compiled decoders, %u with custom decode code\n", numCompared, numCustom);
+    printf("  %u records compared with their compiled decoders, %u of them with custom decode code\n", numCompared, numCustom);
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    TEST_ASSERT(numCompared >= 55, "all records compared, custom decode code included");
+#else
     TEST_ASSERT(numCompared >= 40, "most records compared");
+#endif
     TEST_ASSERT(numMismatched == 0, "no mismatches");
     TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 0, "slots freed with their decoders");
 }
@@ -211,8 +219,24 @@ static void testTypeFileRecordGetsRuntimeDecoder()
                     DeviceTypeFileLoader::Limits(), result);
         DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
         const DeviceTypeRecord* pRec = table.getRecord("NewCode", idx);
+#ifdef RAFT_RUNTIME_DECODE_CODE
+        // Decoded by the code interpreter
+        TEST_ASSERT(pRec && pRec->pollResultDecodeFn && (table.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::Runtime),
+                    "custom decode code: runtime decoder");
+        if (pRec && pRec->pollResultDecodeFn)
+        {
+            const uint8_t poll[] = {0x00, 0x01, 0x2a, 0x00};
+            std::vector<uint8_t> out(pRec->pollStructSize, 0);
+            RaftBusDeviceDecodeState state;
+            uint32_t n = pRec->pollResultDecodeFn(poll, sizeof(poll), out.data(), out.size(), 1, state);
+            float v = 0;
+            memcpy(&v, out.data() + pRec->pollFieldDescs[0].offset, sizeof(v));
+            TEST_ASSERT((n == 1) && (v == 42.0f), "custom decode code run");
+        }
+#else
         TEST_ASSERT(pRec && !pRec->pollResultDecodeFn && (table.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::None),
                     "custom decode code: no decoder");
+#endif
     }
 }
 
@@ -256,11 +280,182 @@ static void testRefused()
     }
 }
 
-int main()
+#ifdef RAFT_RUNTIME_DECODE_CODE
+// The interpreter against the same code compiled as C++: each case's code assigns out.r (a double field, so the
+// value isn't narrowed) and the expected value is the C++ expression
+static void testInterpreterSemantics()
+{
+    printf("Running testInterpreterSemantics...\n");
+    std::vector<DeviceTypeCodeProgram::OutField> fields(1);
+    fields[0].name = "r";
+    fields[0].type = DeviceTypeRuntimeDecoder::NumType::Double;
+    fields[0].offset = 0;
+    const uint8_t buf[] = {0xff, 0x80, 0x01, 0x7f};
+    struct Case
+    {
+        const char* code;
+        double expected;
+    };
+    int i1 = -7, i2 = 2;
+    unsigned int u1 = 1;
+    float f1 = 0.1f;
+    int g1 = 23;
+    uint16_t c16 = (uint16_t)70000;
+    int sh = (buf[0] << 24) >> 24;
+    int x = 5; int pre = ++x; int post = x++;
+    int y = 10; y += 3; y <<= 2; y %= 7;
+    float fl = 1.0f; fl = fl / 3.0;
+    float fl2 = 1.0f; fl2 = fl2 / 3;
+    const Case cases[] = {
+        {"out.r=-7/2;", (double)(i1 / i2)},
+        {"out.r=-7%2;", (double)(i1 % i2)},
+        {"out.r=-1<1;", (double)(-1 < 1)},
+        {"uint32_t u=1;out.r=-1<u;", (double)(-1 < u1)},               // unsigned comparison: false
+        {"out.r=0x7fffffff+1;", (double)(int32_t)((uint32_t)0x7fffffff + 1)},
+        {"out.r=0xffffffff+1;", (double)(0xffffffffu + 1)},             // unsigned int wraps
+        {"float f=0.1;out.r=f;", (double)f1},                           // a double literal stored to a float
+        {"int g1=23;out.r=g1/16.0+49.0;", (double)(g1 / 16.0 + 49.0)},  // double arithmetic
+        {"float v=1.0;v=v/3.0;out.r=v;", (double)fl},
+        {"float v=1.0;v=v/3;out.r=v;", (double)fl2},
+        {"out.r=(uint16_t)70000;", (double)c16},
+        {"out.r=(buf[0]<<24)>>24;", (double)sh},                        // arithmetic right shift of a negative int
+        {"out.r=buf[1]|(buf[2]<<8);", (double)(buf[1] | (buf[2] << 8))},
+        {"int x=5;int pre=++x;int post=x++;out.r=pre*100+post*10+x;", (double)(pre * 100 + post * 10 + x)},
+        {"int y=10;y+=3;y<<=2;y%=7;out.r=y;", (double)y},
+        {"int n=0;int i=0;while(i<5){if(i==2){n=n+10;}else{n=n+1;}i++;}out.r=n;", 14.0},
+        {"out.r=!0+!5+(3&&0)+(0||2)+~0;", (double)(!0 + !5 + (3 && 0) + (0 || 2) + ~0)},
+        {"out.r=buf[100];", 0.0},                                       // outside buf: 0
+        {"out.r=7/0;", 0.0},                                            // integer division by zero: 0
+        {"int8_t c=200;out.r=c;", (double)(int8_t)200},
+    };
+    for (const Case& c : cases)
+    {
+        String problem;
+        DeviceTypeCodeProgram* pProg = DeviceTypeCodeProgram::compile(c.code, DeviceTypeCodeProgram::Kind::Decode, fields, problem);
+        TEST_ASSERT(pProg, (std::string(c.code) + " compiles: " + problem.c_str()).c_str());
+        if (!pProg)
+            continue;
+        double out = -12345;
+        DeviceTypeCodeProgram::RunContext ctx;
+        ctx.pBuf = buf;
+        ctx.bufLen = sizeof(buf);
+        ctx.pOut = (uint8_t*)&out;
+        ctx.budget = 10000;
+        DeviceTypeCodeProgram::Status status = pProg->run(ctx);
+        bool ok = (status == DeviceTypeCodeProgram::Status::Done) && (memcmp(&out, &c.expected, sizeof(out)) == 0);
+        if (!ok)
+            printf("  %s gave %.17g, expected %.17g\n", c.code, out, c.expected);
+        TEST_ASSERT(ok, c.code);
+        delete pProg;
+    }
+
+    // A loop that doesn't end is stopped by the budget; return gives the function's result
+    {
+        String problem;
+        DeviceTypeCodeProgram* pProg = DeviceTypeCodeProgram::compile("int i=0;while(1){i++;}", DeviceTypeCodeProgram::Kind::Decode,
+                    fields, problem);
+        DeviceTypeCodeProgram::RunContext ctx;
+        ctx.budget = 5000;
+        TEST_ASSERT(pProg && (pProg->run(ctx) == DeviceTypeCodeProgram::Status::OutOfBudget), "endless loop stopped");
+        delete pProg;
+        pProg = DeviceTypeCodeProgram::compile("return 3;", DeviceTypeCodeProgram::Kind::Decode, fields, problem);
+        DeviceTypeCodeProgram::RunContext ctx2;
+        ctx2.budget = 100;
+        TEST_ASSERT(pProg && (pProg->run(ctx2) == DeviceTypeCodeProgram::Status::Return) && (ctx2.returnValue == 3), "return");
+        delete pProg;
+    }
+
+    // Code outside the language is refused
+    const char* bad[] = {
+        "out.r=foo(1);", "out.r=x;", "out.nope=1;", "float f=1.0;out.r=f%2;", "out.r=1?2:3;", "init.v=1;",
+        "out.r=1", "int a=1;int a=2;", "out.r=1.5f;", "while(1){",
+    };
+    for (const char* code : bad)
+    {
+        String problem;
+        DeviceTypeCodeProgram* pProg = DeviceTypeCodeProgram::compile(code, DeviceTypeCodeProgram::Kind::Decode, fields, problem);
+        TEST_ASSERT(!pProg && (problem.length() > 0), (std::string("refused: ") + code).c_str());
+        delete pProg;
+    }
+}
+#endif
+
+#ifdef RAFT_RUNTIME_DECODE_CODE
+// Every compiled record with initCode: the interpreter running its code gives what its compiled init function gives
+static void testInitCodeMatchesCompiled(const char* pCataloguePath)
+{
+    printf("Running testInitCodeMatchesCompiled...\n");
+    FILE* pFile = fopen(pCataloguePath, "rb");
+    TEST_ASSERT(pFile, "catalogue read");
+    if (!pFile)
+        return;
+    std::string text;
+    char chunk[4096];
+    size_t n;
+    while ((n = fread(chunk, 1, sizeof(chunk), pFile)) > 0)
+        text.append(chunk, n);
+    fclose(pFile);
+    RaftJson catalogue(text.c_str());
+    std::vector<String> keys;
+    catalogue.getKeys("devTypes", keys);
+    DeviceTypeRecords table;
+    std::mt19937 rng(777);
+    uint32_t numCompared = 0;
+    for (const String& key : keys)
+    {
+        String base = "devTypes/" + key;
+        String code = catalogue.getString((base + "/initCode/c").c_str(), "");
+        if (code.length() == 0)
+            continue;
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pRec = table.getRecord(key.c_str(), idx);
+        if (!pRec || !pRec->initValuesFn)
+            continue;
+        String problem;
+        DeviceTypeRuntimeInit* pInit = DeviceTypeRuntimeInit::create(code.c_str(), pRec->initValues, problem);
+        std::string name = key.c_str();
+        TEST_ASSERT(pInit, (name + ": init code compiled " + problem.c_str()).c_str());
+        if (!pInit)
+            continue;
+        TEST_ASSERT(strcmp(pInit->getNamesStr(), pRec->initValueNames ? pRec->initValueNames : "") == 0,
+                    (name + ": same value names").c_str());
+        bool same = true;
+        for (int iter = 0; (iter < 5000) && same; iter++)
+        {
+            uint32_t len = rng() % 24;
+            std::vector<uint8_t> read(len + 8);
+            for (auto& b : read)
+                b = randomByte(rng);
+            int32_t valuesCompiled[8], valuesRuntime[8];
+            for (int i = 0; i < 8; i++)
+                valuesCompiled[i] = valuesRuntime[i] = 0x5a5a5a5a;
+            bool okCompiled = pRec->initValuesFn(read.data(), len, valuesCompiled, 8);
+            bool okRuntime = pInit->run(read.data(), len, valuesRuntime, 8);
+            same = (okCompiled == okRuntime) && (memcmp(valuesCompiled, valuesRuntime, sizeof(valuesCompiled)) == 0);
+            if (!same)
+                printf("  %s: compiled %d [%d %d] runtime %d [%d %d] (len %u)\n", name.c_str(), okCompiled, valuesCompiled[0],
+                            valuesCompiled[1], okRuntime, valuesRuntime[0], valuesRuntime[1], len);
+        }
+        TEST_ASSERT(same, (name + ": init code gives the compiled values").c_str());
+        numCompared++;
+        delete pInit;
+    }
+    printf("  %u records' init code compared\n", numCompared);
+    TEST_ASSERT(numCompared >= 4, "records with init code compared");
+    TEST_ASSERT(DeviceTypeRuntimeInit::getNumSlotsInUse() == 0, "init slots freed");
+}
+#endif
+
+int main(int argc, char** argv)
 {
     testMatchesCompiledDecoders();
     testTypeFileRecordGetsRuntimeDecoder();
     testAtList();
     testRefused();
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    testInterpreterSemantics();
+    if (argc > 1)
+        testInitCodeMatchesCompiled(argv[1]);
+#endif
     return testSummary("test_runtime_decoder");
 }

@@ -7,6 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "DeviceTypeRecords.h"
+#include "DeviceTypeCodeInterpreter.h"
 #include "DeviceTypeRecordPacked.h"
 #include "PlatformUtils.h"
 #include "BusRequestInfo.h"
@@ -58,6 +59,8 @@ DeviceTypeRecords::~DeviceTypeRecords()
         DeviceTypeRecordPacked::destroy(pRec);
     for (DeviceTypeRuntimeDecoder* pDecoder : _runtimeDecoders)
         delete pDecoder;
+    for (DeviceTypeRuntimeInit* pInit : _runtimeInits)
+        delete pInit;
 
     // Delete mutex
     RaftMutex_destroy(_extRecordsMutex);
@@ -935,9 +938,12 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
             }
             else
             {
-                // A record with no compiled decoder gets one made from its attribute list (if built in)
+                // A record with no compiled decoder gets one made from its attribute list (if built in), and init
+                // code from a type file is run by the interpreter (if built in)
                 if (!pRec->pollResultDecodeFn)
                     attachRuntimeDecoderLocked(pRec);
+                if (devTypeRec.initCode.length() > 0)
+                    attachRuntimeInitLocked(pRec, devTypeRec.initCode);
 
                 // Store the record, keep the key index sorted, then publish the new count
                 _extRecords[count] = pRec;
@@ -1031,6 +1037,11 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::replaceBaseRecord(DeviceTypeInde
     // Otherwise make a decoder from the attribute list (if built in)
     if (!pRec->pollResultDecodeFn)
         attachRuntimeDecoderLocked(pRec);
+
+    // The record's own init code (from a type file) is run by the interpreter (if built in); otherwise it inherits
+    // the base record's init values function
+    if (devTypeRec.initCode.length() > 0)
+        attachRuntimeInitLocked(pRec, devTypeRec.initCode);
 
     // Inherit the init values function (a type file can't carry compiled init code; the loader checks the base record
     // computes every value slot the override uses)
@@ -1382,6 +1393,32 @@ void DeviceTypeRecords::attachRuntimeDecoderLocked(DeviceTypeRecord* pRec)
     pRec->pollStructSize = pDecoder->getStructSize();
 #else
     (void)pRec;
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Make an init values function from a record's init code (the code interpreter) and attach it
+///        (initValuesFn, initValueNames). Assumes the mutex is held
+/// @note without RAFT_RUNTIME_DECODE_CODE nothing is attached (the loader only accepts init code from a type file
+///       when the interpreter is built in)
+void DeviceTypeRecords::attachRuntimeInitLocked(DeviceTypeRecord* pRec, const String& initCode)
+{
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    if (!pRec)
+        return;
+    String problem;
+    DeviceTypeRuntimeInit* pInit = DeviceTypeRuntimeInit::create(initCode.c_str(), pRec->initValues ? pRec->initValues : "", problem);
+    if (!pInit)
+    {
+        LOG_W(MODULE_PREFIX, "%s init code not used: %s", pRec->deviceType ? pRec->deviceType : "?", problem.c_str());
+        return;
+    }
+    _runtimeInits.push_back(pInit);
+    pRec->initValuesFn = pInit->getInitFn();
+    pRec->initValueNames = pInit->getNamesStr();
+#else
+    (void)pRec;
+    (void)initCode;
 #endif
 }
 

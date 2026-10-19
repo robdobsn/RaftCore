@@ -671,8 +671,9 @@ static void testInitValuesInTypeFile()
                     R"("pollInfo":{"c":"0x00=r2","i":1000,"s":1},"devInfoJson":{"type":"TMP117","resp":{"b":2,"a":[]}}}}})");
         TEST_ASSERT((result.rejected == 1) && (result.replaced == 0), "value slot on a record without init code rejected");
     }
+#ifndef RAFT_RUNTIME_DECODE_CODE
     {
-        // initCode for a new key: rejected (it must be compiled in)
+        // initCode for a new key: rejected without the code interpreter (it must be compiled in)
         DeviceTypeRecords table;
         DeviceTypeFileLoader::Result result = applyFile(table,
                     R"({"devTypes":{"NewDev":{"addresses":"0x30","initValues":"0x0101","initCode":{"c":"init.x=1;"},)"
@@ -680,6 +681,48 @@ static void testInitValuesInTypeFile()
         TEST_ASSERT((result.rejected == 1) && result.firstError.startsWith("NewDev: initCode needs"),
                     ("initCode for a new key rejected: " + std::string(result.firstError.c_str())).c_str());
     }
+#else
+    {
+        // With the code interpreter a type file record's initCode is run: a new key computing its value slot
+        DeviceTypeRecords table;
+        DeviceTypeFileLoader::Result result = applyFile(table,
+                    R"({"devTypes":{"NewHeat":{"addresses":"0x30","detectionValues":"0x00=0x12","initValues":"0x10=r2&0x5a{heat}",)"
+                    R"("initCode":{"n":"h","c":"init.heat=(buf[0]+buf[1])/2;"},)"
+                    R"("pollInfo":{"c":"0x00=r1","i":1000,"s":1},"devInfoJson":{"type":"NewHeat","resp":{"b":1,"a":[]}}}}})");
+        TEST_ASSERT((result.added == 1) && (result.rejected == 0), ("initCode run by the interpreter: " + std::string(result.firstError.c_str())).c_str());
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pRec = table.getRecord("NewHeat", idx);
+        TEST_ASSERT(pRec && pRec->initValuesFn && pRec->initValueNames && (strcmp(pRec->initValueNames, "heat") == 0),
+                    "runtime init values function");
+        if (pRec && pRec->initValuesFn)
+        {
+            const uint8_t read[] = {10, 30};
+            int32_t values[1] = {0};
+            TEST_ASSERT(pRec->initValuesFn(read, 2, values, 1) && (values[0] == 20), "init value computed");
+            TEST_ASSERT(!pRec->initValuesFn(read, 1, values, 1), "too few bytes read fails");
+            DeviceTypeRecords::InitValueState state;
+            DeviceTypeRecords::noteInitStepRead(state, {10, 30});
+            std::vector<uint8_t> write;
+            bool doStep = false;
+            TEST_ASSERT(table.getInitStepWrite(idx, 1, state, write, doStep) && (write.size() == 2) && (write[1] == 20),
+                        "the slot is written with the computed value");
+        }
+    }
+    {
+        // initCode that doesn't compute a slot, or isn't in the language: rejected
+        DeviceTypeRecords table;
+        DeviceTypeFileLoader::Result result = applyFile(table,
+                    R"({"devTypes":{"NoSlot":{"addresses":"0x31","initValues":"0x5a{heat}","initCode":{"c":"init.other=1;"},)"
+                    R"("pollInfo":{"c":"0x00=r1","i":1000,"s":1},"devInfoJson":{"type":"NoSlot","resp":{"b":1,"a":[]}}}}})");
+        TEST_ASSERT((result.rejected == 1) && (result.firstError.indexOf("isn't computed by its initCode") > 0),
+                    ("slot not computed: " + std::string(result.firstError.c_str())).c_str());
+        result = applyFile(table,
+                    R"({"devTypes":{"BadCode":{"addresses":"0x32","initValues":"0x5a{heat}","initCode":{"c":"init.heat=foo(1);"},)"
+                    R"("pollInfo":{"c":"0x00=r1","i":1000,"s":1},"devInfoJson":{"type":"BadCode","resp":{"b":1,"a":[]}}}}})");
+        TEST_ASSERT((result.rejected == 1) && result.firstError.startsWith("BadCode: initCode:"),
+                    ("code outside the language: " + std::string(result.firstError.c_str())).c_str());
+    }
+#endif
     const char* scdBody = R"("addresses":"0x61","detectionValues":"",)"
                 R"("initValues":"0xd100=p5&=r3&=p5&0x4600=p5&=r3&{?setInterval}0x46000002e3=p10",)"
                 R"("pollInfo":{"c":"0x0300=p5&=r18","i":5000,"s":1},)"

@@ -5,6 +5,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "DeviceTypeFileLoader.h"
+#include "DeviceTypeCodeInterpreter.h"
 #include "DeviceTypeRecords.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeGrammar.h"
@@ -309,6 +310,31 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         return;
     }
 
+    // Init code from the file (run by the code interpreter, if built in): compiled to check it and find the values
+    // it computes
+    bool hasFileInitCode = false;
+    std::vector<String> fileInitNames;
+    String fileInitCode;
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    if (rec.contains("initCode"))
+    {
+        int initCodeLen = 0;
+        fileInitCode = (rec.getType("initCode", initCodeLen) == RaftJsonIF::RAFT_JSON_OBJECT) ?
+                    rec.getString("initCode/c", "") : rec.getString("initCode", "");
+        String problem;
+        DeviceTypeCodeProgram* pProg = DeviceTypeCodeProgram::compile(fileInitCode.c_str(), DeviceTypeCodeProgram::Kind::Init,
+                    {}, problem);
+        if (!pProg)
+        {
+            reject(result, key, "initCode: " + problem);
+            return;
+        }
+        fileInitNames = pProg->getInitValueNames();
+        delete pProg;
+        hasFileInitCode = true;
+    }
+#endif
+
     // Identification and scanning fields (as the generator reads them)
     DeviceTypeRecordDynamic devTypeRec;
     devTypeRec.scanPriority = DeviceTypeRecord::SCAN_PRIORITY_NONE;
@@ -405,37 +431,50 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         }
         maxRead = std::max(maxRead, largestRead(compiled));
 
-        // Init values ({name} value slots and {?name} guards computed by initCode) need init code compiled into the
-        // firmware: the record must override a compiled record of the same key whose init code provides every value
-        // (the override uses that code, as it inherits the decoder)
+        // Init values ({name} value slots and {?name} guards computed by initCode): with the code interpreter
+        // (RAFT_RUNTIME_DECODE_CODE) the record's own initCode must compute every value; otherwise init code must be
+        // compiled into the firmware - the record must override a compiled record of the same key whose init code
+        // provides every value (the override uses that code, as it inherits the decoder)
         for (const DeviceTypeGrammar::Step& step : compiled.steps)
         {
+            std::vector<std::pair<String, String>> used;
             for (const DeviceTypeGrammar::Step::ValueSlot& slot : step.slots)
+                used.push_back({String(slot.name.c_str()), "value slot {" + String(slot.name.c_str()) + "}"});
+            if (!step.guard.empty())
+                used.push_back({String(step.guard.c_str()), "guard {?" + String(step.guard.c_str()) + "}"});
+            for (const auto& entry : used)
             {
-                if (!compiledInitValueFor(table, key, slot.name.c_str()))
+                if (hasFileInitCode)
                 {
-                    reject(result, key, "initValues value slot {" + String(slot.name.c_str()) + "} needs init code "
-                                "compiled into the firmware (a compiled " + key + " record whose initCode computes it)");
+                    bool computed = false;
+                    for (const String& name : fileInitNames)
+                        computed = computed || (name == entry.first);
+                    if (!computed)
+                    {
+                        reject(result, key, "initValues " + entry.second + " isn't computed by its initCode");
+                        return;
+                    }
+                }
+                else if (!compiledInitValueFor(table, key, entry.first.c_str()))
+                {
+                    reject(result, key, "initValues " + entry.second + " needs init code - initCode (with the code "
+                                "interpreter) or a compiled " + key + " record whose initCode computes it");
                     return;
                 }
             }
-            if (!step.guard.empty() && !compiledInitValueFor(table, key, step.guard.c_str()))
-            {
-                reject(result, key, "initValues guard {?" + String(step.guard.c_str()) + "} needs init code "
-                            "compiled into the firmware (a compiled " + key + " record whose initCode computes it)");
-                return;
-            }
         }
     }
+#ifndef RAFT_RUNTIME_DECODE_CODE
     if (rec.contains("initCode"))
     {
         if (!compiledInitValueFor(table, key, nullptr))
         {
-            reject(result, key, "initCode needs to be compiled into the firmware (it can't come from a type file)");
+            reject(result, key, "initCode needs the code interpreter (RAFT_RUNTIME_DECODE_CODE) or init code compiled into the firmware");
             return;
         }
         warn(result, key, "initCode in a type file isn't used - the firmware's compiled init code is");
     }
+#endif
     if (maxRead > limits.maxReadBytesPerCommand)
     {
         reject(result, key, "reads " + String((int)maxRead) + " bytes in one command, limit " +
@@ -477,6 +516,7 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
     devTypeRec.addresses = addresses;
     devTypeRec.detectionValues = detectionValues;
     devTypeRec.initValues = initValues;
+    devTypeRec.initCode = fileInitCode;
     devTypeRec.pollInfo = rec.contains("pollInfo") ? minifyJson(pollInfoJson.c_str(), pollInfoJson.c_str() + pollInfoJson.length()) : "{}";
     String devInfoMin = rec.contains("devInfoJson") ? minifyJson(devInfoJson.c_str(), devInfoJson.c_str() + devInfoJson.length()) : "{}";
     devTypeRec.devInfoJson = devInfoMin.c_str();

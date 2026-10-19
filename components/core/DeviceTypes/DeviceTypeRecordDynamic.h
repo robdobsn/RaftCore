@@ -99,6 +99,10 @@ public:
     SpiramAwareString devInfoJson;
     DeviceTypeRecordDecodeFn pollResultDecodeFn = nullptr;
 
+    // Init code (initCode "c") of a record from a type file, run by the code interpreter (RAFT_RUNTIME_DECODE_CODE)
+    // when the record has no compiled init values function
+    String initCode;
+
     // Identification and scanning (see DeviceTypeRecord). An extended record's addresses are scanned at high
     // priority unless set otherwise
     uint8_t scanPriority = DeviceTypeRecord::SCAN_PRIORITY_HIGH;

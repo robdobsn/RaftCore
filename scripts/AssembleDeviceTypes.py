@@ -683,22 +683,31 @@ def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
     Returns (file text, entries) - entries: [{key, kind: new | override | unchanged | policy, noDecoder, decoder}].
     noDecoder: the record has no compiled decoder (a new key, or an override whose response layout changed); decoder
     then says what decodes it on the device: "runtime" (from its attributes, in firmware built with
-    RAFT_RUNTIME_DECODE - the default) or "none" (custom decode code, which needs the code interpreter). Unchanged
+    RAFT_RUNTIME_DECODE - the default) or "none" (custom decode code: only firmware with the code interpreter,
+    RAFT_RUNTIME_DECODE_CODE, decodes it). initCode (records with their own init code): "runtime" (only firmware with
+    the code interpreter can run it) or "runtime or compiled" (firmware without it uses the compiled record's). Unchanged
     records (identical to the compiled one) are left out of the file"""
     entries = []
     dev_types = OrderedDict()
     for key, record in result.records.items():
         compiled_record = compiled.get(key)
-        # Init values need compiled init code: a type file record may use value slots or guards only when it
-        # overrides a compiled record whose initCode computes them (the device then uses that code)
-        _, slots = _init_value_names(record)
-        if slots or record.get("initCode"):
-            compiled_computes = _init_value_names(compiled_record)[0] if compiled_record else set()
+        # Init values ({name} value slots, {?name} guards) need init code: the record's own initCode (run by the code
+        # interpreter in firmware built with RAFT_RUNTIME_DECODE_CODE), or a compiled record of the same key whose
+        # initCode computes them (firmware without the interpreter uses that)
+        own_computes, slots = _init_value_names(record)
+        has_own_code = bool(record.get("initCode"))
+        compiled_computes = _init_value_names(compiled_record)[0] if compiled_record else set()
+        if has_own_code:
+            missing = sorted(slots - own_computes)
+            if missing:
+                raise AssembleError(f"typeFile \"{key}\": initValues uses {', '.join(missing)}, which its initCode doesn't compute")
+        elif slots:
             missing = sorted(slots - compiled_computes)
             if missing or not compiled_computes:
-                raise AssembleError(f"typeFile \"{key}\": init values (initCode, {{name}} value slots, {{?name}} guards) need init code "
-                                    f"compiled into the firmware - a compiled {key} whose initCode computes "
-                                    f"{', '.join(missing) if missing else 'them'}")
+                raise AssembleError(f"typeFile \"{key}\": init values ({{name}} value slots, {{?name}} guards) need init code - "
+                                    f"initCode in the record (needs firmware with RAFT_RUNTIME_DECODE_CODE) or a compiled {key} "
+                                    f"whose initCode computes {', '.join(missing) if missing else 'them'}")
+        init_code_runtime = has_own_code and not (compiled_computes and not (slots - compiled_computes))
         has_data = record.get("devInfoJson", {}).get("resp", {}).get("b", 0) > 0
         if compiled_record is not None and _comparable(record) == _comparable(compiled_record):
             entries.append(OrderedDict([("key", key), ("kind", "unchanged")]))
@@ -710,6 +719,10 @@ def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
             no_decoder = has_data
             kind = "new"
         entry = OrderedDict([("key", key), ("kind", kind)])
+        if has_own_code:
+            # The record's initCode runs in firmware with the code interpreter; "runtime": only there (no compiled
+            # init code to fall back on)
+            entry["initCode"] = "runtime" if init_code_runtime else "runtime or compiled"
         if no_decoder:
             entry["noDecoder"] = True
             entry["decoder"] = "none" if "c" in record.get("devInfoJson", {}).get("resp", {}) else "runtime"
@@ -884,14 +897,18 @@ def main(argv=None):
                   ", ".join(f"{n} {kind}" for kind, n in counts.items()) +
                   (" (unchanged records are left out)" if counts["unchanged"] else ""))
             for entry in entries:
-                note = {"runtime": " - decoded at runtime", "none": " - no on-device decoder"}.get(entry.get("decoder"), "")
+                note = {"runtime": " - decoded at runtime", "none": " - custom decode code (code interpreter)"}.get(entry.get("decoder"), "")
                 print(f"  {entry['key']:28} {entry['kind']}{note}")
             if runtime_decoded:
                 print("No compiled decoder - decoded on the device from their attributes if the firmware has runtime "
                       "decoding (RAFT_RUNTIME_DECODE, the default): " + ", ".join(runtime_decoded))
             if no_decoder:
-                print("No on-device decoder - custom decode code needs the code interpreter (DataLogger, RaftROS and "
-                      "named values won't decode them; raftjs and the WebUI will): " + ", ".join(no_decoder))
+                print("Custom decode code - decoded on the device only if the firmware has the code interpreter "
+                      "(RAFT_RUNTIME_DECODE_CODE); otherwise only raftjs and the WebUI decode them: " + ", ".join(no_decoder))
+            init_runtime = [e["key"] for e in entries if e.get("initCode") == "runtime"]
+            if init_runtime:
+                print("initCode run by the code interpreter - these records need firmware with RAFT_RUNTIME_DECODE_CODE: " +
+                      ", ".join(init_runtime))
             if args.report:
                 write_if_changed(args.report, json.dumps(OrderedDict([("file", os.path.abspath(args.out)),
                                  ("bytes", len(text)), ("maxBytes", args.max_bytes), ("entries", entries)]), indent=1) + "\n")

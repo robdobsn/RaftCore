@@ -431,6 +431,10 @@ private:
     // Runtime decoders made for records with no compiled decoder (RAFT_RUNTIME_DECODE), owned here, under the mutex
     std::vector<DeviceTypeRuntimeDecoder*> _runtimeDecoders;
     void attachRuntimeDecoderLocked(DeviceTypeRecord* pRec);
+
+    // Runtime init values functions from records' init code (RAFT_RUNTIME_DECODE_CODE), owned here, under the mutex
+    std::vector<class DeviceTypeRuntimeInit*> _runtimeInits;
+    void attachRuntimeInitLocked(DeviceTypeRecord* pRec, const String& initCode);
     std::atomic<bool> _ready{false};
     AddResult replaceBaseRecord(DeviceTypeIndexType baseIdx, const DeviceTypeRecordDynamic& devTypeRec);
     static bool sameResponseLayout(const char* pDevInfoA, const char* pDevInfoB);

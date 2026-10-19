@@ -12,7 +12,7 @@
 #####################################################################################################################
 
 CC = g++
-CFLAGS = -Wall -std=c++20 -g -DRAFT_CORE -DRAFT_RUNTIME_DECODE
+CFLAGS = -Wall -std=c++20 -g -DRAFT_CORE -DRAFT_RUNTIME_DECODE -DRAFT_RUNTIME_DECODE_CODE
 
 # Each source is compiled to its own object in obj/ with a dependency file (obj/....d), so a change to any
 # header rebuilds exactly what uses it. Objects are shared between tests
@@ -45,7 +45,7 @@ REDUCED_HEADER = $(REDUCED_GEN_DIR)/DeviceTypeRecords_generated.h
 REDUCED_FILE = $(REDUCED_GEN_DIR)/file.json
 REDUCED_OBJDIR = $(OBJDIR)/reduced
 REDUCED_OBJS = $(REDUCED_OBJDIR)/test_reduced_catalogue.o $(REDUCED_OBJDIR)/DeviceTypeRecords.o \
-  $(REDUCED_OBJDIR)/DeviceTypeGrammar.o $(REDUCED_OBJDIR)/DeviceTypeFileLoader.o $(REDUCED_OBJDIR)/DeviceTypeRuntimeDecoder.o
+  $(REDUCED_OBJDIR)/DeviceTypeGrammar.o $(REDUCED_OBJDIR)/DeviceTypeFileLoader.o $(REDUCED_OBJDIR)/DeviceTypeRuntimeDecoder.o $(REDUCED_OBJDIR)/DeviceTypeCodeInterpreter.o
 
 # test_espnow_config tests code that is not yet on RaftSysMods main (branch feature/ESPNow-as-first-class-protocol).
 # "make check" runs it only when that code is present in ../../RaftSysMods, and otherwise reports it as skipped
@@ -100,14 +100,14 @@ SOURCES_test_bus_scan_schedule = test_bus_scan_schedule.cpp $(COMMON_SOURCES)
 SOURCES_test_bus_ident = test_bus_ident.cpp $(CORE)/Bus/DeviceStatus.cpp $(COMMON_SOURCES)
 SOURCES_test_device_poll_timing = test_device_poll_timing.cpp $(CORE)/Bus/DeviceStatus.cpp $(COMMON_SOURCES)
 SOURCES_test_device_poll_scheduler = test_device_poll_scheduler.cpp $(CORE)/Bus/DeviceStatus.cpp $(COMMON_SOURCES)
-SOURCES_test_poll_plan = test_poll_plan.cpp $(CORE)/Bus/DeviceStatus.cpp $(CORE)/Bus/BusRequestInfo.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(COMMON_SOURCES)
-SOURCES_test_device_type_records = test_device_type_records.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(COMMON_SOURCES)
-SOURCES_test_device_type_table = test_device_type_table.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(COMMON_SOURCES)
-SOURCES_test_device_type_grammar = test_device_type_grammar.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/Bus/BusRequestInfo.cpp $(COMMON_SOURCES)
-SOURCES_test_device_type_policy = test_device_type_policy.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(COMMON_SOURCES)
-SOURCES_test_device_type_file = test_device_type_file.cpp $(CORE)/DeviceTypes/DeviceTypeFileLoader.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/MiniHDLC/MiniHDLC.cpp $(COMMON_SOURCES)
-SOURCES_test_catalogue_index = test_catalogue_index.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(COMMON_SOURCES)
-SOURCES_test_runtime_decoder = test_runtime_decoder.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeFileLoader.cpp $(CORE)/MiniHDLC/MiniHDLC.cpp $(COMMON_SOURCES)
+SOURCES_test_poll_plan = test_poll_plan.cpp $(CORE)/Bus/DeviceStatus.cpp $(CORE)/Bus/BusRequestInfo.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(COMMON_SOURCES)
+SOURCES_test_device_type_records = test_device_type_records.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(COMMON_SOURCES)
+SOURCES_test_device_type_table = test_device_type_table.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(COMMON_SOURCES)
+SOURCES_test_device_type_grammar = test_device_type_grammar.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(CORE)/Bus/BusRequestInfo.cpp $(COMMON_SOURCES)
+SOURCES_test_device_type_policy = test_device_type_policy.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(COMMON_SOURCES)
+SOURCES_test_device_type_file = test_device_type_file.cpp $(CORE)/DeviceTypes/DeviceTypeFileLoader.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(CORE)/MiniHDLC/MiniHDLC.cpp $(COMMON_SOURCES)
+SOURCES_test_catalogue_index = test_catalogue_index.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(COMMON_SOURCES)
+SOURCES_test_runtime_decoder = test_runtime_decoder.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(CORE)/DeviceTypes/DeviceTypeFileLoader.cpp $(CORE)/MiniHDLC/MiniHDLC.cpp $(COMMON_SOURCES)
 SOURCES_test_protocol_exchange = test_protocol_exchange.cpp $(COMMS_SOURCES) $(COMMON_SOURCES)
 SOURCES_test_thread_safe_queue = test_thread_safe_queue.cpp $(COMMON_SOURCES)
 SOURCES_test_espnow_config = test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.cpp $(COMMON_SOURCES)
@@ -134,6 +134,7 @@ check: $(DEV_TYPE_CATALOGUE) $(TESTS) $(CATALOGUE_INDEX_EXPECTED) test_reduced_c
 		if [ "$$t" = "test_device_type_records" ]; then ./$$t $(DEV_TYPE_CATALOGUES) || failed=1; \
 		elif [ "$$t" = "test_catalogue_index" ]; then ./$$t $(CATALOGUE_INDEX_EXPECTED) || failed=1; \
 		elif [ "$$t" = "test_device_type_file" ]; then ./$$t $(DEV_TYPE_CATALOGUE) fixtures/example-devlib.json || failed=1; \
+		elif [ "$$t" = "test_runtime_decoder" ]; then ./$$t $(DEV_TYPE_CATALOGUE) || failed=1; \
 		elif [ "$$t" = "test_device_type_grammar" ]; then ./$$t ../scripts/tests/grammar_vectors.json $(DEV_TYPE_CATALOGUE) $(DEV_TYPE_CATALOGUES) || failed=1; \
 		else ./$$t || failed=1; fi; \
 	done; \

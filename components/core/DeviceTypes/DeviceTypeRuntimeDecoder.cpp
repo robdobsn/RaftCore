@@ -31,6 +31,15 @@
 #include "RaftJson.h"
 #include "RaftUtils.h"
 #include "DevicePollingInfo.h"
+#include "DeviceTypeCodeInterpreter.h"
+#include "Logger.h"
+
+#ifdef RAFT_RUNTIME_DECODE_CODE
+static const char* MODULE_PREFIX = "DevTypeDecode";
+
+// Instructions a custom decode may run per decode call (a loop that doesn't end is stopped)
+static const uint32_t CUSTOM_DECODE_BUDGET = 200000;
+#endif
 
 // Timestamp in the decoded struct (DecodeGenerator.py defaults: uint32_t timeMs, 1000 us resolution)
 static const uint32_t DECODE_STRUCT_TIMESTAMP_RESOLUTION_US = 1000;
@@ -501,6 +510,7 @@ DeviceTypeRuntimeDecoder::~DeviceTypeRuntimeDecoder()
 {
     if ((_slot >= 0) && (_slot < RAFT_RUNTIME_DECODE_MAX_DECODERS))
         g_decoderSlots[_slot].store(nullptr, std::memory_order_release);
+    delete _pProgram;
 }
 
 uint32_t DeviceTypeRuntimeDecoder::getNumSlotsInUse()
@@ -523,11 +533,14 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         problem = "no response format (resp)";
         return false;
     }
-    if (devInfo.contains("resp/c"))
+    bool isCustom = devInfo.contains("resp/c");
+#ifndef RAFT_RUNTIME_DECODE_CODE
+    if (isCustom)
     {
-        problem = "custom decode code (resp.c) needs the code interpreter";
+        problem = "custom decode code (resp.c) needs the code interpreter (RAFT_RUNTIME_DECODE_CODE)";
         return false;
     }
+#endif
     int numAttrs = 0;
     if ((devInfo.getType("resp/a", numAttrs) != RaftJsonIF::RAFT_JSON_ARRAY) || (numAttrs == 0))
     {
@@ -566,50 +579,57 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         }
         Field f;
 
-        // Type: optional endian, optional count, code, optional [N]
+        // Type: optional endian, optional count, code, optional [N] (DecodeGenerator.parse_attr_type: a type that
+        // doesn't parse is taken whole, with one element). A type the build can't read from the buffer still gives a
+        // struct field from "o" - a standard decode doesn't write it, a custom decode may
         String typeStr = devInfo.getString((prefix + "t").c_str(), "");
         typeStr.trim();
-        String endian = "";
-        uint32_t idx = 0;
-        if ((typeStr.length() > 0) && ((typeStr[0] == '<') || (typeStr[0] == '>')))
-            endian = String(typeStr[idx++]);
-        uint32_t prefixCount = 0;
-        bool hasPrefixCount = false;
-        while ((idx < typeStr.length()) && isdigit((unsigned char)typeStr[idx]))
+        if (typeStr.length() == 0)
         {
-            prefixCount = prefixCount * 10 + (typeStr[idx++] - '0');
-            hasPrefixCount = true;
-        }
-        if (idx >= typeStr.length())
-        {
-            problem = "attribute " + name + " has no valid type (t)";
+            problem = "attribute " + name + " has no type (t)";
             return false;
         }
-        char code = typeStr[idx++];
-        uint32_t bracketCount = 1;
-        if ((idx < typeStr.length()) && (typeStr[idx] == '['))
+        String baseType = typeStr;
+        uint32_t count = 1;
         {
-            int close = typeStr.indexOf(']', idx);
-            if ((close < 0) || (close != (int)typeStr.length() - 1))
+            uint32_t idx = 0;
+            String endian = "";
+            if ((typeStr[0] == '<') || (typeStr[0] == '>'))
+                endian = String(typeStr[idx++]);
+            uint32_t prefixCount = 0;
+            bool hasPrefixCount = false;
+            while ((idx < typeStr.length()) && isdigit((unsigned char)typeStr[idx]))
             {
-                problem = "attribute " + name + " has an invalid type " + typeStr;
-                return false;
+                prefixCount = prefixCount * 10 + (typeStr[idx++] - '0');
+                hasPrefixCount = true;
             }
-            bracketCount = (uint32_t)strtoul(typeStr.substring(idx + 1, close).c_str(), nullptr, 10);
-            idx = close + 1;
+            bool matched = (idx < typeStr.length()) && (isalpha((unsigned char)typeStr[idx]) || (typeStr[idx] == '?'));
+            char code = matched ? typeStr[idx++] : 0;
+            uint32_t bracketCount = 1;
+            if (matched && (idx < typeStr.length()))
+            {
+                int close = typeStr.indexOf(']', idx);
+                String digits = (close > (int)idx) ? typeStr.substring(idx + 1, close) : "";
+                bool digitsOk = digits.length() > 0;
+                for (uint32_t i = 0; i < digits.length(); i++)
+                    digitsOk = digitsOk && isdigit((unsigned char)digits[i]);
+                matched = (typeStr[idx] == '[') && digitsOk && (close == (int)typeStr.length() - 1);
+                if (matched)
+                    bracketCount = (uint32_t)strtoul(digits.c_str(), nullptr, 10);
+            }
+            if (matched)
+            {
+                baseType = endian + String(code);
+                count = (hasPrefixCount ? prefixCount : 1) * bracketCount;
+                if (code == 's')
+                    count = 1;
+                if (count == 0)
+                    count = 1;
+            }
         }
-        if (idx != typeStr.length())
-        {
-            problem = "attribute " + name + " has an invalid type " + typeStr;
-            return false;
-        }
-        if (!bufTypeFromCode(endian + String(code), f.bufType, f.bigEndian))
-        {
-            problem = "attribute " + name + " has a type the build can't decode: " + typeStr;
-            return false;
-        }
-        uint32_t count = (hasPrefixCount ? prefixCount : 1) * (bracketCount > 0 ? bracketCount : 1);
-        f.count = (uint16_t)(count > 0 ? count : 1);
+        if (!bufTypeFromCode(baseType, f.bufType, f.bigEndian))
+            f.bufType = NumType::Invalid;
+        f.count = (uint16_t)count;
         f.isSignedBuf = (f.bufType == NumType::Int8) || (f.bufType == NumType::Int16) ||
                     (f.bufType == NumType::Int32) || (f.bufType == NumType::Int64);
         f.workType = workTypeFor(f.bufType);
@@ -618,6 +638,26 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         String outName = devInfo.getString((prefix + "o").c_str(), "");
         if (!outTypeFromName(outName, f.outType))
             f.outType = f.bufType;
+        if (f.outType == NumType::Invalid)
+        {
+            problem = "attribute " + name + " has a type the build can't decode: " + typeStr;
+            return false;
+        }
+        parseLiteral(devInfo, (prefix + "d").c_str(), f.divisor);
+        parseLiteral(devInfo, (prefix + "a").c_str(), f.addend);
+
+        // A custom decode writes the fields itself: only the layout, and the sign extension at next, are needed
+        if (isCustom)
+        {
+            if (outName == "float")
+            {
+                if ((f.bufType == NumType::Int8) || (f.bufType == NumType::Int16) || (f.bufType == NumType::Int32))
+                    f.signExtBits = (uint8_t)(numTypeSize(f.bufType) * 8);
+            }
+            if (!addFieldLayout(f, name, devInfo.getString((prefix + "f").c_str(), ""), offset, maxAlign, problem))
+                return false;
+            continue;
+        }
 
         // Position
         int atLen = 0;
@@ -696,8 +736,6 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
             }
         }
         f.shift = (int32_t)devInfo.getLong((prefix + "s").c_str(), 0);
-        parseLiteral(devInfo, (prefix + "d").c_str(), f.divisor);
-        parseLiteral(devInfo, (prefix + "a").c_str(), f.addend);
 
         // Lookup table (rows with a value; "r" "" is the default - the last one; an unparseable range is ignored)
         int lutLen = 0;
@@ -751,22 +789,8 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
             f.hasLut = !f.lutRows.empty() || f.lutHasDefault;
         }
 
-        // Field position in the struct
-        uint32_t align = numTypeAlign(f.outType);
-        offset = (offset + align - 1) / align * align;
-        f.outOffset = (uint16_t)offset;
-        offset += numTypeSize(f.outType) * f.count;
-        if (align > maxAlign)
-            maxAlign = align;
-        if (offset > UINT16_MAX)
-        {
-            problem = "decoded struct too large";
+        if (!addFieldLayout(f, name, devInfo.getString((prefix + "f").c_str(), ""), offset, maxAlign, problem))
             return false;
-        }
-
-        _fields.push_back(f);
-        _names.push_back(name);
-        _formats.push_back(devInfo.getString((prefix + "f").c_str(), ""));
     }
     if (_fields.empty())
     {
@@ -775,19 +799,94 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
     }
     _structSize = (uint16_t)((offset + maxAlign - 1) / maxAlign * maxAlign);
 
-    // Field descriptions (the names and formats are kept in the vectors above - reserve so they don't move)
+    // Field descriptions (the names and formats are kept in the vectors above). For a standard decode "d" and "a"
+    // are already applied (1 and 0); a custom decode stores what its code writes, so they are as written
+    // (DecodeGenerator.get_field_desc_def)
     for (uint32_t i = 0; i < _fields.size(); i++)
     {
+        const Field& f = _fields[i];
         AttrFieldDesc desc;
         desc.name = _names[i].c_str();
-        desc.offset = _fields[i].outOffset;
-        desc.type = attrTypeFor(_fields[i].outType);
+        desc.offset = f.outOffset;
+        desc.type = attrTypeFor(f.outType);
         desc.fmtStr = _formats[i].c_str();
-        desc.divisor = 1.0f;
-        desc.addend = 0.0f;
-        desc.count = _fields[i].count;
+        desc.divisor = (isCustom && f.divisor.present && (f.divisor.floatValue != 0)) ? (float)f.divisor.floatValue : 1.0f;
+        desc.addend = (isCustom && f.addend.present && (f.addend.floatValue != 0)) ? (float)f.addend.floatValue : 0.0f;
+        desc.count = f.count;
         _fieldDescs.push_back(desc);
     }
+
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    // Compile the custom decode code; one with no next gets one at the end (one sample per poll result), as the
+    // build does
+    if (isCustom)
+    {
+        _sampleIncUs = (uint32_t)devInfo.getLong("resp/us", 0);
+        std::vector<DeviceTypeCodeProgram::OutField> outFields;
+        for (uint32_t i = 0; i < _fields.size(); i++)
+        {
+            DeviceTypeCodeProgram::OutField outField;
+            outField.name = _names[i];
+            outField.type = _fields[i].outType;
+            outField.offset = _fields[i].outOffset;
+            outField.count = _fields[i].count;
+            outFields.push_back(outField);
+        }
+        String code = devInfo.getString("resp/c/c", "");
+        if (!hasNextKeyword(code))
+        {
+            code.trim();
+            if (!code.endsWith(";") && !code.endsWith("}"))
+                code += ";";
+            code += " next;";
+        }
+        String codeProblem;
+        _pProgram = DeviceTypeCodeProgram::compile(code.c_str(), DeviceTypeCodeProgram::Kind::Decode, outFields, codeProblem);
+        if (!_pProgram)
+        {
+            problem = "custom decode code: " + codeProblem;
+            return false;
+        }
+    }
+#endif
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Whether code has the next keyword (as PseudocodeHandler's lexer finds it: the word next, not part of a
+///        longer name)
+bool DeviceTypeRuntimeDecoder::hasNextKeyword(const String& code)
+{
+    const char* p = code.c_str();
+    for (const char* q = strstr(p, "next"); q; q = strstr(q + 1, "next"))
+    {
+        bool startOk = (q == p) || !(isalnum((unsigned char)q[-1]) || (q[-1] == '_') || (q[-1] == '.'));
+        bool endOk = !(isalnum((unsigned char)q[4]) || (q[4] == '_'));
+        if (startOk && endOk)
+            return true;
+    }
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Place a field in the struct (aligned as the compiler aligns it) and keep it
+bool DeviceTypeRuntimeDecoder::addFieldLayout(Field& f, const String& name, const String& format, uint32_t& offset,
+            uint32_t& maxAlign, String& problem)
+{
+    uint32_t align = numTypeAlign(f.outType);
+    offset = (offset + align - 1) / align * align;
+    f.outOffset = (uint16_t)offset;
+    offset += numTypeSize(f.outType) * f.count;
+    if (align > maxAlign)
+        maxAlign = align;
+    if (offset > UINT16_MAX)
+    {
+        problem = "decoded struct too large";
+        return false;
+    }
+    _fields.push_back(f);
+    _names.push_back(name);
+    _formats.push_back(format);
     return true;
 }
 
@@ -799,6 +898,8 @@ uint32_t DeviceTypeRuntimeDecoder::decode(const uint8_t* pBufIn, uint32_t bufLen
     if (!pBufIn || !pStructOut || (_structSize == 0))
         return 0;
     uint32_t maxRecs = std::min<uint32_t>(maxRecCount, structOutSize / _structSize);
+    if (_pProgram)
+        return decodeCustom(pBufIn, bufLen, (uint8_t*)pStructOut, maxRecs, decodeState);
     const uint8_t* pBufEnd = pBufIn + bufLen;
     uint32_t numRecs = 0;
     while (numRecs < maxRecs)
@@ -832,6 +933,9 @@ bool DeviceTypeRuntimeDecoder::decodeAttrs(const uint8_t* pBuf, const uint8_t* p
     const uint8_t* pAttrStart = pBuf;
     for (const Field& f : _fields)
     {
+        // A field whose buffer type can't be read isn't written (as the generated decode skips it)
+        if (f.bufType == NumType::Invalid)
+            continue;
         uint32_t elemSize = numTypeSize(f.bufType);
         if (!f.atList.empty())
         {
@@ -854,6 +958,137 @@ bool DeviceTypeRuntimeDecoder::decodeAttrs(const uint8_t* pBuf, const uint8_t* p
             decodeElem(f, pRead, pBufEnd, pOut + f.outOffset + elemIdx * outElemSize);
     }
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Custom decode (DecodeGenerator.gen_custom_extraction_code)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifdef RAFT_RUNTIME_DECODE_CODE
+namespace
+{
+    // Decode state shared with next
+    struct CustomDecodeState
+    {
+        const DeviceTypeRuntimeDecoder* pDecoder;
+        DeviceTypeCodeProgram::RunContext* pCtx;
+        uint8_t* pOutStart;
+        uint32_t structSize;
+        uint32_t maxRecs;
+        uint32_t outIdx;
+        uint64_t timestampUs;
+        uint32_t sampleIncUs;
+    };
+
+    void writeTime(uint8_t* pOut, uint64_t timestampUs)
+    {
+        uint32_t timeVal = (uint32_t)(timestampUs / DECODE_STRUCT_TIMESTAMP_RESOLUTION_US);
+        memcpy(pOut, &timeVal, sizeof(timeVal));
+    }
+}
+
+// next: sign-extend the current record's signed float fields, move to the next record (stop if the output is full),
+// step its time and clear its array fields
+bool DeviceTypeRuntimeDecoder::customNext(void* pContext)
+{
+    CustomDecodeState* pState = (CustomDecodeState*)pContext;
+    const DeviceTypeRuntimeDecoder* pDecoder = pState->pDecoder;
+    pDecoder->signExtend(pState->pCtx->pOut);
+    pState->outIdx++;
+    if (pState->outIdx >= pState->maxRecs)
+        return false;
+    pState->timestampUs += pState->sampleIncUs;
+    uint8_t* pOut = pState->pOutStart + pState->outIdx * pState->structSize;
+    pState->pCtx->pOut = pOut;
+    writeTime(pOut, pState->timestampUs);
+    pDecoder->zeroArrays(pOut);
+    return true;
+}
+#endif
+
+void DeviceTypeRuntimeDecoder::zeroArrays(uint8_t* pOut) const
+{
+    for (const Field& f : _fields)
+    {
+        // for (...) pOut->name[i] = 0; - zero is all-zero bits for every field type
+        if (f.count <= 1)
+            continue;
+        uint32_t elemSize = numTypeSize(f.outType);
+        memset(pOut + f.outOffset, 0, elemSize * f.count);
+    }
+}
+
+void DeviceTypeRuntimeDecoder::signExtend(uint8_t* pOut) const
+{
+    // if (pOut->x >= 32768.0f) pOut->x -= 65536.0f; (per element for an array) - float fields only
+    for (const Field& f : _fields)
+    {
+        if ((f.signExtBits == 0) || (f.outType != NumType::Float))
+            continue;
+        float signBit = (f.signExtBits == 8) ? 128.0f : (f.signExtBits == 16) ? 32768.0f : 2147483648.0f;
+        float span = (f.signExtBits == 8) ? 256.0f : (f.signExtBits == 16) ? 65536.0f : 4294967296.0f;
+        for (uint32_t i = 0; i < f.count; i++)
+        {
+            uint8_t* pField = pOut + f.outOffset + i * sizeof(float);
+            float v;
+            memcpy(&v, pField, sizeof(v));
+            if (v >= signBit)
+            {
+                v -= span;
+                memcpy(pField, &v, sizeof(v));
+            }
+        }
+    }
+}
+
+uint32_t DeviceTypeRuntimeDecoder::decodeCustom(const uint8_t* pBufIn, uint32_t bufLen, uint8_t* pOut, uint32_t maxRecs,
+            RaftBusDeviceDecodeState& decodeState) const
+{
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    const uint8_t* pBufEnd = pBufIn + bufLen;
+    DeviceTypeCodeProgram::RunContext ctx;
+    ctx.budget = CUSTOM_DECODE_BUDGET;
+    CustomDecodeState state{this, &ctx, pOut, _structSize, maxRecs, 0, 0, _sampleIncUs};
+    ctx.nextFn = &DeviceTypeRuntimeDecoder::customNext;
+    ctx.pNextContext = &state;
+    uint32_t recIdx = 0;
+    while (state.outIdx < maxRecs)
+    {
+        const uint8_t* pBuf = pBufIn + (uint32_t)_pollRecSize * recIdx;
+        if (pBuf + _pollRecSize > pBufEnd)
+            break;
+
+        // Timestamp
+        uint64_t timestampUs = Raft::getBEUInt16AndInc(pBuf, pBufEnd) * DevicePollingInfo::POLL_RESULT_RESOLUTION_US;
+        if (timestampUs < decodeState.lastReportTimestampUs)
+            decodeState.reportTimestampOffsetUs += DevicePollingInfo::POLL_RESULT_WRAP_VALUE * DevicePollingInfo::POLL_RESULT_RESOLUTION_US;
+        decodeState.lastReportTimestampUs = timestampUs;
+        state.timestampUs = timestampUs + decodeState.reportTimestampOffsetUs;
+        uint8_t* pRecOut = pOut + state.outIdx * _structSize;
+        writeTime(pRecOut, state.timestampUs);
+        zeroArrays(pRecOut);
+
+        // The code, with buf the record's data
+        ctx.pBuf = pBuf;
+        ctx.bufLen = (uint32_t)(pBufEnd - pBuf);
+        ctx.pOut = pRecOut;
+        DeviceTypeCodeProgram::Status status = _pProgram->run(ctx);
+        if (status == DeviceTypeCodeProgram::Status::Return)
+            return (uint32_t)ctx.returnValue;
+        if (status == DeviceTypeCodeProgram::Status::OutOfBudget)
+        {
+            LOG_W(MODULE_PREFIX, "custom decode stopped: too many instructions");
+            break;
+        }
+        if (status == DeviceTypeCodeProgram::Status::Break)
+            break;
+        recIdx++;
+    }
+    return state.outIdx;
+#else
+    (void)pBufIn; (void)bufLen; (void)pOut; (void)maxRecs; (void)decodeState;
+    return 0;
+#endif
 }
 
 #else // RAFT_RUNTIME_DECODE

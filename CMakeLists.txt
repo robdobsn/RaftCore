@@ -122,6 +122,7 @@ idf_component_register(
     "components/core/DeviceTypes/DeviceTypeGrammar.cpp"
     "components/core/DeviceTypes/DeviceTypeFileLoader.cpp"
     "components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp"
+    "components/core/DeviceTypes/DeviceTypeCodeInterpreter.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
@@ -218,8 +219,8 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
   # Runtime decoding of device type records with no compiled decoder (a record from a device type file, or one
   # registered by code), so on-device users of decoded data (DataLogger, RaftROS, named values) work for them too.
   # Included unless the project sets RAFT_RUNTIME_DECODE OFF in features.cmake - e.g. a small board whose data is
-  # only decoded by its subscribers. RAFT_RUNTIME_DECODE_CODE adds the interpreter for records with custom decode
-  # code (resp.c) - not yet implemented, so OFF unless set
+  # only decoded by its subscribers. RAFT_RUNTIME_DECODE_CODE (OFF unless set ON) adds the code interpreter: custom
+  # decode code (resp.c) and init code (initCode) of records from a device type file
   if(NOT DEFINED RAFT_RUNTIME_DECODE OR RAFT_RUNTIME_DECODE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE)
     if(DEFINED RAFT_RUNTIME_DECODE_CODE AND RAFT_RUNTIME_DECODE_CODE)

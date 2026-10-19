@@ -9,7 +9,8 @@
 // pollStructSize work for such a record too.
 //
 // Built in with RAFT_RUNTIME_DECODE (RaftCore CMake: set(RAFT_RUNTIME_DECODE OFF) in features.cmake leaves it out).
-// Records with custom decode code ("c") need the code interpreter (RAFT_RUNTIME_DECODE_CODE, not yet implemented).
+// A record with custom decode code ("c") is decoded by the code interpreter (DeviceTypeCodeInterpreter.h), with
+// RAFT_RUNTIME_DECODE_CODE as well, in the generated custom decode's loop (next, array zeroing, sign extension).
 //
 // The decoder is called through a plain DeviceTypeRecordDecodeFn: each decoder takes one of a fixed number of
 // slots, and each slot has its own small function (RAFT_RUNTIME_DECODE_MAX_DECODERS, default 64).
@@ -22,6 +23,8 @@
 #include <vector>
 #include "RaftArduino.h"
 #include "DeviceTypeRecord.h"
+
+class DeviceTypeCodeProgram;
 
 #ifndef RAFT_RUNTIME_DECODE_MAX_DECODERS
 #define RAFT_RUNTIME_DECODE_MAX_DECODERS 64
@@ -121,6 +124,9 @@ public:
         std::vector<LutRow> lutRows;
         bool lutHasDefault = false;
         double lutDefault = 0;
+        // Custom decode: a float field ("o" "float") of a signed buffer type is sign-extended at next (the bits of
+        // the buffer type: 8, 16 or 32, or 0 for none)
+        uint8_t signExtBits = 0;
     };
 
 private:
@@ -129,6 +135,18 @@ private:
 
     // Decode one record's attributes into pOut; false if the buffer ends (the record isn't counted)
     bool decodeAttrs(const uint8_t* pBuf, const uint8_t* pBufEnd, uint8_t* pOut) const;
+
+    // Custom decode code (RAFT_RUNTIME_DECODE_CODE)
+    uint32_t decodeCustom(const uint8_t* pBufIn, uint32_t bufLen, uint8_t* pOut, uint32_t maxRecs,
+                RaftBusDeviceDecodeState& decodeState) const;
+    void zeroArrays(uint8_t* pOut) const;
+    void signExtend(uint8_t* pOut) const;
+    static bool customNext(void* pContext);
+    static bool hasNextKeyword(const String& code);
+    bool addFieldLayout(Field& f, const String& name, const String& format, uint32_t& offset, uint32_t& maxAlign,
+                String& problem);
+    DeviceTypeCodeProgram* _pProgram = nullptr;
+    uint32_t _sampleIncUs = 0;
 
     std::vector<Field> _fields;
     std::vector<AttrFieldDesc> _fieldDescs;

@@ -476,11 +476,21 @@ class AssembleTests(unittest.TestCase):
         sel = self.selection(dict(base, typeFile={"include": ["local:Heater"]}))
         text, entries = A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
         self.assertEqual([e["kind"] for e in entries], ["override"])
-        # A new key with init values: no compiled init code
+        # The override's own initCode: run by the interpreter, or the compiled code without it
+        self.assertEqual(entries[0].get("initCode"), "runtime or compiled")
+        # A new key with init code: only firmware with the code interpreter runs it
         sel = self.selection(dict(base, typeFile={"include": ["local:NewHeater"]}))
-        with self.assertRaises(A.AssembleError) as ctx:
-            A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
-        self.assertIn("need init code compiled into the firmware", str(ctx.exception))
+        text, entries = A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
+        self.assertEqual([(e["kind"], e.get("initCode")) for e in entries], [("new", "runtime")])
+        # A value slot its initCode doesn't compute, or a slot with no init code at all: errors
+        bad = self.init_code_record("BadHeater", slots="{other}")
+        no_code = self.init_code_record("NoCode", code=None)
+        self.write_records(self.project / "devtypes", {"BadHeater": bad, "NoCode": no_code})
+        for name, message in [("BadHeater", "which its initCode doesn't compute"), ("NoCode", "need init code")]:
+            sel = self.selection(dict(base, typeFile={"include": [f"local:{name}"]}))
+            with self.assertRaises(A.AssembleError) as ctx:
+                A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
+            self.assertIn(message, str(ctx.exception))
 
     def test_init_code_checked(self):
         self.assertEqual(A.check_decode_code("H", self.init_code_record()), [])
