@@ -116,9 +116,9 @@ public:
     static String checkAddresses(const char* pAddresses, uint32_t maxAddr);
 
     /// @brief A record as a type file entry - "<key>":{...} with the fields a type file uses (addresses, detection,
-    ///        init and poll strings, devInfoJson, scanPriority, identPriority, deviceTypeId, excludeFromAddrMap and
-    ///        disable for a policy that isn't enabled) - so it can be copied into a type file and loads as the same
-    ///        record
+    ///        init and poll strings, devInfoJson, scanPriority, identPriority, deviceTypeId, excludeFromAddrMap,
+    ///        scanWhilePolled and disable for a policy that isn't enabled) - so it can be copied into a type file and
+    ///        loads as the same record
     /// @param rec record
     /// @param policy the record's policy
     static String recordToFileEntry(const DeviceTypeRecord& rec, uint8_t policy);

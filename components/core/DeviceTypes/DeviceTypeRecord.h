@@ -85,6 +85,10 @@ public:
                                                             // hook, and not reserved or prioritised for scanning
                                                             // (JSON "excludeFromAddrMap" or "probeOnly")
     static constexpr uint8_t FLAG_HAS_HW_TYPE_ID = 0x02;    // hwTypeId is set
+    static constexpr uint8_t FLAG_NO_SCAN_WHILE_POLLED = 0x04;  // an online device being polled isn't probed by the
+                                                            // scanner, however slowly it's polled: its presence comes
+                                                            // from its polls (JSON "scanWhilePolled": false) - for a
+                                                            // device that a scan probe disturbs, e.g. the SCD30
     uint8_t flags = 0;
 
     // Candidates for an address are tried in descending identPriority, then in record order (JSON "identPriority")
@@ -124,6 +128,10 @@ public:
     bool hasHwTypeId() const
     {
         return (flags & FLAG_HAS_HW_TYPE_ID) != 0;
+    }
+    bool isScannedWhilePolled() const
+    {
+        return (flags & FLAG_NO_SCAN_WHILE_POLLED) == 0;
     }
 
     String getJson(bool includePlugAndPlayInfo) const

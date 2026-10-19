@@ -346,6 +346,9 @@ void DeviceTypeRecords::pollInfoFromSteps(BusElemAddrType addr, const DeviceType
     pollingInfo.pollIntervalUs = (pollIntervalMs < 0) ? DevicePollingInfo::POLL_INTERVAL_DEFAULT_US :
                 DevicePollingInfo::clampPollIntervalUs((uint64_t)pollIntervalMs * 1000);
 
+    // Whether the scanner may probe the device while it's polled (a scan probe disturbs some devices)
+    pollingInfo.scanWhilePolled = pDevTypeRec->isScannedWhilePolled();
+
     // The poll bus speed is a choice for the board, not part of the record: it is set by DevMan "typeSettings" or
     // devconfig (records no longer take pollInfo busHz/busHzSlots - the generator and type file loader warn)
     pollingInfo.pollBusHz = 0;

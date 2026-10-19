@@ -60,6 +60,7 @@ SCAN_PRIORITY_NAMES = {"high": 0, "medium": 1, "low": 2}
 NUM_SCAN_PRIORITY_LEVELS = 3
 FLAG_PROBE_ONLY = 0x01
 FLAG_HAS_HW_TYPE_ID = 0x02
+FLAG_NO_SCAN_WHILE_POLLED = 0x04
 
 POLICY_ENABLED = 0
 POLICY_DISABLED = 1
@@ -131,7 +132,8 @@ def record_ident_fields(dev_type, dev_type_key):
     (scanPriority, flags, identPriority, hwTypeId)
 
     scanPriority: "high"/"medium"/"low" or 1-3 gives 0-2 (clamped); absent gives SCAN_PRIORITY_NONE
-    flags: FLAG_PROBE_ONLY for "excludeFromAddrMap" or "probeOnly"; FLAG_HAS_HW_TYPE_ID if "deviceTypeId" is set
+    flags: FLAG_PROBE_ONLY for "excludeFromAddrMap" or "probeOnly"; FLAG_HAS_HW_TYPE_ID if "deviceTypeId" is set;
+           FLAG_NO_SCAN_WHILE_POLLED for "scanWhilePolled": false
     identPriority: -128 to 127, default 0
     hwTypeId: "deviceTypeId" as a number or a string such as "0x0084", 0 to 0xffff
     """
@@ -150,6 +152,12 @@ def record_ident_fields(dev_type, dev_type_key):
     flags = 0
     if dev_type.get("excludeFromAddrMap", False) or dev_type.get("probeOnly", False):
         flags |= FLAG_PROBE_ONLY
+    scan_while_polled = dev_type.get("scanWhilePolled", True)
+    if not isinstance(scan_while_polled, bool):
+        print(f"ERROR: record \"{dev_type_key}\" scanWhilePolled must be true or false", file=sys.stderr)
+        sys.exit(1)
+    if not scan_while_polled:
+        flags |= FLAG_NO_SCAN_WHILE_POLLED
     hw_type_id = 0
     if "deviceTypeId" in dev_type:
         value = dev_type["deviceTypeId"]

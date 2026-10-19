@@ -326,6 +326,16 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
     }
     if (rec.getBool("excludeFromAddrMap", false) || rec.getBool("probeOnly", false))
         devTypeRec.flags |= DeviceTypeRecord::FLAG_PROBE_ONLY;
+    if (rec.contains("scanWhilePolled"))
+    {
+        if (rec.getType("scanWhilePolled", arrayLen) != RaftJsonIF::RAFT_JSON_BOOLEAN)
+        {
+            reject(result, key, "scanWhilePolled must be true or false");
+            return;
+        }
+        if (!rec.getBool("scanWhilePolled", true))
+            devTypeRec.flags |= DeviceTypeRecord::FLAG_NO_SCAN_WHILE_POLLED;
+    }
     if (rec.contains("deviceTypeId"))
     {
         int64_t hwTypeId = 0;
@@ -711,6 +721,8 @@ String DeviceTypeFileLoader::recordToFileEntry(const DeviceTypeRecord& rec, uint
     }
     if (rec.isProbeOnly())
         json += ",\"excludeFromAddrMap\":true";
+    if (!rec.isScannedWhilePolled())
+        json += ",\"scanWhilePolled\":false";
     if (policy == DeviceTypeRecord::POLICY_DISABLED)
         json += ",\"disable\":true";
     else if (policy == DeviceTypeRecord::POLICY_DISABLED_CLAIM)

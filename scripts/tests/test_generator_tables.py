@@ -102,14 +102,18 @@ class GeneratorTableTests(unittest.TestCase):
             "Probe": dict(make_record(addresses=""), excludeFromAddrMap=True, scanPriority="high", deviceTypeId="0x0084"),
             "ProbeNew": dict(make_record(), probeOnly=True),
             "Ident": dict(make_record(), identPriority=-5, deviceTypeId=300),
+            "NoScan": dict(make_record(), scanWhilePolled=False),
+            "Scan": dict(make_record(), scanWhilePolled=True),
         }
         result, header = self.run_with_records(records)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.ident_fields(header), [
-            (255, 0, 0, 0), (0, 0, 0, 0), (2, 0, 0, 0), (0, 3, 0, 0x84), (255, 1, 0, 0), (255, 2, -5, 300)])
+            (255, 0, 0, 0), (0, 0, 0, 0), (2, 0, 0, 0), (0, 3, 0, 0x84), (255, 1, 0, 0), (255, 2, -5, 300), (255, 4, 0, 0),
+            (255, 0, 0, 0)])
 
     def test_bad_ident_fields_are_errors(self):
-        for bad in [{"deviceTypeId": "zz"}, {"deviceTypeId": 0x10000}, {"identPriority": 200}, {"identPriority": "1"}]:
+        for bad in [{"deviceTypeId": "zz"}, {"deviceTypeId": 0x10000}, {"identPriority": 200}, {"identPriority": "1"},
+                    {"scanWhilePolled": "no"}, {"scanWhilePolled": 0}]:
             result, _ = self.run_with_records({"Bad": dict(make_record(), **bad)})
             self.assertNotEqual(result.returncode, 0, bad)
 

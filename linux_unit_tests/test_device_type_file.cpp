@@ -190,6 +190,20 @@ static void testRecordFields()
     TEST_ASSERT(pNum && (pNum->hwTypeId == 172), "numeric deviceTypeId");
     TEST_ASSERT(result.warnings == 2, "warnings: no addresses or deviceTypeId; odd hex");
     TEST_ASSERT(result.firstWarning.startsWith("NoAddr: no addresses"), "first warning");
+    TEST_ASSERT(pNum && pNum->isScannedWhilePolled(), "scanned while polled by default");
+
+    // scanWhilePolled: false sets the flag; anything but a boolean is rejected
+    result = applyFile(table, R"({"devTypes":{"NoScan":{"addresses":"0x54","scanWhilePolled":false},)"
+                R"("Scan":{"addresses":"0x55","scanWhilePolled":true},"BadScan":{"addresses":"0x56","scanWhilePolled":"no"}}})");
+    TEST_ASSERT((result.added == 2) && (result.rejected == 1) && result.firstError.startsWith("BadScan: scanWhilePolled must be"),
+                ("scanWhilePolled: " + std::string(result.firstError.c_str())).c_str());
+    const DeviceTypeRecord* pNoScan = table.getRecord("NoScan", idx);
+    TEST_ASSERT(pNoScan && !pNoScan->isScannedWhilePolled() && (pNoScan->flags & DeviceTypeRecord::FLAG_NO_SCAN_WHILE_POLLED),
+                "scanWhilePolled false");
+    const DeviceTypeRecord* pScan = table.getRecord("Scan", idx);
+    TEST_ASSERT(pScan && pScan->isScannedWhilePolled(), "scanWhilePolled true");
+    TEST_ASSERT(pNoScan && (DeviceTypeFileLoader::recordToFileEntry(*pNoScan, DeviceTypeRecord::POLICY_ENABLED).indexOf(
+                "\"scanWhilePolled\":false") > 0), "exported");
 }
 
 // A hardware type ID names one record: a file record with an ID already used by a record with another key is
@@ -659,7 +673,7 @@ static void testInitValuesInTypeFile()
                     ("initCode for a new key rejected: " + std::string(result.firstError.c_str())).c_str());
     }
     const char* scdBody = R"("addresses":"0x61","detectionValues":"",)"
-                R"("initValues":"0x4600=p5&=r3&0x5306=p5&=r3&{?setInterval}0x46000002e3=p10&{?setAsc}0x5306000081",)"
+                R"("initValues":"0xd100=p5&=r3&=p5&0x4600=p5&=r3&{?setInterval}0x46000002e3=p10",)"
                 R"("pollInfo":{"c":"0x0300=p5&=r18","i":5000,"s":1},)"
                 R"("devInfoJson":{"name":"SCD30 override","type":"SCD30","resp":{"b":18,"a":[]}})";
     {

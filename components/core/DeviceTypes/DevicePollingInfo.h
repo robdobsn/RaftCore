@@ -25,6 +25,7 @@ public:
         nextPollDueUs = 0;
         nextStepDueUs = 0;
         pollIntervalUs = 0;
+        scanWhilePolled = true;
         pollBusHz = 0;
         pollBusHzSlotMask = 0;
         pollResultSizeIncTimestamp = 0;
@@ -85,6 +86,10 @@ public:
 
     // Poll interval
     uint32_t pollIntervalUs = 0;
+
+    // Whether the scanner probes the device while it is polled (if polled slowly - see BusScanner). False for a record
+    // with "scanWhilePolled": false: its presence comes from its polls alone
+    bool scanWhilePolled = true;
 
     // Bus frequency Hz for this device's polls (0 = use bus default)
     uint32_t pollBusHz = 0;
