@@ -3081,6 +3081,8 @@ String DeviceManager::typeFileEntriesJson(const DeviceTypeFileLoader::Result& re
             RaftJson::appendStringField(entry, "warnings", outcome.warnings.c_str());
         if (outcome.noDecoder)
             entry += ",\"noDecoder\":true";
+        if (outcome.decoder.length() > 0)
+            RaftJson::appendStringField(entry, "decoder", outcome.decoder.c_str());
         json += "{" + entry + "}";
     }
     return json + "]";

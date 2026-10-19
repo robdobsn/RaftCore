@@ -586,6 +586,8 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
                     (addResult == DeviceTypeRecords::AddResult::Replaced) ? Outcome::Replaced : Outcome::Unchanged;
         const DeviceTypeRecord* pAdded = table.getRecord(deviceTypeIndex);
         pOutcome->noDecoder = pAdded && (pAdded->pollDataSizeBytes > 0) && !pAdded->pollResultDecodeFn;
+        if (pAdded && (pAdded->pollDataSizeBytes > 0))
+            pOutcome->decoder = DeviceTypeRecords::getDecoderKindStr(table.getDecoderKind(deviceTypeIndex));
     }
 }
 

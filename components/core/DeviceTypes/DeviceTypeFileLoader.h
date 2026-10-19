@@ -60,6 +60,8 @@ public:
         String warnings;            // problems that don't stop it being used ("; " between them)
         bool noDecoder = false;     // a record with data but no on-device decoder (DataLogger, RaftROS and named
                                     // values don't decode it; clients that decode, such as raftjs, do)
+        String decoder;             // where its on-device decoder comes from: "compiled", "runtime" or "none" (records
+                                    // with data that were added or replaced)
     };
     static const char* getOutcomeStr(Outcome outcome);
 
