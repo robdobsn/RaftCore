@@ -98,7 +98,7 @@ Add an optional **init code** block, written in the same decode language as `res
 
 ## 7. Guards: conditional init steps (2026-10-19)
 
-**Why:** the SCD30 stores its measurement interval and self-calibration (ASC) setting in non-volatile memory. Its record wrote both at every init, including each re-identification and hot-plug. With a guard it reads the interval and writes it only if it differs. (At first ASC was guarded the same way; since the record gained an `asc` action, init leaves ASC as stored.)
+**Why:** the SCD30 stores its measurement interval and self-calibration (ASC) setting in non-volatile memory. Its record wrote both at every init, including each re-identification and hot-plug. With a guard it reads the interval and writes it only if it differs. (At first ASC was guarded the same way; since the record gained an `autoCal` action, init leaves ASC as stored.)
 
 **Syntax:** `{?name}` at the start of an init step. The step is done only if `init.name` isn't 0, and otherwise skipped entirely: nothing written or read, and no pause. A guard can be combined with value slots (`{?g}0x5a{v}`) and can guard a read or a bare pause.
 
