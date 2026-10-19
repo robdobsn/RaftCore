@@ -116,13 +116,14 @@ Date: 2026-10-18.
 - A manual `cmdraw` read of 0xEC05 NACKs while the record polls: each measurement can be read once, and the poll reads it first.
 
 **SCD30, verified on Axiom018 (2026-10-19), record unchanged:**
-- Not seen at first on slot 4 (no ACK at any address); seen after the board was reseated, identified at 0x461.
+- Not seen at first on slot 4 (no ACK at any address); seen after the board was reseated, identified at 0x461 (see SEL below).
 - Firmware 3.66. After init: interval 2 s, ASC off (as the record writes them); temperature offset 4.00 °C (0x0190, the unit's stored value).
 - Polls every 5 s, none missed; 10 re-identifications kept the type.
 - Readings: 1264-1333 ppm, 26.2 °C, 52 % RH.
 - **Reading before data is ready** returns 0xFFFF words, which decode as NaN. The poll doesn't check the ready flag, so this only happens if something else reads the measurement first (as a manual `cmdraw` does) or the first poll comes within 2 s of init.
 - **Detection stays empty.** A firmware-version check with CRC (`0xd100=p5&=0bX..X:crc8w`) works, also while measuring. But 0x61 is in the RSAO hook's probe range (0x10-0x6F), and a detection that can fail would let the hook send its framed 0x99 bytes to a Sensirion part, as with the STCC4 (`stcc4-identification-notes.md`).
-- **Still open (§4):** init writes the interval and ASC to the SCD30's non-volatile memory at every init, including each re-identification and hot-plug.
+- **Non-volatile writes (2026-10-19):** init now reads the interval and ASC setting and writes each only if it differs, using init guards (`computed-init-values.md` §7). On Axiom018: interval set to 5 s by hand, then `reinit` - read back 2 s. (A manual ASC-on write was accepted but ASC still read 0, so the ASC guard's write path is covered by the host test only.)
+- **Why it wasn't seen at first: the SEL pin.** The module's SEL was held at about 3.3 V by a 4.7k/2.2k divider. The SCD30 reads SEL at power-up, and high selects Modbus, so after a power-up with SEL already high it never answered on I2C - every Axiom restart, and most Qwiic plug-ins. It worked only when power arrived before SEL rose. For I2C, SEL goes to GND (or floating). Nothing to change in the record or the firmware.
 
 **MICS6814Pimoroni: new record, verified on Axiom018 (2026-10-18):**
 - **Named for the board, not the sensor:** the record drives Pimoroni's IO Expander firmware (Nuvoton MS51) at 0x19 and relies on the breakout's wiring (heater on P1.5, the three elements on ADC channels 2-4, 56 kΩ load resistors). A bare MiCS-6814 would need a different record.
