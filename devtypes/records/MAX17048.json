@@ -38,7 +38,7 @@
                     "n": "chargeRate",
                     "t": ">h",
                     "u": "%/hr",
-                    "r": [-100, 100],
+                    "r": [-300, 300],
                     "d": 4.808,
                     "f": ".1f",
                     "o": "float"
@@ -61,12 +61,14 @@
                 "t": ">H",
                 "w": "0c",
                 "f": "B",
-                "r": [0, 65536],
-                "d": 38656
+                "r": [0, 65535],
+                "d": 38678,
+                "desc": "CONFIG register: RCOMP (high byte), then SLEEP, ALSC, ALRT and the empty-alert threshold ATHD (32 - low 5 bits, in %). The record's init sets 0x9716 (38678): RCOMP 0x97, alert at 10%"
             },
             {
                 "n": "reset config",
-                "w": "0c9700"
+                "w": "0c9716",
+                "desc": "Restore the CONFIG register the record's init sets (0x9716: RCOMP 0x97, empty alert at 10%)"
             }
         ]
     }
