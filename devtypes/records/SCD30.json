@@ -1,5 +1,5 @@
 {
-    "_notes": "Sensirion SCD30 CO2/temperature/humidity at 0x61 (SEL to GND or floating for I2C: SEL high at power-up selects Modbus and the sensor never answers on I2C). No detection values: 0x61 is in the RSAO identification hook's probe range, and a detection that could fail would let the hook send it framed bytes (as the STCC4, devdocs/stcc4-identification-notes.md). Not scanned while polled (scanWhilePolled false): a scanner presence probe stops it producing data (data-ready never set while probed every few seconds); its polls show it's there. Init: firmware version (0xD100), read the measurement interval (0x4600), start continuous measurement with no pressure compensation (0x0010 0x0000), then set the interval to 2 s only if it differs ({?setInterval}, computed by initCode) as it's stored in non-volatile memory. ASC is left as stored (the autoCal action sets it). Commands are followed by a pause before the read (the SCD30 needs 3 ms). Poll (every 3 s, longer than the 2 s measurement): data-ready (0x0202) twice, then read measurement (0x0300): CO2, T and RH as big-endian floats, each 2-byte half followed by a CRC. Decode: a sample only when the second data-ready word is 1 (a read before data is ready gives 0xFFFF words), with the floats built from their bits. Rates (_conf.rate) only set the poll interval, 3 s to 60 s. Actions (each stored in non-volatile memory): autoCal (automatic self-calibration, 1 on, 0 off), forceCal (forced recalibration to a reference ppm - run in that concentration for at least 2 minutes first), tempOffset (degrees C, subtracted from the temperature), altitude (m); pressure restarts measurement with ambient pressure compensation (mbar, 0 off); softReset.",
+    "_notes": "Sensirion SCD30 CO2/temperature/humidity at 0x61 (SEL to GND or floating for I2C: SEL high at power-up selects Modbus and the sensor never answers on I2C). No detection values: 0x61 is in the RSAO identification hook's probe range, and a detection that could fail would let the hook send it framed bytes (as the STCC4, devdocs/stcc4-identification-notes.md). Not scanned while polled (scanWhilePolled false): a scanner presence probe stops it producing data (data-ready never set while probed every few seconds); its polls show it's there. Init: firmware version (0xD100), read the measurement interval (0x4600), start continuous measurement with no pressure compensation (0x0010 0x0000), then set the interval to 2 s only if it differs ({?setInterval}, computed by initCode) as it's stored in non-volatile memory. ASC is left as stored (the autoCal action sets it). Commands are followed by a pause before the read (the SCD30 needs 3 ms). Poll (every 3 s, longer than the 2 s measurement): data-ready (0x0202) twice, then read measurement (0x0300): CO2, T and RH as big-endian floats, each 2-byte half followed by a CRC. Decode: a sample only when the second data-ready word is 1 (a read before data is ready gives 0xFFFF words), with the floats built from their bits. Rates (_conf.rate) only set the poll interval, 3 s to 60 s. Actions (each stored in non-volatile memory): autoCal (automatic self-calibration, 1 on, 0 off), forceCal (forced recalibration to a reference ppm - run in that concentration for at least 2 minutes first), tempOffset (degrees C, subtracted from the temperature), altitude (m); pressure restarts measurement with ambient pressure compensation (mbar, 0 off); softReset. autoCal needs regular fresh air (about 1 hour a day; first correction after about 7 days). forceCal: measure in the reference concentration for at least 2 minutes first.",
     "addresses": "0x61",
     "detectionValues": "",
     "scanWhilePolled": false,
@@ -58,7 +58,7 @@
                 "n": "_conf.rate",
                 "r": [0.0167, 0.333],
                 "d": 0.333,
-                "desc": "Sample rate (Hz) - how often the 2 s measurements are read",
+                "desc": "Sample rate (Hz)",
                 "map": {
                     "0.333": {
                         "i": 3000000,
@@ -89,7 +89,7 @@
                 "crc": "crc8w",
                 "r": [0, 1],
                 "d": 0,
-                "desc": "Automatic self-calibration: 1 on, 0 off (needs regular fresh air, about 1 hour a day; the first correction comes after about 7 days)"
+                "desc": "Auto-calibration"
             },
             {
                 "n": "forceCal",
@@ -98,7 +98,7 @@
                 "crc": "crc8w",
                 "r": [400, 2000],
                 "d": 420,
-                "desc": "Forced recalibration to this CO2 (ppm): measure in that concentration for at least 2 minutes first"
+                "desc": "Force cal (ppm)"
             },
             {
                 "n": "tempOffset",
@@ -108,7 +108,7 @@
                 "mul": 100,
                 "r": [0, 20],
                 "d": 0,
-                "desc": "Temperature offset (C) for self-heating, subtracted from the temperature"
+                "desc": "Temp offset (C)"
             },
             {
                 "n": "altitude",
@@ -117,7 +117,7 @@
                 "crc": "crc8w",
                 "r": [0, 3000],
                 "d": 0,
-                "desc": "Altitude compensation (m above sea level)"
+                "desc": "Altitude (m)"
             },
             {
                 "n": "pressure",
@@ -126,12 +126,12 @@
                 "crc": "crc8w",
                 "r": [0, 1400],
                 "d": 0,
-                "desc": "Ambient pressure compensation (mbar, 700-1400; 0 off) - restarts continuous measurement"
+                "desc": "Pressure (mbar)"
             },
             {
                 "n": "softReset",
                 "w": "d304",
-                "desc": "Soft reset (measurement restarts with the stored settings)"
+                "desc": "Soft reset"
             }
         ]
     }

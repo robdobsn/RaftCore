@@ -1,5 +1,5 @@
 {
-    "_notes": "Sensirion SCD40 CO2/temperature/humidity. No detection values (unique address 0x62). read_measurement (0xEC05) returns three big-endian words, each followed by a CRC byte: CO2 (ppm) at 0, T at 3 (-45 + 175*raw/65535), RH at 6 (100*raw/65535). Standard decode.",
+    "_notes": "Sensirion SCD40 CO2/temperature/humidity. No detection values (unique address 0x62). read_measurement (0xEC05) returns three big-endian words, each followed by a CRC byte: CO2 (ppm) at 0, T at 3 (-45 + 175*raw/65535), RH at 6 (100*raw/65535). Standard decode. temperatureOffset, altitude, autoCalibration and calibrationTarget are only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores them. ambientPressure (hPa) overrides the altitude and is accepted during measurement.",
     "addresses": "0x62",
     "detectionValues": "",
     "initValues": "0x21b1=",
@@ -58,7 +58,7 @@
                 "mul": 374.4857,
                 "r": [0, 20],
                 "d": 4,
-                "desc": "Temperature offset in degrees C. Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
+                "desc": "Temp offset (C)"
             },
             {
                 "n": "altitude",
@@ -67,7 +67,7 @@
                 "crc": "crc8w",
                 "r": [0, 3000],
                 "d": 0,
-                "desc": "Altitude in m for pressure compensation. Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
+                "desc": "Altitude (m)"
             },
             {
                 "n": "ambientPressure",
@@ -76,7 +76,7 @@
                 "crc": "crc8w",
                 "r": [700, 1200],
                 "d": 1013,
-                "desc": "Ambient pressure in hPa (overrides the altitude); accepted during periodic measurement"
+                "desc": "Pressure (hPa)"
             },
             {
                 "n": "autoCalibration",
@@ -85,7 +85,7 @@
                 "crc": "crc8w",
                 "r": [0, 1],
                 "d": 1,
-                "desc": "Automatic self-calibration on (1) or off (0). Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
+                "desc": "Auto-calibration"
             },
             {
                 "n": "calibrationTarget",
@@ -94,7 +94,7 @@
                 "crc": "crc8w",
                 "r": [0, 65535],
                 "d": 400,
-                "desc": "Automatic self-calibration target in ppm. Only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores this"
+                "desc": "ASC target (ppm)"
             }
         ]
     }

@@ -51,7 +51,7 @@
                     "s": 4,
                     "f": "d",
                     "vs": false,
-                    "vl": {"0": "no error", "1": "VCSEL continuity", "2": "VCSEL watchdog test", "3": "VCSEL watchdog", "4": "PLL1 lock", "5": "PLL2 lock", "6": "early convergence", "7": "max convergence", "8": "no target", "9": "not used", "10": "not used", "11": "max SNR", "12": "ranging underflow (raw)", "13": "ranging overflow (raw)", "14": "ranging underflow", "15": "ranging overflow"}
+                    "vl": {"0": "OK", "1": "VCSEL cont", "2": "VCSEL test", "3": "VCSEL wdog", "4": "PLL1", "5": "PLL2", "6": "early conv", "7": "max conv", "8": "no target", "9": "unused", "10": "unused", "11": "SNR", "12": "raw under", "13": "raw over", "14": "underflow", "15": "overflow"}
                 },
                 {
                     "n": "fresh",

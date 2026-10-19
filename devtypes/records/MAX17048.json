@@ -64,12 +64,12 @@
                 "f": "B",
                 "r": [0, 65535],
                 "d": 38678,
-                "desc": "CONFIG register: RCOMP (high byte), then SLEEP, ALSC, ALRT and the empty-alert threshold ATHD (32 - low 5 bits, in %). The record's init sets 0x9716 (38678): RCOMP 0x97, alert at 10%"
+                "desc": "CONFIG register"
             },
             {
                 "n": "reset config",
                 "w": "0c9716",
-                "desc": "Restore the CONFIG register the record's init sets (0x9716: RCOMP 0x97, empty alert at 10%)"
+                "desc": "Reset CONFIG"
             }
         ]
     }
