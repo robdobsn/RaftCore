@@ -58,7 +58,7 @@
                     "f": "04x",
                     "o": "uint16",
                     "vs": false,
-                    "bl": {"0x0040": "testing"}
+                    "bl": {"0": "OK", "0x0040": "testing"}
                 }
             ]
         },
