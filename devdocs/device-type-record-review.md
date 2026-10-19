@@ -115,14 +115,20 @@ Date: 2026-10-18.
 - **Detection stays empty.** Detection strings can now pause, so the product-ID command (0x365B) would work at first identification, but the STCC4 rejects it while measuring. Re-verification would then fail and leave the sensor open to the RSAO probe, which stops it measuring (`stcc4-identification-notes.md`).
 - A manual `cmdraw` read of 0xEC05 NACKs while the record polls: each measurement can be read once, and the poll reads it first.
 
-**SCD30, verified on Axiom018 (2026-10-19), record unchanged:**
+**SCD30, verified on Axiom018 (2026-10-19):**
 - Not seen at first on slot 4 (no ACK at any address); seen after the board was reseated, identified at 0x461 (see SEL below).
 - Firmware 3.66. After init: interval 2 s, ASC off (as the record writes them); temperature offset 0 (0x5403); forced-recalibration reference 400 ppm (0x5204).
-- Polls every 5 s, none missed; 10 re-identifications kept the type.
+- Polls (then every 5 s) none missed; 10 re-identifications kept the type.
 - Readings: 1264-1333 ppm, 26.2 °C, 52 % RH.
-- **Reading before data is ready** returns 0xFFFF words, which decode as NaN. The poll doesn't check the ready flag, so this only happens if something else reads the measurement first (as a manual `cmdraw` does) or the first poll comes within 2 s of init.
+- **Every poll was NaN (found 2026-10-19).** With temporary poll logging, all polls over 60 s had data-ready 0 and read 0xFFFF words. The cause was the scanner: a device polled less often than once a second is also probed for presence, and the SCD30 doesn't produce data while it's probed every few seconds. With polling at 1 s (no probes) data was ready every 2 s. Fixed:
+  - `scanWhilePolled: false`, a new record field: the scanner doesn't probe it while it's online and polled; its polls show it's there (offline after 3 failed polls);
+  - poll every 3 s, longer than the 2 s measurement;
+  - a custom decode that gives a sample only when data-ready is 1 (floats built from their bits), so an early read gives no sample rather than NaN; the poll and the devbin data are unchanged.
+  - Result: 15 of 15 polls had data (1245-1262 ppm).
+- **Rates:** `_conf.rate` 0.333, 0.2, 0.1, 0.0333 and 0.0167 Hz, which only set the poll interval (map entries without `w`, newly allowed). On Axiom018 0.1 gave a 10 s poll, and a rate not in the map was rejected; the LSM6DS3's rate (with writes) still works.
+- **Actions:** `asc`, `frc`, `tempOffset`, `altitude`, `pressure` (each with `crc8w`), `softReset`. ASC on (`53060001b0`) read back 1, then set back to off.
 - **Detection stays empty.** A firmware-version check with CRC (`0xd100=p5&=0bX..X:crc8w`) works, also while measuring. But 0x61 is in the RSAO hook's probe range (0x10-0x6F), and a detection that can fail would let the hook send its framed 0x99 bytes to a Sensirion part, as with the STCC4 (`stcc4-identification-notes.md`).
-- **Non-volatile writes (2026-10-19):** init now reads the interval and ASC setting and writes each only if it differs, using init guards (`computed-init-values.md` §7). On Axiom018: interval set to 5 s by hand, then `reinit` - read back 2 s. (A manual ASC-on write was accepted but ASC still read 0, so the ASC guard's write path is covered by the host test only.)
+- **Non-volatile writes (2026-10-19):** init reads the interval and writes it only if it differs, using an init guard (`computed-init-values.md` §7). On Axiom018: interval set to 5 s by hand, then `reinit` - read back 2 s. ASC was guarded too at first; with the `asc` action, init now leaves ASC as stored. (A first manual ASC-on test failed only because the command had an extra byte, `5306000001b0`, so its CRC was wrong.)
 - **Why it wasn't seen at first: the SEL pin.** The module's SEL was held at about 3.3 V by a 4.7k/2.2k divider. The SCD30 reads SEL at power-up, and high selects Modbus, so after a power-up with SEL already high it never answered on I2C - every Axiom restart, and most Qwiic plug-ins. It worked only when power arrived before SEL rose. For I2C, SEL goes to GND (or floating). Nothing to change in the record or the firmware.
 
 **MICS6814Pimoroni: new record, verified on Axiom018 (2026-10-18):**

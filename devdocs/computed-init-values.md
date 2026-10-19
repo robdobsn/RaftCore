@@ -98,7 +98,7 @@ Add an optional **init code** block, written in the same decode language as `res
 
 ## 7. Guards: conditional init steps (2026-10-19)
 
-**Why:** the SCD30 stores its measurement interval and self-calibration (ASC) setting in non-volatile memory. Its record wrote both at every init, including each re-identification and hot-plug. With guards it reads both and writes each only if it differs.
+**Why:** the SCD30 stores its measurement interval and self-calibration (ASC) setting in non-volatile memory. Its record wrote both at every init, including each re-identification and hot-plug. With a guard it reads the interval and writes it only if it differs. (At first ASC was guarded the same way; since the record gained an `asc` action, init leaves ASC as stored.)
 
 **Syntax:** `{?name}` at the start of an init step. The step is done only if `init.name` isn't 0, and otherwise skipped entirely: nothing written or read, and no pause. A guard can be combined with value slots (`{?g}0x5a{v}`) and can guard a read or a bare pause.
 
@@ -109,6 +109,6 @@ Add an optional **init code** block, written in the same decode language as `res
 - **Type files:** a guard follows the slot rule: only in an override of a compiled record whose init code computes it.
 
 **Tests:**
-- `test_device_type_records` `testInitGuards`: the SCD30 record with the settings already as set (both skipped), interval 5 s, ASC on, and garbage reads (both written); too few bytes fails.
+- `test_device_type_records` `testInitGuards`: the SCD30 record with the interval already 2 s (skipped), 5 s and garbage reads (written); too few bytes fails.
 - `test_device_type_file`: a guard override of SCD30 accepted with the compiled code; a guard on a new key rejected.
 - Python: generator output and errors for guards.

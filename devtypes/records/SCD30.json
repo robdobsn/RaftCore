@@ -1,15 +1,16 @@
 {
-    "_notes": "Sensirion SCD30 CO2/temperature/humidity at 0x61. No detection values: 0x61 is in the RSAO identification hook's probe range, and a detection that could fail would let the hook send it framed bytes (as the STCC4, devdocs/stcc4-identification-notes.md). Init: firmware version (0xD100), then read the measurement interval (0x4600) and the ASC setting (0x5306), start continuous measurement with no pressure compensation (0x0010 0x0000), then set the interval to 2 s and ASC off - each only if it differs ({?setInterval}, {?setAsc} guards computed by initCode), as both are stored in the sensor's non-volatile memory. Commands are followed by a pause before the read (the SCD30 needs 3 ms). Poll: data-ready (0x0202) twice, then read measurement (0x0300): CO2, T and RH as big-endian floats, each 2-byte half followed by a CRC.",
+    "_notes": "Sensirion SCD30 CO2/temperature/humidity at 0x61 (SEL to GND or floating for I2C: SEL high at power-up selects Modbus and the sensor never answers on I2C). No detection values: 0x61 is in the RSAO identification hook's probe range, and a detection that could fail would let the hook send it framed bytes (as the STCC4, devdocs/stcc4-identification-notes.md). Not scanned while polled (scanWhilePolled false): a scanner presence probe stops it producing data (data-ready never set while probed every few seconds); its polls show it's there. Init: firmware version (0xD100), read the measurement interval (0x4600), start continuous measurement with no pressure compensation (0x0010 0x0000), then set the interval to 2 s only if it differs ({?setInterval}, computed by initCode) as it's stored in non-volatile memory. ASC is left as stored (the asc action sets it). Commands are followed by a pause before the read (the SCD30 needs 3 ms). Poll (every 3 s, longer than the 2 s measurement): data-ready (0x0202) twice, then read measurement (0x0300): CO2, T and RH as big-endian floats, each 2-byte half followed by a CRC. Decode: a sample only when the second data-ready word is 1 (a read before data is ready gives 0xFFFF words), with the floats built from their bits. Rates (_conf.rate) only set the poll interval, 3 s to 60 s. Actions (each stored in non-volatile memory): asc (1 on, 0 off), frc (forced recalibration to a reference ppm - run in that concentration for at least 2 minutes first), tempOffset (degrees C, subtracted from the temperature), altitude (m); pressure restarts measurement with ambient pressure compensation (mbar, 0 off); softReset.",
     "addresses": "0x61",
     "detectionValues": "",
-    "initValues": "0xd100=p5&=r3&=p5&0x4600=p5&=r3&0x5306=p5&=r3&0x0010000081=p10&{?setInterval}0x46000002e3=p10&{?setAsc}0x5306000081",
+    "scanWhilePolled": false,
+    "initValues": "0xd100=p5&=r3&=p5&0x4600=p5&=r3&0x0010000081=p10&{?setInterval}0x46000002e3=p10",
     "initCode": {
         "n": "scd30_settings",
-        "c": "int iv=(buf[3]<<8)|buf[4];init.setInterval=0;if(iv!=2){init.setInterval=1;}int asc=(buf[6]<<8)|buf[7];init.setAsc=0;if(asc!=0){init.setAsc=1;}"
+        "c": "int iv=(buf[3]<<8)|buf[4];init.setInterval=0;if(iv!=2){init.setInterval=1;}"
     },
     "pollInfo": {
         "c": "0x0202=p5&=r3&0x0202=p5&=r3&0x0300=p5&=r18",
-        "i": 5000,
+        "i": 3000,
         "s": 1
     },
     "scanPriority": "high",
@@ -24,8 +25,7 @@
             "a": [
                 {
                     "n": "CO2",
-                    "t": ">f",
-                    "at": [6, 7, 9, 10],
+                    "t": "<f",
                     "u": "ppm",
                     "r": [0, 40000],
                     "f": ".1f",
@@ -33,8 +33,7 @@
                 },
                 {
                     "n": "temperature",
-                    "t": ">f",
-                    "at": [12, 13, 15, 16],
+                    "t": "<f",
                     "u": "C",
                     "r": [-40, 125],
                     "f": ".2f",
@@ -42,14 +41,98 @@
                 },
                 {
                     "n": "humidity",
-                    "t": ">f",
-                    "at": [18, 19, 21, 22],
+                    "t": "<f",
                     "u": "%RH",
                     "r": [0, 100],
                     "f": ".2f",
                     "o": "float"
                 }
-            ]
-        }
+            ],
+            "c": {
+                "n": "scd30_ready_floats",
+                "c": "int ready=(buf[3]<<8)|buf[4];if(ready==1){int co2h=(buf[6]<<8)|buf[7];int co2l=(buf[9]<<8)|buf[10];int co2e=(co2h>>7)&255;float co2=0.0;if(co2e>0){if(co2e<255){co2=1.0+(((co2h&127)*65536)+co2l)/8388608.0;int co2k=co2e-127;while(co2k>0){co2=co2*2.0;co2k=co2k-1;}while(co2k<0){co2=co2/2.0;co2k=co2k+1;}}}if(co2h>32767){co2=0.0-co2;}out.CO2=co2;int tmph=(buf[12]<<8)|buf[13];int tmpl=(buf[15]<<8)|buf[16];int tmpe=(tmph>>7)&255;float tmp=0.0;if(tmpe>0){if(tmpe<255){tmp=1.0+(((tmph&127)*65536)+tmpl)/8388608.0;int tmpk=tmpe-127;while(tmpk>0){tmp=tmp*2.0;tmpk=tmpk-1;}while(tmpk<0){tmp=tmp/2.0;tmpk=tmpk+1;}}}if(tmph>32767){tmp=0.0-tmp;}out.temperature=tmp;int humh=(buf[18]<<8)|buf[19];int huml=(buf[21]<<8)|buf[22];int hume=(humh>>7)&255;float hum=0.0;if(hume>0){if(hume<255){hum=1.0+(((humh&127)*65536)+huml)/8388608.0;int humk=hume-127;while(humk>0){hum=hum*2.0;humk=humk-1;}while(humk<0){hum=hum/2.0;humk=humk+1;}}}if(humh>32767){hum=0.0-hum;}out.humidity=hum;next;}"
+            }
+        },
+        "actions": [
+            {
+                "n": "_conf.rate",
+                "r": [0.0167, 0.333],
+                "d": 0.333,
+                "desc": "Sample rate (Hz) - how often the 2 s measurements are read",
+                "map": {
+                    "0.333": {
+                        "i": 3000000,
+                        "s": 1
+                    },
+                    "0.2": {
+                        "i": 5000000,
+                        "s": 1
+                    },
+                    "0.1": {
+                        "i": 10000000,
+                        "s": 1
+                    },
+                    "0.0333": {
+                        "i": 30000000,
+                        "s": 1
+                    },
+                    "0.0167": {
+                        "i": 60000000,
+                        "s": 1
+                    }
+                }
+            },
+            {
+                "n": "asc",
+                "t": ">H",
+                "w": "5306",
+                "crc": "crc8w",
+                "r": [0, 1],
+                "d": 0,
+                "desc": "Automatic self-calibration: 1 on, 0 off (needs regular fresh air, about 1 hour a day; the first correction comes after about 7 days)"
+            },
+            {
+                "n": "frc",
+                "t": ">H",
+                "w": "5204",
+                "crc": "crc8w",
+                "r": [400, 2000],
+                "d": 420,
+                "desc": "Forced recalibration to this CO2 (ppm): measure in that concentration for at least 2 minutes first"
+            },
+            {
+                "n": "tempOffset",
+                "t": ">H",
+                "w": "5403",
+                "crc": "crc8w",
+                "mul": 100,
+                "r": [0, 20],
+                "d": 0,
+                "desc": "Temperature offset (C) for self-heating, subtracted from the temperature"
+            },
+            {
+                "n": "altitude",
+                "t": ">H",
+                "w": "5102",
+                "crc": "crc8w",
+                "r": [0, 3000],
+                "d": 0,
+                "desc": "Altitude compensation (m above sea level)"
+            },
+            {
+                "n": "pressure",
+                "t": ">H",
+                "w": "0010",
+                "crc": "crc8w",
+                "r": [0, 1400],
+                "d": 0,
+                "desc": "Ambient pressure compensation (mbar, 700-1400; 0 off) - restarts continuous measurement"
+            },
+            {
+                "n": "softReset",
+                "w": "d304",
+                "desc": "Soft reset (measurement restarts with the stored settings)"
+            }
+        ]
     }
 }

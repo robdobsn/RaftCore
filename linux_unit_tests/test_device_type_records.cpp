@@ -25,6 +25,7 @@
 #include <vector>
 #include "testhdr.h"
 #include "DeviceTypeRecords.h"
+#include "DeviceTypeGrammar.h"
 #include "RaftJson.h"
 
 typedef std::vector<uint8_t> Bytes;
@@ -485,7 +486,7 @@ static void testInitValues()
 }
 
 // Init guards: a {?name} step is only done if initCode's value isn't 0. The SCD30 record reads its measurement interval
-// and ASC setting and writes each (to the sensor's non-volatile memory) only if it differs from what the record sets
+// and writes it (to the sensor's non-volatile memory) only if it differs from the 2 s the record sets
 static void testInitGuards()
 {
     printf("Running testInitGuards...\n");
@@ -497,16 +498,12 @@ static void testInitGuards()
         return;
     }
     std::shared_ptr<const DeviceTypeRecords::CompiledRecord> pCompiled = deviceTypeRecords.getCompiledRecord(idx);
-    int intervalStep = -1, ascStep = -1;
+    int intervalStep = -1;
     for (uint32_t i = 0; i < pCompiled->init.steps.size(); i++)
-    {
         if (pCompiled->init.steps[i].guard == "setInterval")
             intervalStep = i;
-        if (pCompiled->init.steps[i].guard == "setAsc")
-            ascStep = i;
-    }
-    TEST_ASSERT((intervalStep >= 0) && (ascStep > intervalStep), "guarded interval and ASC steps");
-    if ((intervalStep < 0) || (ascStep < 0))
+    TEST_ASSERT(intervalStep >= 0, "guarded interval step");
+    if (intervalStep < 0)
         return;
     TEST_ASSERT(deviceTypeRecords.initStepUsesInitValues(idx, intervalStep) && !deviceTypeRecords.initStepUsesInitValues(idx, 0),
                 "only guarded steps use init values");
@@ -515,37 +512,116 @@ static void testInitGuards()
     {
         const char* what;
         std::vector<uint8_t> interval;      // word + CRC read from 0x4600
-        std::vector<uint8_t> asc;           // word + CRC read from 0x5306
-        bool expectInterval;
-        bool expectAsc;
+        bool expectWrite;
     };
     const Case cases[] = {
-        {"settings already as set: no writes", {0x00, 0x02, 0xe3}, {0x00, 0x00, 0x81}, false, false},
-        {"interval 5 s: interval written", {0x00, 0x05, 0x74}, {0x00, 0x00, 0x81}, true, false},
-        {"ASC on: ASC written", {0x00, 0x02, 0xe3}, {0x00, 0x01, 0xb0}, false, true},
-        {"read garbage: both written", {0xff, 0xff, 0xff}, {0xff, 0xff, 0xff}, true, true},
+        {"interval already 2 s: not written", {0x00, 0x02, 0xe3}, false},
+        {"interval 5 s: written", {0x00, 0x05, 0x74}, true},
+        {"read garbage: written", {0xff, 0xff, 0xff}, true},
     };
     for (const Case& c : cases)
     {
         DeviceTypeRecords::InitValueState state;
         DeviceTypeRecords::noteInitStepRead(state, {0x03, 0x42, 0xf3});     // firmware version
         DeviceTypeRecords::noteInitStepRead(state, c.interval);
-        DeviceTypeRecords::noteInitStepRead(state, c.asc);
         std::vector<uint8_t> write;
-        bool doInterval = false, doAsc = false;
-        bool ok = deviceTypeRecords.getInitStepWrite(idx, intervalStep, state, write, doInterval);
+        bool doStep = false;
+        bool ok = deviceTypeRecords.getInitStepWrite(idx, intervalStep, state, write, doStep);
         TEST_ASSERT(ok && (write == pCompiled->init.steps[intervalStep].write), "guarded step written as compiled");
-        ok = ok && deviceTypeRecords.getInitStepWrite(idx, ascStep, state, write, doAsc);
-        TEST_ASSERT(ok && (doInterval == c.expectInterval) && (doAsc == c.expectAsc), c.what);
-        printf("  %s: interval %s, ASC %s\n", c.what, doInterval ? "written" : "skipped", doAsc ? "written" : "skipped");
+        TEST_ASSERT(ok && (doStep == c.expectWrite), c.what);
+        printf("  %s: %s\n", c.what, doStep ? "written" : "skipped");
     }
 
     // Too few bytes read: init fails rather than guessing
     DeviceTypeRecords::InitValueState shortState;
-    DeviceTypeRecords::noteInitStepRead(shortState, {0x03, 0x42, 0xf3, 0x00, 0x02, 0xe3});
+    DeviceTypeRecords::noteInitStepRead(shortState, {0x03, 0x42, 0xf3, 0x00, 0x02});
     std::vector<uint8_t> write;
     bool doStep = true;
     TEST_ASSERT(!deviceTypeRecords.getInitStepWrite(idx, intervalStep, shortState, write, doStep), "too few bytes read fails");
+}
+
+// SCD30 decode: a sample only when the poll's second data-ready word is 1 (a measurement read before data is ready
+// gives 0xFFFF words, which would decode as NaN), with the big-endian floats built from their bits
+static void appendScd30Word(std::vector<uint8_t>& buf, uint16_t word)
+{
+    uint8_t bytes[2] = {(uint8_t)(word >> 8), (uint8_t)(word & 0xff)};
+    buf.push_back(bytes[0]);
+    buf.push_back(bytes[1]);
+    buf.push_back(DeviceTypeGrammar::crc8(bytes, 2));
+}
+static std::vector<uint8_t> scd30Poll(uint16_t ready, float co2, float temperature, float humidity, bool notReadyData)
+{
+    // 2-byte timestamp, data-ready twice, then the three floats (each as two CRC'd words)
+    std::vector<uint8_t> buf = {0x00, 0x10};
+    appendScd30Word(buf, ready);
+    appendScd30Word(buf, ready);
+    for (float value : {co2, temperature, humidity})
+    {
+        uint32_t bits = 0;
+        memcpy(&bits, &value, sizeof(bits));
+        if (notReadyData)
+            bits = 0xffffffff;
+        appendScd30Word(buf, bits >> 16);
+        appendScd30Word(buf, bits & 0xffff);
+    }
+    return buf;
+}
+static void testScd30Decode()
+{
+    printf("Running testScd30Decode...\n");
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord("SCD30", idx);
+    if (!pRec || !pRec->pollResultDecodeFn || !pRec->pollFieldDescs || (pRec->pollStructSize == 0))
+    {
+        fail("SCD30", "record with a decoder not built in");
+        return;
+    }
+    auto fieldValue = [&](const std::vector<uint8_t>& out, uint32_t recIdx, const char* name) {
+        for (uint32_t i = 0; i < pRec->pollFieldCount; i++)
+        {
+            if (strcmp(pRec->pollFieldDescs[i].name, name) == 0)
+            {
+                float value = 0;
+                memcpy(&value, out.data() + recIdx * pRec->pollStructSize + pRec->pollFieldDescs[i].offset, sizeof(value));
+                return value;
+            }
+        }
+        return -9999.0f;
+    };
+    struct Case
+    {
+        float co2, temperature, humidity;
+    };
+    const Case cases[] = {{1151.5f, 25.6875f, 52.875f}, {400.0f, -10.25f, 0.5f}, {39999.0f, 0.0f, 100.0f}, {0.0f, 1.0f, 99.25f}};
+    for (const Case& c : cases)
+    {
+        std::vector<uint8_t> poll = scd30Poll(1, c.co2, c.temperature, c.humidity, false);
+        std::vector<uint8_t> out(pRec->pollStructSize * 2);
+        RaftBusDeviceDecodeState decodeState;
+        uint32_t numRecs = pRec->pollResultDecodeFn(poll.data(), poll.size(), out.data(), out.size(), 2, decodeState);
+        float co2 = fieldValue(out, 0, "CO2"), temperature = fieldValue(out, 0, "temperature"), humidity = fieldValue(out, 0, "humidity");
+        TEST_ASSERT((numRecs == 1) && (co2 == c.co2) && (temperature == c.temperature) && (humidity == c.humidity),
+                    "data ready: one sample, values exact");
+        printf("  ready: %u sample(s), CO2 %.4f T %.4f RH %.4f\n", numRecs, co2, temperature, humidity);
+    }
+    // The SCD30 isn't probed by the scanner while it's polled (a probe stops it producing data); other records are
+    DevicePollingInfo polling;
+    deviceTypeRecords.getPollInfo(0x461, idx, polling);
+    TEST_ASSERT(!pRec->isScannedWhilePolled() && !polling.scanWhilePolled, "SCD30 not scanned while polled");
+    DeviceTypeIndexType stccIdx = DEVICE_TYPE_INDEX_INVALID;
+    if (deviceTypeRecords.getRecord("STCC4", stccIdx))
+    {
+        deviceTypeRecords.getPollInfo(0x364, stccIdx, polling);
+        TEST_ASSERT(polling.scanWhilePolled, "STCC4 scanned while polled (the default)");
+    }
+
+    // Not ready (as read): no sample rather than NaN
+    std::vector<uint8_t> poll = scd30Poll(0, 0, 0, 0, true);
+    std::vector<uint8_t> out(pRec->pollStructSize * 2);
+    RaftBusDeviceDecodeState decodeState;
+    uint32_t numRecs = pRec->pollResultDecodeFn(poll.data(), poll.size(), out.data(), out.size(), 2, decodeState);
+    TEST_ASSERT(numRecs == 0, "data not ready: no sample");
+    printf("  not ready: %u sample(s)\n", numRecs);
 }
 
 int main(int argc, char** argv)
@@ -555,6 +631,7 @@ int main(int argc, char** argv)
     testBuiltInRecords();
     testInitValues();
     testInitGuards();
+    testScd30Decode();
     for (int i = 1; i < argc; i++)
         testCatalogueFile(argv[i]);
 
