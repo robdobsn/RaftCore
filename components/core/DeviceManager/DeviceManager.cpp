@@ -1844,6 +1844,8 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
 
         // Iterate actions looking for _conf.* entries
         bool anyConfActionFound = false;
+        bool anyRateMatched = false;
+        bool anyWriteWanted = false;
         bool anyWriteSent = false;
         for (int i = 0; i < actionsArrayLen; i++)
         {
@@ -1854,18 +1856,19 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
             anyConfActionFound = true;
 
             // Look up sampleRateHz in this action's map
-            // Map entries can be objects {"w":"hex", "i":intervalUs, "s":numSamples} or plain strings "hex"
+            // Map entries can be objects {"w":"hex", "i":intervalUs, "s":numSamples} or plain strings "hex". An object
+            // without "w" only sets the polling (for a device whose rate is how often it's polled, e.g. the SCD30)
             String mapPath = "actions[" + idxStr + "]/map/" + sampleRateHzStr;
+            int mapEntryLen = 0;
+            bool isObjectEntry = devInfoJsonDoc.getType(mapPath.c_str(), mapEntryLen) == RaftJsonIF::RAFT_JSON_OBJECT;
 
-            // Try object format first: map/<rate>/w
-            String mappedHexValue = devInfoJsonDoc.getString((mapPath + "/w").c_str(), "");
-            if (mappedHexValue.length() == 0)
-            {
-                // Fall back to plain string format: map/<rate>
-                mappedHexValue = devInfoJsonDoc.getString(mapPath.c_str(), "");
-            }
-            if (mappedHexValue.length() == 0)
+            // Object format: map/<rate>/w; plain string format: map/<rate>
+            String mappedHexValue = devInfoJsonDoc.getString((isObjectEntry ? mapPath + "/w" : mapPath).c_str(), "");
+            if (!isObjectEntry && (mappedHexValue.length() == 0))
                 continue;
+            anyRateMatched = true;
+            if (mappedHexValue.length() > 0)
+                anyWriteWanted = true;
 
             // Apply map-based polling config defaults (only if not explicitly provided in API call)
             long mapIntervalUs = devInfoJsonDoc.getLong((mapPath + "/i").c_str(), 0);
@@ -1960,7 +1963,7 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
 
         if (!anyConfActionFound)
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failSampleRateNotSupported");
-        if (!anyWriteSent)
+        if (!anyRateMatched || (anyWriteWanted && !anyWriteSent))
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failInvalidSampleRate");
         sampleRateConfigured = true;
     }
