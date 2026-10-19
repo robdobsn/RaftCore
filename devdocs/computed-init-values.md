@@ -2,7 +2,7 @@
 
 Date: 2026-10-18.
 
-**Status:** implemented 2026-10-18 (section 6). The design below is as proposed, except the type-file rule (section 6).
+**Status:** implemented 2026-10-18 (section 6); guards added 2026-10-19 (section 7). The design below is as proposed, except the type-file rule (section 6).
 
 **Raised by:** the BME680 record (device type record review, Stage 12).
 
@@ -95,3 +95,20 @@ Add an optional **init code** block, written in the same decode language as `res
 - 20 re-identifications kept the types.
 - Gas measurements are valid and heater-stable.
 
+
+## 7. Guards: conditional init steps (2026-10-19)
+
+**Why:** the SCD30 stores its measurement interval and self-calibration (ASC) setting in non-volatile memory. Its record wrote both at every init, including each re-identification and hot-plug. With guards it reads both and writes each only if it differs.
+
+**Syntax:** `{?name}` at the start of an init step. The step is done only if `init.name` isn't 0, and otherwise skipped entirely: nothing written or read, and no pause. A guard can be combined with value slots (`{?g}0x5a{v}`) and can guard a read or a bare pause.
+
+**Where it goes** (as value slots):
+- **Grammar** (C++ and Python, shared vectors): `Step.guard`. `BadPlaceholder` for a guard outside init, unclosed, unnamed, or not at the start of a step. 9 new vectors; the fuzzer includes guard tokens.
+- **Generator:** a guard counts as a use of init values: the values are computed from the bytes read before the first step with a slot or guard, and a guard that `initCode` doesn't assign is an error.
+- **Runtime:** `initStepUsesInitValues()` (was `initStepHasValueSlots()`); `getInitStepWrite(..., doStep)` reports whether a guarded step runs. RaftI2C `runInitSteps` skips the step when it doesn't.
+- **Type files:** a guard follows the slot rule: only in an override of a compiled record whose init code computes it.
+
+**Tests:**
+- `test_device_type_records` `testInitGuards`: the SCD30 record with the settings already as set (both skipped), interval 5 s, ASC on, and garbage reads (both written); too few bytes fails.
+- `test_device_type_file`: a guard override of SCD30 accepted with the compiled code; a guard on a new key rejected.
+- Python: generator output and errors for guards.

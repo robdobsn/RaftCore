@@ -70,23 +70,24 @@ INIT_VALUE_NAME_RE = re.compile(r"\binit\.([A-Za-z_][A-Za-z0-9_]*)")
 
 def init_values(dev_type, dev_type_key):
     """A record's init values (initCode, devdocs/computed-init-values.md): (names, C++ function) or (None, None) if it
-    has none. Errors (exit): {name} value slots in initValues with no initCode, or a slot whose value initCode doesn't
-    assign. The function computes the values from the bytes the init steps before the first slot read"""
+    has none. Errors (exit): {name} value slots or {?name} guards in initValues with no initCode, or one whose value
+    initCode doesn't assign. The function computes the values from the bytes read by the init steps before the first
+    step with a slot or guard"""
     compiled = DeviceTypeGrammar.compile(dev_type.get("initValues", ""), "init")
     slot_names = []
     read_before_slots = 0
     seen_slot = False
     for step in compiled.steps:
-        if step.slots:
+        if step.slots or step.guard:
             seen_slot = True
-            slot_names += [name for _, name in step.slots]
+            slot_names += [name for _, name in step.slots] + ([step.guard] if step.guard else [])
         elif not seen_slot:
             read_before_slots += step.read
     init_code = dev_type.get("initCode")
     code = (init_code.get("c", "") if isinstance(init_code, dict) else (init_code or "")).strip()
     if not code:
         if slot_names:
-            print(f"ERROR: record \"{dev_type_key}\" initValues has value slots ({', '.join(sorted(set(slot_names)))}) but "
+            print(f"ERROR: record \"{dev_type_key}\" initValues has value slots or guards ({', '.join(sorted(set(slot_names)))}) but "
                   f"no initCode to compute them", file=sys.stderr)
             sys.exit(1)
         return None, None
@@ -97,7 +98,7 @@ def init_values(dev_type, dev_type_key):
               f"initValues)", file=sys.stderr)
         sys.exit(1)
     if not slot_names:
-        print(f"WARNING: record \"{dev_type_key}\" has initCode but initValues has no value slots to use it")
+        print(f"WARNING: record \"{dev_type_key}\" has initCode but initValues has no value slots or guards to use it")
     for problem in PseudocodeHandler().check_code(code, [], code_kind="init"):
         print(f"INIT CODE WARNING: record \"{dev_type_key}\" initCode: {problem}")
     handler = PseudocodeHandler()

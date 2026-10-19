@@ -159,7 +159,7 @@ public:
     void getInitBusRequests(BusElemAddrType addr, DeviceTypeIndexType deviceTypeIndex, std::vector<BusRequestInfo>& initRequests);
 
     // Init values for one device's init (kept across the init's resumable pauses): the bytes the init steps read before
-    // the first value slot, and the values computed from them (devdocs/computed-init-values.md)
+    // the first step with a value slot or guard, and the values computed from them (devdocs/computed-init-values.md)
     struct InitValueState
     {
         std::vector<uint8_t> readData;
@@ -174,18 +174,20 @@ public:
             state.readData.insert(state.readData.end(), readData.begin(), readData.end());
     }
 
-    /// @brief Check whether an init step has value slots ({name} placeholders)
-    bool initStepHasValueSlots(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx) const;
+    /// @brief Check whether an init step uses init values: value slots ({name} placeholders) or a guard ({?name})
+    bool initStepUsesInitValues(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx) const;
 
-    /// @brief Get an init step's write data with its value slots filled in: the values are computed (once) by the
-    ///        record's init values function from the bytes read so far, and each is written as one byte (0 to 255)
+    /// @brief Get an init step's write data with its value slots filled in, and whether its guard lets it run: the
+    ///        values are computed (once) by the record's init values function from the bytes read so far; each slot is
+    ///        written as one byte (0 to 255), and a guarded step is only done if its value isn't 0
     /// @param deviceTypeIndex device type index
     /// @param stepIdx init step index
     /// @param state init value state (values computed into it on first use)
     /// @param writeData (out) the step's write data
+    /// @param doStep (out) false if the step's guard is 0 (the step is skipped: nothing written or read, no pause)
     /// @return false if the values can't be computed (no function, an unknown name, or too few bytes read)
     bool getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx, InitValueState& state,
-                std::vector<uint8_t>& writeData) const;
+                std::vector<uint8_t>& writeData, bool& doStep) const;
 
     /// @brief Get polling info for a device type index (from the compiled record)
     void getPollInfo(BusElemAddrType addrAndSlot, DeviceTypeIndexType deviceTypeIndex, DevicePollingInfo& pollingInfo) const;

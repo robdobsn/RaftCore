@@ -16,6 +16,9 @@
 //           init:   "rN" read N bytes, "pNN" pause after the write (either or both)
 //           poll:   "rN" read N bytes, "r{expr}" read a length computed from earlier results, "0x<hex>" or
 //                   "0b<bits>" read that many bytes, "pNN" pause after the write
+// In an init string the write may contain "{name}" value slots (one byte each), and a step may start with a guard
+// "{?name}": the step is only done if the value is not 0. Both values are computed by the record's initCode from
+// bytes read by earlier init steps
 //
 // Problems are errors or warnings. In this release (D19) a warning keeps what the previous parser did, so
 // every record behaves as before; an error is something the previous parser turned into garbage or skipped:
@@ -55,7 +58,8 @@ public:
         BadValue,               // a poll value that isn't rN, r{...}, 0x, 0b or a pause
         CrcLength,              // :crc8w on a check whose length isn't a multiple of 3
         BadPause,               // a pause longer than 65535 ms
-        BadPlaceholder,         // a {name} value slot outside an init string, unnamed, unclosed or not on a byte boundary
+        BadPlaceholder,         // a {name} value slot or {?name} guard outside an init string, unnamed, unclosed, or (slot) not
+                                // on a byte boundary or (guard) not at the start of the step
         // Warnings (the previous behaviour is kept)
         OddHex,                 // odd number of hex digits (the last digit is lost; the byte is padded with 0)
         BarePause,              // "pNN" without "=" - a pause (the previous parser wrote it as data, C4)
@@ -101,6 +105,8 @@ public:
             std::string name;
         };
         std::vector<ValueSlot> slots;
+        // init: guard - a {?name} at the start of the step; the step is only done if that computed value isn't 0
+        std::string guard;
     };
 
     struct Result

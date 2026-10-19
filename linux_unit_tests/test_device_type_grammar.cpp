@@ -116,6 +116,8 @@ static void testVectors(const char* path)
             step.getArrayElems("slots", slots);
             for (const String& slot : slots)
                 expStepsStr += std::string(" slot") + slot.c_str();
+            if (step.getString("guard", "").length() > 0)
+                expStepsStr += std::string(" guard:") + step.getString("guard", "").c_str();
             expStepsStr += "]";
         }
         for (const auto& step : result.steps)
@@ -126,6 +128,8 @@ static void testVectors(const char* path)
                 gotStepsStr += " " + hex(check.mask) + ":" + hex(check.value);
             for (const auto& slot : step.slots)
                 gotStepsStr += " slot" + std::to_string(slot.offset) + ":" + slot.name;
+            if (!step.guard.empty())
+                gotStepsStr += " guard:" + step.guard;
             gotStepsStr += "]";
         }
         if ((expIssuesStr != gotIssuesStr) || (expStepsStr != gotStepsStr))
@@ -157,10 +161,10 @@ static bool compareWithLegacy(const std::string& str, Field field, EquivStats& s
     std::string lc = str;
     for (char& c : lc)
         c = (char)tolower((unsigned char)c);
-    // Value slots ({name} in init strings) are new: the previous parser had none
+    // Value slots ({name} in init strings) and guards ({?name}) are new: the previous parser had neither
     bool hasSlots = false;
     for (const auto& step : result.steps)
-        hasSlots = hasSlots || !step.slots.empty();
+        hasSlots = hasSlots || !step.slots.empty() || !step.guard.empty();
     bool intended = hasIssue(result, DeviceTypeGrammar::IssueCode::BarePause) || (lc.find(":crc8w") != std::string::npos) ||
             ((field == Field::Detection) && (lc.find('r') != std::string::npos)) || hasSlots;
     if (intended)
@@ -393,6 +397,8 @@ static int dumpMode()
                 out += " " + hex(check.mask) + ":" + hex(check.value);
             for (const auto& slot : step.slots)
                 out += " slot" + std::to_string(slot.offset) + ":" + slot.name;
+            if (!step.guard.empty())
+                out += " guard:" + step.guard;
             out += "]";
         }
         out += " |";

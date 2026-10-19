@@ -328,13 +328,13 @@ def check_decode_code(key, record):
 
 
 def _init_value_names(record):
-    """(names a record's initCode computes, value slot names its initValues uses)"""
+    """(names a record's initCode computes, value slot and guard names its initValues uses)"""
     import DeviceTypeGrammar
     init_code = record.get("initCode")
     code = init_code.get("c", "") if isinstance(init_code, dict) else (init_code or "")
     computed = set(re.findall(r"\binit\.([A-Za-z_][A-Za-z0-9_]*)", code))
-    slots = set(name for step in DeviceTypeGrammar.compile(record.get("initValues", ""), "init").steps
-                for _, name in step.slots)
+    steps = DeviceTypeGrammar.compile(record.get("initValues", ""), "init").steps
+    slots = set(name for step in steps for _, name in step.slots) | set(step.guard for step in steps if step.guard)
     return computed, slots
 
 
@@ -686,14 +686,14 @@ def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
     dev_types = OrderedDict()
     for key, record in result.records.items():
         compiled_record = compiled.get(key)
-        # Init values need compiled init code: a type file record may use value slots only when it overrides a
-        # compiled record whose initCode computes them (the device then uses that code)
+        # Init values need compiled init code: a type file record may use value slots or guards only when it
+        # overrides a compiled record whose initCode computes them (the device then uses that code)
         _, slots = _init_value_names(record)
         if slots or record.get("initCode"):
             compiled_computes = _init_value_names(compiled_record)[0] if compiled_record else set()
             missing = sorted(slots - compiled_computes)
             if missing or not compiled_computes:
-                raise AssembleError(f"typeFile \"{key}\": init values (initCode, {{name}} value slots) need init code "
+                raise AssembleError(f"typeFile \"{key}\": init values (initCode, {{name}} value slots, {{?name}} guards) need init code "
                                     f"compiled into the firmware - a compiled {key} whose initCode computes "
                                     f"{', '.join(missing) if missing else 'them'}")
         has_data = record.get("devInfoJson", {}).get("resp", {}).get("b", 0) > 0

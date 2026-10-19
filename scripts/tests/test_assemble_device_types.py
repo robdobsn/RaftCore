@@ -436,6 +436,24 @@ class AssembleTests(unittest.TestCase):
         run = self.run_generator({"Heater": self.init_code_record(code="init.heat=foo(1);")})
         self.assertIn("INIT CODE WARNING", run.stdout)
 
+    def test_generator_init_guards(self):
+        # A {?name} guard uses init values as a slot does: the values are computed before the first guarded step
+        rec = self.init_code_record(code="init.doIt=0;if(buf[0]!=2){init.doIt=1;}")
+        rec["initValues"] = "0x10=r1&0x11=r2&{?doIt}0x1202&0x13=r1"
+        run = self.run_generator({"Setter": rec})
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertNotIn("WARNING", run.stdout)
+        header = (self.tmp / "t.h").read_text()
+        self.assertIn("if ((readBufLen < 3) || (numValues < 1)) return false;", header)
+        self.assertIn('R"JSON(doIt)JSON"', header)
+        # A guard initCode doesn't compute, or with no initCode: errors
+        rec["initValues"] = "0x10=r1&{?other}0x1202"
+        run = self.run_generator({"Setter": rec})
+        self.assertIn("doesn't assign init.other", run.stderr)
+        del rec["initCode"]
+        run = self.run_generator({"Setter": rec})
+        self.assertIn("no initCode", run.stderr)
+
     def test_type_file_init_values(self):
         heater = self.init_code_record()
         self.write_records(self.raftcore / "devtypes" / "records", {"Heater": heater})

@@ -434,7 +434,31 @@ DeviceTypeGrammar::Result DeviceTypeGrammar::compile(const char* pStr, Field fie
 
         Step step;
         bool stepValid = true;
-        if ((eqPos == std::string::npos) && isPauseToken(name))
+
+        // Guard {?name} at the start of an init step
+        if ((name.length() >= 2) && (name[0] == '{') && (name[1] == '?'))
+        {
+            size_t end = name.find('}');
+            std::string guardName = (end == std::string::npos) ? "" : name.substr(2, end - 2);
+            if ((field != Field::Init) || !isSlotName(guardName))
+            {
+                ctx.issue(IssueCode::BadPlaceholder, namePos);
+                stepValid = false;
+            }
+            else
+            {
+                step.guard = guardName;
+                size_t restStart = name.find_first_not_of(" \t\r\n", end + 1);
+                namePos += (restStart == std::string::npos) ? name.length() : restStart;
+                name = (restStart == std::string::npos) ? "" : name.substr(restStart);
+            }
+        }
+
+        if (!stepValid)
+        {
+            // Bad guard (reported above)
+        }
+        else if ((eqPos == std::string::npos) && isPauseToken(name))
         {
             // A bare pause (C4)
             ctx.issue(IssueCode::BarePause, namePos);

@@ -395,9 +395,9 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         }
         maxRead = std::max(maxRead, largestRead(compiled));
 
-        // Init values ({name} value slots computed by initCode) need init code compiled into the firmware: the record
-        // must override a compiled record of the same key whose init code provides every slot's value (the override
-        // uses that code, as it inherits the decoder)
+        // Init values ({name} value slots and {?name} guards computed by initCode) need init code compiled into the
+        // firmware: the record must override a compiled record of the same key whose init code provides every value
+        // (the override uses that code, as it inherits the decoder)
         for (const DeviceTypeGrammar::Step& step : compiled.steps)
         {
             for (const DeviceTypeGrammar::Step::ValueSlot& slot : step.slots)
@@ -408,6 +408,12 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
                                 "compiled into the firmware (a compiled " + key + " record whose initCode computes it)");
                     return;
                 }
+            }
+            if (!step.guard.empty() && !compiledInitValueFor(table, key, step.guard.c_str()))
+            {
+                reject(result, key, "initValues guard {?" + String(step.guard.c_str()) + "} needs init code "
+                            "compiled into the firmware (a compiled " + key + " record whose initCode computes it)");
+                return;
             }
         }
     }

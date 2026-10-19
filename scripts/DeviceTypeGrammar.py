@@ -36,6 +36,7 @@ class Step:
         self.crc8w = False
         self.expr = False       # read length is an r{...} expression
         self.slots = []         # init: value slots in the write data, as (byte offset, name) - {name} placeholders
+        self.guard = ""         # init: {?name} at the start of the step - only done if that computed value isn't 0
 
     def to_dict(self):
         out = {"write": self.write.hex(), "read": self.read, "pause": self.pause}
@@ -47,6 +48,8 @@ class Step:
             out["expr"] = True
         if self.slots:
             out["slots"] = [f"{offset}:{name}" for offset, name in self.slots]
+        if self.guard:
+            out["guard"] = self.guard
         return out
 
 
@@ -378,7 +381,22 @@ def compile(command_str, field):
         name = stripped
         step = Step()
         step_valid = True
-        if eq_pos < 0 and _is_pause_token(name):
+        # Guard {?name} at the start of an init step
+        if name.startswith("{?"):
+            end = name.find("}")
+            guard_name = name[2:end] if end >= 0 else ""
+            if field != "init" or not _is_slot_name(guard_name):
+                ctx.issue("BadPlaceholder", name_pos)
+                step_valid = False
+            else:
+                step.guard = guard_name
+                rest = name[end + 1:]
+                stripped_rest = rest.lstrip(" \t\r\n")
+                name_pos += (end + 1 + len(rest) - len(stripped_rest)) if stripped_rest else len(name)
+                name = stripped_rest
+        if not step_valid:
+            pass    # bad guard (reported above)
+        elif eq_pos < 0 and _is_pause_token(name):
             ctx.issue("BarePause", name_pos)
             ms, _ = _strtol(name, 1)
             step_valid = _set_pause(step, ms, ctx, name_pos)

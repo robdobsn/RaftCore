@@ -424,26 +424,30 @@ void DeviceTypeRecords::getInitBusRequests(BusElemAddrType addr, DeviceTypeIndex
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Check whether an init step has value slots
-bool DeviceTypeRecords::initStepHasValueSlots(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx) const
+/// @brief Check whether an init step uses init values (value slots or a guard)
+bool DeviceTypeRecords::initStepUsesInitValues(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx) const
 {
     std::shared_ptr<const CompiledRecord> pCompiled = getCompiledRecord(deviceTypeIndex);
-    return pCompiled && (stepIdx < pCompiled->init.steps.size()) && !pCompiled->init.steps[stepIdx].slots.empty();
+    if (!pCompiled || (stepIdx >= pCompiled->init.steps.size()))
+        return false;
+    const DeviceTypeGrammar::Step& step = pCompiled->init.steps[stepIdx];
+    return !step.slots.empty() || !step.guard.empty();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get an init step's write data with its value slots filled in
+/// @brief Get an init step's write data with its value slots filled in, and whether its guard lets it run
 bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx, InitValueState& state,
-            std::vector<uint8_t>& writeData) const
+            std::vector<uint8_t>& writeData, bool& doStep) const
 {
     writeData.clear();
+    doStep = true;
     std::shared_ptr<const CompiledRecord> pCompiled = getCompiledRecord(deviceTypeIndex);
     const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
     if (!pCompiled || !pRec || (stepIdx >= pCompiled->init.steps.size()))
         return false;
     const DeviceTypeGrammar::Step& step = pCompiled->init.steps[stepIdx];
     writeData = step.write;
-    if (step.slots.empty())
+    if (step.slots.empty() && step.guard.empty())
         return true;
 
     // The value names, in the order the function writes them
@@ -464,7 +468,7 @@ bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, ui
     {
         if (!pRec->initValuesFn || names.empty())
         {
-            LOG_W(MODULE_PREFIX, "getInitStepWrite %s has value slots but no init values function", pRec->deviceType);
+            LOG_W(MODULE_PREFIX, "getInitStepWrite %s uses init values but has no init values function", pRec->deviceType);
             return false;
         }
         state.values.assign(names.size(), 0);
@@ -477,14 +481,31 @@ bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, ui
         state.computed = true;
     }
 
+    // Index of a value by name (-1 if not computed)
+    auto valueIdxOf = [&](const std::string& name) {
+        for (uint32_t i = 0; (i < names.size()) && (i < state.values.size()); i++)
+            if (names[i] == name.c_str())
+                return (int)i;
+        return -1;
+    };
+
+    // Guard
+    if (!step.guard.empty())
+    {
+        int valueIdx = valueIdxOf(step.guard);
+        if (valueIdx < 0)
+        {
+            LOG_W(MODULE_PREFIX, "getInitStepWrite %s guard {?%s} not computed", pRec->deviceType, step.guard.c_str());
+            return false;
+        }
+        doStep = state.values[valueIdx] != 0;
+    }
+
     // Fill in the slots
     for (const DeviceTypeGrammar::Step::ValueSlot& slot : step.slots)
     {
-        int valueIdx = -1;
-        for (uint32_t i = 0; i < names.size(); i++)
-            if (names[i] == slot.name.c_str())
-                valueIdx = i;
-        if ((valueIdx < 0) || (valueIdx >= (int)state.values.size()) || (slot.offset >= writeData.size()))
+        int valueIdx = valueIdxOf(slot.name);
+        if ((valueIdx < 0) || (slot.offset >= writeData.size()))
         {
             LOG_W(MODULE_PREFIX, "getInitStepWrite %s value slot {%s} not computed", pRec->deviceType, slot.name.c_str());
             return false;

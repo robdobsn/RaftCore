@@ -33,6 +33,8 @@ def canonical(result):
             out += f" {mask.hex()}:{value.hex()}"
         for offset, name in step.slots:
             out += f" slot{offset}:{name}"
+        if step.guard:
+            out += f" guard:{step.guard}"
         out += "]"
     out += " |"
     for code, pos in result.issues:
@@ -50,10 +52,11 @@ class GrammarTests(unittest.TestCase):
                 result = DeviceTypeGrammar.compile(vec["str"], vec["field"])
                 self.assertEqual([code for code, _ in result.issues], vec["issues"])
                 expected = [dict(step, checks=step.get("checks", []) or [], crc8w=step.get("crc8w", False),
-                                 expr=step.get("expr", False), slots=step.get("slots", [])) for step in vec["steps"]]
+                                 expr=step.get("expr", False), slots=step.get("slots", []), guard=step.get("guard", ""))
+                            for step in vec["steps"]]
                 got = [{"write": s.write.hex(), "read": s.read, "pause": s.pause,
                         "checks": [m.hex() + ":" + v.hex() for m, v in s.checks], "crc8w": s.crc8w, "expr": s.expr,
-                        "slots": [f"{offset}:{name}" for offset, name in s.slots]}
+                        "slots": [f"{offset}:{name}" for offset, name in s.slots], "guard": s.guard}
                        for s in result.steps]
                 for e in expected:
                     e.setdefault("checks", [])
@@ -76,7 +79,7 @@ class GrammarTests(unittest.TestCase):
         rng = random.Random(4321)
         alphabet = "0123456789abcdefABCDEFxXbBpPrR=&;, {}$.:wmask*"
         tokens = ["0x", "0b", "=", "&", ";", ",", "p10", "r2", "0x0f", "0b1x0x", "=p25", "r{$0.w12:max8}", ":crc8w",
-                  " ", "r{$1[2].W8:mask0F*2+1:max64}", "p70000", "r99999"]
+                  " ", "r{$1[2].W8:mask0F*2+1:max64}", "p70000", "r99999", "{?g}", "{v}", "{?"]
         cases = []
         for _ in range(30000):
             s = ""

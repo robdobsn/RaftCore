@@ -457,24 +457,25 @@ static void testInitValues()
         // Find the value slot step; the steps before it are unchanged
         std::shared_ptr<const DeviceTypeRecords::CompiledRecord> pCompiled = deviceTypeRecords.getCompiledRecord(idx);
         uint32_t slotStep = 0;
-        while ((slotStep < pCompiled->init.steps.size()) && !deviceTypeRecords.initStepHasValueSlots(idx, slotStep))
+        while ((slotStep < pCompiled->init.steps.size()) && !deviceTypeRecords.initStepUsesInitValues(idx, slotStep))
             slotStep++;
         TEST_ASSERT(slotStep < pCompiled->init.steps.size(), "a step has a value slot");
         DeviceTypeRecords::InitValueState state;
         std::vector<uint8_t> write;
-        TEST_ASSERT(deviceTypeRecords.getInitStepWrite(idx, 0, state, write) && (write == pCompiled->init.steps[0].write),
-                    "a step without slots is written as compiled");
+        bool doStep = false;
+        TEST_ASSERT(deviceTypeRecords.getInitStepWrite(idx, 0, state, write, doStep) && doStep &&
+                    (write == pCompiled->init.steps[0].write), "a step without slots is written as compiled");
 
         // Too few bytes read: the values can't be computed
         DeviceTypeRecords::InitValueState shortState;
         DeviceTypeRecords::noteInitStepRead(shortState, c.read0xEB);
-        TEST_ASSERT(!deviceTypeRecords.getInitStepWrite(idx, slotStep, shortState, write), "too few bytes read fails");
+        TEST_ASSERT(!deviceTypeRecords.getInitStepWrite(idx, slotStep, shortState, write, doStep), "too few bytes read fails");
 
         // The calibration read: the heater set-point is computed and written
         DeviceTypeRecords::noteInitStepRead(state, c.read0xEB);
         DeviceTypeRecords::noteInitStepRead(state, c.read0x00);
-        bool ok = deviceTypeRecords.getInitStepWrite(idx, slotStep, state, write);
-        TEST_ASSERT(ok && (write.size() == 2) && (write[0] == 0x5a) && (write[1] == c.expected), "heater set-point written");
+        bool ok = deviceTypeRecords.getInitStepWrite(idx, slotStep, state, write, doStep);
+        TEST_ASSERT(ok && doStep && (write.size() == 2) && (write[0] == 0x5a) && (write[1] == c.expected), "heater set-point written");
         printf("  %s: res_heat_0 = 0x%02x (expected 0x%02x)\n", c.key, write.size() > 1 ? write[1] : 0, c.expected);
 
         // Bytes read after the values are computed aren't kept
@@ -483,12 +484,77 @@ static void testInitValues()
     }
 }
 
+// Init guards: a {?name} step is only done if initCode's value isn't 0. The SCD30 record reads its measurement interval
+// and ASC setting and writes each (to the sensor's non-volatile memory) only if it differs from what the record sets
+static void testInitGuards()
+{
+    printf("Running testInitGuards...\n");
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    const DeviceTypeRecord* pRec = deviceTypeRecords.getRecord("SCD30", idx);
+    if (!pRec)
+    {
+        fail("SCD30", "record not built in");
+        return;
+    }
+    std::shared_ptr<const DeviceTypeRecords::CompiledRecord> pCompiled = deviceTypeRecords.getCompiledRecord(idx);
+    int intervalStep = -1, ascStep = -1;
+    for (uint32_t i = 0; i < pCompiled->init.steps.size(); i++)
+    {
+        if (pCompiled->init.steps[i].guard == "setInterval")
+            intervalStep = i;
+        if (pCompiled->init.steps[i].guard == "setAsc")
+            ascStep = i;
+    }
+    TEST_ASSERT((intervalStep >= 0) && (ascStep > intervalStep), "guarded interval and ASC steps");
+    if ((intervalStep < 0) || (ascStep < 0))
+        return;
+    TEST_ASSERT(deviceTypeRecords.initStepUsesInitValues(idx, intervalStep) && !deviceTypeRecords.initStepUsesInitValues(idx, 0),
+                "only guarded steps use init values");
+
+    struct Case
+    {
+        const char* what;
+        std::vector<uint8_t> interval;      // word + CRC read from 0x4600
+        std::vector<uint8_t> asc;           // word + CRC read from 0x5306
+        bool expectInterval;
+        bool expectAsc;
+    };
+    const Case cases[] = {
+        {"settings already as set: no writes", {0x00, 0x02, 0xe3}, {0x00, 0x00, 0x81}, false, false},
+        {"interval 5 s: interval written", {0x00, 0x05, 0x74}, {0x00, 0x00, 0x81}, true, false},
+        {"ASC on: ASC written", {0x00, 0x02, 0xe3}, {0x00, 0x01, 0xb0}, false, true},
+        {"read garbage: both written", {0xff, 0xff, 0xff}, {0xff, 0xff, 0xff}, true, true},
+    };
+    for (const Case& c : cases)
+    {
+        DeviceTypeRecords::InitValueState state;
+        DeviceTypeRecords::noteInitStepRead(state, {0x03, 0x42, 0xf3});     // firmware version
+        DeviceTypeRecords::noteInitStepRead(state, c.interval);
+        DeviceTypeRecords::noteInitStepRead(state, c.asc);
+        std::vector<uint8_t> write;
+        bool doInterval = false, doAsc = false;
+        bool ok = deviceTypeRecords.getInitStepWrite(idx, intervalStep, state, write, doInterval);
+        TEST_ASSERT(ok && (write == pCompiled->init.steps[intervalStep].write), "guarded step written as compiled");
+        ok = ok && deviceTypeRecords.getInitStepWrite(idx, ascStep, state, write, doAsc);
+        TEST_ASSERT(ok && (doInterval == c.expectInterval) && (doAsc == c.expectAsc), c.what);
+        printf("  %s: interval %s, ASC %s\n", c.what, doInterval ? "written" : "skipped", doAsc ? "written" : "skipped");
+    }
+
+    // Too few bytes read: init fails rather than guessing
+    DeviceTypeRecords::InitValueState shortState;
+    DeviceTypeRecords::noteInitStepRead(shortState, {0x03, 0x42, 0xf3, 0x00, 0x02, 0xe3});
+    std::vector<uint8_t> write;
+    bool doStep = true;
+    TEST_ASSERT(!deviceTypeRecords.getInitStepWrite(idx, intervalStep, shortState, write, doStep), "too few bytes read fails");
+}
+
 int main(int argc, char** argv)
 {
     testExplicitCases();
     testPollInfoDefaults();
     testBuiltInRecords();
     testInitValues();
+    testInitGuards();
     for (int i = 1; i < argc; i++)
         testCatalogueFile(argv[i]);
 

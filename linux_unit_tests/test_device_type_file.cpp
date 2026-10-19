@@ -658,6 +658,30 @@ static void testInitValuesInTypeFile()
         TEST_ASSERT((result.rejected == 1) && result.firstError.startsWith("NewDev: initCode needs"),
                     ("initCode for a new key rejected: " + std::string(result.firstError.c_str())).c_str());
     }
+    const char* scdBody = R"("addresses":"0x61","detectionValues":"",)"
+                R"("initValues":"0x4600=p5&=r3&0x5306=p5&=r3&{?setInterval}0x46000002e3=p10&{?setAsc}0x5306000081",)"
+                R"("pollInfo":{"c":"0x0300=p5&=r18","i":5000,"s":1},)"
+                R"("devInfoJson":{"name":"SCD30 override","type":"SCD30","resp":{"b":18,"a":[]}})";
+    {
+        // Guards overriding SCD30 (compiled with initCode computing them): accepted, using the compiled code
+        DeviceTypeRecords table;
+        DeviceTypeIndexType baseIdx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pBase = table.getRecord("SCD30", baseIdx);
+        DeviceTypeFileLoader::Result result = applyFile(table, std::string(R"({"devTypes":{"SCD30":{)") + scdBody + "}}}");
+        TEST_ASSERT((result.replaced == 1) && (result.rejected == 0),
+                    ("override with guards accepted: " + std::string(result.firstError.c_str())).c_str());
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        const DeviceTypeRecord* pRec = table.getRecord("SCD30", idx);
+        TEST_ASSERT(pRec && pBase && pBase->initValuesFn && (pRec->initValuesFn == pBase->initValuesFn),
+                    "guard override uses the compiled init code");
+    }
+    {
+        // A guard on a new key: no compiled init code - rejected
+        DeviceTypeRecords table;
+        DeviceTypeFileLoader::Result result = applyFile(table, std::string(R"({"devTypes":{"NewCO2":{)") + scdBody + "}}}");
+        TEST_ASSERT((result.rejected == 1) && result.firstError.startsWith("NewCO2: initValues guard {?setInterval}"),
+                    ("guard without compiled init code rejected: " + std::string(result.firstError.c_str())).c_str());
+    }
 }
 
 int main(int argc, char** argv)
