@@ -117,7 +117,7 @@ Date: 2026-10-18.
 
 **SCD30, verified on Axiom018 (2026-10-19), record unchanged:**
 - Not seen at first on slot 4 (no ACK at any address); seen after the board was reseated, identified at 0x461 (see SEL below).
-- Firmware 3.66. After init: interval 2 s, ASC off (as the record writes them); temperature offset 4.00 °C (0x0190, the unit's stored value).
+- Firmware 3.66. After init: interval 2 s, ASC off (as the record writes them); temperature offset 0 (0x5403); forced-recalibration reference 400 ppm (0x5204).
 - Polls every 5 s, none missed; 10 re-identifications kept the type.
 - Readings: 1264-1333 ppm, 26.2 °C, 52 % RH.
 - **Reading before data is ready** returns 0xFFFF words, which decode as NaN. The poll doesn't check the ready flag, so this only happens if something else reads the measurement first (as a manual `cmdraw` does) or the first poll comes within 2 s of init.
