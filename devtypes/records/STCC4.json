@@ -5,7 +5,7 @@
     "initValues": "0x218b=",
     "pollInfo": {
         "c": "0xec05=p1&=r12",
-        "i": 1000,
+        "i": 1500,
         "s": 1
     },
     "scanPriority": "high",
