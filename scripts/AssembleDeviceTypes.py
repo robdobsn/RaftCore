@@ -680,7 +680,10 @@ def _response_layout(record):
 def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
     """A device type file from an assembled typeFile selection
     result: the Assembly of the typeFile section; compiled: the records compiled into the firmware (key -> record)
-    Returns (file text, entries) - entries: [{key, kind: new | override | unchanged | policy, noDecoder}]. Unchanged
+    Returns (file text, entries) - entries: [{key, kind: new | override | unchanged | policy, noDecoder, decoder}].
+    noDecoder: the record has no compiled decoder (a new key, or an override whose response layout changed); decoder
+    then says what decodes it on the device: "runtime" (from its attributes, in firmware built with
+    RAFT_RUNTIME_DECODE - the default) or "none" (custom decode code, which needs the code interpreter). Unchanged
     records (identical to the compiled one) are left out of the file"""
     entries = []
     dev_types = OrderedDict()
@@ -709,6 +712,7 @@ def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
         entry = OrderedDict([("key", key), ("kind", kind)])
         if no_decoder:
             entry["noDecoder"] = True
+            entry["decoder"] = "none" if "c" in record.get("devInfoJson", {}).get("resp", {}) else "runtime"
         entries.append(entry)
         dev_types[key] = _without_notes(record)
     for key, policy in result.policy_only.items():
@@ -874,15 +878,20 @@ def main(argv=None):
                 write_if_changed(args.lock, result.lock_text)
             counts = OrderedDict((kind, sum(1 for e in entries if e["kind"] == kind))
                                  for kind in ("new", "override", "unchanged", "policy"))
-            no_decoder = [e["key"] for e in entries if e.get("noDecoder")]
+            runtime_decoded = [e["key"] for e in entries if e.get("decoder") == "runtime"]
+            no_decoder = [e["key"] for e in entries if e.get("decoder") == "none"]
             print(f"Type file {args.out}: {len(text)} bytes (limit {args.max_bytes}); " +
                   ", ".join(f"{n} {kind}" for kind, n in counts.items()) +
                   (" (unchanged records are left out)" if counts["unchanged"] else ""))
             for entry in entries:
-                print(f"  {entry['key']:28} {entry['kind']}{' - no on-device decoder' if entry.get('noDecoder') else ''}")
+                note = {"runtime": " - decoded at runtime", "none": " - no on-device decoder"}.get(entry.get("decoder"), "")
+                print(f"  {entry['key']:28} {entry['kind']}{note}")
+            if runtime_decoded:
+                print("No compiled decoder - decoded on the device from their attributes if the firmware has runtime "
+                      "decoding (RAFT_RUNTIME_DECODE, the default): " + ", ".join(runtime_decoded))
             if no_decoder:
-                print("No on-device decoder (DataLogger, RaftROS and named values won't decode them; raftjs and the WebUI "
-                      "will): " + ", ".join(no_decoder))
+                print("No on-device decoder - custom decode code needs the code interpreter (DataLogger, RaftROS and "
+                      "named values won't decode them; raftjs and the WebUI will): " + ", ".join(no_decoder))
             if args.report:
                 write_if_changed(args.report, json.dumps(OrderedDict([("file", os.path.abspath(args.out)),
                                  ("bytes", len(text)), ("maxBytes", args.max_bytes), ("entries", entries)]), indent=1) + "\n")

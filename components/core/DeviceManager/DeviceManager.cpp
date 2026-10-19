@@ -1231,6 +1231,7 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
         else
             extras = "\"dtIdx\":" + String((int)resolvedTypeIndex);
         appendDeviceTypeKey(extras, resolvedTypeIndex);
+        appendDecoderKind(extras, resolvedTypeIndex);
         String name = lookupDeviceName(deviceID);
         if (name.length() > 0)
             RaftJson::appendStringField(extras, "name", name.c_str());
@@ -1258,11 +1259,26 @@ RaftRetCode DeviceManager::apiDevManTypeInfo(const String &reqStr, String &respS
 
     String extras = "\"devinfo\":" + devInfo + ",\"dtIdx\":" + String(deviceTypeIndex);
     appendDeviceTypeKey(extras, deviceTypeIndex);
+    appendDecoderKind(extras, deviceTypeIndex);
     // The record in the type file format (so it can be copied into a type file)
     if (jsonParams.getBool("full", false) && deviceTypeRecords.getRecord(deviceTypeIndex))
         extras += ",\"record\":{" + DeviceTypeFileLoader::recordToFileEntry(*deviceTypeRecords.getRecord(deviceTypeIndex),
                     deviceTypeRecords.getPolicy(deviceTypeIndex)) + "}";
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, extras.c_str());
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Append the "decoder" field for a device type index: where its on-device poll decoder comes from -
+///        "compiled", "runtime" (made from its attributes, RAFT_RUNTIME_DECODE) or "none" (only clients decode its
+///        data). Nothing is appended if there is no record
+/// @param jsonFields (in/out) JSON fields (without braces) to append to
+/// @param deviceTypeIndex device type index
+void DeviceManager::appendDecoderKind(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const
+{
+    if (!deviceTypeRecords.getRecord(deviceTypeIndex))
+        return;
+    RaftJson::appendStringField(jsonFields, "decoder",
+                DeviceTypeRecords::getDecoderKindStr(deviceTypeRecords.getDecoderKind(deviceTypeIndex)));
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,7 @@
 #include "RaftThreading.h"
 #include "CatalogueIndex.h"
 #include "DeviceTypeGrammar.h"
+#include "DeviceTypeRuntimeDecoder.h"
 #include <atomic>
 #include <memory>
 #include <string>
@@ -371,6 +372,21 @@ public:
     /// @return poll decode function
     DeviceTypeRecordDecodeFn getPollDecodeFn(uint16_t deviceTypeIndex) const;
 
+    // Where a record's poll decoder comes from: compiled into the firmware (generated, or inherited by an override
+    // with the same response layout), made at runtime from its attribute list (RAFT_RUNTIME_DECODE), or none
+    enum class DecoderKind : uint8_t
+    {
+        None,
+        Compiled,
+        Runtime,
+    };
+
+    /// @brief Get where a record's poll decoder comes from
+    DecoderKind getDecoderKind(DeviceTypeIndexType deviceTypeIndex) const;
+
+    /// @brief Name of a decoder kind ("compiled", "runtime" or "none")
+    static const char* getDecoderKindStr(DecoderKind kind);
+
 private:
     // Extended records are added at runtime. Each is one packed allocation (DeviceTypeRecordPacked) that never
     // changes or moves, so pointers to it stay valid. _extRecords is a fixed array of pointers (allocated when
@@ -411,6 +427,10 @@ private:
     std::atomic<const DeviceTypeRecord* const*> _baseOverrides{nullptr};
     const DeviceTypeRecord** _baseOverridesStore = nullptr;
     std::vector<const DeviceTypeRecord*> _retiredRecords;
+
+    // Runtime decoders made for records with no compiled decoder (RAFT_RUNTIME_DECODE), owned here, under the mutex
+    std::vector<DeviceTypeRuntimeDecoder*> _runtimeDecoders;
+    void attachRuntimeDecoderLocked(DeviceTypeRecord* pRec);
     std::atomic<bool> _ready{false};
     AddResult replaceBaseRecord(DeviceTypeIndexType baseIdx, const DeviceTypeRecordDynamic& devTypeRec);
     static bool sameResponseLayout(const char* pDevInfoA, const char* pDevInfoB);

@@ -318,7 +318,14 @@ static void testCheckJson()
     DeviceTypeFileLoader::checkJson(live, fileKeys, checked.c_str(), DeviceTypeFileLoader::Limits(), result);
     using O = DeviceTypeFileLoader::Outcome;
     const auto* pAlpha = findOutcome(result, "Alpha");
-    TEST_ASSERT(pAlpha && (pAlpha->outcome == O::Added) && pAlpha->noDecoder, "a record from the current file is added again (no decoder)");
+    // With runtime decoding built in, a record with no compiled decoder gets one from its attributes
+#ifdef RAFT_RUNTIME_DECODE
+    const bool NO_DECODER_WITHOUT_COMPILED = false;
+#else
+    const bool NO_DECODER_WITHOUT_COMPILED = true;
+#endif
+    TEST_ASSERT(pAlpha && (pAlpha->outcome == O::Added) && (pAlpha->noDecoder == NO_DECODER_WITHOUT_COMPILED),
+                "a record from the current file is added again (decoder only at runtime)");
     const auto* pMcp = findOutcome(result, "MCP9808");
     TEST_ASSERT(pMcp && (pMcp->outcome == O::Replaced) && !pMcp->noDecoder, "override of a compiled record, decoder kept (same layout)");
     const auto* pCode = findOutcome(result, "CodeRec");
@@ -342,7 +349,8 @@ static void testCheckJson()
     DeviceTypeFileLoader::checkJson(live, fileKeys, (std::string("{\"devTypes\":{") + mcpNewLayout.c_str() + "}}").c_str(),
                 DeviceTypeFileLoader::Limits(), layout);
     const auto* pLayout = findOutcome(layout, "MCP9808");
-    TEST_ASSERT(pLayout && (pLayout->outcome == O::Replaced) && pLayout->noDecoder, "override with a new layout: no decoder");
+    TEST_ASSERT(pLayout && (pLayout->outcome == O::Replaced) && (pLayout->noDecoder == NO_DECODER_WITHOUT_COMPILED),
+                "override with a new layout: compiled decoder not inherited (runtime decoder if built in)");
 
     // The device's table is unchanged
     DeviceTypeRecords::ExtendedRecordStats statsAfter = live.getExtendedRecordStats();

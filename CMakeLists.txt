@@ -121,6 +121,7 @@ idf_component_register(
     "components/core/DeviceTypes/DeviceTypeRecords.cpp"
     "components/core/DeviceTypes/DeviceTypeGrammar.cpp"
     "components/core/DeviceTypes/DeviceTypeFileLoader.cpp"
+    "components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
@@ -213,6 +214,20 @@ idf_component_register(
 
 if(NOT CMAKE_SCRIPT_MODE_FILE)
   target_compile_definitions(${COMPONENT_LIB} PRIVATE ${RAFT_CORE_COMPILE_DEFINITIONS})
+
+  # Runtime decoding of device type records with no compiled decoder (a record from a device type file, or one
+  # registered by code), so on-device users of decoded data (DataLogger, RaftROS, named values) work for them too.
+  # Included unless the project sets RAFT_RUNTIME_DECODE OFF in features.cmake - e.g. a small board whose data is
+  # only decoded by its subscribers. RAFT_RUNTIME_DECODE_CODE adds the interpreter for records with custom decode
+  # code (resp.c) - not yet implemented, so OFF unless set
+  if(NOT DEFINED RAFT_RUNTIME_DECODE OR RAFT_RUNTIME_DECODE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE)
+    if(DEFINED RAFT_RUNTIME_DECODE_CODE AND RAFT_RUNTIME_DECODE_CODE)
+      target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE_CODE)
+    endif()
+  else()
+    message(STATUS "RaftCore: runtime decoding not included (RAFT_RUNTIME_DECODE OFF)")
+  endif()
 
   # DeviceManager (devices, buses, device type records and the devman/* endpoints) is included unless the
   # project sets RAFT_DEVICE_MANAGER OFF (e.g. set(RAFT_DEVICE_MANAGER OFF) in features.cmake). Without it the

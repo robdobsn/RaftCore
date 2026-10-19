@@ -126,6 +126,7 @@ set(RAFTCORE_SOURCES
     ${raftcore_SOURCE_DIR}/components/core/Utils/PlatformUtils.cpp
     ${raftcore_SOURCE_DIR}/components/core/Bus/RaftBusSystem.cpp
     ${raftcore_SOURCE_DIR}/components/core/DeviceTypes/DeviceTypeRecords.cpp
+    ${raftcore_SOURCE_DIR}/components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp
     ${raftcore_SOURCE_DIR}/components/core/MiniHDLC/MiniHDLC.cpp
     ${raftcore_SOURCE_DIR}/components/core/FileSystem/FileSystem.cpp
     ${raftcore_SOURCE_DIR}/components/core/FileSystem/FileSystemChunker.cpp
@@ -192,6 +193,9 @@ set(RAFTCORE_INCLUDES
 
 add_library(RaftCoreLinux STATIC ${RAFTCORE_SOURCES})
 target_include_directories(RaftCoreLinux PUBLIC ${RAFTCORE_INCLUDES})
+if(NOT DEFINED RAFT_RUNTIME_DECODE OR RAFT_RUNTIME_DECODE)
+    target_compile_definitions(RaftCoreLinux PRIVATE RAFT_RUNTIME_DECODE)
+endif()
 add_dependencies(RaftCoreLinux GenerateSysTypeInfoRecs)
 
 ################################################

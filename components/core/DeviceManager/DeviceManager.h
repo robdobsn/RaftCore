@@ -283,6 +283,7 @@ private:
     /// @brief Append the "deviceTypeKey" field for a device type index (nothing is appended if there is no record)
     /// @param jsonFields (in/out) JSON fields (without braces) to append to
     /// @param deviceTypeIndex device type index
+    void appendDecoderKind(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const;
     void appendDeviceTypeKey(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const;
 
     /// @brief Get the device type a request names: deviceTypeIndex=<n>, deviceTypeKey=<key>, or type=<key or index>

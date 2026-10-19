@@ -18,6 +18,7 @@
 
 import io
 import json
+from collections import OrderedDict
 import os
 import pathlib
 import shutil
@@ -277,7 +278,17 @@ class AssembleTests(unittest.TestCase):
         content["typeFile"] = {"include": ["layout:Charlie"]}
         pathlib.Path(sel).write_text(json.dumps(content))
         text, entries = A.build_type_file(self.assemble(sel, section="typeFile"), self.assemble(sel).records)
-        self.assertEqual(entries, [{"key": "Charlie", "kind": "override", "noDecoder": True}])
+        self.assertEqual(entries, [{"key": "Charlie", "kind": "override", "noDecoder": True, "decoder": "runtime"}])
+
+    def test_type_file_decoder_kinds(self):
+        # A record with no compiled decoder: decoded at runtime from its attributes, unless it has custom decode code
+        import types
+        std = record("0x30", name="Std")
+        code = record("0x31", name="Code")
+        code["devInfoJson"]["resp"]["c"] = {"n": "f", "c": "out.v=buf[0];"}
+        result = types.SimpleNamespace(records=OrderedDict([("Std", std), ("Code", code)]), policy_only=OrderedDict())
+        _, entries = A.build_type_file(result, {})
+        self.assertEqual({e["key"]: e.get("decoder") for e in entries}, {"Std": "runtime", "Code": "none"})
 
     def test_type_file_errors(self):
         sel = self.type_file_setup()
@@ -307,7 +318,7 @@ class AssembleTests(unittest.TestCase):
                                      "--report", str(report)]), 0)
         self.assertEqual(list(json.loads(out.read_text())["devTypes"]), ["Bravo", "Charlie", "Echo"])
         self.assertIn("1 new, 1 override, 1 unchanged, 1 policy", stdout.getvalue())
-        self.assertIn("No on-device decoder", stdout.getvalue())
+        self.assertIn("No compiled decoder - decoded on the device from their attributes", stdout.getvalue())
         info = json.loads(report.read_text())
         self.assertEqual(info["bytes"], len(out.read_text()))
         # --compiled: the compiled records given as a catalogue file

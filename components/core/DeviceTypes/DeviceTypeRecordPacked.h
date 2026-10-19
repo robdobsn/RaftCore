@@ -86,7 +86,9 @@ public:
                 strEq(packed.pollInfo, src.pollInfo.c_str()) &&
                 strEq(packed.devInfoJson, src.devInfoJson.c_str()) &&
                 (packed.pollDataSizeBytes == src.pollDataSizeBytes) &&
-                (packed.pollResultDecodeFn == src.pollResultDecodeFn) &&
+                // A record given no decode function may have one attached (inherited from the base record, or
+                // made at runtime) - that is still the same record
+                (!src.pollResultDecodeFn || (packed.pollResultDecodeFn == src.pollResultDecodeFn)) &&
                 (packed.scanPriority == src.scanPriority) && (packed.flags == src.flags) &&
                 (packed.identPriority == src.identPriority) && (packed.hwTypeId == src.hwTypeId) &&
                 (packed.initialPolicy == src.initialPolicy);

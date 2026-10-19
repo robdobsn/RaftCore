@@ -56,6 +56,8 @@ DeviceTypeRecords::~DeviceTypeRecords()
     }
     for (const DeviceTypeRecord* pRec : _retiredRecords)
         DeviceTypeRecordPacked::destroy(pRec);
+    for (DeviceTypeRuntimeDecoder* pDecoder : _runtimeDecoders)
+        delete pDecoder;
 
     // Delete mutex
     RaftMutex_destroy(_extRecordsMutex);
@@ -926,13 +928,17 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
         }
         else
         {
-            const DeviceTypeRecord* pRec = DeviceTypeRecordPacked::create(devTypeRec);
+            DeviceTypeRecord* pRec = const_cast<DeviceTypeRecord*>(DeviceTypeRecordPacked::create(devTypeRec));
             if (!pRec)
             {
                 result = AddResult::Full;
             }
             else
             {
+                // A record with no compiled decoder gets one made from its attribute list (if built in)
+                if (!pRec->pollResultDecodeFn)
+                    attachRuntimeDecoderLocked(pRec);
+
                 // Store the record, keep the key index sorted, then publish the new count
                 _extRecords[count] = pRec;
                 _extBytesUsed += recBytes;
@@ -1021,6 +1027,10 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::replaceBaseRecord(DeviceTypeInde
         pRec->pollFieldCount = baseRec.pollFieldCount;
         pRec->pollStructSize = baseRec.pollStructSize;
     }
+
+    // Otherwise make a decoder from the attribute list (if built in)
+    if (!pRec->pollResultDecodeFn)
+        attachRuntimeDecoderLocked(pRec);
 
     // Inherit the init values function (a type file can't carry compiled init code; the loader checks the base record
     // computes every value slot the override uses)
@@ -1345,4 +1355,62 @@ DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(DeviceTypeIndexType 
 {
     const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
     return pRec ? pRec->pollResultDecodeFn : nullptr;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Make a runtime decoder for a record with no compiled decoder, from its attribute list, and attach it
+///        (pollResultDecodeFn, pollFieldDescs, pollFieldCount, pollStructSize). Assumes the mutex is held
+/// @note without RAFT_RUNTIME_DECODE no decoder is made. A record with nothing to decode (no response data) gets
+///       none; a record that can't be decoded at runtime (custom decode code, or an attribute the build couldn't
+///       decode) is logged
+void DeviceTypeRecords::attachRuntimeDecoderLocked(DeviceTypeRecord* pRec)
+{
+#ifdef RAFT_RUNTIME_DECODE
+    if (!pRec || pRec->pollResultDecodeFn || !pRec->devInfoJson || (pRec->pollDataSizeBytes == 0))
+        return;
+    String problem;
+    DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem);
+    if (!pDecoder)
+    {
+        LOG_W(MODULE_PREFIX, "%s has no on-device decoder: %s", pRec->deviceType ? pRec->deviceType : "?", problem.c_str());
+        return;
+    }
+    _runtimeDecoders.push_back(pDecoder);
+    pRec->pollResultDecodeFn = pDecoder->getDecodeFn();
+    pRec->pollFieldDescs = pDecoder->getFieldDescs();
+    pRec->pollFieldCount = pDecoder->getFieldCount();
+    pRec->pollStructSize = pDecoder->getStructSize();
+#else
+    (void)pRec;
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get where a record's poll decoder comes from
+DeviceTypeRecords::DecoderKind DeviceTypeRecords::getDecoderKind(DeviceTypeIndexType deviceTypeIndex) const
+{
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    if (!pRec || !pRec->pollResultDecodeFn)
+        return DecoderKind::None;
+    DecoderKind kind = DecoderKind::Compiled;
+    if (RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        for (const DeviceTypeRuntimeDecoder* pDecoder : _runtimeDecoders)
+            if (pDecoder->getDecodeFn() == pRec->pollResultDecodeFn)
+                kind = DecoderKind::Runtime;
+        RaftMutex_unlock(_extRecordsMutex);
+    }
+    return kind;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Name of a decoder kind
+const char* DeviceTypeRecords::getDecoderKindStr(DecoderKind kind)
+{
+    switch (kind)
+    {
+        case DecoderKind::Compiled: return "compiled";
+        case DecoderKind::Runtime: return "runtime";
+        default: return "none";
+    }
 }

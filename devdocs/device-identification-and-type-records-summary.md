@@ -68,7 +68,7 @@ All existing APIs, data and the devbin stream are unchanged; old names are kept 
 - Board tuning no longer needs record copies.
 - Type files are checked by the firmware's own rules before they are applied, can't brick identification, and can be pushed from the command line or shipped in a factory flash.
 
-The "all records at runtime" setup is in place but needs the on-device decoder (D11, decision M8) to be fully useful.
+The "all records at runtime" setup is in place. Records with standard attributes are decoded on the device at runtime (D11 option 1, `runtime-decoding.md`); records with custom decode code wait for the code interpreter (option 2).
 
 ## 4. Verification
 
@@ -84,7 +84,7 @@ The "all records at runtime" setup is in place but needs the on-device decoder (
 ## 5. Not done, or still open
 
 - Identification Stage 12: improvements to individual records (detection for 12 records, shadowing checks, ST time-of-flight records). This needs the devices on hardware.
-- D11, the on-device decoder, for builds with all records at runtime (review M8 first).
+- D11 option 2: the code interpreter for records with custom decode code (`runtime-decoding.md` §5). Option 1, attribute decoding, is done.
 - Other runtime routes for type files: SD, a single record over REST, BLE from an app.
 - RaftCLI native transports (serial, WebSocket, BLE): planned in RaftCLI `devdocs/native-transports-plan.md`.
 - Pull requests for all branches; wiki changes pushed when they merge.

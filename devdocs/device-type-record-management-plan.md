@@ -316,7 +316,7 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 | M5 | Record order | **`identPriority`, strength, then key; position never matters** (decided 2026-10-17) |
 | M6 | Same key from two non-local sources | **An error unless `include` names the source** (decided 2026-10-17) |
 | M7 | Check on the device before applying? | **Yes, `devman/typefile/check`** (additive endpoint) (decided 2026-10-17) |
-| M8 | Schedule D11 (on-device decoder from the attribute list)? | Kept in the plan (phase 5); **reviewed before any work starts** (2026-10-17). Needed for the all-runtime setup |
+| M8 | Schedule D11 (on-device decoder from the attribute list)? | Kept in the plan (phase 5); **reviewed before any work starts** (2026-10-17). Needed for the all-runtime setup. **2026-10-19:** both options approved; option 1 (attributes) done, option 2 (code interpreter) next - `runtime-decoding.md` |
 | M10 | Board and product choices (bus speed, poll interval and samples, sample rate, scan priority) | **In DevMan `typeSettings` in the SysType's configuration, applied when a device of the type is identified, under the device's own settings** (decided 2026-10-17) |
 | M11 | Keep `busHz`/`busHzSlots` in records? | **No** - removed, with a warning for a record that still has them (decided 2026-10-17; only Axiom used them) |
 | M12 | `maxBusHz` in the record | Later (decided 2026-10-17) |
