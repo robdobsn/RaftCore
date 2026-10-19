@@ -760,46 +760,49 @@ private:
         return n;
     }
 
-    template <typename NEXT>
-    int32_t binaryLevel(NEXT next, const std::vector<std::pair<const char*, uint8_t>>& ops)
+    // Binary operators by precedence climbing (one function for every level, so nesting costs little stack): the
+    // C precedence of an operator token, or 0 if the token isn't a binary operator
+    static uint8_t binaryPrecedence(const Token& t, uint8_t& op)
     {
-        int32_t lhs = (this->*next)();
+        static const struct { const char* punct; uint8_t prec; uint8_t op; } OPS[] = {
+            {"||", 1, OP_LOR}, {"&&", 2, OP_LAND}, {"|", 3, OP_OR}, {"^", 4, OP_XOR}, {"&", 5, OP_AND},
+            {"==", 6, OP_EQ}, {"!=", 6, OP_NE}, {"<", 7, OP_LT}, {"<=", 7, OP_LE}, {">", 7, OP_GT}, {">=", 7, OP_GE},
+            {"<<", 8, OP_SHL}, {">>", 8, OP_SHR}, {"+", 9, OP_ADD}, {"-", 9, OP_SUB},
+            {"*", 10, OP_MUL}, {"/", 10, OP_DIV}, {"%", 10, OP_MOD},
+        };
+        if (t.kind != Tok::Punct)
+            return 0;
+        for (const auto& entry : OPS)
+        {
+            if (t.text == entry.punct)
+            {
+                op = entry.op;
+                return entry.prec;
+            }
+        }
+        return 0;
+    }
+
+    // Operators of precedence minPrec and above, left associative
+    int32_t binaryExpr(uint8_t minPrec)
+    {
+        int32_t lhs = unary();
         while ((lhs >= 0) && !_failed)
         {
-            bool matched = false;
-            for (const auto& entry : ops)
-            {
-                // "&" isn't "&&", "<" isn't "<<" or "<=" (the lexer gives the longest token)
-                if (isPunct(entry.first))
-                {
-                    _idx++;
-                    int32_t rhs = (this->*next)();
-                    lhs = binaryNode(entry.second, lhs, rhs);
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched)
+            uint8_t op = 0;
+            uint8_t prec = binaryPrecedence(peek(), op);
+            if ((prec == 0) || (prec < minPrec))
                 break;
+            _idx++;
+            int32_t rhs = binaryExpr(prec + 1);
+            lhs = binaryNode(op, lhs, rhs);
         }
         return lhs;
     }
 
-    int32_t logicalOr() { return binaryLevel(&DeviceTypeCodeCompiler::logicalAnd, {{"||", OP_LOR}}); }
-    int32_t logicalAnd() { return binaryLevel(&DeviceTypeCodeCompiler::bitOr, {{"&&", OP_LAND}}); }
-    int32_t bitOr() { return binaryLevel(&DeviceTypeCodeCompiler::bitXor, {{"|", OP_OR}}); }
-    int32_t bitXor() { return binaryLevel(&DeviceTypeCodeCompiler::bitAnd, {{"^", OP_XOR}}); }
-    int32_t bitAnd() { return binaryLevel(&DeviceTypeCodeCompiler::equality, {{"&", OP_AND}}); }
-    int32_t equality() { return binaryLevel(&DeviceTypeCodeCompiler::relational, {{"==", OP_EQ}, {"!=", OP_NE}}); }
-    int32_t relational()
+    int32_t logicalOr()
     {
-        return binaryLevel(&DeviceTypeCodeCompiler::shift, {{"<=", OP_LE}, {">=", OP_GE}, {"<", OP_LT}, {">", OP_GT}});
-    }
-    int32_t shift() { return binaryLevel(&DeviceTypeCodeCompiler::additive, {{"<<", OP_SHL}, {">>", OP_SHR}}); }
-    int32_t additive() { return binaryLevel(&DeviceTypeCodeCompiler::multiplicative, {{"+", OP_ADD}, {"-", OP_SUB}}); }
-    int32_t multiplicative()
-    {
-        return binaryLevel(&DeviceTypeCodeCompiler::unary, {{"*", OP_MUL}, {"/", OP_DIV}, {"%", OP_MOD}});
+        return binaryExpr(1);
     }
 
     int32_t unary()
