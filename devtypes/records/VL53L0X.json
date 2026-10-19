@@ -49,6 +49,19 @@
                     "vs": false
                 },
                 {
+                    "n": "rangeStatus",
+                    "t": "B",
+                    "at": 0,
+                    "u": "",
+                    "r": [0, 15],
+                    "m": "0x78",
+                    "s": 3,
+                    "f": "d",
+                    "o": "uint8",
+                    "vs": false,
+                    "vl": {"0": "no error", "1": "VCSEL continuity fail", "2": "VCSEL watchdog fail", "3": "no VHV value", "4": "MSRC no target", "5": "SNR check", "6": "range phase check", "7": "sigma threshold", "8": "TCC", "9": "phase consistency", "10": "min clip", "11": "range complete", "12": "algo underflow", "13": "algo overflow", "14": "range ignore threshold"}
+                },
+                {
                     "n": "dist",
                     "at": 10,
                     "t": ">H",

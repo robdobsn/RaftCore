@@ -24,7 +24,8 @@
                     "u": "",
                     "f": "02x",
                     "o": "uint8",
-                    "vs": false
+                    "vs": false,
+                    "bl": {"0x08": "calibrated", "0x80": "busy"}
                 },
                 {
                     "n": "humidity",

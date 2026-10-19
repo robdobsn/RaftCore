@@ -25,7 +25,8 @@
                     "m": "0xff",
                     "f": "02x",
                     "o": "uint8",
-                    "vs": false
+                    "vs": false,
+                    "bl": {"0x01": "math saturation", "0x04": "memory error", "0x20": "busy", "0x40": "powered"}
                 },
                 {
                     "n": "pressure",

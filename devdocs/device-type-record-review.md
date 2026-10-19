@@ -115,6 +115,13 @@ Date: 2026-10-18.
 - **Detection stays empty.** Detection strings can now pause, so the product-ID command (0x365B) would work at first identification, but the STCC4 rejects it while measuring. Re-verification would then fail and leave the sensor open to the RSAO probe, which stops it measuring (`stcc4-identification-notes.md`).
 - A manual `cmdraw` read of 0xEC05 NACKs while the record polls: each measurement can be read once, and the poll reads it first.
 
+**Value and bit labels, `vl`/`bl` (2026-10-19):** display text for enumerated values and flag bits (raftjs; wiki *Device Type Record Format*, "Value and bit labels"). The values stay numeric.
+- **`bl`:** MAX17048, AHT20, LPS25, MPRLS, CAP1203 (General Status and Sensor Input Status, from the Microchip register map) and STCC4 `status` (only 0x0040, testing mode, is documented).
+- **`vl`:** VL6180 `err`, HX711 `valid`, and a new VL53L0X `rangeStatus` attribute (bits 6:3 of the range status byte; 11 = range complete). The raw `status` byte is kept.
+- **Firmware:** the Axiom Power device's `pmState` and `busPwrSrc` (labels built from its configured power sources) and `fgStatus`.
+- **Not labelled:** the Robotical servo, pump and light sensor `state`/`status` (meanings not in the records); TrillRing `btn0`/`btn1` are readings, not states.
+- **STCC4 at the same time:** CO2 decoded as signed 16-bit as the datasheet specifies (values unchanged in practice); actions `testingMode` (pauses ASC) and `pressure` (hPa, sent as Pa/2). Forced recalibration needs the measurement stopped for 1.2 s first, which an action can't do yet.
+
 **SCD30, verified on Axiom018 (2026-10-19):**
 - Not seen at first on slot 4 (no ACK at any address); seen after the board was reseated, identified at 0x461 (see SEL below).
 - Firmware 3.66. After init: interval 2 s, ASC off (as the record writes them); temperature offset 0 (0x5403); forced-recalibration reference 400 ppm (0x5204).

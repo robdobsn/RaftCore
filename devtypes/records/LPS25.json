@@ -24,7 +24,8 @@
                     "m": "0xff",
                     "f": "02x",
                     "o": "uint8",
-                    "vs": false
+                    "vs": false,
+                    "bl": {"0x01": "T_DA", "0x02": "P_DA", "0x10": "T_OR", "0x20": "P_OR"}
                 },
                 {
                     "n": "pressure",

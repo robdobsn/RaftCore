@@ -1,5 +1,5 @@
 {
-    "_notes": "Sensirion STCC4 miniature CO2 sensor (paired with SHT41 for RH/T compensation), fixed address 0x64. Detection is empty (unique address) - the product-ID command cannot be used because the detection path issues a single write+read with no inter-command delay and the STCC4 NACKs that read - so the record claims any device at 0x64. Init: start_continuous_measurement (0x218B). Poll every 1.5 s (longer than the 1 s measurement, so the read always has new data; at 1 s the two drift and a read is NACKed now and then): read_measurement (0xEC05), 1 ms pause, read 12 bytes = CO2/temp/humidity/status words each followed by a CRC byte (skipped via 'at'). Rates (_conf.rate) only set the poll interval, 1.5 s to 60 s. CO2 raw = ppm; temperature = -45 + 175*s/65535; humidity = -6 + 125*s/65535. Must never be probed by the RSAO delegated-identification hook (its framed 0x99 command stops the sensor measuring); RaftI2C DeviceIdentMgr only runs that hook when no device-type record matches - this record's empty detection always matches, so the hook is never reached at 0x64. See devdocs/stcc4-identification-notes.md",
+    "_notes": "Sensirion STCC4 miniature CO2 sensor (paired with SHT41 for RH/T compensation), fixed address 0x64. Detection is empty (unique address) - the product-ID command cannot be used because the detection path issues a single write+read with no inter-command delay and the STCC4 NACKs that read - so the record claims any device at 0x64. Init: start_continuous_measurement (0x218B). Poll every 1.5 s (longer than the 1 s measurement, so the read always has new data; at 1 s the two drift and a read is NACKed now and then): read_measurement (0xEC05), 1 ms pause, read 12 bytes = CO2/temp/humidity/status words each followed by a CRC byte (skipped via 'at'). CO2 is signed (i16 in the datasheet). Status: only bit 0x0040 (testing mode) is documented; after power-up 0x0100 was seen for about 2 minutes. Actions: testingMode (pauses ASC), pressure (hPa). Forced recalibration isn't an action: it needs measurement stopped (1.2 s), then FRC, then a restart. Datasheet: https://sensirion.com/media/documents/6AED4B15/69295E41/CD_DS_STCC4_D1.pdf. Rates (_conf.rate) only set the poll interval, 1.5 s to 60 s. CO2 raw = ppm; temperature = -45 + 175*s/65535; humidity = -6 + 125*s/65535. Must never be probed by the RSAO delegated-identification hook (its framed 0x99 command stops the sensor measuring); RaftI2C DeviceIdentMgr only runs that hook when no device-type record matches - this record's empty detection always matches, so the hook is never reached at 0x64. See devdocs/stcc4-identification-notes.md",
     "addresses": "0x64-0x65",
     "detectionValues": "",
     "initValues": "0x218b=",
@@ -21,11 +21,11 @@
                 {
                     "n": "CO2",
                     "at": 0,
-                    "t": ">H",
+                    "t": ">h",
                     "u": "ppm",
-                    "r": [0, 40000],
+                    "r": [0, 32000],
                     "f": "d",
-                    "o": "uint16"
+                    "o": "int16"
                 },
                 {
                     "n": "temperature",
@@ -57,7 +57,8 @@
                     "r": [0, 65535],
                     "f": "04x",
                     "o": "uint16",
-                    "vs": false
+                    "vs": false,
+                    "bl": {"0x0040": "testing mode"}
                 }
             ]
         },
@@ -75,6 +76,21 @@
                     "0.0333": {"i": 30000000, "s": 1},
                     "0.0167": {"i": 60000000, "s": 1}
                 }
+            },
+            {
+                "n": "testingMode",
+                "map": {"0": "3f3d", "1": "3fbc"},
+                "desc": "Testing mode pauses automatic self-calibration (ASC, always on otherwise): 1 on (enable_testing_mode 0x3FBC), 0 off (disable_testing_mode 0x3F3D). The status word's bit 0x0040 shows it"
+            },
+            {
+                "n": "pressure",
+                "t": ">H",
+                "w": "e016",
+                "crc": "crc8w",
+                "mul": 50,
+                "r": [400, 1100],
+                "d": 1013,
+                "desc": "Ambient pressure compensation (hPa, 400-1100; sent as Pa/2). Reset to 1013 hPa at power-up"
             }
         ]
     }
