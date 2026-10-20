@@ -87,9 +87,11 @@ public:
     /// @param pollResult poll result data
     /// @param pPollInfo pointer to device polling info (maybe nullptr)
     /// @param pauseAfterSendMs pause after send in ms
+    /// @param pCompletePollResult (out, optional) at the end of a poll (nextReqIdx 0): the whole poll result as stored
+    ///        - with the timestamp and the parts read before a pause (pollResult is only the part after the last pause)
     /// @return true if result stored
     bool storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, 
-        const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs);
+        const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs, std::vector<uint8_t>* pCompletePollResult = nullptr);
 
     // Get device type index
     DeviceTypeIndexType getDeviceTypeIndex() const

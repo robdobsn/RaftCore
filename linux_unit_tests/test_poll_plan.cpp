@@ -8,6 +8,7 @@
 // - A plan held by a poll stays valid when the device is identified again (a new plan is made).
 // - Polling info filled in without making a plan gets one at the first poll; the requests stay visible.
 // - The next step of a poll split by a pause is reported in the job.
+// - A poll split by pauses is stored, and reported to its caller, whole: the timestamp and every part.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +19,7 @@
 #include "ArduinoWString.h"
 #include "DeviceTypeRecords.h"
 #include "DeviceStatus.h"
+#include "PollDataAggregatorIF.h"
 
 // Count heap allocations while enabled
 static size_t allocCount = 0;
@@ -178,11 +180,57 @@ static void testSplitPollStep()
     TEST_ASSERT(status.getPendingPollJob(dueUs + 5000, job) && (job.nextReqIdx == 1), "next step");
 }
 
+// Keeps what was put
+class RecordingAggregator : public PollDataAggregatorIF
+{
+public:
+    std::vector<std::vector<uint8_t>> puts;
+    void clear() override { puts.clear(); }
+    bool put(uint64_t, const std::vector<uint8_t>& data) override { puts.push_back(data); return true; }
+    bool get(std::vector<uint8_t>&) override { return false; }
+    uint32_t get(std::vector<uint8_t>&, uint32_t&, uint32_t) override { return 0; }
+    uint32_t count() const override { return puts.size(); }
+    bool getLatestValue(uint64_t&, std::vector<uint8_t>&) override { return false; }
+    bool resize(uint32_t) override { return true; }
+    uint32_t getWithLengths(std::vector<uint8_t>&, std::vector<uint16_t>&, uint32_t) override { return 0; }
+};
+
+static void testSplitPollStoredWhole()
+{
+    printf("Running testSplitPollStoredWhole...\n");
+    DeviceStatus status;
+    auto pAggregator = std::make_shared<RecordingAggregator>();
+    status.setAndOwnPollDataAggregator(pAggregator);
+    status.deviceIdentPolling.pollResultSizeIncTimestamp = 10;
+
+    // A poll in three parts (two pauses): the timestamp and the first read, then the second, then the last
+    std::vector<uint8_t> part1 = {0x12, 0x34, 0xa1, 0xa2, 0xa3};
+    std::vector<uint8_t> part2 = {0xb1, 0xb2, 0xb3};
+    std::vector<uint8_t> part3 = {0xc1, 0xc2};
+    std::vector<uint8_t> complete;
+    status.storePollResults(1, 1000, part1, nullptr, 5, &complete);
+    TEST_ASSERT(complete.empty() && pAggregator->puts.empty(), "a part isn't stored");
+    status.storePollResults(2, 6000, part2, nullptr, 5, &complete);
+    status.storePollResults(0, 11000, part3, nullptr, 0, &complete);
+    std::vector<uint8_t> expected = part1;
+    expected.insert(expected.end(), part2.begin(), part2.end());
+    expected.insert(expected.end(), part3.begin(), part3.end());
+    TEST_ASSERT(pAggregator->puts.size() == 1, "the poll is stored once");
+    TEST_ASSERT(!pAggregator->puts.empty() && (pAggregator->puts[0] == expected), "stored whole");
+    TEST_ASSERT(complete == expected, "the caller gets the whole poll: the timestamp and every part");
+
+    // A poll in one part: the same data
+    std::vector<uint8_t> whole = {0x00, 0x10, 0x01, 0x02};
+    status.storePollResults(0, 20000, whole, nullptr, 0, &complete);
+    TEST_ASSERT(complete == whole, "a poll in one part");
+}
+
 int main()
 {
     testNoAllocationPerPoll("LSM6DS3");
     testNoAllocationPerPoll("VL53L0X");
     testPlanLifetimeAndLazyPlan();
     testSplitPollStep();
+    testSplitPollStoredWhole();
     return testSummary("test_poll_plan");
 }

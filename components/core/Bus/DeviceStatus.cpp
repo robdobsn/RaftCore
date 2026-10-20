@@ -127,7 +127,8 @@ void DeviceStatus::setPollIntervalUs(uint32_t pollIntervalUs, uint64_t timeNowUs
 /// @param pPollInfo pointer to device polling info (maybe nullptr)
 /// @param pauseAfterSendMs pause after send in ms
 /// @return true if result stored
-bool DeviceStatus::storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs)
+bool DeviceStatus::storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs,
+            std::vector<uint8_t>* pCompletePollResult)
 {
     // Check we have a data aggregator to store the results
     if (!pDataAggregator)
@@ -149,10 +150,14 @@ bool DeviceStatus::storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, con
             partialPollResult.insert(partialPollResult.end(), pollResult.begin(), pollResult.end());
 
             // Add complete poll result to aggregator
+            if (pCompletePollResult)
+                *pCompletePollResult = partialPollResult;
             return pDataAggregator->put(timeNowUs, partialPollResult);
         }
 
         // Poll complete without partial poll - add result to aggregator
+        if (pCompletePollResult)
+            *pCompletePollResult = pollResult;
         return pDataAggregator->put(timeNowUs, pollResult);
     }
     return true;
