@@ -77,6 +77,8 @@ public:
         void* pNextContext = nullptr;
         uint32_t budget = 0;                // instructions left (decremented)
         int64_t returnValue = 0;            // the value of return, as converted to the function's result
+        uint32_t maxEvalDepth = 0;          // deepest nesting of expression evaluation reached (stack use)
+        uint32_t maxExecDepth = 0;          // deepest nesting of statements reached (stack use)
     };
 
     /// @brief Run the code
@@ -97,13 +99,18 @@ public:
         I32, U32, I64, U64, F32, F64,
     };
 
+    // A value: only the member for its type is used (16 bytes - the interpreter's frames hold several, and its
+    // stack use is a frame per level of nesting)
     struct Val
     {
         VT t = VT::I32;
-        int64_t i = 0;      // I32, I64 (and U32 held as its value)
-        uint64_t u = 0;     // U64
-        float f = 0;        // F32
-        double d = 0;       // F64
+        union
+        {
+            int64_t i = 0;  // I32, I64 (and U32 held as its value)
+            uint64_t u;     // U64
+            float f;        // F32
+            double d;       // F64
+        };
     };
 
     // Tree node
@@ -152,8 +159,9 @@ public:
     /// @param pInitCode the init code
     /// @param pInitValues the record's initValues (the reads before the first slot or guard are required)
     /// @param problem (out) why not
+    /// @param takeSlot false for one used only through run() (getInitFn() is then nullptr), which needs no slot
     /// @return the init values function's owner, or nullptr. The caller owns it
-    static DeviceTypeRuntimeInit* create(const char* pInitCode, const char* pInitValues, String& problem);
+    static DeviceTypeRuntimeInit* create(const char* pInitCode, const char* pInitValues, String& problem, bool takeSlot = true);
 
     /// @brief The names the code computes, in order of first use (the function's value order)
     const std::vector<String>& getNames() const;

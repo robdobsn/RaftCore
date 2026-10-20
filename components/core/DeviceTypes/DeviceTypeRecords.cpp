@@ -9,6 +9,7 @@
 #include "DeviceTypeRecords.h"
 #include "DeviceTypeCodeInterpreter.h"
 #include "DeviceTypeRecordPacked.h"
+#include "DeviceTypeDecodeVerifier.h"
 #include "PlatformUtils.h"
 #include "BusRequestInfo.h"
 #include "PollReadLenExpr.h"
@@ -480,7 +481,14 @@ bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, ui
             return false;
         }
         state.values.assign(names.size(), 0);
-        if (!pRec->initValuesFn(state.readData.data(), state.readData.size(), state.values.data(), state.values.size()))
+        bool computed = pRec->initValuesFn(state.readData.data(), state.readData.size(), state.values.data(), state.values.size());
+#ifdef RAFT_RUNTIME_DECODE_VERIFY
+        // The compiled function beside the record's init code run by the interpreter
+        const char* pInitCode = getBaseInitCode(deviceTypeIndex);
+        if (pInitCode)
+            deviceTypeDecodeVerifier.checkInit(deviceTypeIndex, pRec, pInitCode, state.readData, computed, state.values);
+#endif
+        if (!computed)
         {
             LOG_W(MODULE_PREFIX, "getInitStepWrite %s init values not computed (%d bytes read)", pRec->deviceType,
                         (int)state.readData.size());
@@ -1439,6 +1447,24 @@ DeviceTypeRecords::DecoderKind DeviceTypeRecords::getDecoderKind(DeviceTypeIndex
     }
     return kind;
 }
+
+#ifdef RAFT_RUNTIME_DECODE_VERIFY
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief The init code of a compiled record whose init values function is still the compiled one (the build's
+///        copy of its initCode), or nullptr
+const char* DeviceTypeRecords::getBaseInitCode(DeviceTypeIndexType deviceTypeIndex) const
+{
+    if (deviceTypeIndex >= BASE_DEV_TYPE_ARRAY_SIZE)
+        return nullptr;
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    if (!pRec || !pRec->initValuesFn || (pRec->initValuesFn != baseDevTypeRecords[deviceTypeIndex].initValuesFn))
+        return nullptr;
+    for (const BaseDevTypeInitCode* pCode = baseDevTypeInitCode; pCode->code; pCode++)
+        if (pCode->recordIndex == deviceTypeIndex)
+            return pCode->code;
+    return nullptr;
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Name of a decoder kind

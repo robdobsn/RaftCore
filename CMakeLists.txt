@@ -123,6 +123,7 @@ idf_component_register(
     "components/core/DeviceTypes/DeviceTypeFileLoader.cpp"
     "components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp"
     "components/core/DeviceTypes/DeviceTypeCodeInterpreter.cpp"
+    "components/core/DeviceTypes/DeviceTypeDecodeVerifier.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
@@ -225,6 +226,13 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE)
     if(DEFINED RAFT_RUNTIME_DECODE_CODE AND RAFT_RUNTIME_DECODE_CODE)
       target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE_CODE)
+    endif()
+    # Debug: RAFT_RUNTIME_DECODE_VERIFY (OFF unless set ON) decodes every poll result of a compiled record again
+    # with a runtime decoder, runs compiled init code beside the interpreter's, and compares them
+    # (devman/decodeverify, DeviceTypeDecodeVerifier.h)
+    if(DEFINED RAFT_RUNTIME_DECODE_VERIFY AND RAFT_RUNTIME_DECODE_VERIFY)
+      target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE_VERIFY)
+      message(STATUS "RaftCore: runtime decoders verified against compiled ones (RAFT_RUNTIME_DECODE_VERIFY)")
     endif()
   else()
     message(STATUS "RaftCore: runtime decoding not included (RAFT_RUNTIME_DECODE OFF)")

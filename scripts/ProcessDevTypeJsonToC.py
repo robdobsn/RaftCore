@@ -401,6 +401,7 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
 
         # Iterate records
         dev_record_index = 0
+        init_code_texts = []
         for dev_type_key, dev_type in dev_ident_json['devTypes'].items():
 
             # Get the poll data size
@@ -444,6 +445,8 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             if init_fn:
                 if gen_options.get("gen_decode", False):
                     header_file.write(f',\n        {init_fn},\n        R"JSON({",".join(init_names)})JSON"')
+                    init_code = dev_type.get("initCode")
+                    init_code_texts.append((dev_record_index, (init_code.get("c", "") if isinstance(init_code, dict) else init_code).strip()))
                 else:
                     print(f"WARNING: record \"{dev_type_key}\" has initCode, which isn't generated without decode "
                           f"generation - its init will fail")
@@ -452,6 +455,15 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             dev_record_index += 1
 
         header_file.write('};\n\n')
+
+        # The init code of records with initCode, for the decode verifier (DeviceTypeDecodeVerifier), which runs it
+        # with the code interpreter beside the compiled init values function
+        header_file.write('#ifdef RAFT_RUNTIME_DECODE_VERIFY\n')
+        header_file.write('struct BaseDevTypeInitCode { uint16_t recordIndex; const char* code; };\n')
+        header_file.write('static const BaseDevTypeInitCode baseDevTypeInitCode[] =\n{\n')
+        for record_index, code in init_code_texts:
+            header_file.write(f'    {{{record_index}, R"CODE({code})CODE"}},\n')
+        header_file.write('    {0xffff, nullptr}\n};\n#endif\n\n')
 
         # Generate the record indexes sorted by device type key (byte order, as strcmp) for binary search
         dev_type_keys = list(dev_ident_json['devTypes'].keys())

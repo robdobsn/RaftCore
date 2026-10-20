@@ -19,6 +19,7 @@
 #include "DeviceTypeRuntimeDecoder.h"
 #include "DeviceTypeFileLoader.h"
 #include "DeviceTypeCodeInterpreter.h"
+#include "DeviceTypeDecodeVerifier.h"
 #include "RaftJson.h"
 
 static uint32_t fieldBytes(const AttrFieldDesc& desc, const DeviceTypeRuntimeDecoder::Field* pField)
@@ -147,6 +148,8 @@ static void testMatchesCompiledDecoders()
             if (!decodesSame && (nCompiled != nRuntime))
                 printf("  %s: %u records compiled, %u runtime\n", name.c_str(), nCompiled, nRuntime);
         }
+        if (pDecoder->getMaxEvalDepth() > 0)
+            printf("  %s: interpreter depth eval %u exec %u\n", name.c_str(), pDecoder->getMaxEvalDepth(), pDecoder->getMaxExecDepth());
         TEST_ASSERT(decodesSame, (name + ": decodes the same as the compiled decoder").c_str());
         if (!decodesSame)
             numMismatched++;
@@ -446,6 +449,179 @@ static void testInitCodeMatchesCompiled(const char* pCataloguePath)
 }
 #endif
 
+#if defined(RAFT_RUNTIME_DECODE_VERIFY) && defined(RAFT_RUNTIME_DECODE_CODE)
+// A compiled decoder that gets one byte wrong (the verifier must report it)
+static DeviceTypeRecordDecodeFn g_realDecodeFn = nullptr;
+static uint16_t g_brokenOffset = 0;
+static uint32_t brokenDecode(const uint8_t* pBufIn, uint32_t bufLen, void* pStructOut, uint32_t structOutSize,
+            uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState)
+{
+    uint32_t n = g_realDecodeFn(pBufIn, bufLen, pStructOut, structOutSize, maxRecCount, decodeState);
+    if (n > 0)
+        ((uint8_t*)pStructOut)[g_brokenOffset] ^= 0x01;
+    return n;
+}
+
+// The decode verifier (RAFT_RUNTIME_DECODE_VERIFY): every compiled record's poll results decode the same both ways,
+// a decoder that differs is caught with the field it differs in, and init values are compared
+// The index of a type in the verifier's results, or -1
+static int verifiedTypeIdx(const RaftJson& results, const char* pTypeKey)
+{
+    int numTypes = 0;
+    results.getType("types", numTypes);
+    for (int i = 0; i < numTypes; i++)
+        if (results.getString(("types[" + String(i) + "]/type").c_str(), "") == pTypeKey)
+            return i;
+    return -1;
+}
+
+// Make the verifier's pending decoders (one per loop call)
+static void runVerifierLoop(DeviceTypeDecodeVerifier& verifier, const DeviceTypeRecords& table)
+{
+    for (int i = 0; i < 100; i++)
+        verifier.loop(table);
+}
+
+static void testDecodeVerifier()
+{
+    printf("Running testDecodeVerifier...\n");
+    DeviceTypeRecords table;
+    DeviceTypeDecodeVerifier verifier;
+    std::mt19937 rng(4242);
+
+    // A poll result before the runtime decoder is made isn't compared; loop() makes it
+    for (uint32_t idx = 0; idx < DeviceTypeRecords::getNumBaseRecords(); idx++)
+    {
+        const DeviceTypeRecord* pRec = table.getRecord(idx);
+        if (pRec && pRec->pollResultDecodeFn && (pRec->pollStructSize > 0))
+            verifier.checkDecode(RaftDeviceID(1, 0x100 + idx), idx, pRec, true, std::vector<uint8_t>(64, 0));
+    }
+    {
+        RaftJson before("{" + verifier.getJson() + "}");
+        TEST_ASSERT((before.getLong("polls", -1) == 0) && (before.getString("types[0]/decoder", "") == "pending") &&
+                    (before.getLong("types[0]/notReady", 0) == 1), "not compared before loop() makes the decoder");
+    }
+    runVerifierLoop(verifier, table);
+    verifier.reset();
+
+    uint32_t numTypes = 0;
+    for (uint32_t idx = 0; idx < DeviceTypeRecords::getNumBaseRecords(); idx++)
+    {
+        const DeviceTypeRecord* pRec = table.getRecord(idx);
+        if (!pRec || !pRec->pollResultDecodeFn || (pRec->pollStructSize == 0))
+            continue;
+        RaftJson resp(pRec->devInfoJson, false);
+        uint32_t recBytes = resp.getLong("resp/b", 0) + DevicePollingInfo::POLL_RESULT_TIMESTAMP_SIZE;
+        // Two devices of the type, so each keeps its own decode state
+        for (int iter = 0; iter < 200; iter++)
+        {
+            std::vector<uint8_t> buf(recBytes * (1 + rng() % 3));
+            for (auto& b : buf)
+                b = randomByte(rng);
+            verifier.checkDecode(RaftDeviceID(1, 0x100 * (1 + iter % 2) + idx), idx, pRec, true, buf);
+        }
+        numTypes++;
+    }
+    RaftJson results("{" + verifier.getJson() + "}");
+    TEST_ASSERT(numTypes >= 55, "compiled records verified");
+    TEST_ASSERT(results.getLong("mismatches", -1) == 0, "no mismatches between compiled and runtime decoders");
+    TEST_ASSERT(results.getLong("polls", 0) >= (int)(numTypes * 200), "every poll compared");
+    int numReported = 0;
+    results.getType("types", numReported);
+    bool allCompared = (numReported == (int)numTypes);
+    for (int i = 0; i < numReported; i++)
+    {
+        String decoder = results.getString(("types[" + String(i) + "]/decoder").c_str(), "");
+        if (results.getLong(("types[" + String(i) + "]/polls").c_str(), 0) == 0)
+        {
+            numReported--;      // a record with init code but no poll data
+            continue;
+        }
+        if (decoder != "compared")
+        {
+            allCompared = false;
+            printf("  %s: %s %s\n", results.getString(("types[" + String(i) + "]/type").c_str(), "").c_str(), decoder.c_str(),
+                        results.getString(("types[" + String(i) + "]/problem").c_str(), "").c_str());
+        }
+    }
+    TEST_ASSERT(allCompared, "every type has a runtime decoder beside its compiled one");
+    TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 0, "verifier decoders take no slots");
+
+    // A decoder that differs: the type, the field and both decoders' bytes are reported
+    DeviceTypeIndexType tmpIdx = DEVICE_TYPE_INDEX_INVALID;
+    const DeviceTypeRecord* pTmp = table.getRecord("TMP117", tmpIdx);
+    TEST_ASSERT(pTmp && pTmp->pollResultDecodeFn && (pTmp->pollFieldCount > 0), "TMP117 record");
+    if (pTmp)
+    {
+        DeviceTypeRecord broken = *pTmp;
+        g_realDecodeFn = pTmp->pollResultDecodeFn;
+        g_brokenOffset = pTmp->pollFieldDescs[0].offset;
+        broken.pollResultDecodeFn = brokenDecode;
+        DeviceTypeDecodeVerifier verifier2;
+        std::vector<uint8_t> poll = {0x12, 0x34, 0x0c, 0x80};
+        verifier2.checkDecode(RaftDeviceID(1, 0x48), tmpIdx, &broken, true, poll);
+        runVerifierLoop(verifier2, table);
+        for (int i = 0; i < 3; i++)
+            verifier2.checkDecode(RaftDeviceID(1, 0x48), tmpIdx, &broken, true, poll);
+        // Not the compiled decoder: counted, not compared
+        verifier2.checkDecode(RaftDeviceID(1, 0x49), 200, pTmp, false, poll);
+        RaftJson r2("{" + verifier2.getJson() + "}");
+        String tmp = "types[" + String(verifiedTypeIdx(r2, "TMP117")) + "]/";
+        TEST_ASSERT(r2.getLong("mismatches", 0) == 3, "broken decoder: every poll differs");
+        TEST_ASSERT(r2.getString((tmp + "first/field").c_str(), "") == String(pTmp->pollFieldDescs[0].name), "the field that differs");
+        TEST_ASSERT(r2.getString((tmp + "first/compiled").c_str(), "") != r2.getString((tmp + "first/runtime").c_str(), ""), "both decoders' bytes");
+        TEST_ASSERT(r2.getString((tmp + "first/poll").c_str(), "") == "12340c80", "the poll data");
+        int notCompiledIdx = -1;
+        for (int i = 0; i < 100; i++)
+            if (r2.getLong(("types[" + String(i) + "]/idx").c_str(), -1) == 200)
+                notCompiledIdx = i;
+        TEST_ASSERT(r2.getString(("types[" + String(notCompiledIdx) + "]/decoder").c_str(), "") == "notCompiled", "a runtime decoder isn't compared");
+        verifier2.reset();
+        RaftJson r3("{" + verifier2.getJson() + "}");
+        TEST_ASSERT((r3.getLong("mismatches", -1) == 0) && (r3.getLong((tmp + "polls").c_str(), -1) == 0), "reset clears the results");
+    }
+
+    // Init values: the compiled function against the record's init code
+    uint32_t initChecked = 0;
+    for (uint32_t idx = 0; idx < DeviceTypeRecords::getNumBaseRecords(); idx++)
+    {
+        const DeviceTypeRecord* pRec = table.getRecord(idx);
+        const char* pCode = table.getBaseInitCode(idx);
+        if (!pRec || !pRec->initValuesFn || !pCode)
+            continue;
+        String names = pRec->initValueNames;
+        uint32_t numValues = 1;
+        for (char c : std::string(names.c_str()))
+            numValues += (c == ',') ? 1 : 0;
+        for (int iter = 0; iter < 500; iter++)
+        {
+            std::vector<uint8_t> read(rng() % 24);
+            for (auto& b : read)
+                b = randomByte(rng);
+            std::vector<int32_t> values(numValues, 0);
+            bool ok = pRec->initValuesFn(read.data(), read.size(), values.data(), values.size());
+            verifier.checkInit(idx, pRec, pCode, read, ok, values);
+        }
+        initChecked++;
+        // Values the code wouldn't compute are caught
+        std::vector<uint8_t> read(24, 0x55);
+        std::vector<int32_t> values(numValues, 0);
+        bool ok = pRec->initValuesFn(read.data(), read.size(), values.data(), values.size());
+        values[0] ^= 1;
+        DeviceTypeDecodeVerifier verifier3;
+        verifier3.loop(table);
+        verifier3.checkInit(idx, pRec, pCode, read, ok, values);
+        RaftJson r4("{" + verifier3.getJson() + "}");
+        TEST_ASSERT(r4.getLong("initMismatches", 0) == 1, (std::string(pRec->deviceType) + ": wrong init values caught").c_str());
+    }
+    RaftJson r5("{" + verifier.getJson() + "}");
+    TEST_ASSERT(initChecked >= 4, "records with init code verified");
+    TEST_ASSERT((r5.getLong("initRuns", 0) >= (int)(initChecked * 500)) && (r5.getLong("initMismatches", -1) == 0),
+                "init values the same both ways");
+    TEST_ASSERT(DeviceTypeRuntimeInit::getNumSlotsInUse() == 0, "verifier init functions take no slots");
+}
+#endif
+
 int main(int argc, char** argv)
 {
     testMatchesCompiledDecoders();
@@ -456,6 +632,9 @@ int main(int argc, char** argv)
     testInterpreterSemantics();
     if (argc > 1)
         testInitCodeMatchesCompiled(argv[1]);
+#endif
+#if defined(RAFT_RUNTIME_DECODE_VERIFY) && defined(RAFT_RUNTIME_DECODE_CODE)
+    testDecodeVerifier();
 #endif
     return testSummary("test_runtime_decoder");
 }

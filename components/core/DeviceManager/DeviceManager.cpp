@@ -18,6 +18,7 @@
 #include "RaftDevice.h"
 #include "FileSystem.h"
 #include "SpiramAwareAllocator.h"
+#include "DeviceTypeDecodeVerifier.h"
 
 // Warnings
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND
@@ -242,6 +243,11 @@ void DeviceManager::loop()
     // Complete re-initialisations that have finished
     if (!_pendingReInits.empty())
         servicePendingReInits();
+
+#ifdef RAFT_RUNTIME_DECODE_VERIFY
+    // Make the runtime decoders the decode verifier compares with the compiled ones
+    deviceTypeDecodeVerifier.loop(deviceTypeRecords);
+#endif
 
     // Get a frozen copy of the static device list for online devices
     RaftDevice* pStaticDeviceListFrozen[DEVICE_LIST_MAX_SIZE];
@@ -1057,6 +1063,9 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/reinit?deviceid=<deviceId> - Run a device's initialisation again,"
                             " devman/devenable?deviceid=<deviceId>&poll=<0|1>&save=<0|1> - Stop or resume polling a device,"
                             " devman/reserved - Addresses claimed by device type records,"
+#ifdef RAFT_RUNTIME_DECODE_VERIFY
+                            " devman/decodeverify[?reset=1] - Compiled and runtime decoders compared on every poll result, and init values (debug build: RAFT_RUNTIME_DECODE_VERIFY; reset=1 clears the results after reporting),"
+#endif
                             " Note: typeKeyOrIndex can be either a device type key or a device type index"
                             " Note: deviceId=<deviceId> can be replaced with bus=<busNameOrNumber>&addr=<addr>");
     endpointManager.addEndpoint("devlib", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
@@ -1112,6 +1121,15 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManBusStatus(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("typefile"))
         return apiDevManTypeFile(reqStr, respStr, jsonParams);
+#ifdef RAFT_RUNTIME_DECODE_VERIFY
+    if (cmdName.equalsIgnoreCase("decodeverify"))
+    {
+        String json = deviceTypeDecodeVerifier.getJson();
+        if (jsonParams.getLong("reset", 0) != 0)
+            deviceTypeDecodeVerifier.reset();
+        return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
+    }
+#endif
     if (cmdName.equalsIgnoreCase("reident"))
         return apiDevManReIdent(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("types"))
@@ -2420,6 +2438,11 @@ void DeviceManager::installBusDataDispatcher(RaftBusDevicesIF& busDevicesIF, Bus
     const RaftDeviceID deviceID(busNum, address);
     busDevicesIF.registerForDeviceData(address,
         [this, deviceID](uint16_t deviceTypeIndex, std::vector<uint8_t> data, const void*) {
+#ifdef RAFT_RUNTIME_DECODE_VERIFY
+            // Decode with the compiled and a runtime decoder and compare (devman/decodeverify)
+            deviceTypeDecodeVerifier.checkDecode(deviceID, deviceTypeIndex, deviceTypeRecords.getRecord(deviceTypeIndex),
+                        deviceTypeRecords.getDecoderKind(deviceTypeIndex) == DeviceTypeRecords::DecoderKind::Compiled, data);
+#endif
             _deviceDataSubscribers.dispatch(deviceID, deviceTypeIndex, std::move(data), millis());
         },
         /*minTimeBetweenReportsMs=*/0, /*pCallbackInfo=*/&_deviceDataSubscribers);

@@ -54,6 +54,7 @@ Set in a SysType's `features.cmake`:
 |-|-|-|
 | `RAFT_RUNTIME_DECODE` | `ON` | Builds the attribute decoder. `OFF` saves about 17 KB of flash (Axiom018: 1,944,112 vs 1,926,608 bytes) |
 | `RAFT_RUNTIME_DECODE_CODE` | `OFF` | The code interpreter (option 2): custom decode code and init code of type file records. About 23 KB more (Axiom018: 1,967,616 vs 1,945,040 bytes) |
+| `RAFT_RUNTIME_DECODE_VERIFY` | `OFF` | Debug only: compares runtime decoders with the compiled ones on the device (section 6). About 7 KB |
 
 The RaftCore CMake turns them into compile definitions of the same names. The Linux unit tests build with `RAFT_RUNTIME_DECODE`.
 
@@ -120,3 +121,28 @@ A first version templated on every working, field and literal type cost 41 KB.
 - **Init:** the 4 records with init code (BME680, BME690, MICS6814Pimoroni, SCD30) give the compiled init functions' results and values over 5000 random read buffers each.
 - **Language:** cases against native C++, covering signed/unsigned comparison, integer division, double literals stored to float, casts, shifts, `++`, compound assignment, loops, `!`/`~`/`&&`/`||`, out-of-range `buf`, division by zero and `int8_t` wrapping. Plus the budget, `return`, and refused code.
 - **Type files** (`test_device_type_file`): a record's own `initCode` computes its slot and writes it; a slot its code doesn't compute is refused, and so is code outside the language.
+
+## 6. Checking on a device: the decode verifier
+
+**Why:** the host tests compare the decoders on random data. The verifier compares them on real sensor data, on the device's own CPU and compiler, and measures the time and stack a runtime decode takes there.
+
+**What it does** (`DeviceTypeDecodeVerifier`, with `RAFT_RUNTIME_DECODE_VERIFY`):
+- Every poll result of a device whose type has a compiled decoder is decoded twice: by the compiled decoder and by a runtime decoder made from the record's JSON. The two outputs, record counts and timestamp states are compared byte for byte.
+- When a device is identified, a compiled record's init values function is compared with its init code run by the interpreter, on the bytes the init steps read. The build keeps the init code text for this (`baseDevTypeInitCode`, generated only with the flag).
+- The decodes run where poll results are delivered (the bus task), as a subscriber's decode does. The runtime decoders and init functions are made in DeviceManager's loop, as making them (JSON parsing, the code compiler) needs much more stack than running them.
+- A call with less than 3 KB of stack free is skipped and counted.
+- The verifier's decoders and init functions are made without slots (`create(..., takeSlot = false)`).
+
+**Results:** `devman/decodeverify` (`reset=1` clears them after reporting):
+- totals: `polls`, `mismatches`, `initRuns`, `initMismatches`, `skippedLowStack`;
+- `stackMinFree`: the least stack the verifying task has ever had left (its high water mark), and `stackAtCallMinFree`: the least free where the verifier was called;
+- per type: `decoder` (`compared`, `pending`, `notCompared` with a `problem`, `notCompiled`, `noPolls`), `polls`, `records`, `mismatches`, `notReady` (results before its decoder was made), `depth` (the interpreter's deepest nesting), `us` (mean and max microseconds for each decoder), `first` (the first mismatch: poll data, record counts, field, both decoders' bytes) and `init`.
+
+**First results on Axiom018** (2026-10-20, IMU, fuel gauge and SCD30):
+- 1,367 polls, 6,968 records, 0 mismatches; SCD30's init values the same.
+- Time per decode, compiled vs runtime: LSM6DS3 FIFO (custom code, about 5 samples per poll) 87 vs 800 µs (max 3.1 ms); MAX17048 60 vs 188 µs; SCD30 49 vs 291 µs.
+- Stack: 3.3 KB free in the I2C task where poll results are delivered (5 KB stack), 2.1 KB at its lowest with verification running.
+
+**Stack use of the interpreter:** a frame per level of nesting, on ESP32 (Xtensa) 112 bytes per expression level (`eval`) and 80 per statement level (`exec`) since `Val` became a 16-byte tagged union (176 and 208 before). The deepest compiled records reach eval 9 (BME280/690) and exec 10 (SCD30), so about 1.8 KB. The first verify build made its decoders in the bus task: compiling there overflowed the 5 KB I2C task stack at boot.
+
+**For records decoded only at runtime:** a subscriber that decodes in the bus task (DataLogger) runs the interpreter there, with the frames above and about 10 times the compiled decode time for custom code.

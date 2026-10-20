@@ -128,6 +128,7 @@ set(RAFTCORE_SOURCES
     ${raftcore_SOURCE_DIR}/components/core/DeviceTypes/DeviceTypeRecords.cpp
     ${raftcore_SOURCE_DIR}/components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp
     ${raftcore_SOURCE_DIR}/components/core/DeviceTypes/DeviceTypeCodeInterpreter.cpp
+    ${raftcore_SOURCE_DIR}/components/core/DeviceTypes/DeviceTypeDecodeVerifier.cpp
     ${raftcore_SOURCE_DIR}/components/core/MiniHDLC/MiniHDLC.cpp
     ${raftcore_SOURCE_DIR}/components/core/FileSystem/FileSystem.cpp
     ${raftcore_SOURCE_DIR}/components/core/FileSystem/FileSystemChunker.cpp

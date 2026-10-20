@@ -387,6 +387,12 @@ public:
     /// @brief Name of a decoder kind ("compiled", "runtime" or "none")
     static const char* getDecoderKindStr(DecoderKind kind);
 
+#ifdef RAFT_RUNTIME_DECODE_VERIFY
+    /// @brief The init code of a compiled record whose init values function is still the compiled one, or nullptr
+    ///        (the decode verifier, DeviceTypeDecodeVerifier.h)
+    const char* getBaseInitCode(DeviceTypeIndexType deviceTypeIndex) const;
+#endif
+
 private:
     // Extended records are added at runtime. Each is one packed allocation (DeviceTypeRecordPacked) that never
     // changes or moves, so pointers to it stay valid. _extRecords is a fixed array of pointers (allocated when

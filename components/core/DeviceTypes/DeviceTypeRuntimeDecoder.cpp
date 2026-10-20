@@ -475,7 +475,7 @@ namespace
 // Create and destroy
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-DeviceTypeRuntimeDecoder* DeviceTypeRuntimeDecoder::create(const char* pDevInfoJson, String& problem)
+DeviceTypeRuntimeDecoder* DeviceTypeRuntimeDecoder::create(const char* pDevInfoJson, String& problem, bool takeSlot)
 {
     problem = "";
     DeviceTypeRuntimeDecoder* pDecoder = new (std::nothrow) DeviceTypeRuntimeDecoder();
@@ -491,6 +491,8 @@ DeviceTypeRuntimeDecoder* DeviceTypeRuntimeDecoder::create(const char* pDevInfoJ
     }
 
     // Take a slot
+    if (!takeSlot)
+        return pDecoder;
     for (uint32_t slot = 0; slot < RAFT_RUNTIME_DECODE_MAX_DECODERS; slot++)
     {
         const DeviceTypeRuntimeDecoder* pFree = nullptr;
@@ -1073,6 +1075,7 @@ uint32_t DeviceTypeRuntimeDecoder::decodeCustom(const uint8_t* pBufIn, uint32_t 
         ctx.bufLen = (uint32_t)(pBufEnd - pBuf);
         ctx.pOut = pRecOut;
         DeviceTypeCodeProgram::Status status = _pProgram->run(ctx);
+        noteDepths(ctx.maxEvalDepth, ctx.maxExecDepth);
         if (status == DeviceTypeCodeProgram::Status::Return)
             return (uint32_t)ctx.returnValue;
         if (status == DeviceTypeCodeProgram::Status::OutOfBudget)
@@ -1094,7 +1097,7 @@ uint32_t DeviceTypeRuntimeDecoder::decodeCustom(const uint8_t* pBufIn, uint32_t 
 #else // RAFT_RUNTIME_DECODE
 
 // Without runtime decoding: no decoders are made
-DeviceTypeRuntimeDecoder* DeviceTypeRuntimeDecoder::create(const char* pDevInfoJson, String& problem)
+DeviceTypeRuntimeDecoder* DeviceTypeRuntimeDecoder::create(const char* pDevInfoJson, String& problem, bool)
 {
     problem = "runtime decoding not built in (RAFT_RUNTIME_DECODE)";
     return nullptr;

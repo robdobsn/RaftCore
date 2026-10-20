@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <atomic>
 #include "RaftArduino.h"
 #include "DeviceTypeRecord.h"
 
@@ -38,9 +39,10 @@ public:
     /// @brief Create a decoder for a record's response attributes
     /// @param pDevInfoJson the record's devInfoJson
     /// @param problem (out) why there is no decoder, if there isn't one
+    /// @param takeSlot false for a decoder used only through decode() (getDecodeFn() is then nullptr), which needs no slot
     /// @return the decoder, or nullptr if the record has nothing to decode, needs custom decode code, has an attribute
     ///         the build couldn't decode, or no decoder slot is free. The caller owns it
-    static DeviceTypeRuntimeDecoder* create(const char* pDevInfoJson, String& problem);
+    static DeviceTypeRuntimeDecoder* create(const char* pDevInfoJson, String& problem, bool takeSlot = true);
 
     /// @brief The decode function for this decoder (a slot's function, valid while the decoder exists)
     DeviceTypeRecordDecodeFn getDecodeFn() const
@@ -68,6 +70,17 @@ public:
 
     /// @brief Number of decoder slots in use (for tests and diagnostics)
     static uint32_t getNumSlotsInUse();
+
+    /// @brief Custom decode code: the deepest nesting of expressions and of statements its runs have reached (each
+    ///        level is an interpreter stack frame - the stack a decode needs)
+    uint32_t getMaxEvalDepth() const
+    {
+        return _maxEvalDepth.load(std::memory_order_relaxed);
+    }
+    uint32_t getMaxExecDepth() const
+    {
+        return _maxExecDepth.load(std::memory_order_relaxed);
+    }
 
     // Numeric types (of a value in the buffer, a working value or a struct field)
     enum class NumType : uint8_t
@@ -147,6 +160,15 @@ private:
                 String& problem);
     DeviceTypeCodeProgram* _pProgram = nullptr;
     uint32_t _sampleIncUs = 0;
+    mutable std::atomic<uint32_t> _maxEvalDepth{0};
+    mutable std::atomic<uint32_t> _maxExecDepth{0};
+    void noteDepths(uint32_t evalDepth, uint32_t execDepth) const
+    {
+        if (evalDepth > _maxEvalDepth.load(std::memory_order_relaxed))
+            _maxEvalDepth.store(evalDepth, std::memory_order_relaxed);
+        if (execDepth > _maxExecDepth.load(std::memory_order_relaxed))
+            _maxExecDepth.store(execDepth, std::memory_order_relaxed);
+    }
 
     std::vector<Field> _fields;
     std::vector<AttrFieldDesc> _fieldDescs;

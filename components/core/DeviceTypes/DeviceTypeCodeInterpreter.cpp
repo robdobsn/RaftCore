@@ -1057,6 +1057,23 @@ struct DeviceTypeCodeProgram::Exec
     RunContext& ctx;
     std::vector<Val> slots;
     bool outOfBudget = false;
+    // Nesting of eval and exec calls (each is a stack frame), and the deepest reached
+    uint32_t evalDepth = 0;
+    uint32_t execDepth = 0;
+    struct Depth
+    {
+        uint32_t& depth;
+        uint32_t& maxDepth;
+        Depth(uint32_t& d, uint32_t& m) : depth(d), maxDepth(m)
+        {
+            if (++depth > maxDepth)
+                maxDepth = depth;
+        }
+        ~Depth()
+        {
+            depth--;
+        }
+    };
     bool spend()
     {
         if (ctx.budget == 0)
@@ -1082,6 +1099,7 @@ DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::run(RunContext& ctx) const
 /// @brief Evaluate an expression
 DeviceTypeCodeProgram::Val DeviceTypeCodeProgram::eval(int32_t nodeIdx, Exec& ex) const
 {
+    Exec::Depth depth(ex.evalDepth, ex.ctx.maxEvalDepth);
     if (!ex.spend())
         return makeI32(0);
     const Node& n = _nodes[nodeIdx];
@@ -1217,6 +1235,7 @@ DeviceTypeCodeProgram::Val DeviceTypeCodeProgram::eval(int32_t nodeIdx, Exec& ex
 /// @brief Execute a statement
 DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::exec(int32_t nodeIdx, Exec& ex) const
 {
+    Exec::Depth depth(ex.execDepth, ex.ctx.maxExecDepth);
     if (!ex.spend())
         return Status::OutOfBudget;
     const Node& n = _nodes[nodeIdx];
@@ -1317,7 +1336,7 @@ namespace
                 makeInitSlotFns(std::make_index_sequence<RAFT_RUNTIME_INIT_MAX>{});
 }
 
-DeviceTypeRuntimeInit* DeviceTypeRuntimeInit::create(const char* pInitCode, const char* pInitValues, String& problem)
+DeviceTypeRuntimeInit* DeviceTypeRuntimeInit::create(const char* pInitCode, const char* pInitValues, String& problem, bool takeSlot)
 {
     DeviceTypeRuntimeInit* pInit = new (std::nothrow) DeviceTypeRuntimeInit();
     if (!pInit)
@@ -1344,6 +1363,8 @@ DeviceTypeRuntimeInit* DeviceTypeRuntimeInit::create(const char* pInitCode, cons
     for (const String& name : pInit->_pProgram->getInitValueNames())
         pInit->_namesStr += String(pInit->_namesStr.length() ? "," : "") + name;
 
+    if (!takeSlot)
+        return pInit;
     for (uint32_t slot = 0; slot < RAFT_RUNTIME_INIT_MAX; slot++)
     {
         const DeviceTypeRuntimeInit* pFree = nullptr;
@@ -1415,7 +1436,7 @@ bool DeviceTypeCodeProgram::hasNext() const
     return false;
 }
 
-DeviceTypeRuntimeInit* DeviceTypeRuntimeInit::create(const char*, const char*, String& problem)
+DeviceTypeRuntimeInit* DeviceTypeRuntimeInit::create(const char*, const char*, String& problem, bool)
 {
     problem = "the code interpreter isn't built in (RAFT_RUNTIME_DECODE_CODE)";
     return nullptr;
