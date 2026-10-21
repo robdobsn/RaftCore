@@ -224,6 +224,21 @@ static void testDuplicateHwTypeId()
     const DeviceTypeRecord* pFound = table.getRecordByHwTypeId(0x84, idx);
     TEST_ASSERT(pFound && (strcmp(pFound->deviceType, "RsaoA") == 0), "the ID still finds the first record");
 
+    // The same within a bulk update (as a device loads its type file): the generation is held, but the check sees
+    // the record added earlier in the file
+    {
+        DeviceTypeRecords bulkTable;
+        uint32_t gen0 = bulkTable.getGeneration();
+        DeviceTypeFileLoader::Result bulkResult;
+        {
+            DeviceTypeRecords::BulkUpdate bulk(bulkTable);
+            bulkResult = applyFile(bulkTable, json);
+            TEST_ASSERT(bulkTable.getGeneration() == gen0, "bulk load: generation held");
+        }
+        TEST_ASSERT((bulkResult.added == 2) && (bulkResult.rejected == 1), "bulk load: the duplicate ID is rejected");
+        TEST_ASSERT(bulkTable.getGeneration() == gen0 + 1, "bulk load: generation increased once");
+    }
+
     // The same key again (the same content) keeps its own ID
     result = applyFile(table, R"({"devTypes":{"RsaoA":{"deviceTypeId":"0x0084","excludeFromAddrMap":true,"addresses":"0x10"}}})");
     TEST_ASSERT((result.rejected == 0) && (result.unchanged == 1), "the same record again is not a duplicate");

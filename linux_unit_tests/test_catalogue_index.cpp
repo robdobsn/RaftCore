@@ -307,6 +307,45 @@ static void testTypeScanPriority()
     TEST_ASSERT(pBase->scanPriority == 0, "the record itself is unchanged");
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// A bulk update (a device type file loading) increases the generation once; lookups see each record as it is added
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+static void testBulkUpdate()
+{
+    printf("Running testBulkUpdate...\n");
+    DeviceTypeRecords table;
+    uint32_t gen0 = table.getGeneration();
+    uint16_t hwTypeId = 0xffe0;
+    DeviceTypeIndexType idx = 0;
+    while (table.getRecordByHwTypeId(hwTypeId, idx))
+        hwTypeId--;
+    {
+        DeviceTypeRecords::BulkUpdate bulk(table);
+        DeviceTypeRecordDynamic a = makeRecord("BulkA", "");
+        a.flags |= DeviceTypeRecord::FLAG_PROBE_ONLY;
+        a.setHwTypeId(hwTypeId);
+        TEST_ASSERT(table.addRecord(a, idx) == DeviceTypeRecords::AddResult::Added, "bulk: first added");
+        TEST_ASSERT(table.getGeneration() == gen0, "bulk: generation unchanged while it lasts");
+        DeviceTypeIndexType foundIdx = DEVICE_TYPE_INDEX_INVALID;
+        TEST_ASSERT(table.getRecordByHwTypeId(hwTypeId, foundIdx) && (foundIdx == idx), "bulk: lookups see the record added");
+        {
+            DeviceTypeRecords::BulkUpdate nested(table);
+            TEST_ASSERT(table.addRecord(makeRecord("BulkB", ""), idx) == DeviceTypeRecords::AddResult::Added, "bulk: nested add");
+        }
+        TEST_ASSERT(table.getGeneration() == gen0, "bulk: nested end doesn't end it");
+    }
+    TEST_ASSERT(table.getGeneration() == gen0 + 1, "bulk: generation increased once");
+
+    // A bulk update with no change doesn't increase it; a single change outside one does
+    {
+        DeviceTypeRecords::BulkUpdate bulk(table);
+    }
+    TEST_ASSERT(table.getGeneration() == gen0 + 1, "empty bulk: generation unchanged");
+    TEST_ASSERT(table.addRecord(makeRecord("Single", ""), idx) == DeviceTypeRecords::AddResult::Added, "single added");
+    TEST_ASSERT(table.getGeneration() == gen0 + 2, "single change: generation increased");
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 1)
@@ -317,5 +356,6 @@ int main(int argc, char** argv)
     testCandidateOrder();
     testHwTypeIdAndGeneration();
     testTypeScanPriority();
+    testBulkUpdate();
     return testSummary("test_catalogue_index");
 }

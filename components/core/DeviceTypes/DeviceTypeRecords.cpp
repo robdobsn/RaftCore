@@ -89,7 +89,7 @@ std::shared_ptr<const CatalogueIndex> DeviceTypeRecords::getCatalogueIndex() con
 {
     if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
         return std::make_shared<const CatalogueIndex>();
-    uint32_t generation = _generation.load(std::memory_order_acquire);
+    uint32_t generation = _contentVersion.load(std::memory_order_acquire);
     if (!_catalogueIndex || (_catalogueIndex->getGeneration() != generation))
     {
 #ifdef DEBUG_DEVICE_INFO_PERFORMANCE
@@ -961,7 +961,7 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
                         [this](uint16_t pos, const char* key) { return strcmp(_extRecords[pos]->deviceType, key) < 0; });
                 _extPosByKey.insert(insertIt, (uint16_t)count);
                 _extCount.store(count + 1, std::memory_order_release);
-                _generation.fetch_add(1, std::memory_order_acq_rel);
+                noteChange();
                 deviceTypeIndex = BASE_DEV_TYPE_ARRAY_SIZE + count;
             }
         }
@@ -1076,7 +1076,7 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::replaceBaseRecord(DeviceTypeInde
             _compiledRecords[baseIdx].reset();
         RaftMutex_unlock(_compiledMutex);
     }
-    _generation.fetch_add(1, std::memory_order_acq_rel);
+    noteChange();
     return AddResult::Replaced;
 }
 
@@ -1146,7 +1146,7 @@ DeviceTypeRecords::PolicyResult DeviceTypeRecords::setPolicy(DeviceTypeIndexType
         if (_policies.size() <= deviceTypeIndex)
             _policies.resize(deviceTypeIndex + 1, POLICY_UNSET);
         _policies[deviceTypeIndex] = policy;
-        _generation.fetch_add(1, std::memory_order_acq_rel);
+        noteChange();
     }
     RaftMutex_unlock(_extRecordsMutex);
     return result;
@@ -1207,7 +1207,7 @@ bool DeviceTypeRecords::setScanPriority(const char* deviceTypeKey, uint8_t scanP
         if (_scanPriorities.size() <= deviceTypeIndex)
             _scanPriorities.resize(deviceTypeIndex + 1, SCAN_PRIORITY_UNSET);
         _scanPriorities[deviceTypeIndex] = scanPriority;
-        _generation.fetch_add(1, std::memory_order_acq_rel);
+        noteChange();
     }
     RaftMutex_unlock(_extRecordsMutex);
     return true;

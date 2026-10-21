@@ -51,6 +51,40 @@ public:
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Start a bulk update (e.g. loading a device type file): the generation increases once, at the end
+    ///        (endBulkUpdate), however many records are added or changed - a bus scanner rebuilds its lists on each
+    ///        increase. Lookups (getCatalogueIndex etc.) see each change as it is made. Nests
+    void beginBulkUpdate()
+    {
+        _bulkDepth.fetch_add(1, std::memory_order_acq_rel);
+    }
+
+    /// @brief End a bulk update: the generation increases once if anything changed
+    void endBulkUpdate()
+    {
+        if ((_bulkDepth.fetch_sub(1, std::memory_order_acq_rel) == 1) && _bulkChanged.exchange(false))
+            _generation.fetch_add(1, std::memory_order_acq_rel);
+    }
+
+    /// @brief A bulk update for the life of the object
+    class BulkUpdate
+    {
+    public:
+        explicit BulkUpdate(DeviceTypeRecords& table) : _table(table)
+        {
+            _table.beginBulkUpdate();
+        }
+        ~BulkUpdate()
+        {
+            _table.endBulkUpdate();
+        }
+        BulkUpdate(const BulkUpdate&) = delete;
+        BulkUpdate& operator=(const BulkUpdate&) = delete;
+    private:
+        DeviceTypeRecords& _table;
+    };
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Identification candidates for an address, in the order to try them
     /// @param addr address (without slot)
     /// @return device type indexes
@@ -416,9 +450,21 @@ private:
     // Positions of the extended records sorted by key (for binary search), maintained under the mutex
     std::vector<uint16_t> _extPosByKey;
 
-    // Generation (incremented when a record is added) and the catalogue index built for it (replaced, never
-    // changed, when rebuilt; held under the mutex)
+    // Generation (incremented when a record is added - once for a bulk update) and the content version
+    // (incremented on every change, also within a bulk update), which the catalogue index is built for (replaced,
+    // never changed, when rebuilt; held under the mutex)
     std::atomic<uint32_t> _generation{1};
+    std::atomic<uint32_t> _contentVersion{1};
+    std::atomic<uint32_t> _bulkDepth{0};
+    std::atomic<bool> _bulkChanged{false};
+    void noteChange()
+    {
+        _contentVersion.fetch_add(1, std::memory_order_acq_rel);
+        if (_bulkDepth.load(std::memory_order_acquire) > 0)
+            _bulkChanged.store(true);
+        else
+            _generation.fetch_add(1, std::memory_order_acq_rel);
+    }
     mutable std::shared_ptr<const CatalogueIndex> _catalogueIndex;
 
     // Policies set at runtime, by device type index (POLICY_UNSET: the record's initial policy), under the mutex

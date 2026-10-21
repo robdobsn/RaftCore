@@ -172,12 +172,16 @@ void DeviceManager::applyTypeScanPriorities(bool reportUnknown)
 void DeviceManager::postSetup()
 {
     // Load the device type file (setup() of every SysMod has run, so the file system is mounted) - devices are
-    // identified once it is loaded
-    loadTypeFile();
-    loadDeviceSettings();
+    // identified once it is loaded. One bulk update of the type table: the bus scanners (already running) rebuild
+    // their lists once, not for each record added
+    {
+        DeviceTypeRecords::BulkUpdate bulkUpdate(deviceTypeRecords);
+        loadTypeFile();
+        loadDeviceSettings();
 
-    // Scan priorities for types the device type file added
-    applyTypeScanPriorities(true);
+        // Scan priorities for types the device type file added
+        applyTypeScanPriorities(true);
+    }
 
     // Register JSON data source (message generator and state detector functions)
     getSysManager()->registerDataSource("Publish", "devjson", 
