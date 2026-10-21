@@ -49,7 +49,7 @@ Also on this branch:
 
 All existing APIs, data and the devbin stream are unchanged; old names are kept as aliases.
 
-## 3. Type records branch (record management phases 1a-5)
+## 3. Type records branch (record management phases 1a-6)
 
 | Phase | Change | Aims |
 |-|-|-|
@@ -60,6 +60,7 @@ All existing APIs, data and the devbin stream are unchanged; old names are kept 
 | 3 | `devman/typefile/check`, a staged apply that checks before replacing, and per-entry outcomes. Type file build: entries are new, override, unchanged (left out) or policy, and records with no on-device decoder are flagged. raftjs wrappers | Runtime type files |
 | 4 | `DeviceTypesTool.py` plus `raft devtypes` (list, add, remove, new, check, update, diff, typefile, push, pull, status). Push uploads, has the device check the file, confirms, applies and verifies after the restart | Upload by the raft CLI |
 | 5 | `typeFile.fsImage` puts the type file in the file system image, built against everything the build compiles; the build saves its compiled records for the CLI. The source flag renamed `bundled` (old name accepted) | Factory-flashed type files |
+| 6 | Runtime decoding (`runtime-decoding.md`): records decoded on the device from their attribute list (D11 option 1) and custom decode and init code run by a bytecode interpreter (option 2); decoders and bytecode in PSRAM; a decode verifier comparing compiled and runtime decoders on a device. Type file loading: the type table's generation increases once per load (scan lists rebuilt once, not per record), about 30% faster. `devman/typefile/check` and `/apply?file=` run as a background job with a deferred reply (main loop under 8 ms throughout; the check task at the lowest priority on core 0), an atomic rename to install the file | All records at runtime, including custom code; type file operations don't hold up the device |
 
 **Benefits:**
 - A record is reviewed and committed on its own.
@@ -68,7 +69,7 @@ All existing APIs, data and the devbin stream are unchanged; old names are kept 
 - Board tuning no longer needs record copies.
 - Type files are checked by the firmware's own rules before they are applied, can't brick identification, and can be pushed from the command line or shipped in a factory flash.
 
-The "all records at runtime" setup is in place. Records with standard attributes are decoded on the device at runtime (D11 option 1, `runtime-decoding.md`); records with custom decode code wait for the code interpreter (option 2).
+The "all records at runtime" setup is in place. Records with standard attributes are decoded on the device at runtime (D11 option 1), and records with custom decode or init code are run by the code interpreter (option 2), both behind build flags (`runtime-decoding.md`).
 
 ## 4. Verification
 
@@ -79,12 +80,12 @@ The "all records at runtime" setup is in place. Records with standard attributes
   - RaftCLI 82 tests.
 - Hardware:
   - FeatherS3: polling, identification, type file check, apply and push, `fsImage` boot;
-  - Axiom018: same 47 records and identification order, LSM6DS at 400 kHz on its slots, mux scanning, RSAO.
+  - Axiom018: same 47 records and identification order, LSM6DS at 400 kHz on its slots, mux scanning, RSAO; runtime and compiled decoders compared on every poll (decode verifier); type file check, apply (including replacing an existing type file) and a 44-record load (about 620 ms, one scan-list rebuild).
 
 ## 5. Not done, or still open
 
 - Identification Stage 12: improvements to individual records (detection for 12 records, shadowing checks, ST time-of-flight records). This needs the devices on hardware.
-- D11 option 2: the code interpreter for records with custom decode code (`runtime-decoding.md` §5). Option 1, attribute decoding, is done.
+- File system writes still hold up the main loop (a file upload 13-42 ms per chunk; the cache refresh after a file close 88 ms): on the back-burner, with tests and a design in `flash-write-blocking-plan.md`.
 - Other runtime routes for type files: SD, a single record over REST, BLE from an app.
 - RaftCLI native transports (serial, WebSocket, BLE): planned in RaftCLI `devdocs/native-transports-plan.md`.
 - Pull requests for all branches; wiki changes pushed when they merge.
