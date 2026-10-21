@@ -469,7 +469,27 @@ private:
     void loadTypeFile();
 
     /// @brief Handle devman/typefile (status) and devman/typefile/apply (restart to apply a new file)
-    RaftRetCode apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+                const APISourceInfo& sourceInfo);
+
+    // A type file check or apply with a deferred reply (devman/typefile/check and apply): the file is read and
+    // written a chunk per loop() call, and the check runs in a task with its stack in PSRAM - created for it, so
+    // no internal RAM is kept for it, and doing no flash access (a task with its stack in PSRAM mustn't) - so
+    // the main loop isn't held up
+    struct TypeFileJob;
+    std::unique_ptr<TypeFileJob> _pTypeFileJob;
+    RaftRetCode startTypeFileJob(bool apply, const String& reqStr, const String& path, const APISourceInfo& sourceInfo,
+                String& respStr);
+    void serviceTypeFileJob();
+    void finishTypeFileJob(const String& respStr);
+    static void typeFileCheckWork(TypeFileJob& job);
+    static void typeFileCheckTaskFn(void* pArg);
+    static String typeFileCheckJson(const String& path, const char* pText, uint32_t textLen,
+                const DeviceTypeFileLoader::Result& result);
+    static const uint32_t TYPE_FILE_JOB_TIMEOUT_MS = 30000;
+    static const uint32_t TYPE_FILE_READ_CHUNK = 2048;
+    static const uint32_t TYPE_FILE_WRITE_CHUNK = 1024;
+    static const uint32_t TYPE_FILE_CHECK_TASK_STACK = 16384;
 
     /// @brief Handle devlib (status, with the fields of the feature/device-library branch's endpoint)
     RaftRetCode apiDevLib(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);

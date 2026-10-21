@@ -57,6 +57,9 @@ public:
 
     // Delete file on file system
     bool deleteFile(const String& fileSystemStr, const String& filename);
+
+    // Rename a file on a file system, replacing one with the new name (atomically on LittleFS)
+    bool renameFile(const String& fileSystemStr, const String& fromName, const String& toName);
     
     // Test file exists and get info
     bool getFileInfo(const String& fileSystemStr, const String& filename, uint32_t& fileLength);

@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <algorithm>
+#include <atomic>
 #include "DeviceManager.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeRecords.h"
@@ -19,6 +20,15 @@
 #include "FileSystem.h"
 #include "SpiramAwareAllocator.h"
 #include "DeviceTypeDecodeVerifier.h"
+#ifdef ESP_PLATFORM
+#include "esp_idf_version.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#include "esp_heap_caps.h"
+#define DEVMAN_TYPE_FILE_CHECK_TASK
+#endif
+#endif
 
 // Warnings
 #define WARN_ON_DEVICE_CLASS_NOT_FOUND
@@ -247,6 +257,10 @@ void DeviceManager::loop()
     // Complete re-initialisations that have finished
     if (!_pendingReInits.empty())
         servicePendingReInits();
+
+    // A type file check or apply in progress
+    if (_pTypeFileJob)
+        serviceTypeFileJob();
 
 #ifdef RAFT_RUNTIME_DECODE_VERIFY
     // Make the runtime decoders the decode verifier compares with the compiled ones
@@ -1124,7 +1138,7 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
     if (cmdName.equalsIgnoreCase("busstatus"))
         return apiDevManBusStatus(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("typefile"))
-        return apiDevManTypeFile(reqStr, respStr, jsonParams);
+        return apiDevManTypeFile(reqStr, respStr, jsonParams, sourceInfo);
 #ifdef RAFT_RUNTIME_DECODE_VERIFY
     if (cmdName.equalsIgnoreCase("decodeverify"))
     {
@@ -3000,7 +3014,8 @@ void DeviceManager::loadTypeFile()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Handle devman/typefile (status) and devman/typefile/apply (restart to apply a new file)
-RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+            const APISourceInfo& sourceInfo)
 {
     String action = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 2);
     // devman/typefile?entries=1: the query isn't an action
@@ -3013,6 +3028,13 @@ RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respS
     {
         if (stagedPath.length() == 0)
             stagedPath = _typeFilePath;
+
+        // With a deferred reply where the caller can take one (the main loop isn't held up)
+        if (_pTypeFileJob)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusy");
+        RaftRetCode jobRslt = startTypeFileJob(false, reqStr, stagedPath, sourceInfo, respStr);
+        if (jobRslt == RAFT_RESP_DEFERRED)
+            return jobRslt;
         DeviceTypeFileLoader::Result checkResult;
         String fileError;
         String json;
@@ -3030,6 +3052,12 @@ RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respS
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failNoTypeFile");
         if ((stagedPath.length() > 0) && (stagedPath != _typeFilePath))
         {
+            // With a deferred reply where the caller can take one (the main loop isn't held up)
+            if (_pTypeFileJob)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusy");
+            RaftRetCode jobRslt = startTypeFileJob(true, reqStr, stagedPath, sourceInfo, respStr);
+            if (jobRslt == RAFT_RESP_DEFERRED)
+                return jobRslt;
             DeviceTypeFileLoader::Result checkResult;
             String fileError;
             String json;
@@ -3133,11 +3161,20 @@ bool DeviceManager::checkTypeFile(const String& path, DeviceTypeFileLoader::Resu
         return false;
     }
     DeviceTypeFileLoader::checkJson(deviceTypeRecords, _typeFileKeys, text.c_str(), _typeFileLimits, result);
+    json = typeFileCheckJson(path, text.c_str(), text.length(), result);
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief The fields of a type file check's reply
+String DeviceManager::typeFileCheckJson(const String& path, const char* pText, uint32_t textLen,
+            const DeviceTypeFileLoader::Result& result)
+{
     char crcHex[8];
-    snprintf(crcHex, sizeof(crcHex), "%04x", (unsigned)DeviceTypeFileLoader::crc16((const uint8_t*)text.c_str(), text.length()));
-    json = "";
+    snprintf(crcHex, sizeof(crcHex), "%04x", (unsigned)DeviceTypeFileLoader::crc16((const uint8_t*)pText, textLen));
+    String json;
     RaftJson::appendStringField(json, "file", path.c_str());
-    json += ",\"bytes\":" + String((int)text.length()) + ",\"crc\":\"" + String(crcHex) + "\"";
+    json += ",\"bytes\":" + String((int)textLen) + ",\"crc\":\"" + String(crcHex) + "\"";
     json += ",\"valid\":" + String(result.fileValid && (result.rejected == 0) ? "true" : "false");
     json += ",\"added\":" + String((int)result.added) + ",\"replaced\":" + String((int)result.replaced);
     json += ",\"unchanged\":" + String((int)result.unchanged) + ",\"disabled\":" + String((int)result.disabled);
@@ -3145,7 +3182,249 @@ bool DeviceManager::checkTypeFile(const String& path, DeviceTypeFileLoader::Resu
     RaftJson::appendStringField(json, "firstError", result.firstError.c_str());
     RaftJson::appendStringField(json, "firstWarning", result.firstWarning.c_str());
     json += ",\"entries\":" + typeFileEntriesJson(result);
-    return true;
+    return json;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Type file check / apply job
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct DeviceManager::TypeFileJob
+{
+    enum class Stage : uint8_t { Read, Check, Write };
+    Stage stage = Stage::Read;
+    bool apply = false;
+    String reqStr;
+    String path;
+    uint32_t deferToken = 0;
+
+    // The file (read a chunk at a time; in PSRAM where there is any)
+    String fsName;
+    String fileName;
+    FILE* pFile = nullptr;
+    uint32_t fileLen = 0;
+    uint32_t pos = 0;
+    std::vector<char, SpiramAwareAllocator<char>> text;
+
+    // The check (in the check task): what it is given, and its result
+    std::vector<String> fileKeys;
+    DeviceTypeFileLoader::Limits limits;
+    DeviceTypeFileLoader::Result result;
+    String json;
+    std::atomic<bool> checkDone{false};
+    void* pTask = nullptr;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Start a check (or an apply - a check then the file written as the type file) with a deferred reply
+/// @return RAFT_RESP_DEFERRED if started, otherwise the caller replies at once (respStr unchanged)
+RaftRetCode DeviceManager::startTypeFileJob(bool apply, const String& reqStr, const String& path,
+            const APISourceInfo& sourceInfo, String& respStr)
+{
+    (void)respStr;
+    RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
+    if (!sourceInfo.canDefer || !pRestAPIEndpointManager ||
+                (pRestAPIEndpointManager->deferResponse(reqStr.c_str(), sourceInfo, TYPE_FILE_JOB_TIMEOUT_MS) != RAFT_RESP_DEFERRED))
+        return RAFT_OK;
+    _pTypeFileJob.reset(new TypeFileJob());
+    _pTypeFileJob->apply = apply;
+    _pTypeFileJob->reqStr = reqStr;
+    _pTypeFileJob->path = path;
+    _pTypeFileJob->deferToken = sourceInfo.deferToken;
+    _pTypeFileJob->fileKeys = _typeFileKeys;
+    _pTypeFileJob->limits = _typeFileLimits;
+    splitFsPath(path, _pTypeFileJob->fsName, _pTypeFileJob->fileName);
+    return RAFT_RESP_DEFERRED;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief The check (no flash access: it runs in a task with its stack in PSRAM)
+void DeviceManager::typeFileCheckWork(TypeFileJob& job)
+{
+    DeviceTypeFileLoader::checkJson(deviceTypeRecords, job.fileKeys, job.text.data(), job.limits, job.result);
+    job.json = typeFileCheckJson(job.path, job.text.data(), job.fileLen, job.result);
+}
+
+void DeviceManager::typeFileCheckTaskFn(void* pArg)
+{
+#ifdef DEVMAN_TYPE_FILE_CHECK_TASK
+    TypeFileJob* pJob = (TypeFileJob*)pArg;
+    typeFileCheckWork(*pJob);
+    pJob->checkDone = true;
+    // Deleted by the main loop (vTaskDeleteWithCaps frees the stack - not from the task itself)
+    while (true)
+        vTaskSuspend(nullptr);
+#else
+    (void)pArg;
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Advance the type file job a step (from loop())
+void DeviceManager::serviceTypeFileJob()
+{
+    TypeFileJob& job = *_pTypeFileJob;
+    switch (job.stage)
+    {
+        case TypeFileJob::Stage::Read:
+        {
+            if (!job.pFile)
+            {
+                uint32_t fileLen = 0;
+                if (!fileSystem.getFileInfo(job.fsName, job.fileName, fileLen))
+                {
+                    String respStr;
+                    Raft::setJsonErrorResult(job.reqStr.c_str(), respStr, "failFileNotFound");
+                    finishTypeFileJob(respStr);
+                    return;
+                }
+                if (fileLen > job.limits.maxFileBytes)
+                {
+                    String respStr;
+                    Raft::setJsonErrorResult(job.reqStr.c_str(), respStr, "failFileTooBigOrUnreadable");
+                    finishTypeFileJob(respStr);
+                    return;
+                }
+                job.pFile = fileSystem.fileOpen(job.fsName, job.fileName, false, 0);
+                if (!job.pFile)
+                {
+                    String respStr;
+                    Raft::setJsonErrorResult(job.reqStr.c_str(), respStr, "failFileTooBigOrUnreadable");
+                    finishTypeFileJob(respStr);
+                    return;
+                }
+                job.fileLen = fileLen;
+                job.text.resize(fileLen + 1);
+                job.pos = 0;
+                return;
+            }
+            uint32_t len = job.fileLen - job.pos;
+            if (len > TYPE_FILE_READ_CHUNK)
+                len = TYPE_FILE_READ_CHUNK;
+            uint32_t numRead = (len > 0) ? fileSystem.fileRead(job.pFile, (uint8_t*)job.text.data() + job.pos, len) : 0;
+            job.pos += numRead;
+            if ((numRead == len) && (job.pos < job.fileLen))
+                return;
+            fileSystem.fileClose(job.pFile, job.fsName, job.fileName, false);
+            job.pFile = nullptr;
+            job.fileLen = job.pos;
+            job.text[job.fileLen] = 0;
+
+            // The check: in its own task if it can be made, otherwise here
+            job.stage = TypeFileJob::Stage::Check;
+#ifdef DEVMAN_TYPE_FILE_CHECK_TASK
+            TaskHandle_t taskHandle = nullptr;
+            if (xTaskCreatePinnedToCoreWithCaps(typeFileCheckTaskFn, "TypeFileChk", TYPE_FILE_CHECK_TASK_STACK, &job,
+                        1, &taskHandle, tskNO_AFFINITY, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS)
+            {
+                job.pTask = taskHandle;
+                return;
+            }
+            LOG_W(MODULE_PREFIX, "typefile check task not created - checking in the main loop");
+#endif
+            typeFileCheckWork(job);
+            job.checkDone = true;
+            return;
+        }
+        case TypeFileJob::Stage::Check:
+        {
+            if (!job.checkDone)
+                return;
+#ifdef DEVMAN_TYPE_FILE_CHECK_TASK
+            if (job.pTask)
+            {
+                vTaskDeleteWithCaps((TaskHandle_t)job.pTask);
+                job.pTask = nullptr;
+            }
+#endif
+            String respStr;
+            if (!job.apply)
+            {
+                Raft::setJsonBoolResult(job.reqStr.c_str(), respStr, true, job.json.c_str());
+                finishTypeFileJob(respStr);
+                return;
+            }
+            if (!job.result.fileValid || (job.result.rejected > 0))
+            {
+                Raft::setJsonErrorResult(job.reqStr.c_str(), respStr, "failCheck");
+                // Include what the check found (the result is {"req":..,"rslt":"fail","error":..} - add the fields)
+                if (respStr.endsWith("}"))
+                    respStr = respStr.substring(0, respStr.length() - 1) + "," + job.json + "}";
+                finishTypeFileJob(respStr);
+                return;
+            }
+
+            // Apply: the checked file becomes the type file - renamed (atomic: a failure leaves the type file as it
+            // was) if on the same file system, otherwise copied a chunk per call
+            String fsName, fileName;
+            splitFsPath(_typeFilePath, fsName, fileName);
+            if (fsName.equalsIgnoreCase(job.fsName))
+            {
+                if (!fileSystem.renameFile(fsName, job.fileName, fileName))
+                {
+                    Raft::setJsonErrorResult(job.reqStr.c_str(), respStr, "failTypeFileWrite");
+                    finishTypeFileJob(respStr);
+                    return;
+                }
+                LOG_I(MODULE_PREFIX, "apiDevManTypeFile apply %s as %s - restarting to load it", job.path.c_str(), _typeFilePath.c_str());
+                Raft::setJsonBoolResult(job.reqStr.c_str(), respStr, true, "\"restarting\":true");
+                finishTypeFileJob(respStr);
+                if (getSysManager())
+                    getSysManager()->systemRestart();
+                return;
+            }
+            job.pFile = fileSystem.fileOpen(fsName, fileName, true, 0);
+            if (!job.pFile)
+            {
+                Raft::setJsonErrorResult(job.reqStr.c_str(), respStr, "failTypeFileWrite");
+                finishTypeFileJob(respStr);
+                return;
+            }
+            job.pos = 0;
+            job.stage = TypeFileJob::Stage::Write;
+            return;
+        }
+        case TypeFileJob::Stage::Write:
+        {
+            String fsName, fileName;
+            splitFsPath(_typeFilePath, fsName, fileName);
+            uint32_t len = job.fileLen - job.pos;
+            if (len > TYPE_FILE_WRITE_CHUNK)
+                len = TYPE_FILE_WRITE_CHUNK;
+            uint32_t written = (len > 0) ? fileSystem.fileWrite(job.pFile, (const uint8_t*)job.text.data() + job.pos, len) : 0;
+            job.pos += written;
+            if ((written == len) && (job.pos < job.fileLen))
+                return;
+            fileSystem.fileClose(job.pFile, fsName, fileName, true);
+            job.pFile = nullptr;
+            String respStr;
+            if (job.pos < job.fileLen)
+            {
+                Raft::setJsonErrorResult(job.reqStr.c_str(), respStr, "failTypeFileWrite");
+                finishTypeFileJob(respStr);
+                return;
+            }
+            fileSystem.deleteFile(job.fsName, job.fileName);
+            LOG_I(MODULE_PREFIX, "apiDevManTypeFile apply %s as %s - restarting to load it", job.path.c_str(), _typeFilePath.c_str());
+            Raft::setJsonBoolResult(job.reqStr.c_str(), respStr, true, "\"restarting\":true");
+            finishTypeFileJob(respStr);
+            if (getSysManager())
+                getSysManager()->systemRestart();
+            return;
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Reply to the job's request and end it
+void DeviceManager::finishTypeFileJob(const String& respStr)
+{
+    RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
+    if (pRestAPIEndpointManager)
+        pRestAPIEndpointManager->completeDeferred(_pTypeFileJob->deferToken, respStr);
+    if (_pTypeFileJob->pFile)
+        fileSystem.fileClose(_pTypeFileJob->pFile, _pTypeFileJob->fsName, _pTypeFileJob->fileName, false);
+    _pTypeFileJob.reset();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

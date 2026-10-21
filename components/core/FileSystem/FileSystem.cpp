@@ -459,6 +459,27 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
 // Delete
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+bool FileSystem::renameFile(const String& fileSystemStr, const String& fromName, const String& toName)
+{
+    // Check file system supported
+    String nameOfFS;
+    if (!checkFileSystem(fileSystemStr, nameOfFS))
+        return false;
+
+    // Take mutex
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    String fromPath = getFilePath(nameOfFS, fromName);
+    String toPath = getFilePath(nameOfFS, toName);
+    bool ok = (rename(fromPath.c_str(), toPath.c_str()) == 0);
+#if !defined(__linux__)
+    markFileCacheDirty(nameOfFS, fromName);
+    markFileCacheDirty(nameOfFS, toName);
+#endif
+    RaftMutex_unlock(_fileSysMutex);
+    return ok;
+}
+
 bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
 {
     // Check file system supported
