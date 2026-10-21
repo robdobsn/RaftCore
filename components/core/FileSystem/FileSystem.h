@@ -169,7 +169,7 @@ public:
     // Get temporary file name
     String getTempFileName();
 
-    // Get file system size
+    // Get file system size and bytes used (false if not known - e.g. an SD card's used bytes are still being computed)
     bool getFileSystemSize(const String& fileSystemStr, uint64_t& fsSizeBytes, uint64_t& fsUsedBytes);
     
 private:
