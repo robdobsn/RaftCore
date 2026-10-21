@@ -24,6 +24,7 @@
 #include <vector>
 #include "RaftArduino.h"
 #include "DeviceTypeRuntimeDecoder.h"
+#include "SpiramAwareAllocator.h"
 
 class DeviceTypeCodeProgram
 {
@@ -152,8 +153,9 @@ public:
 
 private:
     friend class DeviceTypeCodeCompiler;
-    std::vector<Node> _nodes;
-    std::vector<int32_t> _lists;        // statement lists (blocks)
+    // The tree (freed once there is bytecode): in PSRAM where there is any - it is used while compiling
+    std::vector<Node, SpiramAwareAllocator<Node>> _nodes;
+    std::vector<int32_t, SpiramAwareAllocator<int32_t>> _lists;        // statement lists (blocks)
     std::vector<OutField> _outFields;
     std::vector<String> _initNames;
     std::vector<NumType> _slotTypes;    // variable slots

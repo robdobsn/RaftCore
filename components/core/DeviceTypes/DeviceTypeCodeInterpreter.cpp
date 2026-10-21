@@ -301,14 +301,56 @@ namespace
         End, Id, KwInt, KwFloat, KwReturn, KwWhile, KwNext, NumInt, NumHex, NumFloat, Punct, Bad,
     };
 
+    // A token's text: where it is in the code (no copy - a type file's records have many tokens, and copies of
+    // them were most of the internal RAM compiling took)
+    struct TokText
+    {
+        const char* p = "";
+        uint32_t len = 0;
+        bool operator==(const char* s) const
+        {
+            return (strlen(s) == len) && (strncmp(p, s, len) == 0);
+        }
+        bool operator!=(const char* s) const
+        {
+            return !(*this == s);
+        }
+        bool startsWith(const char* s) const
+        {
+            size_t n = strlen(s);
+            return (n <= len) && (strncmp(p, s, n) == 0);
+        }
+        int indexOf(char c) const
+        {
+            for (uint32_t i = 0; i < len; i++)
+                if (p[i] == c)
+                    return (int)i;
+            return -1;
+        }
+        String substring(uint32_t from) const
+        {
+            return (from < len) ? String(p + from, len - from) : String();
+        }
+        String str() const
+        {
+            return String(p, len);
+        }
+        operator String() const
+        {
+            return str();
+        }
+    };
+
     struct Token
     {
         Tok kind = Tok::End;
-        String text;
+        TokText text;
         uint32_t pos = 0;
     };
+    // Tokens and the tree are only needed while compiling: in PSRAM where there is any
+    using TokenVector = std::vector<Token, SpiramAwareAllocator<Token>>;
 
-    bool lex(const char* pCode, std::vector<Token>& tokens, String& problem)
+    bool lex(const char* pCode, TokenVector& tokens, String& problem)
     {
         static const char* PUNCT[] = {
             "<<=", ">>=", "&&", "||", "<<", ">>", "<=", ">=", "==", "!=", "+=", "-=", "*=", "/=", "%=", "&=", "|=",
@@ -332,7 +374,8 @@ namespace
                 while (isalnum((unsigned char)*q) || (*q == '_') ||
                             ((*q == '.') && (isalpha((unsigned char)q[1]) || (q[1] == '_'))))
                     q++;
-                tok.text = String(p).substring(0, q - p);
+                tok.text.p = p;
+                tok.text.len = (uint32_t)(q - p);
                 if (tok.text == "int")
                     tok.kind = Tok::KwInt;
                 else if (tok.text == "float")
@@ -370,7 +413,8 @@ namespace
                         tok.kind = Tok::NumFloat;
                     }
                 }
-                tok.text = String(p).substring(0, q - p);
+                tok.text.p = p;
+                tok.text.len = (uint32_t)(q - p);
                 p = q;
                 if (isalnum((unsigned char)*p) || (*p == '_') || (*p == '.'))
                 {
@@ -387,7 +431,8 @@ namespace
                     if (strncmp(p, pPunct, len) == 0)
                     {
                         tok.kind = Tok::Punct;
-                        tok.text = pPunct;
+                        tok.text.p = pPunct;
+                        tok.text.len = (uint32_t)len;
                         p += len;
                         found = true;
                         break;
@@ -415,7 +460,7 @@ namespace
 class DeviceTypeCodeCompiler
 {
 public:
-    DeviceTypeCodeCompiler(DeviceTypeCodeProgram& prog, const std::vector<Token>& tokens) : _prog(prog), _toks(tokens)
+    DeviceTypeCodeCompiler(DeviceTypeCodeProgram& prog, const TokenVector& tokens) : _prog(prog), _toks(tokens)
     {
     }
 
@@ -441,7 +486,7 @@ public:
 
 private:
     DeviceTypeCodeProgram& _prog;
-    const std::vector<Token>& _toks;
+    const TokenVector& _toks;
     uint32_t _idx = 0;
     uint32_t _depth = 0;
     bool _failed = false;
@@ -886,13 +931,14 @@ private:
         n.op = OP_LIT;
         if (t.kind == Tok::NumFloat)
         {
-            n.lit = makeF64(strtod(t.text.c_str(), nullptr));
+            n.lit = makeF64(strtod(t.text.str().c_str(), nullptr));
         }
         else
         {
             bool isHex = (t.kind == Tok::NumHex);
             errno = 0;
-            unsigned long long value = strtoull(isHex ? t.text.c_str() + 2 : t.text.c_str(), nullptr, isHex ? 16 : 10);
+            String digits = t.text.str();
+            unsigned long long value = strtoull(isHex ? digits.c_str() + 2 : digits.c_str(), nullptr, isHex ? 16 : 10);
             if (errno == ERANGE)
                 return fail("number too large");
             // The type of the C literal: decimal int or long long; hex int, unsigned int, long long or unsigned
@@ -944,26 +990,26 @@ private:
         if (t.text.startsWith("out."))
         {
             if (_prog._kind != DeviceTypeCodeProgram::Kind::Decode)
-                return fail("init code assigns init.<name> values, not " + t.text);
+                return fail("init code assigns init.<name> values, not " + t.text.str());
             String name = t.text.substring(4);
             int32_t fieldIdx = -1;
             for (uint32_t i = 0; i < _prog._outFields.size(); i++)
                 if (_prog._outFields[i].name == name)
                     fieldIdx = (int32_t)i;
             if (fieldIdx < 0)
-                return fail(t.text + " is not an attribute of the record");
+                return fail(t.text.str() + " is not an attribute of the record");
             const auto& field = _prog._outFields[fieldIdx];
             if (isPunct("["))
             {
                 // An array element: only written, out.<name>[i] = value (as the build accepts)
                 if (field.count <= 1)
-                    return fail(t.text + " is not an array attribute");
+                    return fail(t.text.str() + " is not an array attribute");
                 _idx++;
                 int32_t index = expression();
                 if ((index < 0) || !expectPunct("]"))
                     return -1;
                 if (!isPunct("="))
-                    return fail(t.text + "[...] must be a simple assignment");
+                    return fail(t.text.str() + "[...] must be a simple assignment");
                 _idx++;
                 int32_t value = assignment();
                 if (value < 0)
@@ -973,7 +1019,7 @@ private:
                 return makeNode(OP_ARRAY_WRITE, VT::I32, fieldIdx, index, value);
             }
             if (field.count > 1)
-                return fail(t.text + " is an array attribute - write out." + name + "[i] = value");
+                return fail(t.text.str() + " is an array attribute - write out." + name + "[i] = value");
             Node n;
             n.op = OP_OUT;
             n.type = promotedType(field.type);
@@ -984,10 +1030,10 @@ private:
         if (t.text.startsWith("init."))
         {
             if (_prog._kind != DeviceTypeCodeProgram::Kind::Init)
-                return fail(t.text + " is only for init code");
+                return fail(t.text.str() + " is only for init code");
             String name = t.text.substring(5);
             if ((name.length() == 0) || (name.indexOf('.') >= 0))
-                return fail("invalid name " + t.text);
+                return fail("invalid name " + t.text.str());
             int32_t valueIdx = -1;
             for (uint32_t i = 0; i < _prog._initNames.size(); i++)
                 if (_prog._initNames[i] == name)
@@ -1005,10 +1051,10 @@ private:
             return addNode(n);
         }
         if (t.text.indexOf('.') >= 0)
-            return fail(t.text + " is not allowed");
+            return fail(t.text.str() + " is not allowed");
         int32_t slot = findVar(t.text);
         if (slot < 0)
-            return fail(t.text + " is not declared");
+            return fail(t.text.str() + " is not declared");
         Node n;
         n.op = OP_VAR;
         n.storeType = _prog._slotTypes[slot];
@@ -1028,7 +1074,7 @@ bool buildBytecode(DeviceTypeCodeProgram& prog);
 DeviceTypeCodeProgram* DeviceTypeCodeProgram::compile(const char* pCode, Kind kind, const std::vector<OutField>& outFields,
             String& problem)
 {
-    std::vector<Token> tokens;
+    TokenVector tokens;
     if (!lex(pCode, tokens, problem))
         return nullptr;
     DeviceTypeCodeProgram* pProg = new (std::nothrow) DeviceTypeCodeProgram();
@@ -1055,8 +1101,8 @@ DeviceTypeCodeProgram* DeviceTypeCodeProgram::compile(const char* pCode, Kind ki
     pProg->_consts.shrink_to_fit();
     if (pProg->_bytecodeOk && s_bytecodeEnabled)
     {
-        std::vector<Node>().swap(pProg->_nodes);
-        std::vector<int32_t>().swap(pProg->_lists);
+        decltype(pProg->_nodes)().swap(pProg->_nodes);
+        decltype(pProg->_lists)().swap(pProg->_lists);
         pProg->_root = -1;
     }
     return pProg;
