@@ -91,10 +91,11 @@ public:
     ///        a fixed stack; code that needs more operand stack or variables than the bytecode has is run from its tree
     bool usesBytecode() const
     {
-        return _bytecodeOk && s_bytecodeEnabled;
+        return _bytecodeOk && (s_bytecodeEnabled || _nodes.empty());
     }
 
-    /// @brief Use bytecode where it can be (default true) - false runs every program from its tree (tests, timing)
+    /// @brief Use bytecode where it can be (default true) - false runs programs compiled while it is false from their
+    ///        tree (tests, timing); a program compiled with it true keeps no tree and always runs as bytecode
     static void setBytecodeEnabled(bool enabled)
     {
         s_bytecodeEnabled = enabled;
@@ -157,6 +158,7 @@ private:
     std::vector<String> _initNames;
     std::vector<NumType> _slotTypes;    // variable slots
     int32_t _root = -1;
+    bool _hasNext = false;
     Kind _kind = Kind::Decode;
 
     struct Exec;

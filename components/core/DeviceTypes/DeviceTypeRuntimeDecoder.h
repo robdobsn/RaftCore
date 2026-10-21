@@ -24,6 +24,7 @@
 #include <atomic>
 #include "RaftArduino.h"
 #include "DeviceTypeRecord.h"
+#include "SpiramAwareAllocator.h"
 
 class DeviceTypeCodeProgram;
 
@@ -180,7 +181,8 @@ private:
             _maxExecDepth.store(execDepth, std::memory_order_relaxed);
     }
 
-    std::vector<Field> _fields;
+    // In PSRAM where there is any (a decoder for each type file record: many fields, read a few at a time)
+    std::vector<Field, SpiramAwareAllocator<Field>> _fields;
     std::vector<AttrFieldDesc> _fieldDescs;
     std::vector<String> _names;
     std::vector<String> _formats;

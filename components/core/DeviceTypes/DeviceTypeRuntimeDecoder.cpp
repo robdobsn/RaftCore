@@ -489,6 +489,8 @@ DeviceTypeRuntimeDecoder* DeviceTypeRuntimeDecoder::create(const char* pDevInfoJ
         delete pDecoder;
         return nullptr;
     }
+    pDecoder->_fields.shrink_to_fit();
+    pDecoder->_fieldDescs.shrink_to_fit();
 
     // Take a slot
     if (!takeSlot)
@@ -558,6 +560,10 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         problem = "no attributes (resp.a)";
         return false;
     }
+    _fields.reserve(numAttrs);
+    _fieldDescs.reserve(numAttrs);
+    _names.reserve(numAttrs);
+    _formats.reserve(numAttrs);
     if (!devInfo.contains("resp/b"))
     {
         problem = "no response size (resp.b)";

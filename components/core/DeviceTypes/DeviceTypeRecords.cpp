@@ -681,8 +681,9 @@ std::shared_ptr<const DeviceTypeRecords::CompiledRecord> DeviceTypeRecords::getC
     std::shared_ptr<const CompiledRecord> pCompiled = _compiledRecords[deviceTypeIndex];
     if (!pCompiled)
     {
-        // Base records' warnings are reported when the firmware is built, so only their errors are logged here
-        pCompiled = compileRecord(pRec, deviceTypeIndex >= BASE_DEV_TYPE_ARRAY_SIZE);
+        // Warnings were reported when the firmware was built (base records) or the record was added, so only
+        // errors are logged here
+        pCompiled = compileRecord(pRec, false);
         _compiledRecords[deviceTypeIndex] = pCompiled;
     }
     RaftMutex_unlock(_compiledMutex);
@@ -969,9 +970,15 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
     // Unlock
     RaftMutex_unlock(_extRecordsMutex);
 
-    // Compile the new record's command strings now, so any problems are reported when it is added
+    // Compile the new record's command strings now, so any problems are reported when it is added - not kept: it is
+    // compiled again when first used (as a compiled record is), so a type file's records that no device uses take
+    // no memory for it
     if ((result == AddResult::Added) || (result == AddResult::Replaced))
-        getCompiledRecord(deviceTypeIndex);
+    {
+        const DeviceTypeRecord* pAdded = getRecord(deviceTypeIndex);
+        if (pAdded)
+            compileRecord(pAdded, deviceTypeIndex >= BASE_DEV_TYPE_ARRAY_SIZE);
+    }
 
 #ifdef DEBUG_ADD_EXTENDED_DEVICE_TYPE_RECORD
     LOG_I(MODULE_PREFIX, "addRecord %s %s devTypeIdx %d addrs %s detVals %s initVals %s pollInfo %s",

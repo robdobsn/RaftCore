@@ -1045,17 +1045,26 @@ DeviceTypeCodeProgram* DeviceTypeCodeProgram::compile(const char* pCode, Kind ki
         delete pProg;
         return nullptr;
     }
-    // Also as bytecode, if it is within the bytecode's subset
+    for (const Node& n : pProg->_nodes)
+        pProg->_hasNext = pProg->_hasNext || (n.op == OP_NEXT);
+
+    // Also as bytecode (code needing more operand stack or variables than it has is run from the tree). The tree
+    // isn't kept once there is bytecode (its memory is wanted more: records from a type file make many programs)
     pProg->_bytecodeOk = buildBytecode(*pProg);
+    pProg->_code.shrink_to_fit();
+    pProg->_consts.shrink_to_fit();
+    if (pProg->_bytecodeOk && s_bytecodeEnabled)
+    {
+        std::vector<Node>().swap(pProg->_nodes);
+        std::vector<int32_t>().swap(pProg->_lists);
+        pProg->_root = -1;
+    }
     return pProg;
 }
 
 bool DeviceTypeCodeProgram::hasNext() const
 {
-    for (const Node& n : _nodes)
-        if (n.op == OP_NEXT)
-            return true;
-    return false;
+    return _hasNext;
 }
 
 struct DeviceTypeCodeProgram::Exec
@@ -1094,7 +1103,7 @@ struct DeviceTypeCodeProgram::Exec
 
 DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::run(RunContext& ctx) const
 {
-    if (_bytecodeOk && s_bytecodeEnabled)
+    if (usesBytecode())
         return runBytecode(ctx);
     Exec ex{ctx, std::vector<Val>(_slotTypes.size())};
     Status status = exec(_root, ex);

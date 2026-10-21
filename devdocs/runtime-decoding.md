@@ -148,3 +148,25 @@ A first version templated on every working, field and literal type cost 41 KB.
 **Stack use of the interpreter:** a frame per level of nesting, on ESP32 (Xtensa) 112 bytes per expression level (`eval`) and 80 per statement level (`exec`) since `Val` became a 16-byte tagged union (176 and 208 before). The deepest compiled records reach eval 9 (BME280/690) and exec 10 (SCD30), so about 1.8 KB. The first verify build made its decoders in the bus task: compiling there overflowed the 5 KB I2C task stack at boot.
 
 **For records decoded only at runtime:** a subscriber that decodes in the bus task (DataLogger) runs the interpreter there, with the frames above and about 10 times the compiled decode time for custom code.
+
+## 7. All records from a type file (Axiom018, 2026-10-21)
+
+**Setup:** no compiled records (`builtin.include` empty), all 56 of Axiom018's records (RaftCore's and Axiom's) in the type file (53.6 KB), uploaded and applied from the dashboard over BLE. The firmware is 79 KB smaller.
+
+**Results:**
+- The file's check: 56 added, 0 rejected (one warning: HX711 has no address); check and apply each block the main loop for about 1.3 s.
+- All 6 connected devices identified from the file's records, with runtime decoders (4 with custom decode code as bytecode); the init code from the file ran (MICS6814 registers as compiled); the power manager reads the fuel gauge through its runtime decoder.
+- DataLogger CSV session of all 6 devices (its decodes in the I2C task): 6,663 samples, no overflows.
+
+| | Compiled records | All from the type file |
+|-|-|-|
+| Internal heap free / lowest | 118 KB / 80.7 KB | 113.5 KB / 49.5 KB |
+| Main loop average | 655 us | 756 us |
+| I2C worker stack least free (5000) | 2,008 B | 2,040 B; 1,400 B with a DataLogger session |
+
+**Found and fixed on the way:**
+- Internal RAM: the first run had 32 KB free, 1.2 KB at its lowest (WiFi couldn't create a task). Allocations under 16 KB go to internal RAM (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`), and the records' parsed command strings, decoder fields and interpreter trees are many small ones. Now: a record's parsed command strings are cached when first used (as a compiled record's are), not when it is added; a program's tree is freed once it has bytecode; decoder fields are in PSRAM (`SpiramAwareAllocator`); vectors sized exactly. The bytecode stays in internal RAM (read every poll).
+- A type file check made a runtime decoder (with one of the 64 slots) per record beside the device's own: a check-only table now makes them without slots.
+- DataLogger re-registered its devices without unsubscribing the old contexts (use after free) - Axiom.
+
+**Not yet looked into:** the main loop's extra 100 us average.
