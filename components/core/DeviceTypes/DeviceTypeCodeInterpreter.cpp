@@ -1103,6 +1103,7 @@ DeviceTypeCodeProgram* DeviceTypeCodeProgram::compile(const char* pCode, Kind ki
     {
         decltype(pProg->_nodes)().swap(pProg->_nodes);
         decltype(pProg->_lists)().swap(pProg->_lists);
+        std::vector<OutField>().swap(pProg->_outFields);        // only the tree and the builder use them
         pProg->_root = -1;
     }
     return pProg;
@@ -1591,8 +1592,8 @@ public:
         if (!stmt(_prog._root))
             return false;
         emit(BC_HALT);
-        _prog._code = std::move(_code);
-        _prog._consts = std::move(_consts);
+        _prog._code.assign(_code.begin(), _code.end());
+        _prog._consts.assign(_consts.begin(), _consts.end());
         return true;
     }
 

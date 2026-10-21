@@ -866,6 +866,24 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         }
     }
 #endif
+
+    // The names and formats in one block, which the field descriptions point to
+    size_t textLen = 0;
+    for (uint32_t i = 0; i < _names.size(); i++)
+        textLen += _names[i].length() + 1 + _formats[i].length() + 1;
+    _text.resize(textLen);
+    char* pText = _text.data();
+    for (uint32_t i = 0; i < _fieldDescs.size(); i++)
+    {
+        memcpy(pText, _names[i].c_str(), _names[i].length() + 1);
+        _fieldDescs[i].name = pText;
+        pText += _names[i].length() + 1;
+        memcpy(pText, _formats[i].c_str(), _formats[i].length() + 1);
+        _fieldDescs[i].fmtStr = pText;
+        pText += _formats[i].length() + 1;
+    }
+    std::vector<String>().swap(_names);
+    std::vector<String>().swap(_formats);
     return true;
 }
 

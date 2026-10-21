@@ -169,4 +169,16 @@ A first version templated on every working, field and literal type cost 41 KB.
 - A type file check made a runtime decoder (with one of the 64 slots) per record beside the device's own: a check-only table now makes them without slots.
 - DataLogger re-registered its devices without unsubscribing the old contexts (use after free) - Axiom.
 
-**Not yet looked into:** the main loop's extra 100 us average.
+**Internal RAM, measured again like for like** (same code; the "compiled records" figures above were with older code and a one-record type file, and their main loop figure without the dashboard connected - its BLE publishing, not the type file, is the extra 100 us):
+
+| Axiom018, internal RAM free (steady / lowest) | |
+|-|-|
+| Compiled records, no type file | 168.8 / 107.0 KB |
+| All 56 from a type file, before the changes below | 113.5 / 49.6 KB |
+| + compiler: tokens refer to the code, tokens and tree in PSRAM | (lowest during the load 49.6 -> 60.9 KB) |
+| + decoders, their field descriptions and names in PSRAM | 137.4 / 82.7 KB |
+| + bytecode in PSRAM | 159.9 / 97.9 KB |
+
+Decode times with the decoders and bytecode in PSRAM (verify build) are the same as before within the run to run variation (tens of us cold); the attribute decoder of MAX17048 is about 6 us slower warm.
+
+**`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`** (malloc puts blocks under this in internal RAM; 16384 is ESP-IDF's default): 4096 gave about 9 KB more internal RAM free (169.3 / 108.1 KB with all records from the type file) with no change in decode times or DataLogger flush times. Not adopted: the I2C interrupt (ESP_INTR_FLAG_IRAM) reads and writes the caller's buffers while the flash cache may be disabled (a file system write), and a buffer from 4 to 16 KB would then be in PSRAM. A transfer from a buffer of 16 KB or more is exposed to this already.

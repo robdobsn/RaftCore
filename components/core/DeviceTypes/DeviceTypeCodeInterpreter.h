@@ -175,8 +175,11 @@ private:
         int16_t a = 0;
         int32_t b = 0;
     };
-    std::vector<Ins> _code;
-    std::vector<Cell> _consts;          // constants other than int (pushed by index)
+    // Bytecode, and constants other than int (pushed by index): in PSRAM where there is any - measured on Axiom018
+    // with no difference in decode time (it is small, and stays in the cache while a decode runs), and about 20 KB
+    // of internal RAM for a type file's 15 programs
+    std::vector<Ins, SpiramAwareAllocator<Ins>> _code;
+    std::vector<Cell, SpiramAwareAllocator<Cell>> _consts;
     bool _bytecodeOk = false;
     static bool s_bytecodeEnabled;
     friend class DeviceTypeBytecodeBuilder;

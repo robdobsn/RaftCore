@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <new>
 #include <atomic>
 #include "RaftArduino.h"
 #include "DeviceTypeRecord.h"
@@ -36,6 +37,16 @@ class DeviceTypeRuntimeDecoder
 {
 public:
     ~DeviceTypeRuntimeDecoder();
+
+    // In PSRAM where there is any (a decoder for each record of a type file)
+    static void* operator new(size_t size, const std::nothrow_t&) noexcept
+    {
+        return SpiramAwareAllocator<uint8_t>().allocate(size);
+    }
+    static void operator delete(void* p) noexcept
+    {
+        SpiramAwareAllocator<uint8_t>().deallocate(p, 0);
+    }
 
     /// @brief Create a decoder for a record's response attributes
     /// @param pDevInfoJson the record's devInfoJson
@@ -183,9 +194,10 @@ private:
 
     // In PSRAM where there is any (a decoder for each type file record: many fields, read a few at a time)
     std::vector<Field, SpiramAwareAllocator<Field>> _fields;
-    std::vector<AttrFieldDesc> _fieldDescs;
-    std::vector<String> _names;
+    std::vector<AttrFieldDesc, SpiramAwareAllocator<AttrFieldDesc>> _fieldDescs;
+    std::vector<String> _names;                 // while parsing; then packed into _text
     std::vector<String> _formats;
+    std::vector<char, SpiramAwareAllocator<char>> _text;    // the attribute names and formats the field descriptions point to
     uint16_t _structSize = 0;
     uint16_t _pollRecSize = 0;
     int32_t _slot = -1;
