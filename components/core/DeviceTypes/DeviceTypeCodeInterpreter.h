@@ -87,6 +87,20 @@ public:
     /// @brief Whether the code has a next statement (decode code without one gets one at the end)
     bool hasNext() const;
 
+    /// @brief Whether run() uses bytecode: code within the bytecode's subset (32-bit integer values, variables, buf[],
+    ///        out.<field> stores, the integer operators, if, while, next, return) is also compiled to bytecode, run by
+    ///        a loop with no recursion and a fixed stack; other code is run from its tree
+    bool usesBytecode() const
+    {
+        return _bytecodeOk && s_bytecodeEnabled;
+    }
+
+    /// @brief Use bytecode where it can be (default true) - false runs every program from its tree (tests, timing)
+    static void setBytecodeEnabled(bool enabled)
+    {
+        s_bytecodeEnabled = enabled;
+    }
+
     /// @brief Names of the init values, in order of first use (init code)
     const std::vector<String>& getInitValueNames() const
     {
@@ -138,6 +152,21 @@ private:
     struct Exec;
     Val eval(int32_t nodeIdx, Exec& ex) const;
     Status exec(int32_t nodeIdx, Exec& ex) const;
+
+    // Bytecode: an instruction (an operation, a type or kind, and two operands)
+    struct Ins
+    {
+        uint8_t op = 0;
+        uint8_t t = 0;
+        int16_t a = 0;
+        int32_t b = 0;
+    };
+    std::vector<Ins> _code;
+    bool _bytecodeOk = false;
+    static bool s_bytecodeEnabled;
+    friend class DeviceTypeBytecodeBuilder;
+    friend bool buildBytecode(DeviceTypeCodeProgram& prog);
+    Status runBytecode(RunContext& ctx) const;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

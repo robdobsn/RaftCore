@@ -44,12 +44,15 @@ static uint8_t randomByte(std::mt19937& rng)
 }
 
 // Every compiled record with a standard decode: the runtime decoder made from its JSON matches the compiled one
-static void testMatchesCompiledDecoders()
+static void testMatchesCompiledDecoders(bool bytecode)
 {
-    printf("Running testMatchesCompiledDecoders...\n");
+    printf("Running testMatchesCompiledDecoders (bytecode %s)...\n", bytecode ? "on" : "off");
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    DeviceTypeCodeProgram::setBytecodeEnabled(bytecode);
+#endif
     DeviceTypeRecords table;
     std::mt19937 rng(12345);
-    uint32_t numCompared = 0, numCustom = 0, numMismatched = 0;
+    uint32_t numCompared = 0, numCustom = 0, numMismatched = 0, numBytecode = 0;
     for (uint32_t idx = 0; idx < DeviceTypeRecords::getNumBaseRecords(); idx++)
     {
         const DeviceTypeRecord* pRec = table.getRecord(idx);
@@ -150,13 +153,19 @@ static void testMatchesCompiledDecoders()
         }
         if (pDecoder->getMaxEvalDepth() > 0)
             printf("  %s: interpreter depth eval %u exec %u\n", name.c_str(), pDecoder->getMaxEvalDepth(), pDecoder->getMaxExecDepth());
+        if (pDecoder->usesBytecode())
+        {
+            printf("  %s: bytecode\n", name.c_str());
+            numBytecode++;
+        }
         TEST_ASSERT(decodesSame, (name + ": decodes the same as the compiled decoder").c_str());
         if (!decodesSame)
             numMismatched++;
         numCompared++;
         delete pDecoder;
     }
-    printf("  %u records compared with their compiled decoders, %u of them with custom decode code\n", numCompared, numCustom);
+    printf("  %u records compared with their compiled decoders, %u of them with custom decode code, %u as bytecode\n",
+                numCompared, numCustom, numBytecode);
 #ifdef RAFT_RUNTIME_DECODE_CODE
     TEST_ASSERT(numCompared >= 55, "all records compared, custom decode code included");
 #else
@@ -164,6 +173,13 @@ static void testMatchesCompiledDecoders()
 #endif
     TEST_ASSERT(numMismatched == 0, "no mismatches");
     TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 0, "slots freed with their decoders");
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    // Integer-only custom code (LSM6DS3, LSM6DS3TRC, MAX30101, LTR-329) runs as bytecode, unless it is turned off
+    if (bytecode)
+        TEST_ASSERT(numBytecode >= 3, "integer-only custom decode code runs as bytecode");
+    else
+        TEST_ASSERT(numBytecode == 0, "bytecode turned off");
+#endif
 }
 
 // A type file record with no compiled decoder gets a runtime decoder, used through the record's decode function
@@ -330,7 +346,29 @@ static void testInterpreterSemantics()
         {"out.r=buf[100];", 0.0},                                       // outside buf: 0
         {"out.r=7/0;", 0.0},                                            // integer division by zero: 0
         {"int8_t c=200;out.r=c;", (double)(int8_t)200},
+        // Bytecode paths: combined instructions, narrowing, compound assignment, && and || as values
+        {"int16_t s=40000;out.r=s;", (double)(int16_t)40000},
+        {"uint8_t b=0;b-=1;out.r=b;", 255.0},
+        {"uint16_t w=65535;w++;out.r=w;", 0.0},
+        {"int k=0;k^=0x55;k|=0x100;k&=0x1F0;k>>=2;k*=3;k-=1;out.r=k;", (double)(((((0 ^ 0x55) | 0x100) & 0x1F0) >> 2) * 3 - 1)},
+        {"int k=1;int m=buf[2];k<<=m+4;k/=3;k%=5;out.r=k;", (double)(((1 << 5) / 3) % 5)},
+        {"out.r=(buf[0]&&buf[2])+(buf[3]||0)*2+(0&&buf[0])*4;", 3.0},
+        {"int i=0;int s=0;while(i<10&&s<20){s+=i;i++;}out.r=s*100+i;", 2107.0},
+        {"int k=1;out.r=buf[k+1]*1000+buf[k-1]*10+buf[k];", (double)(buf[2] * 1000 + buf[0] * 10 + buf[1])},
+        {"int k=-1;out.r=buf[k]+buf[k+5];", 0.0},                       // outside buf: 0
+        {"out.r=-buf[0]*3-(-7);", (double)(-buf[0] * 3 + 7)},
+        {"int z=-2147483647-1;out.r=z/-1;", (double)INT32_MIN},         // wraps (as the interpreter defines it)
+        {"out.r=5%-1;", 0.0},
+        {"int a=4;int b=a++;int c=++a;int d=a--;int e=--a;out.r=b*1000+c*100+d*10+e;", 4000.0 + 600 + 60 + 4},
+        {"int a=2;int b=(a=7)+1;out.r=a*10+b;", 78.0},
+        {"int x=0;if(buf[0]>200){if(buf[1]==128){x=1;}else{x=2;}}else{x=3;}out.r=x;", 1.0},
+        {"int x=~buf[3];out.r=!x+x;", (double)(~buf[3])},
     };
+    // Each case from the tree and, where it is within the bytecode's subset, as bytecode
+    for (bool bytecode : {false, true})
+    {
+    DeviceTypeCodeProgram::setBytecodeEnabled(bytecode);
+    uint32_t numBytecode = 0;
     for (const Case& c : cases)
     {
         String problem;
@@ -338,6 +376,7 @@ static void testInterpreterSemantics()
         TEST_ASSERT(pProg, (std::string(c.code) + " compiles: " + problem.c_str()).c_str());
         if (!pProg)
             continue;
+        numBytecode += pProg->usesBytecode() ? 1 : 0;
         double out = -12345;
         DeviceTypeCodeProgram::RunContext ctx;
         ctx.pBuf = buf;
@@ -365,8 +404,16 @@ static void testInterpreterSemantics()
         DeviceTypeCodeProgram::RunContext ctx2;
         ctx2.budget = 100;
         TEST_ASSERT(pProg && (pProg->run(ctx2) == DeviceTypeCodeProgram::Status::Return) && (ctx2.returnValue == 3), "return");
+        TEST_ASSERT(pProg && (pProg->usesBytecode() == bytecode), "return as bytecode");
         delete pProg;
     }
+    printf("  %s: %u of %u cases as bytecode\n", bytecode ? "bytecode on" : "bytecode off", numBytecode, (unsigned)(sizeof(cases) / sizeof(cases[0])));
+    if (bytecode)
+        TEST_ASSERT(numBytecode >= 25, "integer cases run as bytecode");
+    else
+        TEST_ASSERT(numBytecode == 0, "bytecode turned off");
+    }
+    DeviceTypeCodeProgram::setBytecodeEnabled(true);
 
     // Code outside the language is refused
     const char* bad[] = {
@@ -624,7 +671,8 @@ static void testDecodeVerifier()
 
 int main(int argc, char** argv)
 {
-    testMatchesCompiledDecoders();
+    testMatchesCompiledDecoders(false);
+    testMatchesCompiledDecoders(true);
     testTypeFileRecordGetsRuntimeDecoder();
     testAtList();
     testRefused();

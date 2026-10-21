@@ -1021,6 +1021,9 @@ private:
 // Program
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// The program as bytecode, if it is within the bytecode's subset (below)
+bool buildBytecode(DeviceTypeCodeProgram& prog);
+
 DeviceTypeCodeProgram* DeviceTypeCodeProgram::compile(const char* pCode, Kind kind, const std::vector<OutField>& outFields,
             String& problem)
 {
@@ -1041,6 +1044,8 @@ DeviceTypeCodeProgram* DeviceTypeCodeProgram::compile(const char* pCode, Kind ki
         delete pProg;
         return nullptr;
     }
+    // Also as bytecode, if it is within the bytecode's subset
+    pProg->_bytecodeOk = buildBytecode(*pProg);
     return pProg;
 }
 
@@ -1088,6 +1093,8 @@ struct DeviceTypeCodeProgram::Exec
 
 DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::run(RunContext& ctx) const
 {
+    if (_bytecodeOk && s_bytecodeEnabled)
+        return runBytecode(ctx);
     Exec ex{ctx, std::vector<Val>(_slotTypes.size())};
     Status status = exec(_root, ex);
     if (ex.outOfBudget)
@@ -1301,6 +1308,627 @@ DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::exec(int32_t nodeIdx, Exec&
             return Status::Done;
         default:
             return Status::Done;
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Bytecode: the typed tree of code within the bytecode's subset (every value a 32-bit int) as a flat list of
+// instructions, run by one loop - no recursion, a fixed operand stack and variable slots, no allocation. The
+// instructions do what the tree's nodes do (the same C++ operations on int32_t), with combined instructions for the
+// patterns decode code is made of: buf[var + const], operations with a constant, var += const, compare and branch
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool DeviceTypeCodeProgram::s_bytecodeEnabled = true;
+
+namespace
+{
+    enum BcOp : uint8_t
+    {
+        BC_PUSH_K,          // push b
+        BC_LOAD_VAR,        // push slot a
+        BC_STORE_VAR,       // pop to slot a
+        BC_LOAD_BUF,        // pop index, push buf[index] (0 outside the data)
+        BC_LOAD_BUF_VAR_K,  // push buf[slot a + b]
+        BC_LOAD_BUF_K,      // push buf[b]
+        BC_STORE_OUT,       // pop to the output field at offset b, of storage type t
+        BC_NARROW,          // to storage type t, then back to int (int8_t, uint8_t, int16_t, uint16_t, bool)
+        BC_DUP, BC_POP,
+        // In the order of the tree's operations (OP_ADD ... OP_XOR, OP_LT ... OP_NE): BC_ADD + (op - OP_ADD)
+        BC_ADD, BC_SUB, BC_MUL, BC_DIV, BC_MOD, BC_SHL, BC_SHR, BC_AND, BC_OR, BC_XOR,
+        BC_LT, BC_LE, BC_GT, BC_GE, BC_EQ, BC_NE,
+        BC_ADD_K, BC_MUL_K, BC_AND_K, BC_OR_K, BC_XOR_K, BC_SHL_K, BC_SHR_K,
+        BC_NEG, BC_NOT, BC_BNOT, BC_BOOL,
+        BC_ADD_VAR_K,       // slot a = narrow(slot a + b) to storage type t
+        BC_JMP,             // to b
+        BC_JZ, BC_JNZ,      // pop, jump to b if zero / not zero
+        BC_JGE, BC_JGT, BC_JLE, BC_JLT, BC_JNE, BC_JEQ,     // pop two, jump to b if (lhs op rhs)
+        BC_NEXT,            // next: if the output is full, jump to b (the end of the innermost while) or end (Break)
+        BC_RET,             // pop, return it (t: 0 decode - uint32_t, 1 init - bool)
+        BC_HALT,
+    };
+
+    const uint32_t BC_MAX_STACK = 16;
+    const uint32_t BC_MAX_SLOTS = 32;
+
+    inline int32_t wrapAdd32(int32_t a, int32_t b) { return (int32_t)((uint32_t)a + (uint32_t)b); }
+    inline int32_t wrapSub32(int32_t a, int32_t b) { return (int32_t)((uint32_t)a - (uint32_t)b); }
+    inline int32_t wrapMul32(int32_t a, int32_t b) { return (int32_t)((uint32_t)a * (uint32_t)b); }
+    inline int32_t div32(int32_t a, int32_t b) { return (b == 0) ? 0 : (b == -1) ? wrapSub32(0, a) : a / b; }
+    inline int32_t mod32(int32_t a, int32_t b) { return ((b == 0) || (b == -1)) ? 0 : a % b; }
+    inline int32_t shl32(int32_t a, int32_t n) { return (int32_t)((uint32_t)a << ((uint32_t)n & 31)); }
+    inline int32_t shr32(int32_t a, int32_t n) { return a >> ((uint32_t)n & 31); }
+
+    // An int converted to a variable's storage type and promoted back (narrowTo for an int)
+    inline int32_t narrow32(int32_t v, uint8_t st)
+    {
+        switch ((NumType)st)
+        {
+            case NumType::Int8: return (int8_t)v;
+            case NumType::Uint8: return (uint8_t)v;
+            case NumType::Int16: return (int16_t)v;
+            case NumType::Uint16: return (uint16_t)v;
+            case NumType::Bool: return v != 0;
+            default: return v;
+        }
+    }
+
+    // A storage type a variable may have in bytecode (its values are ints)
+    bool isIntStore(NumType st)
+    {
+        return (st == NumType::Int8) || (st == NumType::Uint8) || (st == NumType::Int16) || (st == NumType::Uint16) ||
+                    (st == NumType::Int32) || (st == NumType::Bool);
+    }
+}
+
+class DeviceTypeBytecodeBuilder
+{
+public:
+    explicit DeviceTypeBytecodeBuilder(DeviceTypeCodeProgram& prog) : _prog(prog) {}
+
+    bool build()
+    {
+        if (_prog._slotTypes.size() > BC_MAX_SLOTS)
+            return false;
+        for (NumType st : _prog._slotTypes)
+            if (!isIntStore(st))
+                return false;
+        if (!stmt(_prog._root))
+            return false;
+        emit(BC_HALT);
+        _prog._code = std::move(_code);
+        return true;
+    }
+
+private:
+    using Ins = DeviceTypeCodeProgram::Ins;
+    DeviceTypeCodeProgram& _prog;
+    std::vector<Ins> _code;
+    uint32_t _depth = 0;
+    std::vector<std::vector<uint32_t>> _whileExits;     // NEXT instructions to point at each enclosing while's end
+
+    const Node& node(int32_t idx) const
+    {
+        return _prog._nodes[idx];
+    }
+
+    uint32_t emit(uint8_t op, uint8_t t = 0, int32_t a = 0, int32_t b = 0)
+    {
+        Ins ins;
+        ins.op = op;
+        ins.t = t;
+        ins.a = (int16_t)a;
+        ins.b = b;
+        _code.push_back(ins);
+        return (uint32_t)_code.size() - 1;
+    }
+
+    bool push()
+    {
+        _depth++;
+        return _depth <= BC_MAX_STACK;
+    }
+    void pop(uint32_t n = 1)
+    {
+        _depth -= n;
+    }
+    uint32_t here() const
+    {
+        return (uint32_t)_code.size();
+    }
+    void patch(uint32_t insIdx, uint32_t target)
+    {
+        _code[insIdx].b = (int32_t)target;
+    }
+
+    static bool isI32Lit(const Node& n)
+    {
+        return (n.op == OP_LIT) && (n.lit.t == VT::I32);
+    }
+    static int32_t litValue(const Node& n)
+    {
+        return (int32_t)n.lit.i;
+    }
+
+    // Statements
+    bool stmt(int32_t idx)
+    {
+        const Node& n = node(idx);
+        switch (n.op)
+        {
+            case OP_BLOCK:
+                for (int32_t i = 0; i < n.b; i++)
+                    if (!stmt(_prog._lists[n.a + i]))
+                        return false;
+                return true;
+            case OP_EMPTY:
+                return true;
+            case OP_DECL:
+            {
+                if (n.b >= 0)
+                {
+                    if (!expr(n.b, true))
+                        return false;
+                }
+                else
+                {
+                    if (!push())
+                        return false;
+                    emit(BC_PUSH_K, 0, 0, 0);
+                }
+                if (n.storeType != NumType::Int32)
+                    emit(BC_NARROW, (uint8_t)n.storeType);
+                emit(BC_STORE_VAR, 0, n.a);
+                pop();
+                return true;
+            }
+            case OP_EXPR:
+                return expr(n.a, false);
+            case OP_IF:
+            {
+                std::vector<uint32_t> toElse;
+                if (!cond(n.a, toElse))
+                    return false;
+                if (!stmt(n.b))
+                    return false;
+                if (n.c < 0)
+                {
+                    for (uint32_t j : toElse)
+                        patch(j, here());
+                    return true;
+                }
+                uint32_t toEnd = emit(BC_JMP);
+                for (uint32_t j : toElse)
+                    patch(j, here());
+                if (!stmt(n.c))
+                    return false;
+                patch(toEnd, here());
+                return true;
+            }
+            case OP_WHILE:
+            {
+                uint32_t start = here();
+                std::vector<uint32_t> toEnd;
+                if (!cond(n.a, toEnd))
+                    return false;
+                _whileExits.emplace_back();
+                if (!stmt(n.b))
+                    return false;
+                emit(BC_JMP, 0, 0, (int32_t)start);
+                for (uint32_t j : toEnd)
+                    patch(j, here());
+                for (uint32_t j : _whileExits.back())
+                    patch(j, here());
+                _whileExits.pop_back();
+                return true;
+            }
+            case OP_NEXT:
+            {
+                uint32_t j = emit(BC_NEXT, 0, 0, -1);
+                if (!_whileExits.empty())
+                    _whileExits.back().push_back(j);
+                return true;
+            }
+            case OP_RETURN:
+            {
+                if (n.a >= 0)
+                {
+                    if (!expr(n.a, true))
+                        return false;
+                }
+                else
+                {
+                    if (!push())
+                        return false;
+                    emit(BC_PUSH_K, 0, 0, 0);
+                }
+                emit(BC_RET, (_prog._kind == DeviceTypeCodeProgram::Kind::Decode) ? 0 : 1);
+                pop();
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+
+    // A condition: jumps added to toFalse are taken when it is false (patched by the caller)
+    bool cond(int32_t idx, std::vector<uint32_t>& toFalse)
+    {
+        const Node& n = node(idx);
+        if ((n.op >= OP_LT) && (n.op <= OP_NE) && ((VT)n.c == VT::I32) && (node(n.a).type == VT::I32) &&
+                    (node(n.b).type == VT::I32))
+        {
+            if (!expr(n.a, true) || !expr(n.b, true))
+                return false;
+            static const uint8_t INVERSE[] = {BC_JGE, BC_JGT, BC_JLE, BC_JLT, BC_JNE, BC_JEQ};     // LT LE GT GE EQ NE
+            toFalse.push_back(emit(INVERSE[n.op - OP_LT]));
+            pop(2);
+            return true;
+        }
+        if (n.op == OP_LAND)
+            return cond(n.a, toFalse) && cond(n.b, toFalse);
+        if (n.type != VT::I32)
+            return false;
+        if (!expr(idx, true))
+            return false;
+        toFalse.push_back(emit(BC_JZ));
+        pop();
+        return true;
+    }
+
+    // An expression: leaves its value on the stack if want
+    bool expr(int32_t idx, bool want)
+    {
+        const Node& n = node(idx);
+        if ((n.type != VT::I32) && (n.op != OP_ASSIGN))
+            return false;
+        switch (n.op)
+        {
+            case OP_LIT:
+                if (!isI32Lit(n))
+                    return false;
+                if (!want)
+                    return true;
+                if (!push())
+                    return false;
+                emit(BC_PUSH_K, 0, 0, litValue(n));
+                return true;
+            case OP_VAR:
+                if (!want)
+                    return true;
+                if (!push())
+                    return false;
+                emit(BC_LOAD_VAR, 0, n.a);
+                return true;
+            case OP_BUF:
+            {
+                const Node& index = node(n.a);
+                if (index.type != VT::I32)
+                    return false;
+                if (index.op == OP_VAR)
+                {
+                    if (!push())
+                        return false;
+                    emit(BC_LOAD_BUF_VAR_K, 0, index.a, 0);
+                }
+                else if (isI32Lit(index))
+                {
+                    if (!push())
+                        return false;
+                    emit(BC_LOAD_BUF_K, 0, 0, litValue(index));
+                }
+                else if ((index.op == OP_ADD) && ((VT)index.c == VT::I32) && (node(index.a).op == OP_VAR) &&
+                            isI32Lit(node(index.b)))
+                {
+                    if (!push())
+                        return false;
+                    emit(BC_LOAD_BUF_VAR_K, 0, node(index.a).a, litValue(node(index.b)));
+                }
+                else
+                {
+                    if (!expr(n.a, true))
+                        return false;
+                    emit(BC_LOAD_BUF);
+                }
+                if (!want)
+                {
+                    emit(BC_POP);
+                    pop();
+                }
+                return true;
+            }
+            case OP_POS:
+                return expr(n.a, want);
+            case OP_NEG: case OP_NOT: case OP_BNOT:
+            {
+                if (node(n.a).type != VT::I32)
+                    return false;
+                if (!expr(n.a, true))
+                    return false;
+                emit((n.op == OP_NEG) ? BC_NEG : (n.op == OP_NOT) ? BC_NOT : BC_BNOT);
+                return discardIfUnwanted(want);
+            }
+            case OP_LAND: case OP_LOR:
+            {
+                // a && b: a false -> 0, else (b != 0); a || b: a true -> 1, else (b != 0)
+                if ((node(n.a).type != VT::I32) || (node(n.b).type != VT::I32))
+                    return false;
+                if (!expr(n.a, true))
+                    return false;
+                uint32_t shortCut = emit((n.op == OP_LAND) ? BC_JZ : BC_JNZ);
+                pop();
+                if (!expr(n.b, true))
+                    return false;
+                emit(BC_BOOL);
+                uint32_t toEnd = emit(BC_JMP);
+                pop();
+                patch(shortCut, here());
+                emit(BC_PUSH_K, 0, 0, (n.op == OP_LAND) ? 0 : 1);
+                if (!push())
+                    return false;
+                patch(toEnd, here());
+                return discardIfUnwanted(want);
+            }
+            case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV: case OP_MOD: case OP_AND: case OP_OR: case OP_XOR:
+            case OP_SHL: case OP_SHR: case OP_LT: case OP_LE: case OP_GT: case OP_GE: case OP_EQ: case OP_NE:
+            {
+                bool isShift = (n.op == OP_SHL) || (n.op == OP_SHR);
+                if ((node(n.a).type != VT::I32) || (node(n.b).type != VT::I32) || (!isShift && ((VT)n.c != VT::I32)))
+                    return false;
+                if (!expr(n.a, true))
+                    return false;
+                // With a constant: one instruction
+                const Node& rhs = node(n.b);
+                if (isI32Lit(rhs))
+                {
+                    int32_t k = litValue(rhs);
+                    int kOp = -1;
+                    switch (n.op)
+                    {
+                        case OP_ADD: kOp = BC_ADD_K; break;
+                        case OP_SUB: kOp = BC_ADD_K; k = wrapSub32(0, k); break;
+                        case OP_MUL: kOp = BC_MUL_K; break;
+                        case OP_AND: kOp = BC_AND_K; break;
+                        case OP_OR: kOp = BC_OR_K; break;
+                        case OP_XOR: kOp = BC_XOR_K; break;
+                        case OP_SHL: kOp = BC_SHL_K; break;
+                        case OP_SHR: kOp = BC_SHR_K; break;
+                        default: break;
+                    }
+                    if (kOp >= 0)
+                    {
+                        emit((uint8_t)kOp, 0, 0, k);
+                        return discardIfUnwanted(want);
+                    }
+                }
+                if (!expr(n.b, true))
+                    return false;
+                emit((uint8_t)(BC_ADD + (n.op - OP_ADD)));
+                pop();
+                return discardIfUnwanted(want);
+            }
+            case OP_ASSIGN: case OP_PREINC: case OP_PREDEC: case OP_POSTINC: case OP_POSTDEC:
+                return assign(n, want);
+            default:
+                return false;
+        }
+    }
+
+    bool discardIfUnwanted(bool want)
+    {
+        if (!want)
+        {
+            emit(BC_POP);
+            pop();
+        }
+        return true;
+    }
+
+    bool assign(const Node& n, bool want)
+    {
+        const Node& target = node(n.a);
+        bool isVar = (target.op == OP_VAR);
+        if (!isVar && (target.op != OP_OUT))
+            return false;
+
+        // ++, -- and var += const with the value unused: one instruction
+        bool isInc = (n.op != OP_ASSIGN);
+        if (isVar && !want && (isInc || ((n.c == OP_ADD || n.c == OP_SUB) && isI32Lit(node(n.b)))))
+        {
+            int32_t k = 1;
+            if (!isInc)
+                k = (n.c == OP_ADD) ? litValue(node(n.b)) : wrapSub32(0, litValue(node(n.b)));
+            else if ((n.op == OP_PREDEC) || (n.op == OP_POSTDEC))
+                k = -1;
+            emit(BC_ADD_VAR_K, (uint8_t)target.storeType, target.a, k);
+            return true;
+        }
+        if (isInc)
+        {
+            if (!isVar || !push())
+                return false;
+            emit(BC_LOAD_VAR, 0, target.a);
+            bool post = (n.op == OP_POSTINC) || (n.op == OP_POSTDEC);
+            if (post && want)
+            {
+                if (!push())
+                    return false;
+                emit(BC_DUP);
+            }
+            emit(BC_ADD_K, 0, 0, ((n.op == OP_PREINC) || (n.op == OP_POSTINC)) ? 1 : -1);
+            if (target.storeType != NumType::Int32)
+                emit(BC_NARROW, (uint8_t)target.storeType);
+            if (!post && want)
+            {
+                if (!push())
+                    return false;
+                emit(BC_DUP);
+            }
+            emit(BC_STORE_VAR, 0, target.a);
+            pop();
+            return true;
+        }
+
+        // Assignment: the value (a compound assignment's operation on the old value)
+        if (node(n.b).type != VT::I32)
+            return false;
+        if (n.c >= 0)
+        {
+            // An output field is only written
+            if (!isVar)
+                return false;
+            if (!push())
+                return false;
+            emit(BC_LOAD_VAR, 0, target.a);
+            if (!expr(n.b, true))
+                return false;
+            emit((uint8_t)(BC_ADD + (n.c - OP_ADD)));
+            pop();
+        }
+        else if (!expr(n.b, true))
+        {
+            return false;
+        }
+        if (isVar)
+        {
+            if (target.storeType != NumType::Int32)
+                emit(BC_NARROW, (uint8_t)target.storeType);
+            if (want)
+            {
+                if (!push())
+                    return false;
+                emit(BC_DUP);
+            }
+            emit(BC_STORE_VAR, 0, target.a);
+            pop();
+            return true;
+        }
+        // An output field: as a value, the assignment is the stored value (only for an int field)
+        if (want)
+        {
+            if (!isIntStore(target.storeType))
+                return false;
+            if (target.storeType != NumType::Int32)
+                emit(BC_NARROW, (uint8_t)target.storeType);
+            if (!push())
+                return false;
+            emit(BC_DUP);
+        }
+        emit(BC_STORE_OUT, (uint8_t)target.storeType, 0, (int32_t)_prog._outFields[target.a].offset);
+        pop();
+        return true;
+    }
+};
+
+bool buildBytecode(DeviceTypeCodeProgram& prog)
+{
+    DeviceTypeBytecodeBuilder builder(prog);
+    return builder.build();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Run the bytecode
+/// @note Compiled for speed with a jump table for the dispatch, also in a build optimised for size (where GCC makes
+///       a switch a chain of compares)
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("O2", "jump-tables")))
+#endif
+DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::runBytecode(RunContext& ctx) const
+{
+    int32_t stack[BC_MAX_STACK];
+    int32_t slots[BC_MAX_SLOTS];
+    memset(slots, 0, sizeof(int32_t) * _slotTypes.size());
+    int32_t* sp = stack;
+    const Ins* pCode = _code.data();
+    const uint8_t* pBuf = ctx.pBuf;
+    const int64_t bufLen = pBuf ? (int64_t)ctx.bufLen : 0;
+    uint32_t pc = 0;
+    // The budget is kept here, and stored back when the code ends
+    uint32_t budget = ctx.budget;
+    auto end = [&ctx, &budget](Status status) {
+        ctx.budget = budget;
+        return status;
+    };
+    auto bufAt = [pBuf, bufLen](int32_t index) -> int32_t {
+        return ((index >= 0) && (index < bufLen)) ? pBuf[index] : 0;
+    };
+    while (true)
+    {
+        if (budget == 0)
+            return end(Status::OutOfBudget);
+        budget--;
+        const Ins& ins = pCode[pc++];
+        switch (ins.op)
+        {
+            case BC_PUSH_K: *sp++ = ins.b; break;
+            case BC_LOAD_VAR: *sp++ = slots[ins.a]; break;
+            case BC_STORE_VAR: slots[ins.a] = *--sp; break;
+            case BC_LOAD_BUF: sp[-1] = bufAt(sp[-1]); break;
+            case BC_LOAD_BUF_VAR_K: *sp++ = bufAt(wrapAdd32(slots[ins.a], ins.b)); break;
+            case BC_LOAD_BUF_K: *sp++ = bufAt(ins.b); break;
+            case BC_STORE_OUT:
+            {
+                int32_t v = *--sp;
+                if (ctx.pOut)
+                    storeField(ctx.pOut + ins.b, (NumType)ins.t, makeI32(v));
+                break;
+            }
+            case BC_NARROW: sp[-1] = narrow32(sp[-1], ins.t); break;
+            case BC_DUP: *sp = sp[-1]; sp++; break;
+            case BC_POP: sp--; break;
+            case BC_ADD: sp--; sp[-1] = wrapAdd32(sp[-1], sp[0]); break;
+            case BC_SUB: sp--; sp[-1] = wrapSub32(sp[-1], sp[0]); break;
+            case BC_MUL: sp--; sp[-1] = wrapMul32(sp[-1], sp[0]); break;
+            case BC_DIV: sp--; sp[-1] = div32(sp[-1], sp[0]); break;
+            case BC_MOD: sp--; sp[-1] = mod32(sp[-1], sp[0]); break;
+            case BC_AND: sp--; sp[-1] &= sp[0]; break;
+            case BC_OR: sp--; sp[-1] |= sp[0]; break;
+            case BC_XOR: sp--; sp[-1] ^= sp[0]; break;
+            case BC_SHL: sp--; sp[-1] = shl32(sp[-1], sp[0]); break;
+            case BC_SHR: sp--; sp[-1] = shr32(sp[-1], sp[0]); break;
+            case BC_LT: sp--; sp[-1] = sp[-1] < sp[0]; break;
+            case BC_LE: sp--; sp[-1] = sp[-1] <= sp[0]; break;
+            case BC_GT: sp--; sp[-1] = sp[-1] > sp[0]; break;
+            case BC_GE: sp--; sp[-1] = sp[-1] >= sp[0]; break;
+            case BC_EQ: sp--; sp[-1] = sp[-1] == sp[0]; break;
+            case BC_NE: sp--; sp[-1] = sp[-1] != sp[0]; break;
+            case BC_ADD_K: sp[-1] = wrapAdd32(sp[-1], ins.b); break;
+            case BC_MUL_K: sp[-1] = wrapMul32(sp[-1], ins.b); break;
+            case BC_AND_K: sp[-1] &= ins.b; break;
+            case BC_OR_K: sp[-1] |= ins.b; break;
+            case BC_XOR_K: sp[-1] ^= ins.b; break;
+            case BC_SHL_K: sp[-1] = shl32(sp[-1], ins.b); break;
+            case BC_SHR_K: sp[-1] = shr32(sp[-1], ins.b); break;
+            case BC_NEG: sp[-1] = wrapSub32(0, sp[-1]); break;
+            case BC_NOT: sp[-1] = sp[-1] == 0; break;
+            case BC_BNOT: sp[-1] = ~sp[-1]; break;
+            case BC_BOOL: sp[-1] = sp[-1] != 0; break;
+            case BC_ADD_VAR_K: slots[ins.a] = narrow32(wrapAdd32(slots[ins.a], ins.b), ins.t); break;
+            case BC_JMP: pc = (uint32_t)ins.b; break;
+            case BC_JZ: if (*--sp == 0) pc = (uint32_t)ins.b; break;
+            case BC_JNZ: if (*--sp != 0) pc = (uint32_t)ins.b; break;
+            case BC_JGE: sp -= 2; if (sp[0] >= sp[1]) pc = (uint32_t)ins.b; break;
+            case BC_JGT: sp -= 2; if (sp[0] > sp[1]) pc = (uint32_t)ins.b; break;
+            case BC_JLE: sp -= 2; if (sp[0] <= sp[1]) pc = (uint32_t)ins.b; break;
+            case BC_JLT: sp -= 2; if (sp[0] < sp[1]) pc = (uint32_t)ins.b; break;
+            case BC_JNE: sp -= 2; if (sp[0] != sp[1]) pc = (uint32_t)ins.b; break;
+            case BC_JEQ: sp -= 2; if (sp[0] == sp[1]) pc = (uint32_t)ins.b; break;
+            case BC_NEXT:
+                if (!ctx.nextFn || !ctx.nextFn(ctx.pNextContext))
+                {
+                    if (ins.b < 0)
+                        return end(Status::Break);
+                    pc = (uint32_t)ins.b;
+                }
+                break;
+            case BC_RET:
+            {
+                int32_t v = *--sp;
+                ctx.returnValue = (ins.t == 0) ? (int64_t)(uint32_t)v : (v != 0 ? 1 : 0);
+                return end(Status::Return);
+            }
+            default:
+                return end(Status::Done);
+        }
     }
 }
 

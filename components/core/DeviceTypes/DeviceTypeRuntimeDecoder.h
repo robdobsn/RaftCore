@@ -82,6 +82,9 @@ public:
         return _maxExecDepth.load(std::memory_order_relaxed);
     }
 
+    /// @brief Custom decode code run as bytecode (DeviceTypeCodeProgram::usesBytecode)
+    bool usesBytecode() const;
+
     /// @brief Custom decode code: interpreter steps (expression and statement nodes) run in all, for timing
     uint64_t getNodesRun() const
     {

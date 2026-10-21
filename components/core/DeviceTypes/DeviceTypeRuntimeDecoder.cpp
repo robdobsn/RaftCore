@@ -515,6 +515,15 @@ DeviceTypeRuntimeDecoder::~DeviceTypeRuntimeDecoder()
     delete _pProgram;
 }
 
+bool DeviceTypeRuntimeDecoder::usesBytecode() const
+{
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    return _pProgram && _pProgram->usesBytecode();
+#else
+    return false;
+#endif
+}
+
 uint32_t DeviceTypeRuntimeDecoder::getNumSlotsInUse()
 {
     uint32_t count = 0;
@@ -1114,6 +1123,10 @@ uint32_t DeviceTypeRuntimeDecoder::decode(const uint8_t*, uint32_t, void*, uint3
 uint32_t DeviceTypeRuntimeDecoder::getNumSlotsInUse()
 {
     return 0;
+}
+bool DeviceTypeRuntimeDecoder::usesBytecode() const
+{
+    return false;
 }
 
 #endif // RAFT_RUNTIME_DECODE
