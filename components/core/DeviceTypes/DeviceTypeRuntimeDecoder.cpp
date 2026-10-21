@@ -582,8 +582,12 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
     uint32_t maxAlign = alignof(uint32_t);
     for (int attrIdx = 0; attrIdx < numAttrs; attrIdx++)
     {
-        String prefix = "resp/a[" + String(attrIdx) + "]/";
-        String name = devInfo.getString((prefix + "n").c_str(), "");
+        // The attribute's own JSON (its fields looked up in it, not from the start of devInfoJson each time - that
+        // was a large part of a type file's load time)
+        String attrText = devInfo.getString(("resp/a[" + String(attrIdx) + "]").c_str(), "{}");
+        RaftJson attr(attrText.c_str(), false);
+        const String prefix;
+        String name = attr.getString((prefix + "n").c_str(), "");
         if (name.length() == 0)
             continue;
         for (const String& existing : _names)
@@ -599,7 +603,7 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         // Type: optional endian, optional count, code, optional [N] (DecodeGenerator.parse_attr_type: a type that
         // doesn't parse is taken whole, with one element). A type the build can't read from the buffer still gives a
         // struct field from "o" - a standard decode doesn't write it, a custom decode may
-        String typeStr = devInfo.getString((prefix + "t").c_str(), "");
+        String typeStr = attr.getString((prefix + "t").c_str(), "");
         typeStr.trim();
         if (typeStr.length() == 0)
         {
@@ -652,7 +656,7 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         f.workType = workTypeFor(f.bufType);
 
         // Struct field type ("o", else the buffer type)
-        String outName = devInfo.getString((prefix + "o").c_str(), "");
+        String outName = attr.getString((prefix + "o").c_str(), "");
         if (!outTypeFromName(outName, f.outType))
             f.outType = f.bufType;
         if (f.outType == NumType::Invalid)
@@ -660,8 +664,8 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
             problem = "attribute " + name + " has a type the build can't decode: " + typeStr;
             return false;
         }
-        parseLiteral(devInfo, (prefix + "d").c_str(), f.divisor);
-        parseLiteral(devInfo, (prefix + "a").c_str(), f.addend);
+        parseLiteral(attr, (prefix + "d").c_str(), f.divisor);
+        parseLiteral(attr, (prefix + "a").c_str(), f.addend);
 
         // A custom decode writes the fields itself: only the layout, and the sign extension at next, are needed
         if (isCustom)
@@ -671,14 +675,14 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
                 if ((f.bufType == NumType::Int8) || (f.bufType == NumType::Int16) || (f.bufType == NumType::Int32))
                     f.signExtBits = (uint8_t)(numTypeSize(f.bufType) * 8);
             }
-            if (!addFieldLayout(f, name, devInfo.getString((prefix + "f").c_str(), ""), offset, maxAlign, problem))
+            if (!addFieldLayout(f, name, attr.getString((prefix + "f").c_str(), ""), offset, maxAlign, problem))
                 return false;
             continue;
         }
 
         // Position
         int atLen = 0;
-        RaftJsonIF::RaftJsonType atType = devInfo.getType((prefix + "at").c_str(), atLen);
+        RaftJsonIF::RaftJsonType atType = attr.getType((prefix + "at").c_str(), atLen);
         if (atType == RaftJsonIF::RAFT_JSON_ARRAY)
         {
             if (f.count > 1)
@@ -689,7 +693,7 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
             for (int i = 0; i < atLen; i++)
             {
                 long long pos = 0;
-                if (!parseInt(devInfo, (prefix + "at[" + String(i) + "]").c_str(), pos) || (pos < 0) || (pos > UINT16_MAX))
+                if (!parseInt(attr, (prefix + "at[" + String(i) + "]").c_str(), pos) || (pos < 0) || (pos > UINT16_MAX))
                 {
                     problem = "attribute " + name + " has an invalid position (at)";
                     return false;
@@ -700,7 +704,7 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         else if (atType != RaftJsonIF::RAFT_JSON_UNDEFINED)
         {
             long long pos = 0;
-            if (!parseInt(devInfo, (prefix + "at").c_str(), pos) || (pos < 0) || (pos > UINT16_MAX))
+            if (!parseInt(attr, (prefix + "at").c_str(), pos) || (pos < 0) || (pos > UINT16_MAX))
             {
                 problem = "attribute " + name + " has an invalid position (at)";
                 return false;
@@ -711,9 +715,9 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
         // Operations
         bool isFloatBuf = !isIntegerType(f.bufType);
         long long intVal = 0;
-        if (devInfo.contains((prefix + "x").c_str()))
+        if (attr.contains((prefix + "x").c_str()))
         {
-            if (isFloatBuf || !parseInt(devInfo, (prefix + "x").c_str(), intVal))
+            if (isFloatBuf || !parseInt(attr, (prefix + "x").c_str(), intVal))
             {
                 problem = "attribute " + name + " has an XOR mask (x) the build can't apply";
                 return false;
@@ -721,9 +725,9 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
             f.hasX = true;
             f.xMask = (unsigned long long)intVal;
         }
-        if (devInfo.contains((prefix + "m").c_str()))
+        if (attr.contains((prefix + "m").c_str()))
         {
-            if (isFloatBuf || !parseInt(devInfo, (prefix + "m").c_str(), intVal))
+            if (isFloatBuf || !parseInt(attr, (prefix + "m").c_str(), intVal))
             {
                 problem = "attribute " + name + " has a mask (m) the build can't apply";
                 return false;
@@ -732,18 +736,18 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
             f.mMask = (unsigned long long)intVal;
             f.readUnsigned = f.isSignedBuf;
         }
-        if (devInfo.contains((prefix + "sb").c_str()))
+        if (attr.contains((prefix + "sb").c_str()))
         {
-            if (isFloatBuf || !parseInt(devInfo, (prefix + "sb").c_str(), intVal) || (intVal < 0) || (intVal > 62))
+            if (isFloatBuf || !parseInt(attr, (prefix + "sb").c_str(), intVal) || (intVal < 0) || (intVal > 62))
             {
                 problem = "attribute " + name + " has a sign bit (sb) the build can't apply";
                 return false;
             }
             f.hasSb = true;
             f.sbPos = (uint32_t)intVal;
-            if (devInfo.contains((prefix + "ss").c_str()))
+            if (attr.contains((prefix + "ss").c_str()))
             {
-                if (!parseInt(devInfo, (prefix + "ss").c_str(), intVal))
+                if (!parseInt(attr, (prefix + "ss").c_str(), intVal))
                 {
                     problem = "attribute " + name + " has an invalid sign subtract (ss)";
                     return false;
@@ -752,21 +756,21 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
                 f.ss = intVal;
             }
         }
-        f.shift = (int32_t)devInfo.getLong((prefix + "s").c_str(), 0);
+        f.shift = (int32_t)attr.getLong((prefix + "s").c_str(), 0);
 
         // Lookup table (rows with a value; "r" "" is the default - the last one; an unparseable range is ignored)
         int lutLen = 0;
-        if (devInfo.getType((prefix + "lut").c_str(), lutLen) == RaftJsonIF::RAFT_JSON_ARRAY)
+        if (attr.getType((prefix + "lut").c_str(), lutLen) == RaftJsonIF::RAFT_JSON_ARRAY)
         {
             for (int rowIdx = 0; rowIdx < lutLen; rowIdx++)
             {
                 String rowPath = prefix + "lut[" + String(rowIdx) + "]/";
                 int rowLen = 0;
-                if ((devInfo.getType((prefix + "lut[" + String(rowIdx) + "]").c_str(), rowLen) != RaftJsonIF::RAFT_JSON_OBJECT) ||
-                            !devInfo.contains((rowPath + "v").c_str()))
+                if ((attr.getType((prefix + "lut[" + String(rowIdx) + "]").c_str(), rowLen) != RaftJsonIF::RAFT_JSON_OBJECT) ||
+                            !attr.contains((rowPath + "v").c_str()))
                     continue;
-                double value = devInfo.getDouble((rowPath + "v").c_str(), 0);
-                String rangeStr = devInfo.getString((rowPath + "r").c_str(), "");
+                double value = attr.getDouble((rowPath + "v").c_str(), 0);
+                String rangeStr = attr.getString((rowPath + "r").c_str(), "");
                 if (rangeStr.length() == 0)
                 {
                     f.lutHasDefault = true;
@@ -806,7 +810,7 @@ bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
             f.hasLut = !f.lutRows.empty() || f.lutHasDefault;
         }
 
-        if (!addFieldLayout(f, name, devInfo.getString((prefix + "f").c_str(), ""), offset, maxAlign, problem))
+        if (!addFieldLayout(f, name, attr.getString((prefix + "f").c_str(), ""), offset, maxAlign, problem))
             return false;
     }
     if (_fields.empty())

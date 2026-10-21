@@ -656,31 +656,32 @@ uint16_t DeviceTypeFileLoader::crc16(const uint8_t* pData, uint32_t len)
 /// @brief JSON text without whitespace outside strings
 String DeviceTypeFileLoader::minifyJson(const char* pStart, const char* pEnd)
 {
-    String out;
-    out.reserve(pEnd - pStart);
+    // Into a plain buffer, then one String (appending a character at a time was a large part of a load's time)
+    std::vector<char> out;
+    out.reserve(pEnd - pStart + 1);
     bool inString = false;
     for (const char* p = pStart; p < pEnd; p++)
     {
         char ch = *p;
         if (inString)
         {
-            out += ch;
+            out.push_back(ch);
             if ((ch == '\\') && (p + 1 < pEnd))
-                out += *++p;
+                out.push_back(*++p);
             else if (ch == '"')
                 inString = false;
         }
         else if (ch == '"')
         {
             inString = true;
-            out += ch;
+            out.push_back(ch);
         }
         else if ((ch != ' ') && (ch != '\t') && (ch != '\r') && (ch != '\n'))
         {
-            out += ch;
+            out.push_back(ch);
         }
     }
-    return out;
+    return String(out.data(), out.size());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -691,7 +692,8 @@ String DeviceTypeFileLoader::checkAddresses(const char* pAddresses, uint32_t max
     auto parseAddr = [](const char*& p) -> int {
         if ((p[0] != '0') || ((p[1] != 'x') && (p[1] != 'X')) || !isxdigit((unsigned char)p[2]) || !isxdigit((unsigned char)p[3]))
             return -1;
-        int value = (int)strtol(String(p + 2).substring(0, 2).c_str(), nullptr, 16);
+        char hex[3] = {p[2], p[3], 0};
+        int value = (int)strtol(hex, nullptr, 16);
         p += 4;
         return value;
     };

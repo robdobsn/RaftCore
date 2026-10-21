@@ -152,9 +152,37 @@ bool DeviceTypeRecords::isAddrReserved(BusElemAddrType addr) const
 const DeviceTypeRecord* DeviceTypeRecords::getRecordByHwTypeId(uint16_t hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const
 {
     deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
-    if (!getCatalogueIndex()->findByHwTypeId(hwTypeId, deviceTypeIndex))
-        return nullptr;
-    return getRecord(deviceTypeIndex);
+
+    // The catalogue index if it is up to date
+    std::shared_ptr<const CatalogueIndex> pIndex;
+    if (RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        if (_catalogueIndex && (_catalogueIndex->getGeneration() == _contentVersion.load(std::memory_order_acquire)))
+            pIndex = _catalogueIndex;
+        RaftMutex_unlock(_extRecordsMutex);
+    }
+    if (pIndex)
+    {
+        if (!pIndex->findByHwTypeId(hwTypeId, deviceTypeIndex))
+            return nullptr;
+        return getRecord(deviceTypeIndex);
+    }
+
+    // Otherwise the records, in the index's order (extended as added, then base; the first found): a type file's
+    // records are added one at a time and each is checked for its deviceTypeId - building the index for each was
+    // a large part of a load's time
+    uint32_t numExt = _extCount.load(std::memory_order_acquire);
+    for (uint32_t i = 0; i < numExt + BASE_DEV_TYPE_ARRAY_SIZE; i++)
+    {
+        DeviceTypeIndexType idx = (DeviceTypeIndexType)((i < numExt) ? (BASE_DEV_TYPE_ARRAY_SIZE + i) : (i - numExt));
+        const DeviceTypeRecord* pRec = getRecord(idx);
+        if (pRec && pRec->hasHwTypeId() && (pRec->hwTypeId == hwTypeId))
+        {
+            deviceTypeIndex = idx;
+            return pRec;
+        }
+    }
+    return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -325,8 +353,9 @@ void DeviceTypeRecords::pollInfoFromSteps(BusElemAddrType addr, const DeviceType
         return;
     }
 
-    // Polling requests from the compiled poll string
+    // Polling requests from the compiled poll string (reserved: a BusRequestInfo is costly to move)
     uint16_t pollResultDataSize = 0;
+    pollingInfo.pollReqs.reserve(compiledPoll.steps.size());
     for (const DeviceTypeGrammar::Step& step : compiledPoll.steps)
     {
         BusRequestInfo pollReq(BUS_REQ_TYPE_POLL,
@@ -340,7 +369,7 @@ void DeviceTypeRecords::pollInfoFromSteps(BusElemAddrType addr, const DeviceType
                 NULL);
         if (step.readLenExpr)
             pollReq.setReadLenExpr(step.readLenExpr);
-        pollingInfo.pollReqs.push_back(pollReq);
+        pollingInfo.pollReqs.push_back(std::move(pollReq));
         pollResultDataSize += step.readLen;
     }
 
