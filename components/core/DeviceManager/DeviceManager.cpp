@@ -3314,8 +3314,12 @@ void DeviceManager::serviceTypeFileJob()
             job.stage = TypeFileJob::Stage::Check;
 #ifdef DEVMAN_TYPE_FILE_CHECK_TASK
             TaskHandle_t taskHandle = nullptr;
+            // The lowest priority, on core 0: it only uses spare time there. At the main task's priority it held the
+            // main task off for up to 300 ms (equal-priority tasks, one pinned and one not, aren't reliably time-sliced),
+            // and sharing core 0 with that core's idle task (at its priority) keeps the task watchdog fed in a long check
             if (xTaskCreatePinnedToCoreWithCaps(typeFileCheckTaskFn, "TypeFileChk", TYPE_FILE_CHECK_TASK_STACK, &job,
-                        1, &taskHandle, tskNO_AFFINITY, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS)
+                        TYPE_FILE_CHECK_TASK_PRIORITY, &taskHandle, TYPE_FILE_CHECK_TASK_CORE,
+                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS)
             {
                 job.pTask = taskHandle;
                 return;

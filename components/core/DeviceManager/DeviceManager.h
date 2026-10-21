@@ -486,10 +486,12 @@ private:
     static void typeFileCheckTaskFn(void* pArg);
     static String typeFileCheckJson(const String& path, const char* pText, uint32_t textLen,
                 const DeviceTypeFileLoader::Result& result);
-    static const uint32_t TYPE_FILE_JOB_TIMEOUT_MS = 30000;
+    static const uint32_t TYPE_FILE_JOB_TIMEOUT_MS = 60000;   // the most a deferred response can wait
     static const uint32_t TYPE_FILE_READ_CHUNK = 2048;
     static const uint32_t TYPE_FILE_WRITE_CHUNK = 1024;
     static const uint32_t TYPE_FILE_CHECK_TASK_STACK = 16384;
+    static const uint32_t TYPE_FILE_CHECK_TASK_PRIORITY = 0;    // tskIDLE_PRIORITY
+    static const int TYPE_FILE_CHECK_TASK_CORE = 0;
 
     /// @brief Handle devlib (status, with the fields of the feature/device-library branch's endpoint)
     RaftRetCode apiDevLib(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
