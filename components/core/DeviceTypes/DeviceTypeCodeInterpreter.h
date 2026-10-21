@@ -87,9 +87,8 @@ public:
     /// @brief Whether the code has a next statement (decode code without one gets one at the end)
     bool hasNext() const;
 
-    /// @brief Whether run() uses bytecode: code within the bytecode's subset (32-bit integer values, variables, buf[],
-    ///        out.<field> stores, the integer operators, if, while, next, return) is also compiled to bytecode, run by
-    ///        a loop with no recursion and a fixed stack; other code is run from its tree
+    /// @brief Whether run() uses bytecode: the code is also compiled to bytecode, run by a loop with no recursion and
+    ///        a fixed stack; code that needs more operand stack or variables than the bytecode has is run from its tree
     bool usesBytecode() const
     {
         return _bytecodeOk && s_bytecodeEnabled;
@@ -127,6 +126,17 @@ public:
         };
     };
 
+    // Bytecode: a value on the operand stack or in a variable (its type is known from the instructions)
+    union Cell
+    {
+        int32_t i32;
+        uint32_t u32;
+        int64_t i64;
+        uint64_t u64;
+        float f;
+        double d;
+    };
+
     // Tree node
     struct Node
     {
@@ -162,6 +172,7 @@ private:
         int32_t b = 0;
     };
     std::vector<Ins> _code;
+    std::vector<Cell> _consts;          // constants other than int (pushed by index)
     bool _bytecodeOk = false;
     static bool s_bytecodeEnabled;
     friend class DeviceTypeBytecodeBuilder;
@@ -210,6 +221,12 @@ public:
     bool run(const uint8_t* pReadBuf, uint32_t readBufLen, int32_t* pValues, uint32_t numValues) const;
 
     static uint32_t getNumSlotsInUse();
+
+    /// @brief The init code runs as bytecode (DeviceTypeCodeProgram::usesBytecode)
+    bool usesBytecode() const
+    {
+        return _pProgram && _pProgram->usesBytecode();
+    }
 
 private:
     DeviceTypeRuntimeInit() = default;

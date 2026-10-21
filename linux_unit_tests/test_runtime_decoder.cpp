@@ -174,9 +174,9 @@ static void testMatchesCompiledDecoders(bool bytecode)
     TEST_ASSERT(numMismatched == 0, "no mismatches");
     TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 0, "slots freed with their decoders");
 #ifdef RAFT_RUNTIME_DECODE_CODE
-    // Integer-only custom code (LSM6DS3, LSM6DS3TRC, MAX30101, LTR-329) runs as bytecode, unless it is turned off
+    // All custom decode code runs as bytecode, unless it is turned off
     if (bytecode)
-        TEST_ASSERT(numBytecode >= 3, "integer-only custom decode code runs as bytecode");
+        TEST_ASSERT(numBytecode == numCustom, "custom decode code runs as bytecode");
     else
         TEST_ASSERT(numBytecode == 0, "bytecode turned off");
 #endif
@@ -432,9 +432,10 @@ static void testInterpreterSemantics()
 
 #ifdef RAFT_RUNTIME_DECODE_CODE
 // Every compiled record with initCode: the interpreter running its code gives what its compiled init function gives
-static void testInitCodeMatchesCompiled(const char* pCataloguePath)
+static void testInitCodeMatchesCompiled(const char* pCataloguePath, bool bytecode)
 {
-    printf("Running testInitCodeMatchesCompiled...\n");
+    printf("Running testInitCodeMatchesCompiled (bytecode %s)...\n", bytecode ? "on" : "off");
+    DeviceTypeCodeProgram::setBytecodeEnabled(bytecode);
     FILE* pFile = fopen(pCataloguePath, "rb");
     TEST_ASSERT(pFile, "catalogue read");
     if (!pFile)
@@ -469,6 +470,7 @@ static void testInitCodeMatchesCompiled(const char* pCataloguePath)
             continue;
         TEST_ASSERT(strcmp(pInit->getNamesStr(), pRec->initValueNames ? pRec->initValueNames : "") == 0,
                     (name + ": same value names").c_str());
+        TEST_ASSERT(pInit->usesBytecode() == bytecode, (name + ": bytecode as set").c_str());
         bool same = true;
         for (int iter = 0; (iter < 5000) && same; iter++)
         {
@@ -493,6 +495,7 @@ static void testInitCodeMatchesCompiled(const char* pCataloguePath)
     printf("  %u records' init code compared\n", numCompared);
     TEST_ASSERT(numCompared >= 4, "records with init code compared");
     TEST_ASSERT(DeviceTypeRuntimeInit::getNumSlotsInUse() == 0, "init slots freed");
+    DeviceTypeCodeProgram::setBytecodeEnabled(true);
 }
 #endif
 
@@ -679,7 +682,10 @@ int main(int argc, char** argv)
 #ifdef RAFT_RUNTIME_DECODE_CODE
     testInterpreterSemantics();
     if (argc > 1)
-        testInitCodeMatchesCompiled(argv[1]);
+    {
+        testInitCodeMatchesCompiled(argv[1], false);
+        testInitCodeMatchesCompiled(argv[1], true);
+    }
 #endif
 #if defined(RAFT_RUNTIME_DECODE_VERIFY) && defined(RAFT_RUNTIME_DECODE_CODE)
     testDecodeVerifier();
