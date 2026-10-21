@@ -52,7 +52,7 @@ the canonical terms.
 | The record's unique identifier, e.g. `RoboticalLightSensor` | **device type key** | JSON key in `devTypes`; `deviceType` field; `DeviceTypeRecord::deviceType`; `deviceTypeName`; REST `type=`; static devices' `type` config (`RaftDevice::getConfiguredDeviceType()`); RaftROS `deviceTypeName` | Called the *device type key* until 2026-10-15; renamed because "name" is easily confused with the type display name (`devInfoJson.name`), which is shown to users and need not be unique. Code identifiers that are part of an API (`deviceType`, `deviceTypeName` members, `getDevTypeInfoJsonByTypeName`) keep their spelling and hold the device type key. `deviceType` in the JSON is optional and, if present, must equal the key (the generator checks this and fills it in). **`devInfoJson.type` is meant to repeat the key but differs in 2 records**: AdafruitGamepad has `"Gamepad"` and RoboticalThermocoupleAmp has `"Thermocouple"`. Clients identify devices by it, so it is kept with these values; `devman/typeinfo` now also returns `deviceTypeKey`. |
 | The human-readable name of the kind of device, e.g. "Robotical Light Sensor" | **type display name** | `devInfoJson.name`; raftjs `DeviceTypeInfo.name` | raftjs overwrites `DeviceTypeInfo.name` with the device name, so in raftjs the same field holds either the type display name or the device name. |
 | The compact integer that names a record in published data | **device type index** | C++ `DeviceTypeIndexType`, `deviceTypeIndex` (most common), `deviceTypeIdx`, `devTypeIdx`, `typeIdx`; devjson `_i`; devbin header `devTypeIdx`; REST `dtIdx`; REST `type=<number>` | Positional: base records in JSON merge order, then extended records in the order added. Valid only for one firmware build and one boot. Invalid value: `DEVICE_TYPE_INDEX_INVALID` (0xFFFF). Recommended spelling: `deviceTypeIndex` in code; keep `_i` and `dtIdx` on the wire. |
-| A type identifier reported by the device itself (RSAO WHOAMI) | **hardware type ID** | `deviceTypeId` (Axiom JSON field, `RSAOTypeRegistry`, `RSAOIdentHandler`) | Assigned by the vendor and persistent, unlike the device type index. **The spelling `deviceTypeId` is one letter away from `deviceTypeIdx` and means something quite different.** Renaming it, for example to `hwTypeId`, would remove the hazard. |
+| A type identifier reported by the device itself (RSAO WHOAMI) | **hardware type ID** | `DeviceTypeRecord::hwTypeId`; JSON `deviceTypeId`; `RSAOTypeRegistry`, `RSAOIdentHandler` (Axiom) | Assigned by the vendor and persistent, unlike the device type index. **The spelling `deviceTypeId` is one letter away from `deviceTypeIdx` and means something quite different.** Planned (2026-10-21, record management plan §7): JSON `hwTypeId`, a string `"<scheme>:<value>"` such as `rsao:0x008F`, so IDs from different identification hooks can't collide; `deviceTypeId` is then no longer accepted. |
 | Functional categories, e.g. `LGHT`, `ACCEL` | **device classes** | `devInfoJson.clas` | "Class" is also used for the C++ class that implements a static device (`RaftDevice` class name, `DeviceFactory`). Call that the **device driver class** to keep the two apart. |
 
 ### 2.2 Instance-level concepts (one per device actually present)
@@ -205,8 +205,10 @@ The problems with this:
       relies on the ident hook.
     - A record with no detection values matches any device that responds at its address (P5).
     - A record with `pollInfo.ext` is never polled; other code supplies its data.
-  - The hardware type ID (RSAO WHOAMI) is not in the record that Raft consumes. `deviceTypeId` exists in
-    the Axiom JSON but nothing reads it. A hand-written table in `RSAOTypeRegistry.cpp` holds it instead.
+  - The hardware type ID (RSAO WHOAMI) was not in the record that Raft consumes, and a hand-written table in
+    `RSAOTypeRegistry.cpp` held it. *Update:* since identification plan Stage 3 it is a record field
+    (`hwTypeId`, looked up with `getRecordByHwTypeId()`), but Axiom still uses its table; the table goes, and the
+    ID becomes a `"<scheme>:<value>"` string, in record management plan §7.
   - The record does not contain its own device type index. The index is assigned from the record's
     position (P8), so the same record can have a different index in a different build.
   - The device type key is stored twice (`deviceType` and `devInfoJson.type`), and the two copies
@@ -218,7 +220,8 @@ The problems with this:
   *(review)*.
 - Should bus-type-specific parts (addressing, detection transport) be separate from bus-neutral parts
   (decode, actions, metadata)?
-- Should identity data such as the hardware type ID be a first-class record field?
+- Should identity data such as the hardware type ID be a first-class record field? *(Yes: identification plan
+  D24, revised 2026-10-21.)*
 - Should the device type key be stored once, and returned in `devman/typeinfo`?
 
 ---
@@ -381,7 +384,8 @@ The problems with this:
   is created.
 - **If nothing matches:** the ident hook runs. For RSAOs the hook probes `ROBOTICAL_ID`, then WHOAMI, then
   maps the hardware type ID to a device type key through `RSAOTypeRegistry`, then finds the record by
-  that name. RSAO records have no addresses, so they
+  that name (planned: one `getRecordByHwTypeId("rsao:0x....")` lookup, record management plan §7). RSAO
+  records have no addresses, so they
   never match by address.
 - **Re-identification.** A device is never re-checked once identified, except when `DevicePollingMgr`
   clears its identity after repeated CRC failures (P13).
@@ -846,7 +850,7 @@ In practice:
 | P10 exclude list available externally | It is not exposed. It is computed once at setup and not refreshed when records are added. |
 | P11 get round every device | First-due by list position, with drift and no fairness. |
 | P13 / P8 | Re-identification is silent, so consumers can decode with the wrong record's decoder. |
-| Terminology (section 2) | The device type index has six spellings. `deviceTypeId` (hardware type ID) and `deviceTypeIdx` (device type index) are easily confused. `devInfoJson.type` disagrees with the device type key in 2 records. |
+| Terminology (section 2) | The device type index has six spellings. `deviceTypeId` (hardware type ID) and `deviceTypeIdx` (device type index) are easily confused (the JSON field becomes `hwTypeId`: record management plan §7). `devInfoJson.type` disagrees with the device type key in 2 records. |
 
 ## 6. Assumptions under the principles
 

@@ -244,7 +244,7 @@ table changes (when the generation, described below, increases). It replaces the
 | Address → all known records (`AllKnown`, used for RSAO reservation) | A second CSR, or one flag bit per entry in the first | ~150 B |
 | Scan priority lists | `uint8_t` address lists, one per level | ≤ 360 B |
 | Key → index | A `uint16_t` array sorted by device type key, searched by binary search | 2 B per record |
-| Hardware type ID → index | A sorted array of `(uint16_t hwTypeId, uint16_t index)` | 4 B per record that has one |
+| Hardware type ID → index | A sorted array of `(uint16_t hwTypeId, uint16_t index)`. **Revised 2026-10-21:** `(const char* hwTypeId, uint16_t index)` sorted by string, as the ID becomes `"<scheme>:<value>"` (D24, record management plan §7) | 4 B per record that has one (8 B with the string form) |
 | Reserved-address bitmap (for re-addressable devices) | 128 bits | 16 B |
 
 - **Generation.** A `uint32_t` that increases on every change. Readers take one snapshot of the
@@ -776,7 +776,8 @@ ordering of §3.5 (items 2 and 3) is left to Stage 7, because it would change wh
 done:
 - **Record fields** on `DeviceTypeRecord` (and `DeviceTypeRecordDynamic`, with defaults): `scanPriority`,
   `flags` (`FLAG_PROBE_ONLY` from JSON `probeOnly` or `excludeFromAddrMap`; `FLAG_HAS_HW_TYPE_ID`),
-  `identPriority` and `hwTypeId` (**D24 decided:** RaftCore holds it; C++ name `hwTypeId`; JSON `deviceTypeId`).
+  `identPriority` and `hwTypeId` (**D24 decided:** RaftCore holds it; C++ name `hwTypeId`; JSON `deviceTypeId`.
+  **Revised 2026-10-21:** a `"<scheme>:<value>"` string, JSON `hwTypeId` - record management plan §7).
   The generator emits them with each record and validates them. Code that builds records with the existing
   constructor is unchanged.
 - **`CatalogueIndex`**, built from all records when the generation changes and shared as an immutable snapshot
@@ -795,7 +796,7 @@ done:
   also run for Axiom's catalogue (47 records, RSAO records included); plus extended records' scan priority,
   candidate order, probe-only records, hardware type ID lookup, and rebuilds. Generator tests for the new fields,
   their validation and the warnings. Axiom's `RSAOTypeRegistry` can now be replaced by `getRecordByHwTypeId()`
-  (an Axiom change, not made).
+  (an Axiom change, not made; planned with the string form of the ID in record management plan §7).
 
 **Results:** on the FeatherS3 the index for the 49 base records builds in 2.1 ms and uses 766 B (targets 5 ms and
 1 KB; a first version that kept a vector per address took 4.5 ms). Identification times are unchanged. The
@@ -813,7 +814,8 @@ detection-strength ordering in Stage 7.
    - `scanPriority`;
    - `probeOnly` (replacing `excludeFromAddrMap`);
    - `identPriority`;
-   - the hardware type ID (D24: C++ name decided here; the JSON field stays `deviceTypeId`).
+   - the hardware type ID (D24: C++ name decided here; the JSON field stays `deviceTypeId` - revised 2026-10-21:
+     JSON `hwTypeId`, a `"<scheme>:<value>"` string, record management plan §7).
 2. **`CatalogueIndex`** (§3.3) is built at startup and rebuilt when the generation changes:
    - the identification candidates per address, in the explicit order of §3.5;
    - the known records per address;
@@ -830,7 +832,7 @@ detection-strength ordering in Stage 7.
    - a warning for a key that differs from `deviceType`;
    - a shadowing report (an empty or weaker detection ahead of another record at the same address).
 6. **Lookup by hardware type ID** (D24). Axiom's RSAO code can then generate or drop `RSAOTypeRegistry`
-   (review §9.1 Axiom item 2).
+   (review §9.1 Axiom item 2). **2026-10-21:** it is dropped, with RSAO IDs written `rsao:0x....` - record management plan §7.
 
 **Verify:**
 - A host test checks that the runtime-built address map and scan lists equal the old generated ones for the
@@ -1723,7 +1725,7 @@ Rules:
 | Client | Change needed | Stage |
 |---|---|---|
 | RaftROS AutoPub | Upstream the fork's re-attach on a type change and dropping callbacks with a stale index (review §9.1). Keep an index plus the table ID, not record pointers. Check that topic names are unchanged | 7, 8 |
-| Axiom RSAO | Hook semantics (item 13): debounce from first-seen time (A2), register its address ranges (D9), and change in step with Stage 7. Generate the type registry from `hwTypeId` (Stage 3) | 3, 7, 9 |
+| Axiom RSAO | Hook semantics (item 13): debounce from first-seen time (A2), register its address ranges (D9), and change in step with Stage 7. Remove the type registry: look up `rsao:` hardware type IDs with `getRecordByHwTypeId()` (record management plan §7) | 3, 7, 9 |
 | Axiom DataLogger, DevicePower, VL53LxCX | Handle `TypeChanged` and `Lost`. Stop keeping decoders or record pointers for the whole session | 7, 8 |
 | Axiom device library (branch) | Align its file format with the Stage 6 loader (`devTypes`, `disable`). Its "suppress by name" meant hidden from lookups too; under Stage 5 it hides from identification only. Move its protection rules to SysTypes roles | 5, 6 |
 | Axiom scripts and CI (`split_rsao_records.py`, `verify_split.py`, `check-descriptor-spec.mjs`) | Accept `probeOnly` (they don't read `deviceType`) | 3 |
@@ -1802,7 +1804,7 @@ as in the compiled files. A compiled record can be pasted into a library file un
 | `devInfoJson.type` | Present; differs from the key in 2 records | Passed through | Yes: kept, with the generator warning about new mismatches (D13) |
 | `scanPriority` | Used (two-tier in practice) | **Accepted and ignored**; library records always go in scan list 0 | Stage 3 honours it, a change of behaviour for library records |
 | `excludeFromAddrMap` | Used by all 11 RSAO records | **Ignored**, so a library RSAO record with `addresses` is address-mapped and reserved | Stage 3 honours it (as `probeOnly`, both names accepted) |
-| `deviceTypeId` | Ignored by the generator; a hand-written table in Axiom holds the mapping | Validated (0–65535 or a `0x` string) and passed to the RSAO registry through a callback | Stage 3: `hwTypeId`, with `deviceTypeId` accepted as the old name |
+| `deviceTypeId` | Ignored by the generator; a hand-written table in Axiom holds the mapping | Validated (0–65535 or a `0x` string) and passed to the RSAO registry through a callback | Stage 3: `hwTypeId`, with `deviceTypeId` accepted as the old name. **Revised 2026-10-21:** JSON `hwTypeId`, a `"<scheme>:<value>"` string; `deviceTypeId` is rejected (record management plan §7) |
 | `disable` | **Not handled.** A `disable` entry placed in a compiled file would generate an empty record that replaces the real one | `true` means "do not identify this key"; the rest of the record is ignored | Stage 5 item 3 matches. The generator must handle it too (D23) |
 
 **Conclusion:** the plan's type file should **be** the library format: `DeviceTypeRecords.json` plus
@@ -1840,7 +1842,8 @@ capability. Two aims follow:
 - the file shape;
 - `_notes` and other unknown keys are ignored;
 - `deviceType` is optional and must equal the key;
-- `deviceTypeId` is accepted as the JSON name of the hardware type ID (D24);
+- ~~`deviceTypeId` is accepted as the JSON name of the hardware type ID (D24)~~ - withdrawn 2026-10-21: the field is
+  `hwTypeId`, a `"<scheme>:<value>"` string, and a record with `deviceTypeId` is rejected (D24 revised);
 - `disable: true` ignores the rest of the record;
 - an empty `devTypes` is valid and means "no custom types";
 - the per-file limits (64 KB file, 1024-byte reads, `s` ≤ 256);
@@ -1857,6 +1860,7 @@ capability. Two aims follow:
 | `scanPriority` and `excludeFromAddrMap` in a file | Ignored | Honoured | So that file records behave exactly like compiled ones (G7) |
 | `s` missing or 0 | Accepted | Defaulted to 1 | C5. More permissive, so no branch file is refused because of it |
 | Re-identification | A whole-bus clear after loading, and on every boot | Identification waits for the table to be ready | No boot-time data gap, and no hidden dependency on SysMod order |
+| Hardware type ID (added 2026-10-21) | `deviceTypeId`, a number or `0x` string | `hwTypeId`, a `"<scheme>:<value>"` string; a record with `deviceTypeId` is rejected | IDs from different hooks can't collide, and the name no longer resembles `deviceTypeIdx`. Only these projects used the field (record management plan §7) |
 
 The first two change the meaning of some existing branch files. They are listed in the Stage 6 release
 notes, and Nikos is told before more units carry files that rely on fall-through (D21).
@@ -1902,7 +1906,7 @@ Checked against review §5, §7 and §9 and principles P1–P15. Items already i
 | D21 | Confirm D2 for library files: an override replaces the base record, with no fall-through, although the branch falls through? | Yes; a deliberate difference (§10.4). Tell Nikos now so the branch spec and example file can warn about it, and list it in the Stage 6 release notes |
 | D22 | Where do the limits for untrusted records live? | In the RaftCore loader, applied to file and REST sources only; compiled records and code-registered records are not limited. Once I6 is fixed, replace the ring-size limit with a configurable per-record byte cap |
 | D23 | Can a compiled catalogue (or a SysType) contain `disable` entries? | Yes. The generator emits them as policy settings, not records. This gives boards a way to say "never X" (N11) and removes the trap of an empty record being compiled |
-| D24 | **Decided 2026-10-15: yes, `hwTypeId` (Stage 3).** Should RaftCore take over the RSAO-style "hardware type ID → record" mapping, and what is it called? | Decide in Stage 3. Today `deviceTypeId` is used only by RSAO records and Axiom's RSAO code. Recommendation: RaftCore takes it over (removing Axiom's duplicated registry and making file-loaded RSAO records work). Then the C++ name is generic (e.g. `hwTypeId`, matching principles §2) since the core holds no vendor knowledge (P4); it is documented as an ID the device reports when probed by an identification hook, in that hook's own numbering. The JSON field stays `deviceTypeId`. Not `rsaoWHOAMI`: that names the RSAO command, and WHO_AM_I is also a common register on ordinary sensors |
+| D24 | **Decided 2026-10-15: yes, `hwTypeId` (Stage 3).** Should RaftCore take over the RSAO-style "hardware type ID → record" mapping, and what is it called? | Decide in Stage 3. Today `deviceTypeId` is used only by RSAO records and Axiom's RSAO code. Recommendation: RaftCore takes it over (removing Axiom's duplicated registry and making file-loaded RSAO records work). Then the C++ name is generic (e.g. `hwTypeId`, matching principles §2) since the core holds no vendor knowledge (P4); it is documented as an ID the device reports when probed by an identification hook, in that hook's own numbering. The JSON field stays `deviceTypeId`. Not `rsaoWHOAMI`: that names the RSAO command, and WHO_AM_I is also a common register on ordinary sensors. **Revised 2026-10-21:** the ID is a string `"<scheme>:<value>"` (e.g. `rsao:0x008F`) matched exactly, so other hooks can use it without clashing with RSAO IDs; the JSON field is `hwTypeId` and `deviceTypeId` is no longer accepted. Plan: record management plan §7 (M13-M17) |
 
 ### 10.7 Ideas taken from the branch
 
@@ -2009,4 +2013,4 @@ Everything else in this plan is done. Still open:
 | N7 | Run the identification hook only where no address-identified record exists (unless that record is `Disabled`) | Changes behaviour at addresses with known records whose detection fails; exposure is already reduced by the hook address ranges and Axiom's own reserved addresses |
 | Stage 1 items 3 and 10 (N13) | Tie-break on the selected multiplexer slot and on bus speed | Left until measurements show a need; the LSM6DS missed polls in §11 may be the first sign |
 | D19 second release | The strict record grammar rejects instead of warning | After a release with the warnings has been out |
-| Axiom (optional) | Replace `RSAOTypeRegistry` with `getRecordByHwTypeId()` | Not required |
+| Hardware type ID string (D24 revised 2026-10-21) | `hwTypeId` as `"<scheme>:<value>"` in RaftCore; Axiom's RSAO hook looks up `rsao:` IDs and `RSAOTypeRegistry` (`kDefaultTypes`) is removed | record management plan §7 (phase 6) |

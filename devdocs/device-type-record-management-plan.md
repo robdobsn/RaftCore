@@ -2,7 +2,8 @@
 
 Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b, 2, 2b and 3 done (2026-10-17), phase 4 done
 (2026-10-18)** on the `feature/device-type-records` branches of RaftCore, Axiom, raftjs and RaftCLI (see §6); of phase 5
-(optional items), `fsImage` is done (2026-10-18). It follows the device identification plan
+(optional items), `fsImage` is done (2026-10-18). **Phase 6 planned (2026-10-21):** the hardware type ID becomes a
+scheme-qualified string (`"hwTypeId": "rsao:0x008F"`) and Axiom's `RSAOTypeRegistry` is removed (§7). It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -300,6 +301,7 @@ record - is a choice for the board or product the device is fitted to, not a pro
 | **3** | `devman/typefile/check`; staged apply; type file build (3.6) with host tests | RaftCore, raftjs (wrappers) | Host tests; FeatherS3: stage, check, apply, verify; a bad file is reported and not applied |
 | **4** | raft CLI `devtypes` commands (3.7) over HTTP | RaftCore (`DeviceTypesTool.py`), RaftCLI | Against the FeatherS3 (HTTP) |
 | **5** | Optional: `fsImage`, other runtime routes, D11 on-device decoder (prerequisite for 3.8), GUI | as needed | Per item |
+| **6** | Hardware type ID as a `"<scheme>:<value>"` string, JSON `hwTypeId` (6a); Axiom's RSAO identification looks up `rsao:` IDs and `RSAOTypeRegistry` goes (6b) - §7 | RaftCore, Axiom, wiki | §7.5 |
 
 Stage 12 of the identification plan (record improvements) can start after phase 1a, one record per commit.
 
@@ -321,6 +323,11 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 | M11 | Keep `busHz`/`busHzSlots` in records? | **No** - removed, with a warning for a record that still has them (decided 2026-10-17; only Axiom used them) |
 | M12 | `maxBusHz` in the record | Later (decided 2026-10-17) |
 | M9 | A combined catalogue file for consumers that read one | **Built by CI and published as a release asset; RaftCore's own tests use the assembled file** (decided 2026-10-17) |
+| M13 | Form of the hardware type ID (revises identification plan D24) | **A string `"<scheme>:<value>"`, matched exactly; RaftCore checks only its syntax, and each scheme defines one canonical form** (decided 2026-10-21; §7.2) |
+| M14 | JSON name, and the old name | **`hwTypeId`. `deviceTypeId` is not accepted** (a generator error, a rejected type file record), as nothing outside these projects uses it (decided 2026-10-21) |
+| M15 | Canonical form of `rsao` IDs | Proposed: `rsao:0x` and 4 upper-case hex digits (`rsao:0x008F`), the form the records use now |
+| M16 | Does the RSAO hook honour record policy? | Proposed: **yes** - a record that isn't `POLICY_ENABLED` is treated as unknown, so the device is deferred (today the hook adopts a disabled RSAO record). A behaviour change, matching what `disable` means for address-identified records |
+| M17 | `FLAG_HAS_HW_TYPE_ID` | Proposed: retired (the string says whether there is an ID); bit 0x02 left unused |
 
 ---
 
@@ -590,3 +597,158 @@ Stage 12 of the identification plan (record improvements) can start after phase 
   after `raft flash` the device applied it at its first boot (Gizmo added, TrillRing disabled, CRC `107f`), and
   `raft devtypes status` then said it was the project's type file. The SysType, build and board were restored (no
   type file, empty `/local`).
+
+---
+
+## 7. Hardware type ID as a scheme-qualified string; Axiom's RSAO registry removed (phase 6, planned 2026-10-21)
+
+Not started. RaftCore, Axiom and the wiki; no other repo reads the field (checked 2026-10-21: raftjs, RaftCLI,
+RaftI2C, RaftSysMods and RaftROS have no use of it). Decisions M13-M17 (§5).
+
+### 7.1 Why
+
+- **The ID is a `uint16_t` in one hook's own numbering.** Only RSAO uses it today. A second identification hook
+  (1-Wire family codes, USB VID:PID, PMBus `MFR_MODEL`, another vendor's WHOAMI) would share one lookup with RSAO, so
+  its `0x0084` and RSAO's `0x0084` would be the same ID - a false duplicate (N2) or the wrong record. Some of those
+  IDs are wider than 16 bits, and some are text.
+- **The JSON name `deviceTypeId` is one letter away from `deviceTypeIdx`** (the device type index) and means something
+  quite different (principles §2).
+- **Axiom still maps the ID in its own code.** `RSAOTypeRegistry.cpp` holds `kDefaultTypes`, a hand-written copy of
+  the IDs in `devtypes/Robotical*.json` (all 11 agree today). Identification goes ID → key (the registry) → index
+  (`getDeviceInfo(key)`), although `getRecordByHwTypeId()` has done ID → index since identification plan Stage 3. An
+  RSAO record added by a type file is never identified, because the registry defers any ID it doesn't list.
+
+### 7.2 The form of the ID
+
+| | |
+|---|---|
+| JSON | `"hwTypeId": "<scheme>:<value>"`, a string, e.g. `"hwTypeId": "rsao:0x008F"`. A number is an error |
+| Scheme | Names the numbering the value is in: `[a-z][a-z0-9-]{0,15}`. One scheme per identification hook family |
+| Value | 1 or more printable ASCII characters other than space (0x21-0x7E); the whole ID is at most 64 characters |
+| Matching | Exact and case-sensitive. RaftCore checks only the syntax above and never interprets the value (P4) |
+| Canonical form | Owned by the scheme. Each scheme defines exactly one written form for each ID; its records use that form, and its hook formats the ID it reads from the device the same way before the lookup |
+| Old name | `deviceTypeId` is not accepted: the generator stops with an error and the loader rejects the record, both saying that the field is now `hwTypeId` with a scheme |
+| Duplicates (N2) | As now, on the exact string: the generator warns, a type file record is rejected, a code-registered record is logged |
+
+**Schemes** (listed on the wiki's record format page; a new hook adds its scheme there):
+
+| Scheme | Hook | Canonical value | Example |
+|---|---|---|---|
+| `rsao` | Axiom `RSAOSysMod` (WHOAMI, register 0x00) | `0x` and 4 hex digits, upper case (M15) - the form the records use today | `rsao:0x008F` |
+
+**Why exact match:** the lookup starts from the device - the hook has a number and needs the record - so RaftCore would
+have to parse every scheme's values to compare them as numbers, which puts vendor knowledge in the core. With one
+canonical form per scheme the core compares strings. The cost is that a record written in another form (`rsao:0x8f`)
+never matches; 7.4 step 6 checks Axiom's records for this, and the hook logs the string it looked up, so a mismatch
+in a type file is visible.
+
+### 7.3 RaftCore changes (phase 6a)
+
+1. **`DeviceTypeRecord`** (`DeviceTypeRecord.h`): `uint16_t hwTypeId` becomes `const char* hwTypeId = nullptr` (none).
+   `hasHwTypeId()` is true for a non-empty string. `FLAG_HAS_HW_TYPE_ID` is retired (the string says whether there is
+   one) and bit 0x02 is left unused (M17). The comment describes the scheme-qualified form.
+2. **`DeviceTypeRecordDynamic`**: `String hwTypeId`; `setHwTypeId(const String&)`; `getDeviceTypeRecord()` gives
+   `nullptr` for an empty string.
+3. **`DeviceTypeRecordPacked`**: the string is copied into the allocation with the others (`sizeFor()`, `create()`),
+   and compared in `contentMatches()`.
+4. **`CatalogueIndex`**: entries become `(const char* hwTypeId, DeviceTypeIndexType)`, sorted by `strcmp` (stable, so
+   with duplicates the first in catalogue order is found, as now) and searched with `lower_bound`. Keeping pointers is
+   safe because records are never changed or freed while the firmware runs (`DeviceTypeRecords::getRecord()`). 8 B per
+   record with an ID (4 B now): 88 B on Axiom018.
+5. **`DeviceTypeRecords`**: `getRecordByHwTypeId(const char* hwTypeId, DeviceTypeIndexType&)`; the duplicate log in
+   `addRecord()` prints the string. A shared syntax check, `DeviceTypeRecord::isValidHwTypeId(const char*)`, used by
+   the loader and the host tests.
+6. **`DeviceTypeFileLoader`**:
+   - reads `hwTypeId` (a string with valid syntax, or the record is rejected: "hwTypeId must be a string
+     \"<scheme>:<value>\"");
+   - rejects a record with `deviceTypeId` ("deviceTypeId is now hwTypeId, e.g. \"rsao:0x0084\"");
+   - the duplicate rejection and the N4 warning ("no addresses or hwTypeId") use the new name;
+   - `typeinfo …&full=1` writes `"hwTypeId":"<string>"`, so records still round-trip (N6);
+   - the copy of live records into the check table (`dyn.hwTypeId = …`) copies the string.
+7. **Generator** (`ProcessDevTypeJsonToC.py`): `record_ident_fields()` returns the string; the syntax is checked; the
+   record initialiser gets a C string literal or `nullptr` in place of `0x....`; `FLAG_HAS_HW_TYPE_ID` is no longer
+   set; `deviceTypeId` in a record is an error naming the new field; `duplicate_hw_type_id_warnings()` compares exact
+   strings.
+8. **Tests:** `scripts/tests/test_generator_tables.py` (fields, validation including numbers, a missing scheme and
+   `deviceTypeId`, duplicates), `linux_unit_tests/test_catalogue_index.cpp` (lookup, including two schemes with the
+   same value and a prefix of another ID), `linux_unit_tests/test_device_type_file.cpp` (parsing, rejection,
+   duplicates, round trip, live/check table equality).
+9. **Wiki** (RaftCore.wiki): `DeviceTypeRecordFormat.md` (field row and the schemes table), `AddingAnI2CDeviceType.md`,
+   `DeviceManagerSettings.md`. The wiki has unrelated uncommitted changes (LEDPixels pages) to keep apart.
+10. **Docs:** principles §2 (terms), identification plan D24 (revised), wiki as above.
+
+No RaftCore record has an ID, so the generated header for RaftCore's own catalogue changes only in the retired flag
+and the field's type.
+
+### 7.4 Axiom changes (phase 6b)
+
+**Today:** `RSAOIdentHandler` (raft-free, host tested) probes `ROBOTICAL_ID` and WHOAMI, looks the ID up in
+`RSAOTypeRegistry` (`kDefaultTypes`), defers an unknown ID **before** the serial (collision) read, and returns the
+key; `RSAOSysMod::identHook` then finds the index with `getDeviceInfo(key)`.
+
+**After:**
+
+1. **Records:** the 11 `devtypes/Robotical*.json` files change `"deviceTypeId": "0x008F"` to
+   `"hwTypeId": "rsao:0x008F"` (same values, scheme added).
+2. **A lookup interface in place of the registry** (portable core, raft-free, so the handler stays host-testable and
+   keeps its order of checks):
+
+   ```cpp
+   struct RSAOTypeMatch
+   {
+       uint16_t deviceTypeIndex = 0xFFFF;     // raft device type index
+       const char* deviceTypeKey = nullptr;   // e.g. "RoboticalServo" (for logs)
+   };
+   class IRSAOTypeLookup
+   {
+   public:
+       virtual ~IRSAOTypeLookup() = default;
+       // Find the device type for a WHOAMI device type ID. false if this build has none (the handler defers)
+       virtual bool findType(uint16_t whoamiTypeId, RSAOTypeMatch& match) const = 0;
+   };
+   ```
+
+   `RSAOIdentHandler` takes `const IRSAOTypeLookup&`. Step 3 is unchanged in position: an unknown ID is deferred
+   before the serial read. `Outcome` gains `deviceTypeIndex`, and `deviceTypeName` becomes `deviceTypeKey`.
+   `Outcome::deviceTypeId` and `RSAOWhoAmI::deviceTypeId` keep their names: they are the RSAO protocol's WHOAMI
+   field, not the record field.
+3. **`RSAOSysMod`** implements the lookup (raft side, e.g. a small private class): formats `rsao:0x%04X`, calls
+   `deviceTypeRecords.getRecordByHwTypeId()`, and refuses a record whose policy isn't `POLICY_ENABLED` (M16).
+   `identHook` sets `deviceStatus.deviceTypeIndex` from the outcome; the `getDeviceInfo(key)` call and its "no
+   device-type record" branch go, since the lookup has already found the record. The unknown-ID log line prints
+   the string looked up (`rsao:0x0123`). The setup log's "%u known types" (the registry size) is dropped.
+4. **Removed:** `RSAOTypeRegistry.h`, `RSAOTypeRegistry.cpp` (with `kDefaultTypes`), its entry in
+   `components/RoboticalRSAO/CMakeLists.txt` and `tests/rsao/CMakeLists.txt`, `tests/rsao/test_rsao_type_registry.cpp`,
+   and `RSAOSysMod::_typeRegistry`.
+5. **Handler tests** (`tests/rsao/test_rsao_ident_handler.cpp`) use a fake lookup (a small table in the test):
+   known type handled with its index and key; unknown type deferred before the serial read; non-RSAO and absent
+   devices; collision. `RegistryOverrideResolvesCustomType` becomes "a type the lookup knows is handled";
+   `AllKnownIdsAreHandled` moves to step 6, because the list of known IDs is now the records.
+6. **Record check** (replaces the registry's built-in-defaults test): a script run with the host tests and in CI
+   checks every `devtypes/*.json` with an `rsao:` ID - the canonical form `^rsao:0x[0-9A-F]{4}$`, no ID used twice,
+   and `excludeFromAddrMap` set.
+7. **Docs:** `components/RoboticalRSAO/README.md`, `devtypes/README.md`, the header comment of `RSAOIdentHandler.h`,
+   and a note in `devdocs/rsao-arbitration-and-library-plan.md` §2.7.
+
+**Gained:** an RSAO type added by a type file (`hwTypeId` with an `rsao:` ID, `excludeFromAddrMap`) is identified
+without a firmware build. The ID → key mapping exists only in the records. One lookup instead of two.
+
+**Not in this change:** the WHOAMI suffix in each RSAO record's `detectionValues` (`…&0x00=0x008F`) is a third copy
+of the ID, but probe-only records' detection is never run; removing it is a record edit for Stage 12.
+`split_rsao_records.py` (identification review §3.4) is already gone from Axiom.
+
+### 7.5 Order and verification
+
+6a and 6b land together on the `feature/device-type-records` branches: with 6a, the generator stops on Axiom's
+`deviceTypeId` records, so Axiom's build is checked against 6a before either is committed.
+
+| Step | Verify |
+|---|---|
+| 6a RaftCore | Python and Linux host tests; RaftCore's generated header differs only in the field and the flag; FeatherS3 build, `typeinfo full=1` round trip and a type file with an `hwTypeId` record (`devman/typefile/check`: a good ID, a number, `deviceTypeId`, a duplicate) |
+| 6b Axiom | RSAO host tests and the record check; Axiom018 builds; flash and RAM difference recorded |
+| Hardware (Axiom018) | Each RSAO fitted is identified as the same type and index as before (`devman/types`, the ident log); a type file `disable` of a fitted type (e.g. RoboticalServo) defers it and re-enabling identifies it (M16); `typeinfo full=1` for an RSAO type shows `hwTypeId`. If a board with an ID no record has is to hand, it is deferred with `rsao:0x....` in the log |
+
+### 7.6 Effect on device library branch files
+
+Library files with `deviceTypeId` (identification plan §10) are rejected record by record after this change. This
+is accepted (M14): only these projects used the field, and the rejection message names the new field.
