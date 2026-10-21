@@ -12,7 +12,7 @@
 #####################################################################################################################
 
 CC = g++
-CFLAGS = -Wall -std=c++20 -g -DRAFT_CORE -DRAFT_RUNTIME_DECODE -DRAFT_RUNTIME_DECODE_CODE -DRAFT_RUNTIME_DECODE_VERIFY
+CFLAGS = -Wall -std=c++20 -g -ffp-contract=off -DRAFT_CORE -DRAFT_RUNTIME_DECODE -DRAFT_RUNTIME_DECODE_CODE -DRAFT_RUNTIME_DECODE_VERIFY
 
 # Each source is compiled to its own object in obj/ with a dependency file (obj/....d), so a change to any
 # header rebuilds exactly what uses it. Objects are shared between tests
@@ -226,7 +226,7 @@ test_reduced_catalogue: $(REDUCED_OBJS) $(call objs,$(CORE)/MiniHDLC/MiniHDLC.cp
 
 
 # Runtime decoder timing against the compiled decoders (not part of check): make bench [BENCH_ARGS="<record> <iterations>"]
-BENCH_FLAGS = -std=c++20 -O2 -DRAFT_CORE -DRAFT_RUNTIME_DECODE -DRAFT_RUNTIME_DECODE_CODE
+BENCH_FLAGS = -std=c++20 -O2 -ffp-contract=off -DRAFT_CORE -DRAFT_RUNTIME_DECODE -DRAFT_RUNTIME_DECODE_CODE
 BENCH_SOURCES = bench_runtime_decoder.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp \
   $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(COMMON_SOURCES)
 bench_runtime_decoder: $(BENCH_SOURCES) $(DEV_TYPE_GEN_HEADER) $(wildcard $(CORE)/DeviceTypes/*.h)

@@ -238,6 +238,15 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
     message(STATUS "RaftCore: runtime decoding not included (RAFT_RUNTIME_DECODE OFF)")
   endif()
 
+  # Float arithmetic as C++ specifies it - each operation rounded, no fused multiply-add (which GCC otherwise uses
+  # where the target has it, e.g. ESP32-S3 madd.s): the compiled decoders (DeviceTypeRecords.cpp), the runtime
+  # decoder and the code interpreter then decode to the same bytes, on every target
+  set_property(SOURCE
+      components/core/DeviceTypes/DeviceTypeRecords.cpp
+      components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp
+      components/core/DeviceTypes/DeviceTypeCodeInterpreter.cpp
+    APPEND PROPERTY COMPILE_OPTIONS -ffp-contract=off)
+
   # DeviceManager (devices, buses, device type records and the devman/* endpoints) is included unless the
   # project sets RAFT_DEVICE_MANAGER OFF (e.g. set(RAFT_DEVICE_MANAGER OFF) in features.cmake). Without it the
   # linker drops the device code (about 100 KB). The definition is PUBLIC because it changes RaftCoreApp's layout

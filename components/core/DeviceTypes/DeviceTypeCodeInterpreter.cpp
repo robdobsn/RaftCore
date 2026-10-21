@@ -1364,6 +1364,9 @@ namespace
         BC_STORE_INIT,      // pop to init value a
         BC_ARR_CHECK,       // the int index on the stack outside 0 .. a-1: pop it and jump to b
         BC_ARR_STORE,       // pop a value of type a and an index: to the element of the field at offset b, storage type t
+        // 32-bit variables (int, unsigned, float): 4 bytes copied
+        BC_LOAD_VAR32,      // push slot a
+        BC_STORE_VAR32,     // pop to slot a
     };
 
     const uint32_t BC_MAX_STACK = 16;
@@ -1470,6 +1473,55 @@ namespace
     {
         return ((t == VT::I32) || (t == VT::U32) || (t == VT::I64)) ? t : VT::U64;
     }
+
+    // The instructions for any type, kept out of the dispatch loop (which then stays small: fewer cache misses when
+    // it runs cold, as a decode every poll interval does)
+#if defined(__GNUC__)
+#define BC_OUT_OF_LINE __attribute__((noinline))
+#else
+#define BC_OUT_OF_LINE
+#endif
+    BC_OUT_OF_LINE Cell bcConv(Cell c, uint8_t from, uint8_t to)
+    {
+        return valToCell(convertTo(cellToVal(c, (VT)from), (VT)to));
+    }
+    BC_OUT_OF_LINE Cell bcNarrow(Cell c, uint8_t from, uint8_t st)
+    {
+        return valToCell(narrowTo(cellToVal(c, (VT)from), (NumType)st));
+    }
+    BC_OUT_OF_LINE Cell bcBinary(Cell lhs, Cell rhs, uint8_t op, uint8_t t)
+    {
+        bool isShift = (op == OP_SHL) || (op == OP_SHR);
+        return valToCell(binary(op, (VT)t, cellToVal(lhs, (VT)t), cellToVal(rhs, isShift ? VT::I64 : (VT)t)));
+    }
+    BC_OUT_OF_LINE Cell bcUnary(Cell c, uint8_t op, uint8_t t)
+    {
+        return valToCell(unary(op, (VT)t, cellToVal(c, (VT)t)));
+    }
+    BC_OUT_OF_LINE int32_t bcTruthy(Cell c, uint8_t t)
+    {
+        return truthy(cellToVal(c, (VT)t)) ? 1 : 0;
+    }
+    BC_OUT_OF_LINE int64_t bcBufIndex(Cell c, uint8_t t)
+    {
+        Val indexVal = cellToVal(c, (VT)t);
+        if ((indexVal.t == VT::U64) && (indexVal.u > (uint64_t)INT64_MAX))
+            return -1;
+        return as<int64_t>(indexVal);
+    }
+    BC_OUT_OF_LINE void bcStoreField(uint8_t* p, uint8_t st, Cell v, uint8_t vt)
+    {
+        storeField(p, (NumType)st, cellToVal(v, (VT)vt));
+    }
+    BC_OUT_OF_LINE Cell bcLoadField(const uint8_t* p, uint8_t st)
+    {
+        return valToCell(loadField(p, (NumType)st));
+    }
+    BC_OUT_OF_LINE int64_t bcReturnValue(Cell c, uint8_t vt, bool isDecode)
+    {
+        Val v = cellToVal(c, (VT)vt);
+        return isDecode ? (int64_t)as<uint32_t>(v) : (as<bool>(v) ? 1 : 0);
+    }
 }
 
 class DeviceTypeBytecodeBuilder
@@ -1529,6 +1581,21 @@ private:
     void patch(uint32_t insIdx, uint32_t target)
     {
         _code[insIdx].b = (int32_t)target;
+    }
+
+    // A variable's load and store (4 bytes for a 32-bit type)
+    bool isVar32(int32_t slot) const
+    {
+        VT t = promotedType(_prog._slotTypes[slot]);
+        return (t == VT::I32) || (t == VT::U32) || (t == VT::F32);
+    }
+    uint8_t loadVarOp(int32_t slot) const
+    {
+        return isVar32(slot) ? BC_LOAD_VAR32 : BC_LOAD_VAR;
+    }
+    uint8_t storeVarOp(int32_t slot) const
+    {
+        return isVar32(slot) ? BC_STORE_VAR32 : BC_STORE_VAR;
     }
 
     static bool isI32Lit(const Node& n)
@@ -1629,7 +1696,7 @@ private:
                     return false;
                 }
                 narrowStore(t, n.storeType);
-                emit(BC_STORE_VAR, 0, n.a);
+                emit(storeVarOp(n.a), 0, n.a);
                 pop();
                 return true;
             }
@@ -1755,7 +1822,7 @@ private:
                     return true;
                 if (!push())
                     return false;
-                emit(BC_LOAD_VAR, 0, n.a);
+                emit(loadVarOp(n.a), 0, n.a);
                 return true;
             case OP_OUT:
                 if (!want)
@@ -1963,7 +2030,7 @@ private:
         if (!push())
             return false;
         if (target.op == OP_VAR)
-            emit(BC_LOAD_VAR, 0, target.a);
+            emit(loadVarOp(target.a), 0, target.a);
         else if (target.op == OP_OUT)
             emit(BC_LOAD_OUT, (uint8_t)target.storeType, 0, (int32_t)_prog._outFields[target.a].offset);
         else
@@ -1975,7 +2042,7 @@ private:
     void storeTarget(const Node& target, VT valueType)
     {
         if (target.op == OP_VAR)
-            emit(BC_STORE_VAR, 0, target.a);
+            emit(storeVarOp(target.a), 0, target.a);
         else if (target.op == OP_OUT)
             emit(BC_STORE_OUT, (uint8_t)target.storeType, (int32_t)valueType, (int32_t)_prog._outFields[target.a].offset);
         else
@@ -2154,8 +2221,21 @@ DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::runBytecode(RunContext& ctx
             case BC_STORE_OUT:
             {
                 const Cell& v = *--sp;
-                if (ctx.pOut)
-                    storeField(ctx.pOut + ins.b, (NumType)ins.t, cellToVal(v, (VT)ins.a));
+                if (!ctx.pOut)
+                    break;
+                // An int to an int field: here; others out of line
+                uint8_t* p = ctx.pOut + ins.b;
+                if ((VT)ins.a == VT::I32)
+                {
+                    switch ((NumType)ins.t)
+                    {
+                        case NumType::Int8: case NumType::Uint8: { uint8_t x = (uint8_t)v.i32; memcpy(p, &x, 1); continue; }
+                        case NumType::Int16: case NumType::Uint16: { uint16_t x = (uint16_t)v.i32; memcpy(p, &x, 2); continue; }
+                        case NumType::Int32: case NumType::Uint32: { memcpy(p, &v.i32, 4); continue; }
+                        default: break;
+                    }
+                }
+                bcStoreField(p, ins.t, v, (uint8_t)ins.a);
                 break;
             }
             case BC_NARROW: sp[-1].i32 = narrow32(sp[-1].i32, ins.t); break;
@@ -2207,46 +2287,25 @@ DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::runBytecode(RunContext& ctx
                 }
                 break;
             case BC_RET:
-            {
-                Val v = cellToVal(*--sp, (VT)ins.a);
-                ctx.returnValue = (ins.t == 0) ? (int64_t)as<uint32_t>(v) : (as<bool>(v) ? 1 : 0);
-                return end(Status::Return);
-            }
-
-            // Any type
-            case BC_PUSH_C: *sp++ = _consts[ins.b]; break;
-            case BC_CONV: sp[-1] = valToCell(convertTo(cellToVal(sp[-1], (VT)ins.a), (VT)ins.t)); break;
-            case BC_NARROW_V: sp[-1] = valToCell(narrowTo(cellToVal(sp[-1], (VT)ins.a), (NumType)ins.t)); break;
-            case BC_BIN:
-            {
-                VT t = (VT)ins.t;
-                bool isShift = (ins.a == OP_SHL) || (ins.a == OP_SHR);
-                Val lhs = cellToVal(sp[-2], t);
-                Val rhs = cellToVal(sp[-1], isShift ? VT::I64 : t);
                 sp--;
-                sp[-1] = valToCell(binary((uint8_t)ins.a, t, lhs, rhs));
-                break;
-            }
-            case BC_UN: sp[-1] = valToCell(unary((uint8_t)ins.a, (VT)ins.t, cellToVal(sp[-1], (VT)ins.t))); break;
-            case BC_TRUTHY: sp[-1].i32 = truthy(cellToVal(sp[-1], (VT)ins.t)) ? 1 : 0; break;
-            case BC_LOAD_BUF_V:
-            {
-                Val indexVal = cellToVal(sp[-1], (VT)ins.t);
-                int64_t index = as<int64_t>(indexVal);
-                if ((indexVal.t == VT::U64) && (indexVal.u > (uint64_t)INT64_MAX))
-                    index = -1;
-                sp[-1].i32 = bufAt(index);
-                break;
-            }
+                ctx.returnValue = bcReturnValue(*sp, (uint8_t)ins.a, ins.t == 0);
+                return end(Status::Return);
+
+            // Any type (out of line)
+            case BC_PUSH_C: *sp++ = _consts[ins.b]; break;
+            case BC_CONV: sp[-1] = bcConv(sp[-1], (uint8_t)ins.a, ins.t); break;
+            case BC_NARROW_V: sp[-1] = bcNarrow(sp[-1], (uint8_t)ins.a, ins.t); break;
+            case BC_BIN: sp--; sp[-1] = bcBinary(sp[-1], sp[0], (uint8_t)ins.a, ins.t); break;
+            case BC_UN: sp[-1] = bcUnary(sp[-1], (uint8_t)ins.a, ins.t); break;
+            case BC_TRUTHY: sp[-1].i32 = bcTruthy(sp[-1], ins.t); break;
+            case BC_LOAD_BUF_V: sp[-1].i32 = bufAt(bcBufIndex(sp[-1], ins.t)); break;
             case BC_LOAD_OUT:
-            {
-                Cell c;
-                c.u64 = 0;
                 if (ctx.pOut)
-                    c = valToCell(loadField(ctx.pOut + ins.b, (NumType)ins.t));
-                *sp++ = c;
+                    *sp = bcLoadField(ctx.pOut + ins.b, ins.t);
+                else
+                    sp->u64 = 0;
+                sp++;
                 break;
-            }
             case BC_LOAD_INIT:
                 (sp++)->i32 = ((uint32_t)ins.a < ctx.numInitValues) ? ctx.pInitValues[ins.a] : 0;
                 break;
@@ -2266,13 +2325,14 @@ DeviceTypeCodeProgram::Status DeviceTypeCodeProgram::runBytecode(RunContext& ctx
                 break;
             case BC_ARR_STORE:
             {
-                const Cell& v = *--sp;
-                int32_t index = (--sp)->i32;
+                sp -= 2;
                 if (ctx.pOut)
-                    storeField(ctx.pOut + ins.b + (uint32_t)index * storeSize((NumType)ins.t), (NumType)ins.t,
-                                cellToVal(v, (VT)ins.a));
+                    bcStoreField(ctx.pOut + ins.b + (uint32_t)sp[0].i32 * storeSize((NumType)ins.t), ins.t, sp[1],
+                                (uint8_t)ins.a);
                 break;
             }
+            case BC_LOAD_VAR32: (sp++)->u32 = slots[ins.a].u32; break;
+            case BC_STORE_VAR32: slots[ins.a].u32 = (--sp)->u32; break;
             default:
                 return end(Status::Done);
         }
