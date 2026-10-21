@@ -91,6 +91,10 @@ private:
         uint64_t runtimeUsTotal = 0;
         uint32_t compiledUsMax = 0;
         uint32_t runtimeUsMax = 0;
+        uint64_t nodes = 0;                                 // interpreter steps (custom decode code)
+        uint64_t compiledWarmUsTotal = 0;                   // the decodes run again straight away (warm caches)
+        uint64_t runtimeWarmUsTotal = 0;
+        uint64_t warmNodesSkip = 0;
         String firstMismatch;                               // JSON object
         // Init
         DeviceTypeRuntimeInit* pInit = nullptr;

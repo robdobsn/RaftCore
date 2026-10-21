@@ -123,7 +123,7 @@ DEV_TYPE_CATALOGUES ?=
 # Object file for a source: obj/ plus its path with any leading ../ removed
 objs = $(addprefix $(OBJDIR)/,$(subst ../,,$(1:.cpp=.o)))
 
-.PHONY: all check clean spiram_allocator_tests
+.PHONY: all check clean spiram_allocator_tests bench
 
 all: $(TESTS)
 
@@ -224,6 +224,16 @@ test_reduced_catalogue: $(REDUCED_OBJS) $(call objs,$(CORE)/MiniHDLC/MiniHDLC.cp
 
 -include $(shell find $(OBJDIR) -name '*.d' 2>/dev/null)
 
+
+# Runtime decoder timing against the compiled decoders (not part of check): make bench [BENCH_ARGS="<record> <iterations>"]
+BENCH_FLAGS = -std=c++20 -O2 -DRAFT_CORE -DRAFT_RUNTIME_DECODE -DRAFT_RUNTIME_DECODE_CODE
+BENCH_SOURCES = bench_runtime_decoder.cpp $(CORE)/DeviceTypes/DeviceTypeRecords.cpp $(CORE)/DeviceTypes/DeviceTypeGrammar.cpp \
+  $(CORE)/DeviceTypes/DeviceTypeRuntimeDecoder.cpp $(CORE)/DeviceTypes/DeviceTypeCodeInterpreter.cpp $(COMMON_SOURCES)
+bench_runtime_decoder: $(BENCH_SOURCES) $(DEV_TYPE_GEN_HEADER) $(wildcard $(CORE)/DeviceTypes/*.h)
+	$(CC) $(BENCH_FLAGS) $(INCLUDES) -o $@ $(BENCH_SOURCES)
+bench: bench_runtime_decoder
+	./bench_runtime_decoder $(BENCH_ARGS)
+
 clean:
-	rm -f $(TESTS) test_espnow_config test_reduced_catalogue linux_unit_tests arduino_stubs.o *.d
+	rm -f $(TESTS) test_espnow_config test_reduced_catalogue bench_runtime_decoder linux_unit_tests arduino_stubs.o *.d
 	rm -rf $(OBJDIR) $(DEV_TYPE_GEN_DIR) $(REDUCED_GEN_DIR)

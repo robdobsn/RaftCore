@@ -188,9 +188,26 @@ void DeviceTypeDecodeVerifier::checkDecode(RaftDeviceID deviceID, uint16_t devic
     uint32_t nCompiled = pRec->pollResultDecodeFn(buf.data(), buf.size(), _outCompiled.data(), _outCompiled.size(),
                 MAX_RECS_PER_DECODE, pState->compiled);
     uint64_t t1 = micros();
+    uint64_t nodesBefore = ts.pDecoder->getNodesRun();
     uint32_t nRuntime = ts.pDecoder->decode(buf.data(), buf.size(), _outRuntime.data(), _outRuntime.size(),
                 MAX_RECS_PER_DECODE, pState->runtime);
     uint64_t t2 = micros();
+
+    // Again straight away (warm caches), into scratch copies, for timing only
+    {
+        std::vector<uint8_t> scratch(_outCompiled.size());
+        RaftBusDeviceDecodeState scratchState = pState->compiled;
+        uint64_t w0 = micros();
+        pRec->pollResultDecodeFn(buf.data(), buf.size(), scratch.data(), scratch.size(), MAX_RECS_PER_DECODE, scratchState);
+        uint64_t w1 = micros();
+        scratchState = pState->runtime;
+        uint64_t nodesWarm = ts.pDecoder->getNodesRun();
+        ts.pDecoder->decode(buf.data(), buf.size(), scratch.data(), scratch.size(), MAX_RECS_PER_DECODE, scratchState);
+        uint64_t w2 = micros();
+        ts.warmNodesSkip += ts.pDecoder->getNodesRun() - nodesWarm;
+        ts.compiledWarmUsTotal += (uint32_t)(w1 - w0);
+        ts.runtimeWarmUsTotal += (uint32_t)(w2 - w1);
+    }
 
     // Compare
     bool same = (nCompiled == nRuntime) &&
@@ -198,6 +215,8 @@ void DeviceTypeDecodeVerifier::checkDecode(RaftDeviceID deviceID, uint16_t devic
                 (pState->compiled.reportTimestampOffsetUs == pState->runtime.reportTimestampOffsetUs) &&
                 (memcmp(_outCompiled.data(), _outRuntime.data(), structSize * std::min(nCompiled, MAX_RECS_PER_DECODE)) == 0);
     ts.records += nCompiled;
+    ts.nodes += ts.pDecoder->getNodesRun() - nodesBefore - ts.warmNodesSkip;
+    ts.warmNodesSkip = 0;
     uint32_t compiledUs = (uint32_t)(t1 - t0);
     uint32_t runtimeUs = (uint32_t)(t2 - t1);
     ts.compiledUsTotal += compiledUs;
@@ -476,6 +495,17 @@ String DeviceTypeDecodeVerifier::getJson() const
                         (double)ts.compiledUsTotal / compared, (double)ts.runtimeUsTotal / compared,
                         (unsigned)ts.compiledUsMax, (unsigned)ts.runtimeUsMax);
             t += usStr;
+            // Custom decode code: interpreter steps per poll, and the time per step
+            if (ts.nodes > 0)
+            {
+                snprintf(usStr, sizeof(usStr), ",\"nodes\":%.1f,\"nsPerNode\":%.0f,\"nsPerNodeWarm\":%.0f", (double)ts.nodes / compared,
+                            (double)ts.runtimeUsTotal * 1000.0 / ts.nodes, (double)ts.runtimeWarmUsTotal * 1000.0 / ts.nodes);
+                t += usStr;
+            }
+            // The same decodes run again straight away (warm caches)
+            snprintf(usStr, sizeof(usStr), ",\"usWarm\":{\"compiled\":%.1f,\"runtime\":%.1f}",
+                        (double)ts.compiledWarmUsTotal / compared, (double)ts.runtimeWarmUsTotal / compared);
+            t += usStr;
         }
         if (ts.firstMismatch.length() > 0)
             RaftJson::appendRawField(t, "first", ts.firstMismatch.c_str());
@@ -533,6 +563,8 @@ void DeviceTypeDecodeVerifier::reset()
         ts.initFirstMismatch = "";
         ts.skippedLowStack = ts.initSkippedLowStack = 0;
         ts.notReady = ts.initNotReady = 0;
+        ts.nodes = 0;
+        ts.compiledWarmUsTotal = ts.runtimeWarmUsTotal = 0;
     }
     _stackMinFree = UINT32_MAX;
     _stackMinTask = "";

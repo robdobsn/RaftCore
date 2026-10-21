@@ -82,6 +82,12 @@ public:
         return _maxExecDepth.load(std::memory_order_relaxed);
     }
 
+    /// @brief Custom decode code: interpreter steps (expression and statement nodes) run in all, for timing
+    uint64_t getNodesRun() const
+    {
+        return _nodesRun.load(std::memory_order_relaxed);
+    }
+
     // Numeric types (of a value in the buffer, a working value or a struct field)
     enum class NumType : uint8_t
     {
@@ -162,6 +168,7 @@ private:
     uint32_t _sampleIncUs = 0;
     mutable std::atomic<uint32_t> _maxEvalDepth{0};
     mutable std::atomic<uint32_t> _maxExecDepth{0};
+    mutable std::atomic<uint64_t> _nodesRun{0};
     void noteDepths(uint32_t evalDepth, uint32_t execDepth) const
     {
         if (evalDepth > _maxEvalDepth.load(std::memory_order_relaxed))

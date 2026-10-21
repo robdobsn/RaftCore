@@ -1074,8 +1074,10 @@ uint32_t DeviceTypeRuntimeDecoder::decodeCustom(const uint8_t* pBufIn, uint32_t 
         ctx.pBuf = pBuf;
         ctx.bufLen = (uint32_t)(pBufEnd - pBuf);
         ctx.pOut = pRecOut;
+        uint32_t budgetBefore = ctx.budget;
         DeviceTypeCodeProgram::Status status = _pProgram->run(ctx);
         noteDepths(ctx.maxEvalDepth, ctx.maxExecDepth);
+        _nodesRun.fetch_add(budgetBefore - ctx.budget, std::memory_order_relaxed);
         if (status == DeviceTypeCodeProgram::Status::Return)
             return (uint32_t)ctx.returnValue;
         if (status == DeviceTypeCodeProgram::Status::OutOfBudget)
