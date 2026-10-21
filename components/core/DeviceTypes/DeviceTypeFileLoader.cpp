@@ -585,7 +585,8 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         pOutcome->outcome = (addResult == DeviceTypeRecords::AddResult::Added) ? Outcome::Added :
                     (addResult == DeviceTypeRecords::AddResult::Replaced) ? Outcome::Replaced : Outcome::Unchanged;
         const DeviceTypeRecord* pAdded = table.getRecord(deviceTypeIndex);
-        pOutcome->noDecoder = pAdded && (pAdded->pollDataSizeBytes > 0) && !pAdded->pollResultDecodeFn;
+        pOutcome->noDecoder = pAdded && (pAdded->pollDataSizeBytes > 0) &&
+                    (table.getDecoderKind(deviceTypeIndex) == DeviceTypeRecords::DecoderKind::None);
         if (pAdded && (pAdded->pollDataSizeBytes > 0))
             pOutcome->decoder = DeviceTypeRecords::getDecoderKindStr(table.getDecoderKind(deviceTypeIndex));
     }
@@ -916,6 +917,7 @@ void DeviceTypeFileLoader::checkJson(const DeviceTypeRecords& live, const std::v
     // A table as the device's is before its type file is loaded: the compiled records (a new table has them),
     // records registered by code, protected types, ext data sources and the same limits
     DeviceTypeRecords scratch;
+    scratch.setCheckOnly();
     DeviceTypeRecords::ExtendedRecordStats stats = live.getExtendedRecordStats();
     scratch.setExtendedRecordLimits(stats.maxRecords, stats.maxBytes);
     for (const String& key : live.getProtectedKeys())

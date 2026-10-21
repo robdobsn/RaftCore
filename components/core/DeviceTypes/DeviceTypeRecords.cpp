@@ -1388,13 +1388,19 @@ void DeviceTypeRecords::attachRuntimeDecoderLocked(DeviceTypeRecord* pRec)
     if (!pRec || pRec->pollResultDecodeFn || !pRec->devInfoJson || (pRec->pollDataSizeBytes == 0))
         return;
     String problem;
-    DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem);
+    DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem, !_checkOnly);
     if (!pDecoder)
     {
         LOG_W(MODULE_PREFIX, "%s has no on-device decoder: %s", pRec->deviceType ? pRec->deviceType : "?", problem.c_str());
         return;
     }
     _runtimeDecoders.push_back(pDecoder);
+    if (_checkOnly)
+    {
+        // Checked, not polled: no decode function
+        _checkOnlyDecoderRecs.push_back(pRec);
+        return;
+    }
     pRec->pollResultDecodeFn = pDecoder->getDecodeFn();
     pRec->pollFieldDescs = pDecoder->getFieldDescs();
     pRec->pollFieldCount = pDecoder->getFieldCount();
@@ -1435,8 +1441,21 @@ void DeviceTypeRecords::attachRuntimeInitLocked(DeviceTypeRecord* pRec, const St
 DeviceTypeRecords::DecoderKind DeviceTypeRecords::getDecoderKind(DeviceTypeIndexType deviceTypeIndex) const
 {
     const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
-    if (!pRec || !pRec->pollResultDecodeFn)
+    if (!pRec)
         return DecoderKind::None;
+    if (!pRec->pollResultDecodeFn)
+    {
+        // A checked table's runtime decoders have no decode function
+        DecoderKind kind = DecoderKind::None;
+        if (_checkOnly && RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        {
+            for (const DeviceTypeRecord* pChecked : _checkOnlyDecoderRecs)
+                if (pChecked == pRec)
+                    kind = DecoderKind::Runtime;
+            RaftMutex_unlock(_extRecordsMutex);
+        }
+        return kind;
+    }
     DecoderKind kind = DecoderKind::Compiled;
     if (RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {

@@ -265,6 +265,14 @@ public:
     /// @note defaults: 256 records and 256 KB on boards with PSRAM, 32 records and 20 KB without
     bool setExtendedRecordLimits(uint32_t maxRecords, uint32_t maxBytes);
 
+    /// @brief Mark a table that is only checked, never polled (a type file check's): its runtime decoders are made
+    ///        without decode functions, so they take no slots (RAFT_RUNTIME_DECODE_MAX_DECODERS) from the device's
+    ///        own table; getDecoderKind still reports them. Call before adding records
+    void setCheckOnly()
+    {
+        _checkOnly = true;
+    }
+
     // Extended record usage
     struct ExtendedRecordStats
     {
@@ -434,8 +442,11 @@ private:
     const DeviceTypeRecord** _baseOverridesStore = nullptr;
     std::vector<const DeviceTypeRecord*> _retiredRecords;
 
-    // Runtime decoders made for records with no compiled decoder (RAFT_RUNTIME_DECODE), owned here, under the mutex
+    // Runtime decoders made for records with no compiled decoder (RAFT_RUNTIME_DECODE), owned here, under the mutex;
+    // in a table only checked, made without decode functions, for the records in _checkOnlyDecoderRecs
     std::vector<DeviceTypeRuntimeDecoder*> _runtimeDecoders;
+    std::vector<const DeviceTypeRecord*> _checkOnlyDecoderRecs;
+    bool _checkOnly = false;
     void attachRuntimeDecoderLocked(DeviceTypeRecord* pRec);
 
     // Runtime init values functions from records' init code (RAFT_RUNTIME_DECODE_CODE), owned here, under the mutex
