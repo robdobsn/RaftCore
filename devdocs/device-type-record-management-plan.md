@@ -47,7 +47,7 @@ covered by automated tests; RaftCore, Axiom and the other libraries on their `fe
 
 Things that read `devtypes/DeviceTypeRecords.json` directly: RaftCore `linux_unit_tests/Makefile` and its tests,
 `scripts/tests` (`test_device_type_keys.py`, `test_grammar.py`, `test_standard_decode.py`),
-`scripts/LibraryBuildScript.py` (PlatformIO), `scripts/RaftBootstrapLinux.cmake`, raftjs
+`scripts/LibraryBuildScript.py` (PlatformIO, since removed), `scripts/RaftBootstrapLinux.cmake`, raftjs
 `PseudocodeTranspiler.test.ts`, RaftI2C TestWebUI (`features.cmake`, `AttributeHandler.test.ts`), the
 `features.cmake` of RaftROS ExampleDiscoverable and RaftMotorControl test rigs, and several devdocs.
 
@@ -364,7 +364,7 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 
   The generator reads folders; files keep their old meaning, so a file without `devTypes` has no records.
 - **Other consumers:**
-  - `RaftBootstrapLinux.cmake` and `LibraryBuildScript.py` (PlatformIO) read the folder;
+  - `RaftBootstrapLinux.cmake` and `LibraryBuildScript.py` (PlatformIO, since removed) read the folder;
   - RaftCore's host tests assemble `gen/DeviceTypeRecords.json`;
   - `check_device_type_grammar.py` and the Python tests read the folder;
   - the release workflow attaches `DeviceTypeRecords.json` (M9).

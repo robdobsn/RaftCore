@@ -83,6 +83,10 @@ public:
     /// @brief Number of decoder slots in use (for tests and diagnostics)
     static uint32_t getNumSlotsInUse();
 
+    /// @brief Bytes this decoder has allocated (the object, its fields, field descriptions and text - not the
+    ///        allocator's overhead, nor a custom decode program's tree and bytecode)
+    uint32_t getAllocatedBytes() const;
+
     /// @brief Custom decode code: the deepest nesting of expressions and of statements its runs have reached (each
     ///        level is an interpreter stack frame - the stack a decode needs)
     uint32_t getMaxEvalDepth() const

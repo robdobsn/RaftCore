@@ -1,0 +1,29 @@
+# Define configuration
+# Remove/repace these comments to set level to debug/info
+
+# Disable watchdog checking for idle tasks during interactive testing
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
+
+# Default log level
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# Serial console
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Flash size
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Partition Table
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="build/raft/partitions.csv"
+
+# Common ESP-related
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=10000
+
+# FreeRTOS
+CONFIG_FREERTOS_HZ=1000
+
+# SPIRAM
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y

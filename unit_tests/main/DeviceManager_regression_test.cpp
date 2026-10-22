@@ -5,6 +5,7 @@
 // Ported from the feature/device-library branch (Nikos). They cover fixes already on main:
 // - devman/listdevs reports identified online devices, including ones with no poll response yet
 // - devman/devconfig and devman/cmdraw reject directly connected devices (which are not on a bus)
+// - a device of a type decoded at runtime has its decoder before anything is told about it (bus and static devices)
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -257,6 +258,40 @@ static void setupStaticDemoDevices(const char* devicesJson, std::vector<uint32_t
     }
 }
 
+TEST_CASE("a bus device of a type decoded at runtime has its decoder when it is reported", "[DeviceManager]")
+{
+    // A record decoded from its attribute list (as from a type file): no decoder until a device of the type is
+    // identified, then made by DeviceManager before its status listeners are told
+    DeviceTypeRecordDynamic rec("RegressRuntimeType", "0x60", "0x0f=0x33", "", R"({"c":"0x00=r2","i":100,"s":1})", 2,
+                R"({"name":"Runtime","resp":{"b":2,"a":[{"n":"v","t":">h","f":"d","o":"int16"}]}})", nullptr);
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    deviceTypeRecords.addRecord(rec, idx);
+    TEST_ASSERT_NOT_EQUAL(DEVICE_TYPE_INDEX_INVALID, idx);
+    TEST_ASSERT_TRUE(deviceTypeRecords.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::RuntimePending);
+
+    raftBusSystem.deinit();
+    raftBusSystem.registerBus("DeviceManagerRegressionBus", createDeviceManagerRegressionBus);
+    RaftJson config = R"({"DeviceManager":{"Buses":{"buslist":[{"type":"DeviceManagerRegressionBus"}]}}})";
+    TestableDeviceManager deviceManager("DeviceManager", config);
+    deviceManager.setup();
+    bool listenerCalled = false;
+    bool decoderWhenTold = false;
+    deviceManager.registerForDeviceStatusChange([&](RaftDevice&, const BusAddrStatus& addrStatus) {
+        if (addrStatus.deviceTypeIndex != idx)
+            return;
+        listenerCalled = true;
+        decoderWhenTold = deviceTypeRecords.getPollDecodeFn(idx) != nullptr;
+    });
+    const auto& buses = raftBusSystem.getBusList();
+    if (!buses.empty())
+        buses.front()->callBusElemStatusCB({BusAddrStatus(0x60, DeviceOnlineState::ONLINE, true, true, idx)});
+    raftBusSystem.deinit();
+
+    TEST_ASSERT_TRUE(listenerCalled);
+    TEST_ASSERT_TRUE(decoderWhenTold);
+    TEST_ASSERT_TRUE(deviceTypeRecords.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::Runtime);
+}
+
 TEST_CASE("static devices of the same type share its record", "[DeviceManager]")
 {
     std::vector<uint32_t> typeIdxs;
@@ -268,6 +303,8 @@ TEST_CASE("static devices of the same type share its record", "[DeviceManager]")
     DeviceTypeIndexType idx = 0;
     TEST_ASSERT_NOT_NULL(deviceTypeRecords.getRecord("RegressSameType", idx));
     TEST_ASSERT_EQUAL_UINT32(typeIdxs[0], idx);
+    // A static device is present from setup, so its type's runtime decoder is made then
+    TEST_ASSERT_TRUE(deviceTypeRecords.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::Runtime);
 }
 
 TEST_CASE("a static device whose type conflicts with an existing one gets no type", "[DeviceManager]")

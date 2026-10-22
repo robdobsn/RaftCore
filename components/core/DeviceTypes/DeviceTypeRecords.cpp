@@ -976,10 +976,10 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
             }
             else
             {
-                // A record with no compiled decoder gets one made from its attribute list (if built in), and init
-                // code from a type file is run by the interpreter (if built in)
-                if (!pRec->pollResultDecodeFn)
-                    attachRuntimeDecoderLocked(pRec);
+                // A record with no compiled decoder can be decoded from its attribute list (if built in): checked
+                // now, and its decoder made when a device of the type is first identified (the decoder policy).
+                // Init code from a type file is run by the interpreter (if built in)
+                prepareRuntimeDecoderLocked(pRec, BASE_DEV_TYPE_ARRAY_SIZE + count);
                 if (devTypeRec.initCode.length() > 0)
                     attachRuntimeInitLocked(pRec, devTypeRec.initCode);
 
@@ -1078,9 +1078,8 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::replaceBaseRecord(DeviceTypeInde
         pRec->pollStructSize = baseRec.pollStructSize;
     }
 
-    // Otherwise make a decoder from the attribute list (if built in)
-    if (!pRec->pollResultDecodeFn)
-        attachRuntimeDecoderLocked(pRec);
+    // Otherwise it can be decoded from its attribute list (if built in - see addRecord)
+    prepareRuntimeDecoderLocked(pRec, baseIdx);
 
     // The record's own init code (from a type file) is run by the interpreter (if built in); otherwise it inherits
     // the base record's init values function
@@ -1367,13 +1366,18 @@ DeviceTypeRecords::ExtendedRecordStats DeviceTypeRecords::getExtendedRecordStats
         return stats;
     stats.count = _extCount.load(std::memory_order_relaxed);
     stats.bytesUsed = _extBytesUsed;
-    if (_extMaxRecords == 0)
+    if ((_extMaxRecords == 0) || (_maxDecoderBytes == 0))
     {
         // Limits not applied yet - report the defaults that will apply
         const_cast<DeviceTypeRecords*>(this)->applyDefaultExtendedRecordLimits();
     }
     stats.maxRecords = _extMaxRecords;
     stats.maxBytes = _extMaxBytes;
+    stats.decodersMade = _runtimeDecoders.size();
+    stats.decodersFailed = _decodersFailed;
+    stats.decoderBytes = _decoderBytes;
+    stats.maxDecoderBytes = _maxDecoderBytes;
+    stats.decoderPolicy = _decoderPolicy;
     RaftMutex_unlock(_extRecordsMutex);
     return stats;
 }
@@ -1382,10 +1386,14 @@ DeviceTypeRecords::ExtendedRecordStats DeviceTypeRecords::getExtendedRecordStats
 /// @brief Apply the default limits for extended records if not already set (D3). Assumes the mutex is held
 void DeviceTypeRecords::applyDefaultExtendedRecordLimits()
 {
-    if (_extMaxRecords != 0)
+    if ((_extMaxRecords != 0) && (_maxDecoderBytes != 0))
         return;
     uint32_t spiramSize = utilsGetSPIRAMSize();
     bool hasPSRAM = (spiramSize != 0) && (spiramSize != UINT32_MAX);
+    if (_maxDecoderBytes == 0)
+        _maxDecoderBytes = hasPSRAM ? UINT32_MAX : RUNTIME_DECODER_MAX_BYTES_DEFAULT;
+    if (_extMaxRecords != 0)
+        return;
     _extMaxRecords = hasPSRAM ? EXT_MAX_RECORDS_DEFAULT_PSRAM : EXT_MAX_RECORDS_DEFAULT;
     _extMaxBytes = hasPSRAM ? EXT_MAX_BYTES_DEFAULT_PSRAM : EXT_MAX_BYTES_DEFAULT;
 }
@@ -1409,41 +1417,205 @@ int32_t DeviceTypeRecords::findExtendedPosByKey(const char* deviceTypeKey) const
 DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(DeviceTypeIndexType deviceTypeIndex) const
 {
     const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
-    return pRec ? pRec->pollResultDecodeFn : nullptr;
+    return pRec ? __atomic_load_n(&pRec->pollResultDecodeFn, __ATOMIC_ACQUIRE) : nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Make a runtime decoder for a record with no compiled decoder, from its attribute list, and attach it
-///        (pollResultDecodeFn, pollFieldDescs, pollFieldCount, pollStructSize). Assumes the mutex is held
-/// @note without RAFT_RUNTIME_DECODE no decoder is made. A record with nothing to decode (no response data) gets
-///       none; a record that can't be decoded at runtime (custom decode code, or an attribute the build couldn't
-///       decode) is logged
-void DeviceTypeRecords::attachRuntimeDecoderLocked(DeviceTypeRecord* pRec)
+/// @brief Prepare the runtime decoder of a record just added (not yet published) with no compiled decoder:
+///        with policy OnIdentify, check that it can be decoded from its attribute list and mark it Pending (its
+///        decoder is made by ensureDecoder); with AtLoad, or custom decode code, make it now. Assumes the mutex is
+///        held
+/// @note without RAFT_RUNTIME_DECODE, or with policy Off, nothing is done. A record with nothing to decode (no
+///       response data) gets nothing; a record that can't be decoded at runtime (custom decode code without the
+///       interpreter, or an attribute the build couldn't decode) is logged
+void DeviceTypeRecords::prepareRuntimeDecoderLocked(DeviceTypeRecord* pRec, DeviceTypeIndexType deviceTypeIndex)
 {
 #ifdef RAFT_RUNTIME_DECODE
-    if (!pRec || pRec->pollResultDecodeFn || !pRec->devInfoJson || (pRec->pollDataSizeBytes == 0))
+    if (!pRec || pRec->pollResultDecodeFn || !pRec->devInfoJson || (pRec->pollDataSizeBytes == 0) ||
+                (_decoderPolicy == DecoderPolicy::Off))
         return;
+    bool makeNow = (_decoderPolicy == DecoderPolicy::AtLoad) || RaftJson(pRec->devInfoJson, false).contains("resp/c");
     String problem;
-    DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem, !_checkOnly);
+    if (makeNow && !_checkOnly)
+    {
+        if (!makeRuntimeDecoderLocked(pRec, deviceTypeIndex, problem))
+        {
+            setDecoderStateLocked(deviceTypeIndex, DecoderState::None);
+            LOG_W(MODULE_PREFIX, "%s has no on-device decoder: %s", pRec->deviceType ? pRec->deviceType : "?", problem.c_str());
+        }
+        return;
+    }
+
+    // Checked, not kept: no slot or memory is used until a device of the type is identified (in a table only
+    // checked, a decoder that would be made now is reported as made)
+    DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem, false);
     if (!pDecoder)
     {
         LOG_W(MODULE_PREFIX, "%s has no on-device decoder: %s", pRec->deviceType ? pRec->deviceType : "?", problem.c_str());
         return;
     }
-    _runtimeDecoders.push_back(pDecoder);
-    if (_checkOnly)
+    delete pDecoder;
+    setDecoderStateLocked(deviceTypeIndex, makeNow ? DecoderState::Made : DecoderState::Pending);
+#else
+    (void)pRec;
+    (void)deviceTypeIndex;
+#endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Make a record's runtime decoder from its attribute list and attach it: pollFieldDescs, pollFieldCount
+///        and pollStructSize, then pollResultDecodeFn (release - the record may already be published). Assumes the
+///        mutex is held
+/// @param pRec record (an extended record or base record override - never a base record, which is in flash)
+/// @param deviceTypeIndex its device type index
+/// @param problem (out) why it couldn't be made
+/// @return true if made (state Made); false leaves the state to the caller
+bool DeviceTypeRecords::makeRuntimeDecoderLocked(DeviceTypeRecord* pRec, DeviceTypeIndexType deviceTypeIndex, String& problem) const
+{
+#ifdef RAFT_RUNTIME_DECODE
+    DeviceTypeRuntimeDecoder* pDecoder = DeviceTypeRuntimeDecoder::create(pRec->devInfoJson, problem, true);
+    if (!pDecoder)
+        return false;
+    uint32_t bytes = pDecoder->getAllocatedBytes();
+    if ((_maxDecoderBytes != UINT32_MAX) && (_decoderBytes + bytes > _maxDecoderBytes))
     {
-        // Checked, not polled: no decode function
-        _checkOnlyDecoderRecs.push_back(pRec);
-        return;
+        problem = "runtime decoders would use more than " + String(_maxDecoderBytes) +
+                    " bytes (typeTable maxDecoderBytes)";
+        delete pDecoder;
+        return false;
     }
-    pRec->pollResultDecodeFn = pDecoder->getDecodeFn();
+    _runtimeDecoders.push_back(pDecoder);
+    _decoderBytes += bytes;
     pRec->pollFieldDescs = pDecoder->getFieldDescs();
     pRec->pollFieldCount = pDecoder->getFieldCount();
     pRec->pollStructSize = pDecoder->getStructSize();
+    __atomic_store_n(&pRec->pollResultDecodeFn, pDecoder->getDecodeFn(), __ATOMIC_RELEASE);
+    setDecoderStateLocked(deviceTypeIndex, DecoderState::Made);
+    return true;
 #else
     (void)pRec;
+    (void)deviceTypeIndex;
+    problem = "runtime decoding not built in (RAFT_RUNTIME_DECODE)";
+    return false;
 #endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Make sure a record that can be decoded at runtime has its decoder (made the first time it is needed)
+bool DeviceTypeRecords::ensureDecoder(DeviceTypeIndexType deviceTypeIndex) const
+{
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    if (!pRec)
+        return false;
+    if (__atomic_load_n(&pRec->pollResultDecodeFn, __ATOMIC_ACQUIRE))
+        return true;
+    if (_checkOnly || !RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    if (!pRec->pollResultDecodeFn && (decoderStateOf(deviceTypeIndex) == DecoderState::Pending))
+    {
+        // Only an extended record or base record override is Pending, and neither is in flash
+        String problem;
+        if (!makeRuntimeDecoderLocked(const_cast<DeviceTypeRecord*>(pRec), deviceTypeIndex, problem))
+        {
+            setDecoderStateLocked(deviceTypeIndex, DecoderState::Failed);
+            _decodersFailed++;
+            _decoderProblems.push_back(std::make_pair(deviceTypeIndex, problem));
+            LOG_W(MODULE_PREFIX, "ensureDecoder %s has no on-device decoder: %s",
+                        pRec->deviceType ? pRec->deviceType : "?", problem.c_str());
+        }
+#ifdef DEBUG_RUNTIME_DECODERS
+        else
+        {
+            LOG_I(MODULE_PREFIX, "ensureDecoder %s made (%d decoders, %d bytes)", pRec->deviceType ? pRec->deviceType : "?",
+                        (int)_runtimeDecoders.size(), (int)_decoderBytes);
+        }
+#endif
+    }
+    bool hasDecoder = pRec->pollResultDecodeFn != nullptr;
+    RaftMutex_unlock(_extRecordsMutex);
+    return hasDecoder;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief A record's decoder state (None if it has none). Assumes the mutex is held
+DeviceTypeRecords::DecoderState DeviceTypeRecords::decoderStateOf(DeviceTypeIndexType deviceTypeIndex) const
+{
+    return (deviceTypeIndex < _decoderStates.size()) ? _decoderStates[deviceTypeIndex] : DecoderState::None;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set a record's decoder state. Assumes the mutex is held
+void DeviceTypeRecords::setDecoderStateLocked(DeviceTypeIndexType deviceTypeIndex, DecoderState state) const
+{
+    if (deviceTypeIndex >= _decoderStates.size())
+    {
+        if (state == DecoderState::None)
+            return;
+        _decoderStates.resize(deviceTypeIndex + 1, DecoderState::None);
+    }
+    _decoderStates[deviceTypeIndex] = state;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set when runtime decoders are made and the bytes they may use (only before any record is added)
+bool DeviceTypeRecords::setDecoderPolicy(DecoderPolicy policy, uint32_t maxDecoderBytes)
+{
+    if (!RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    bool isSet = false;
+    if (!_extRecords && !_baseOverridesStore)
+    {
+        _decoderPolicy = policy;
+        _maxDecoderBytes = maxDecoderBytes;
+        applyDefaultExtendedRecordLimits();
+        isSet = true;
+    }
+    RaftMutex_unlock(_extRecordsMutex);
+    return isSet;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Name of a decoder policy
+const char* DeviceTypeRecords::getDecoderPolicyStr(DecoderPolicy policy)
+{
+    switch (policy)
+    {
+        case DecoderPolicy::OnIdentify: return "onIdentify";
+        case DecoderPolicy::AtLoad: return "atLoad";
+        case DecoderPolicy::Off: return "off";
+    }
+    return "unknown";
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Decoder policy from its name
+/// @return false if the name isn't a policy
+bool DeviceTypeRecords::parseDecoderPolicy(const char* pStr, DecoderPolicy& policy)
+{
+    for (DecoderPolicy candidate : {DecoderPolicy::OnIdentify, DecoderPolicy::AtLoad, DecoderPolicy::Off})
+    {
+        if (pStr && (strcmp(pStr, getDecoderPolicyStr(candidate)) == 0))
+        {
+            policy = candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Why a record's runtime decoder couldn't be made when it was needed, or empty
+String DeviceTypeRecords::getDecoderProblem(DeviceTypeIndexType deviceTypeIndex) const
+{
+    String problem;
+    if (RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        for (const auto& entry : _decoderProblems)
+            if (entry.first == deviceTypeIndex)
+                problem = entry.second;
+        RaftMutex_unlock(_extRecordsMutex);
+    }
+    return problem;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1479,28 +1651,20 @@ DeviceTypeRecords::DecoderKind DeviceTypeRecords::getDecoderKind(DeviceTypeIndex
     const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
     if (!pRec)
         return DecoderKind::None;
-    if (!pRec->pollResultDecodeFn)
-    {
-        // A checked table's runtime decoders have no decode function
-        DecoderKind kind = DecoderKind::None;
-        if (_checkOnly && RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
-        {
-            for (const DeviceTypeRecord* pChecked : _checkOnlyDecoderRecs)
-                if (pChecked == pRec)
-                    kind = DecoderKind::Runtime;
-            RaftMutex_unlock(_extRecordsMutex);
-        }
-        return kind;
-    }
-    DecoderKind kind = DecoderKind::Compiled;
+    DecoderState state = DecoderState::None;
     if (RaftMutex_lock(_extRecordsMutex, RAFT_MUTEX_WAIT_FOREVER))
     {
-        for (const DeviceTypeRuntimeDecoder* pDecoder : _runtimeDecoders)
-            if (pDecoder->getDecodeFn() == pRec->pollResultDecodeFn)
-                kind = DecoderKind::Runtime;
+        state = decoderStateOf(deviceTypeIndex);
         RaftMutex_unlock(_extRecordsMutex);
     }
-    return kind;
+    switch (state)
+    {
+        case DecoderState::Pending: return DecoderKind::RuntimePending;
+        case DecoderState::Made: return DecoderKind::Runtime;
+        case DecoderState::Failed: return DecoderKind::RuntimeFailed;
+        default: break;
+    }
+    return __atomic_load_n(&pRec->pollResultDecodeFn, __ATOMIC_ACQUIRE) ? DecoderKind::Compiled : DecoderKind::None;
 }
 
 #ifdef RAFT_RUNTIME_DECODE_VERIFY
@@ -1529,6 +1693,8 @@ const char* DeviceTypeRecords::getDecoderKindStr(DecoderKind kind)
     {
         case DecoderKind::Compiled: return "compiled";
         case DecoderKind::Runtime: return "runtime";
+        case DecoderKind::RuntimePending: return "runtimePending";
+        case DecoderKind::RuntimeFailed: return "runtimeFailed";
         default: return "none";
     }
 }

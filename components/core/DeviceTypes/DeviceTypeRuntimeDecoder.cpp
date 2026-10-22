@@ -535,6 +535,19 @@ uint32_t DeviceTypeRuntimeDecoder::getNumSlotsInUse()
     return count;
 }
 
+uint32_t DeviceTypeRuntimeDecoder::getAllocatedBytes() const
+{
+    uint32_t bytes = sizeof(*this) + _fields.capacity() * sizeof(Field) +
+                _fieldDescs.capacity() * sizeof(AttrFieldDesc) + _text.capacity();
+    for (const Field& f : _fields)
+    {
+        bytes += f.atList.capacity() * sizeof(uint16_t) + f.lutRows.capacity() * sizeof(LutRow);
+        for (const LutRow& row : f.lutRows)
+            bytes += row.ranges.capacity() * sizeof(LutRange);
+    }
+    return bytes;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Parse the response attributes into fields and the struct layout
 bool DeviceTypeRuntimeDecoder::parse(const char* pDevInfoJson, String& problem)
@@ -1149,6 +1162,10 @@ uint32_t DeviceTypeRuntimeDecoder::decode(const uint8_t*, uint32_t, void*, uint3
     return 0;
 }
 uint32_t DeviceTypeRuntimeDecoder::getNumSlotsInUse()
+{
+    return 0;
+}
+uint32_t DeviceTypeRuntimeDecoder::getAllocatedBytes() const
 {
     return 0;
 }

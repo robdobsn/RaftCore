@@ -4,8 +4,8 @@
 //
 // DeviceTypeRecords as a table: looking records up by index and by key (base records, compiled from
 // devtypes/DeviceTypeRecords.json, and extended records added at runtime), adding extended records (results,
-// limits, a key added twice with the same or different content, overriding a base key), and reading records
-// by index from one thread while another adds them.
+// limits, a key added twice with the same or different content, overriding a base key), reading records
+// by index from one thread while another adds them, and runtime decoders made on demand (policy, budget, threads).
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -248,6 +248,170 @@ static void testConcurrentReadWhileAdding()
     TEST_ASSERT(table.getExtendedRecordStats().count == NUM, "all added");
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Runtime decoders made on demand (devdocs/runtime-decoders-on-demand-plan.md)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifdef RAFT_RUNTIME_DECODE
+static const char* DECODABLE_DEV_INFO = R"({"name":"Test","resp":{"b":2,"a":[{"n":"v","t":">h","f":"d","o":"int16"}]}})";
+
+// A record that can be decoded is checked when added and gets its decoder when first needed, once
+static void testDecoderOnDemand()
+{
+    printf("Running testDecoderOnDemand...\n");
+    DeviceTypeRecords table;
+    table.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::OnIdentify, UINT32_MAX);
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    TEST_ASSERT(table.addRecord(makeRecord("OnDemand", "0x50", DECODABLE_DEV_INFO), idx) == DeviceTypeRecords::AddResult::Added, "added");
+    const DeviceTypeRecord* pRec = table.getRecord(idx);
+    TEST_ASSERT(pRec && !pRec->pollResultDecodeFn && !table.getPollDecodeFn(idx), "no decoder when added");
+    TEST_ASSERT(table.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::RuntimePending, "runtimePending");
+    TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 0, "no slot when added");
+    TEST_ASSERT(table.getExtendedRecordStats().decoderBytes == 0, "no decoder bytes when added");
+
+    // Made by ensureDecoder: the same layout as a decoder made when added
+    TEST_ASSERT(table.ensureDecoder(idx), "ensureDecoder");
+    TEST_ASSERT(pRec->pollResultDecodeFn && (table.getPollDecodeFn(idx) == pRec->pollResultDecodeFn) &&
+                pRec->pollFieldDescs && (pRec->pollFieldCount == 1), "decoder attached");
+    TEST_ASSERT(table.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::Runtime, "runtime");
+    DeviceTypeRecords atLoad;
+    atLoad.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::AtLoad, UINT32_MAX);
+    DeviceTypeIndexType atLoadIdx = DEVICE_TYPE_INDEX_INVALID;
+    atLoad.addRecord(makeRecord("OnDemand", "0x50", DECODABLE_DEV_INFO), atLoadIdx);
+    const DeviceTypeRecord* pAtLoad = atLoad.getRecord(atLoadIdx);
+    TEST_ASSERT(pAtLoad && pAtLoad->pollResultDecodeFn && (pAtLoad->pollStructSize == pRec->pollStructSize) &&
+                (pAtLoad->pollFieldCount == pRec->pollFieldCount) &&
+                (pAtLoad->pollFieldDescs[0].offset == pRec->pollFieldDescs[0].offset), "atLoad: the same layout, made when added");
+    TEST_ASSERT(atLoad.getDecoderKind(atLoadIdx) == DeviceTypeRecords::DecoderKind::Runtime, "atLoad: runtime");
+
+    // Made once
+    TEST_ASSERT(table.ensureDecoder(idx) && (DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 2), "made once");
+    DeviceTypeRecords::ExtendedRecordStats stats = table.getExtendedRecordStats();
+    TEST_ASSERT((stats.decodersMade == 1) && (stats.decoderBytes > 0) && (stats.decodersFailed == 0), "stats");
+
+    // A compiled record has its decoder already; a record with nothing to decode, or that can't be decoded, gets none
+    TEST_ASSERT(table.ensureDecoder(0) && (table.getDecoderKind(0) == DeviceTypeRecords::DecoderKind::Compiled), "compiled");
+    DeviceTypeIndexType noDataIdx = DEVICE_TYPE_INDEX_INVALID;
+    table.addRecord(makeRecord("NoData", "0x51", R"({"name":"Test"})", 0), noDataIdx);
+    TEST_ASSERT(!table.ensureDecoder(noDataIdx) && (table.getDecoderKind(noDataIdx) == DeviceTypeRecords::DecoderKind::None), "nothing to decode");
+    DeviceTypeIndexType badIdx = DEVICE_TYPE_INDEX_INVALID;
+    table.addRecord(makeRecord("NoAttrs", "0x52"), badIdx);
+    TEST_ASSERT(!table.ensureDecoder(badIdx) && (table.getDecoderKind(badIdx) == DeviceTypeRecords::DecoderKind::None) &&
+                (table.getExtendedRecordStats().decodersFailed == 0), "can't be decoded: none, not a failure");
+}
+
+// Policy Off: no runtime decoders; the decoder budget: decoders past it aren't made (reported, not retried)
+static void testDecoderPolicyAndBudget()
+{
+    printf("Running testDecoderPolicyAndBudget...\n");
+    {
+        DeviceTypeRecords table;
+        table.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::Off, 0);
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        table.addRecord(makeRecord("Off", "0x50", DECODABLE_DEV_INFO), idx);
+        TEST_ASSERT(!table.ensureDecoder(idx) && (table.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::None) &&
+                    (table.getExtendedRecordStats().decoderPolicy == DeviceTypeRecords::DecoderPolicy::Off), "off: no decoder");
+    }
+
+    // A budget for two decoders: the third isn't made
+    uint32_t oneDecoder = 0;
+    {
+        DeviceTypeRecords table;
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        table.addRecord(makeRecord("Measure", "0x50", DECODABLE_DEV_INFO), idx);
+        table.ensureDecoder(idx);
+        oneDecoder = table.getExtendedRecordStats().decoderBytes;
+    }
+    DeviceTypeRecords table;
+    table.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::OnIdentify, oneDecoder * 2);
+    DeviceTypeIndexType idxs[3] = {};
+    for (uint32_t i = 0; i < 3; i++)
+        table.addRecord(makeRecord("Budget" + std::to_string(i), "0x50", DECODABLE_DEV_INFO), idxs[i]);
+    TEST_ASSERT(table.ensureDecoder(idxs[0]) && table.ensureDecoder(idxs[1]), "two within the budget");
+    TEST_ASSERT(!table.ensureDecoder(idxs[2]), "the third over it");
+    TEST_ASSERT(table.getDecoderKind(idxs[2]) == DeviceTypeRecords::DecoderKind::RuntimeFailed, "runtimeFailed");
+    TEST_ASSERT(table.getDecoderProblem(idxs[2]).indexOf("maxDecoderBytes") >= 0, "the problem says why");
+    TEST_ASSERT(!table.ensureDecoder(idxs[2]), "not retried");
+    DeviceTypeRecords::ExtendedRecordStats stats = table.getExtendedRecordStats();
+    TEST_ASSERT((stats.decodersMade == 2) && (stats.decodersFailed == 1) && (stats.decoderBytes == oneDecoder * 2), "stats");
+
+    // The default without PSRAM (the host has none)
+    DeviceTypeRecords defaults;
+    TEST_ASSERT(defaults.getExtendedRecordStats().maxDecoderBytes == DeviceTypeRecords::RUNTIME_DECODER_MAX_BYTES_DEFAULT,
+                "default budget without PSRAM");
+    TEST_ASSERT(defaults.getExtendedRecordStats().decoderPolicy == DeviceTypeRecords::DecoderPolicy::OnIdentify, "default onIdentify");
+
+    // The policy is fixed once records are added
+    TEST_ASSERT(!table.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::Off, 0), "fixed once records are added");
+
+    // Names
+    DeviceTypeRecords::DecoderPolicy policy = DeviceTypeRecords::DecoderPolicy::Off;
+    TEST_ASSERT(DeviceTypeRecords::parseDecoderPolicy("atLoad", policy) && (policy == DeviceTypeRecords::DecoderPolicy::AtLoad) &&
+                !DeviceTypeRecords::parseDecoderPolicy("sometimes", policy), "policy names");
+}
+
+// A base record override with a different response layout gets a runtime decoder on demand, at the base index
+static void testOverrideDecoderOnDemand()
+{
+    printf("Running testOverrideDecoderOnDemand...\n");
+    DeviceTypeRecords table;
+    table.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::OnIdentify, UINT32_MAX);
+    const DeviceTypeRecord* pBase = table.getRecord(0);
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    TEST_ASSERT(table.addRecord(makeRecord(pBase->deviceType, "0x50", DECODABLE_DEV_INFO), idx) == DeviceTypeRecords::AddResult::Replaced,
+                "replaced");
+    TEST_ASSERT((idx == 0) && (table.getDecoderKind(0) == DeviceTypeRecords::DecoderKind::RuntimePending), "override pending");
+    TEST_ASSERT(table.ensureDecoder(0) && (table.getDecoderKind(0) == DeviceTypeRecords::DecoderKind::Runtime) &&
+                (table.getRecord(0)->pollFieldCount == 1), "override decoder made");
+}
+
+// Several tasks identify devices of the same type at once while another decodes: one decoder is made, and a
+// decode function seen is always one whose fields are set
+static void testConcurrentEnsureDecoder()
+{
+    printf("Running testConcurrentEnsureDecoder...\n");
+    for (uint32_t round = 0; round < 50; round++)
+    {
+        DeviceTypeRecords table;
+        table.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::OnIdentify, UINT32_MAX);
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        table.addRecord(makeRecord("Shared", "0x50", DECODABLE_DEV_INFO), idx);
+        const DeviceTypeRecord* pRec = table.getRecord(idx);
+        std::atomic<bool> go{false};
+        std::atomic<uint32_t> badReads{0};
+        std::atomic<uint32_t> decoded{0};
+        std::thread reader([&]() {
+            while (!go.load()) {}
+            for (uint32_t i = 0; i < 20000; i++)
+            {
+                DeviceTypeRecordDecodeFn fn = table.getPollDecodeFn(idx);
+                if (!fn)
+                    continue;
+                if (!pRec->pollFieldDescs || (pRec->pollStructSize == 0))
+                    badReads++;
+                const uint8_t poll[] = {0x00, 0x01, 0x01, 0x02};
+                uint8_t out[16] = {};
+                RaftBusDeviceDecodeState state;
+                decoded += fn(poll, sizeof(poll), out, sizeof(out), 1, state);
+            }
+        });
+        std::vector<std::thread> identifiers;
+        for (uint32_t t = 0; t < 3; t++)
+            identifiers.emplace_back([&]() { while (!go.load()) {} table.ensureDecoder(idx); });
+        go = true;
+        for (auto& t : identifiers)
+            t.join();
+        reader.join();
+        if ((table.getExtendedRecordStats().decodersMade != 1) || (badReads != 0) || !pRec->pollResultDecodeFn)
+        {
+            TEST_ASSERT(false, "one decoder, no half-attached reads");
+            return;
+        }
+    }
+    TEST_ASSERT(true, "one decoder, no half-attached reads");
+}
+#endif
+
 int main()
 {
     testBaseLookups();
@@ -256,5 +420,11 @@ int main()
     testOverrideBaseKeyAndAddressLookups();
     testManyRecords();
     testConcurrentReadWhileAdding();
+#ifdef RAFT_RUNTIME_DECODE
+    testDecoderOnDemand();
+    testDecoderPolicyAndBudget();
+    testOverrideDecoderOnDemand();
+    testConcurrentEnsureDecoder();
+#endif
     return testSummary("test_device_type_table");
 }

@@ -251,6 +251,12 @@ def _fetch_into(tmp, name, url, ref, subpath, use_filter):
     if not ok and sparse_ok:
         _git(["sparse-checkout", "disable"], tmp)
         ok, msg = _git(["checkout", "-q", "--detach", "FETCH_HEAD"], tmp)
+    if ok:
+        # Older git (e.g. 2.34) exits 0 from a checkout whose file contents the server wouldn't give (by hash), leaving
+        # the files missing
+        ok_ls, missing = _git(["ls-files", "--deleted"], tmp)
+        if not ok_ls or missing:
+            ok, msg = False, missing or "files missing after checkout"
     return (True, commit) if ok else (False, f"checkout of {commit}: {msg}")
 
 

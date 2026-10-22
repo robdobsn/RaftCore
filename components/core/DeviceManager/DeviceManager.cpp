@@ -85,6 +85,17 @@ void DeviceManager::setup()
     if (!deviceTypeRecords.setExtendedRecordLimits(maxExtendedRecords, maxExtendedBytes))
         LOG_W(MODULE_PREFIX, "setup type table limits not applied - records were added before setup");
 
+    // When runtime decoders are made (onIdentify, atLoad or off) and the bytes they may use (0 = the default, which
+    // depends on whether the board has PSRAM; -1 = no limit)
+    String decoderPolicyStr = modConfig().getString("typeTable/runtimeDecoders", "onIdentify");
+    DeviceTypeRecords::DecoderPolicy decoderPolicy = DeviceTypeRecords::DecoderPolicy::OnIdentify;
+    if (!DeviceTypeRecords::parseDecoderPolicy(decoderPolicyStr.c_str(), decoderPolicy))
+        LOG_W(MODULE_PREFIX, "setup typeTable runtimeDecoders %s isn't onIdentify, atLoad or off - onIdentify used",
+                    decoderPolicyStr.c_str());
+    long maxDecoderBytes = modConfig().getLong("typeTable/maxDecoderBytes", 0);
+    if (!deviceTypeRecords.setDecoderPolicy(decoderPolicy, maxDecoderBytes < 0 ? UINT32_MAX : (uint32_t)maxDecoderBytes))
+        LOG_W(MODULE_PREFIX, "setup typeTable runtimeDecoders not applied - records were added before setup");
+
     // Protected types and record policies from the SysType (before buses start identifying devices)
     applyTypeTableConfig(modConfig());
 
@@ -333,6 +344,13 @@ void DeviceManager::busElemStatusCB(RaftBus& bus, const std::vector<BusAddrStatu
     // register with the bus devices interface to receive data updates for the relevant device data change callbacks
     for (const BusAddrStatus& addrStatus : statusChanges)
     {
+        // A device identified as a type decoded at runtime: its decoder is made now (the first time a device of the
+        // type is identified), before the status listeners and data subscribers below are told about the device
+        if ((addrStatus.onlineState == DeviceOnlineState::ONLINE) && (addrStatus.deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID) &&
+                    (addrStatus.isNewlyIdentified || (addrStatus.identEvent == BusIdentEvent::Identified) ||
+                     (addrStatus.identEvent == BusIdentEvent::TypeChanged)))
+            deviceTypeRecords.ensureDecoder(addrStatus.deviceTypeIndex);
+
         // Dispatch to listeners registered via DeviceManager::registerForDeviceStatusChange.
         // This must happen for all transitions (ONLINE/OFFLINE/PENDING_DELETION and for
         // isNewlyIdentified-only events), not just ONLINE, so that listeners like
@@ -609,6 +627,10 @@ void DeviceManager::setupStaticDevice(RaftDevice* pDevice)
                         DeviceTypeRecords::getAddResultStr(addResult), (int)stats.count, (int)stats.maxRecords,
                         (int)stats.bytesUsed, (int)stats.maxBytes);
         }
+
+        // The device is present, so a type decoded at runtime needs its decoder now
+        if (deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID)
+            deviceTypeRecords.ensureDecoder(deviceTypeIndex);
         pDevice->setDeviceTypeIndex(deviceTypeIndex);
     }
 }
@@ -1313,8 +1335,10 @@ void DeviceManager::appendDecoderKind(String& jsonFields, DeviceTypeIndexType de
 {
     if (!deviceTypeRecords.getRecord(deviceTypeIndex))
         return;
-    RaftJson::appendStringField(jsonFields, "decoder",
-                DeviceTypeRecords::getDecoderKindStr(deviceTypeRecords.getDecoderKind(deviceTypeIndex)));
+    DeviceTypeRecords::DecoderKind kind = deviceTypeRecords.getDecoderKind(deviceTypeIndex);
+    RaftJson::appendStringField(jsonFields, "decoder", DeviceTypeRecords::getDecoderKindStr(kind));
+    if (kind == DeviceTypeRecords::DecoderKind::RuntimeFailed)
+        RaftJson::appendStringField(jsonFields, "decoderProblem", deviceTypeRecords.getDecoderProblem(deviceTypeIndex).c_str());
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3110,6 +3134,10 @@ RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respS
     RaftJson::appendStringField(json, "firstWarning", _typeFileResult.firstWarning.c_str());
     json += ",\"records\":" + String((int)stats.count) + ",\"maxRecords\":" + String((int)stats.maxRecords);
     json += ",\"bytes\":" + String((int)stats.bytesUsed) + ",\"maxBytes\":" + String((int)stats.maxBytes);
+    RaftJson::appendStringField(json, "runtimeDecoders", DeviceTypeRecords::getDecoderPolicyStr(stats.decoderPolicy));
+    json += ",\"decoders\":" + String((int)stats.decodersMade) + ",\"decodersFailed\":" + String((int)stats.decodersFailed);
+    json += ",\"decoderBytes\":" + String((int)stats.decoderBytes) + ",\"maxDecoderBytes\":" +
+                (stats.maxDecoderBytes == UINT32_MAX ? String(-1) : String((int)stats.maxDecoderBytes));
     json += ",\"maxFileBytes\":" + String((int)_typeFileLimits.maxFileBytes);
     json += ",\"identReady\":" + String(deviceTypeRecords.areRecordSourcesReady() ? "true" : "false");
     json += ",\"restartRequired\":" + String(isTypeFileRestartRequired() ? "true" : "false");

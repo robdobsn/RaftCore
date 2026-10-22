@@ -182,7 +182,8 @@ static void testMatchesCompiledDecoders(bool bytecode)
 #endif
 }
 
-// A type file record with no compiled decoder gets a runtime decoder, used through the record's decode function
+// A type file record with no compiled decoder gets a runtime decoder when a device of the type is identified
+// (ensureDecoder, from DeviceManager), used through the record's decode function
 static void testTypeFileRecordGetsRuntimeDecoder()
 {
     printf("Running testTypeFileRecordGetsRuntimeDecoder...\n");
@@ -199,6 +200,15 @@ static void testTypeFileRecordGetsRuntimeDecoder()
         TEST_ASSERT((result.added == 1) && (result.rejected == 0), ("added: " + std::string(result.firstError.c_str())).c_str());
         DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
         const DeviceTypeRecord* pRec = table.getRecord("NewTemp", idx);
+
+        // Checked when added, made when a device of the type is identified
+        TEST_ASSERT(pRec && !pRec->pollResultDecodeFn && !pRec->pollFieldDescs, "no decoder until identified");
+        TEST_ASSERT(table.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::RuntimePending, "decoder kind runtimePending");
+        TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 0, "no slot until identified");
+        DevicePollingInfo pollingInfo;
+        table.getPollInfo(0x31, idx, pollingInfo);
+        TEST_ASSERT(pRec && !pRec->pollResultDecodeFn, "polling info doesn't make it (the bus task's stack is too small)");
+        TEST_ASSERT(table.ensureDecoder(idx), "ensureDecoder");
         TEST_ASSERT(pRec && pRec->pollResultDecodeFn && pRec->pollFieldDescs && (pRec->pollFieldCount == 3),
                     "runtime decoder attached");
         TEST_ASSERT(table.getDecoderKind(idx) == DeviceTypeRecords::DecoderKind::Runtime, "decoder kind runtime");
@@ -224,7 +234,9 @@ static void testTypeFileRecordGetsRuntimeDecoder()
         DeviceTypeFileLoader::Result again;
         DeviceTypeFileLoader::applyJson(table, file, DeviceTypeFileLoader::Limits(), again);
         TEST_ASSERT((again.rejected == 0) && (again.added == 0), ("the same file again: " + std::string(again.firstError.c_str())).c_str());
+        TEST_ASSERT(table.ensureDecoder(idx), "ensureDecoder again");
         TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 1, "one slot in use");
+        TEST_ASSERT(table.getExtendedRecordStats().decodersMade == 1, "one decoder made");
     }
     TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == 0, "slot freed with the table");
 

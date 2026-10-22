@@ -299,21 +299,61 @@ public:
     /// @note defaults: 256 records and 256 KB on boards with PSRAM, 32 records and 20 KB without
     bool setExtendedRecordLimits(uint32_t maxRecords, uint32_t maxBytes);
 
-    /// @brief Mark a table that is only checked, never polled (a type file check's): its runtime decoders are made
-    ///        without decode functions, so they take no slots (RAFT_RUNTIME_DECODE_MAX_DECODERS) from the device's
-    ///        own table; getDecoderKind still reports them. Call before adding records
+    /// @brief Mark a table that is only checked, never polled (a type file check's): records' runtime decoders are
+    ///        checked but not kept, so they take no memory or slots (RAFT_RUNTIME_DECODE_MAX_DECODERS) from the
+    ///        device's own table; getDecoderKind reports what the device's table would have. Call before adding
+    ///        records
     void setCheckOnly()
     {
         _checkOnly = true;
     }
 
-    // Extended record usage
+    // When the runtime decoder of a record with no compiled decoder is made (RAFT_RUNTIME_DECODE,
+    // devdocs/runtime-decoders-on-demand-plan.md). A record with custom decode code (resp.c) gets its decoder when
+    // it is added whatever the policy (unless Off): compiling it takes too long, and too much stack, for the task
+    // that identifies a device
+    enum class DecoderPolicy : uint8_t
+    {
+        OnIdentify,     // when a device of the type is first identified (ensureDecoder) - checked when added
+        AtLoad,         // when the record is added
+        Off,            // never: only clients decode the record's data
+    };
+    static const char* getDecoderPolicyStr(DecoderPolicy policy);
+    static bool parseDecoderPolicy(const char* pStr, DecoderPolicy& policy);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set when runtime decoders are made and the bytes they may use (only before the first extended record
+    ///        is added)
+    /// @param policy policy
+    /// @param maxDecoderBytes bytes runtime decoders may use (0 for the default: no limit beyond the decoder slots
+    ///        with PSRAM, RUNTIME_DECODER_MAX_BYTES_DEFAULT without; UINT32_MAX for no limit)
+    /// @return true if set (false if records have already been added)
+    bool setDecoderPolicy(DecoderPolicy policy, uint32_t maxDecoderBytes);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Make sure a record that can be decoded at runtime has its decoder: made the first time this is called
+    ///        for it (by DeviceManager on the main task, when a device of the type is reported identified and before
+    ///        anything is told about it, and for a static device's own type), then kept for the life of the table
+    /// @note making a decoder takes about 2 KB of stack and 7-10 ms for a large record (ESP32-S3) - too much stack
+    ///       for a bus's worker task
+    /// @param deviceTypeIndex device type index
+    /// @return true if the record has a decode function (compiled or runtime)
+    /// @note a record's decoder fields (pollFieldDescs, pollFieldCount, pollStructSize) are set before its decode
+    ///       function, which is written last (release): a reader that sees the decode function sees the fields
+    bool ensureDecoder(DeviceTypeIndexType deviceTypeIndex) const;
+
+    // Extended record usage, and runtime decoders (made, not made when they were needed, bytes used and allowed)
     struct ExtendedRecordStats
     {
         uint32_t count = 0;
         uint32_t maxRecords = 0;
         uint32_t bytesUsed = 0;
         uint32_t maxBytes = 0;
+        uint32_t decodersMade = 0;
+        uint32_t decodersFailed = 0;
+        uint32_t decoderBytes = 0;
+        uint32_t maxDecoderBytes = 0;
+        DecoderPolicy decoderPolicy = DecoderPolicy::OnIdentify;
     };
     ExtendedRecordStats getExtendedRecordStats() const;
 
@@ -418,16 +458,24 @@ public:
     // with the same response layout), made at runtime from its attribute list (RAFT_RUNTIME_DECODE), or none
     enum class DecoderKind : uint8_t
     {
-        None,
+        None,               // no on-device decoder: only clients decode its data
         Compiled,
         Runtime,
+        RuntimePending,     // can be decoded at runtime: made when a device of the type is first identified
+        RuntimeFailed,      // can be decoded at runtime, but the decoder couldn't be made when it was needed
     };
 
     /// @brief Get where a record's poll decoder comes from
     DecoderKind getDecoderKind(DeviceTypeIndexType deviceTypeIndex) const;
 
-    /// @brief Name of a decoder kind ("compiled", "runtime" or "none")
+    /// @brief Name of a decoder kind ("compiled", "runtime", "runtimePending", "runtimeFailed" or "none")
     static const char* getDecoderKindStr(DecoderKind kind);
+
+    /// @brief Why a record's runtime decoder couldn't be made (RuntimeFailed), or empty
+    String getDecoderProblem(DeviceTypeIndexType deviceTypeIndex) const;
+
+    /// @brief Default bytes runtime decoders may use on a board without PSRAM (about 8 typical decoders)
+    static constexpr uint32_t RUNTIME_DECODER_MAX_BYTES_DEFAULT = 8 * 1024;
 
 #ifdef RAFT_RUNTIME_DECODE_VERIFY
     /// @brief The init code of a compiled record whose init values function is still the compiled one, or nullptr
@@ -488,12 +536,29 @@ private:
     const DeviceTypeRecord** _baseOverridesStore = nullptr;
     std::vector<const DeviceTypeRecord*> _retiredRecords;
 
-    // Runtime decoders made for records with no compiled decoder (RAFT_RUNTIME_DECODE), owned here, under the mutex;
-    // in a table only checked, made without decode functions, for the records in _checkOnlyDecoderRecs
-    std::vector<DeviceTypeRuntimeDecoder*> _runtimeDecoders;
-    std::vector<const DeviceTypeRecord*> _checkOnlyDecoderRecs;
+    // Runtime decoders made for records with no compiled decoder (RAFT_RUNTIME_DECODE), owned here and never freed
+    // while the table exists (users keep the decode function and field descriptions), under the mutex. Each
+    // record's decoder state by device type index (mutable: a decoder is made when first needed, like a compiled
+    // record), the reasons decoders couldn't be made when they were needed, and the bytes the decoders use
+    enum class DecoderState : uint8_t
+    {
+        None,           // a compiled (or inherited) decoder, nothing to decode, can't be decoded, or policy Off
+        Pending,        // can be decoded: made by ensureDecoder
+        Made,           // made (in a table only checked: would be made when added)
+        Failed,         // couldn't be made when needed (budget, slots, memory)
+    };
+    mutable std::vector<DeviceTypeRuntimeDecoder*> _runtimeDecoders;
+    mutable std::vector<DecoderState> _decoderStates;
+    mutable std::vector<std::pair<DeviceTypeIndexType, String>> _decoderProblems;
+    mutable uint32_t _decoderBytes = 0;
+    mutable uint32_t _decodersFailed = 0;
+    DecoderPolicy _decoderPolicy = DecoderPolicy::OnIdentify;
+    uint32_t _maxDecoderBytes = 0;
     bool _checkOnly = false;
-    void attachRuntimeDecoderLocked(DeviceTypeRecord* pRec);
+    DecoderState decoderStateOf(DeviceTypeIndexType deviceTypeIndex) const;
+    void setDecoderStateLocked(DeviceTypeIndexType deviceTypeIndex, DecoderState state) const;
+    void prepareRuntimeDecoderLocked(DeviceTypeRecord* pRec, DeviceTypeIndexType deviceTypeIndex);
+    bool makeRuntimeDecoderLocked(DeviceTypeRecord* pRec, DeviceTypeIndexType deviceTypeIndex, String& problem) const;
 
     // Runtime init values functions from records' init code (RAFT_RUNTIME_DECODE_CODE), owned here, under the mutex
     std::vector<class DeviceTypeRuntimeInit*> _runtimeInits;

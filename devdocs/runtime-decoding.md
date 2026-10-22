@@ -37,8 +37,11 @@ Without a decoder, the on-device users of decoded data don't work for that recor
 
 **Re-adding a record:** a record given no decode function that has one attached (inherited or runtime) still matches itself when added again (`DeviceTypeRecordPacked::contentMatches`).
 
+**When:** a record's decoder is made when a device of its type is first identified, not when the record is added
+(section 8).
+
 **Reporting:**
-- `devman/typeinfo` gives `"decoder": "compiled" | "runtime" | "none"`.
+- `devman/typeinfo` gives `"decoder": "compiled" | "runtime" | "runtimePending" | "runtimeFailed" | "none"`.
 - The type file check's `noDecoder` reflects what the firmware built.
 - The host-side type file build (`AssembleDeviceTypes.py --typefile`) reports `decoder: "runtime"` for a record with no compiled decoder, or `"none"` for one with custom code.
 
@@ -182,3 +185,27 @@ A first version templated on every working, field and literal type cost 41 KB.
 Decode times with the decoders and bytecode in PSRAM (verify build) are the same as before within the run to run variation (tens of us cold); the attribute decoder of MAX17048 is about 6 us slower warm.
 
 **`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`** (malloc puts blocks under this in internal RAM; 16384 is ESP-IDF's default): 4096 gave about 9 KB more internal RAM free (169.3 / 108.1 KB with all records from the type file) with no change in decode times or DataLogger flush times. The I2C interrupt (ESP_INTR_FLAG_IRAM) reads and writes the caller's buffers while the flash cache may be disabled (a file system write): with poll read buffers in PSRAM (threshold 64) the Axiom boot-looped with "Cache disabled but cached memory region accessed". With the default threshold every I2C buffer is internal (a transfer is at most about 1.5 KB, and BusRequestInfo copies write data into its own vector). RaftI2C now copies a buffer that isn't in internal RAM through an internal bounce buffer (tested with threshold 64), so a lower threshold is safe for I2C; other interrupt handlers would need the same check before lowering it.
+
+## 8. Decoders made on demand (2026-10-22)
+
+Plan and decisions: [runtime-decoders-on-demand-plan.md](runtime-decoders-on-demand-plan.md).
+
+- A record is checked when it is added (a decoder is made and thrown away), and marked `runtimePending`. Its decoder
+  is made by `DeviceTypeRecords::ensureDecoder` when a device of the type is first identified, and kept. A record
+  with custom decode code still gets its decoder when it is added.
+- `ensureDecoder` is called by `DeviceManager::busElemStatusCB` on the main task, for each device reported
+  identified, before its status listeners are told and before its data dispatcher is installed. So nothing decodes
+  a device's data before its decoder exists. `setupStaticDevice` calls it for a static device's type.
+- Not on the bus task: making the decoder of a large record (TrillSquare, 16 attributes) takes about 2 KB of stack
+  and 7-10 ms on an ESP32-S3, and the I2C worker task (5000 bytes) has about 2 KB free on an Axiom (section 7).
+- Settings (DevMan `typeTable`): `runtimeDecoders` (`onIdentify`, `atLoad`, `off`) and `maxDecoderBytes` (default
+  no limit with PSRAM, 8192 without).
+- The decode function is written last (release) and read with acquire, so a reader that sees it sees the fields.
+
+Measured (`unit_tests`, ESP32-S3, typical 4-attribute records):
+
+| | Before | On demand |
+|-|-|-|
+| No PSRAM, 32 records added | 48.4 KB internal | 18.3 KB internal; 950 B for each decoder made, 8 within the 8 KB budget |
+| PSRAM, 256 records added | 202 KB PSRAM, 192 records with no decoder (64 slots used by the first 64) | 144 KB PSRAM; decoders only for the types identified, a slot each |
+

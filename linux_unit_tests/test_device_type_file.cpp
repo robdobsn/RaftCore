@@ -391,22 +391,29 @@ static void testCheckTakesNoDecoderSlots()
     uint32_t slotsBefore = DeviceTypeRuntimeDecoder::getNumSlotsInUse();
     DeviceTypeRecords live;
     live.setExtendedRecordLimits(256, 262144);      // a board with PSRAM's (the check's table has the same)
+    live.setDecoderPolicy(DeviceTypeRecords::DecoderPolicy::OnIdentify, UINT32_MAX);
     DeviceTypeFileLoader::Result loaded;
     loaded.keepRecordOutcomes = true;
     DeviceTypeFileLoader::applyJson(live, file.c_str(), DeviceTypeFileLoader::Limits(), loaded);
     TEST_ASSERT(loaded.added == NUM_RECS, "file applied");
+    TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == slotsBefore, "no slots until devices are identified");
+
+    // A device of every type identified: a slot each in the device's table
+    for (uint32_t pos = 0; pos < NUM_RECS; pos++)
+        live.ensureDecoder(DeviceTypeRecords::getNumBaseRecords() + pos);
     uint32_t slotsLive = DeviceTypeRuntimeDecoder::getNumSlotsInUse();
     TEST_ASSERT(slotsLive == slotsBefore + NUM_RECS, "a slot per record in the device's table");
     std::vector<String> fileKeys;
     for (const auto& outcome : loaded.records)
         fileKeys.push_back(outcome.key);
 
-    // The same file checked: every record would get a runtime decoder (with a slot each the check would need 80)
+    // The same file checked: every record would get a runtime decoder when a device of its type is identified
+    // (with a slot each the check would need 80)
     DeviceTypeFileLoader::Result checked;
     DeviceTypeFileLoader::checkJson(live, fileKeys, file.c_str(), DeviceTypeFileLoader::Limits(), checked);
     uint32_t numRuntime = 0;
     for (const auto& outcome : checked.records)
-        numRuntime += ((outcome.decoder == "runtime") && !outcome.noDecoder) ? 1 : 0;
+        numRuntime += ((outcome.decoder == "runtimePending") && !outcome.noDecoder) ? 1 : 0;
     TEST_ASSERT((checked.added == NUM_RECS) && (numRuntime == NUM_RECS), "every record checked with a runtime decoder");
     TEST_ASSERT(DeviceTypeRuntimeDecoder::getNumSlotsInUse() == slotsLive, "the check took no slots");
 #endif

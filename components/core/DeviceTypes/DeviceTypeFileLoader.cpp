@@ -922,6 +922,7 @@ void DeviceTypeFileLoader::checkJson(const DeviceTypeRecords& live, const std::v
     scratch.setCheckOnly();
     DeviceTypeRecords::ExtendedRecordStats stats = live.getExtendedRecordStats();
     scratch.setExtendedRecordLimits(stats.maxRecords, stats.maxBytes);
+    scratch.setDecoderPolicy(stats.decoderPolicy, stats.maxDecoderBytes);
     for (const String& key : live.getProtectedKeys())
         scratch.setProtected(key.c_str());
     for (const String& key : live.getExtDataSources())
