@@ -221,11 +221,11 @@ static void testHwTypeIdAndGeneration()
     TEST_ASSERT(hwIdMismatches == 0, "base records found by hardware type ID");
 
     // An ID no base record has
-    uint16_t freeHwTypeId = 0xfff0;
+    const char* freeHwTypeId = "test:ext-hw-type";
     DeviceTypeIndexType idx = 0;
-    while (table.getRecordByHwTypeId(freeHwTypeId, idx))
-        freeHwTypeId--;
-    TEST_ASSERT(idx == DEVICE_TYPE_INDEX_INVALID, "unknown hardware type ID index");
+    TEST_ASSERT(!table.getRecordByHwTypeId(freeHwTypeId, idx) && (idx == DEVICE_TYPE_INDEX_INVALID),
+                "unknown hardware type ID");
+    TEST_ASSERT(!table.getRecordByHwTypeId(nullptr, idx) && !table.getRecordByHwTypeId("", idx), "no ID");
 
     // A probe-only record with a hardware type ID (as RSAO records are)
     DeviceTypeRecordDynamic rec = makeRecord("ExtHwType", "");
@@ -246,6 +246,49 @@ static void testHwTypeIdAndGeneration()
     uint32_t gen1 = table.getGeneration();
     table.addRecord(rec, idx);
     TEST_ASSERT(table.getGeneration() == gen1, "already present: generation unchanged");
+}
+
+// Hardware type IDs are matched exactly: the same value in another scheme, another form of the value, or a prefix
+// of an ID is a different ID
+static void testHwTypeIdExactMatch()
+{
+    printf("Running testHwTypeIdExactMatch...\n");
+    DeviceTypeRecords table;
+    const char* ids[] = {"rsao:0x0084", "other:0x0084", "rsao:0x00841"};
+    DeviceTypeIndexType addedIdx[3] = {};
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        DeviceTypeRecordDynamic rec = makeRecord(("Exact" + std::to_string(i)).c_str(), "");
+        rec.flags |= DeviceTypeRecord::FLAG_PROBE_ONLY;
+        rec.setHwTypeId(ids[i]);
+        TEST_ASSERT(table.addRecord(rec, addedIdx[i]) == DeviceTypeRecords::AddResult::Added, "added");
+    }
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+        TEST_ASSERT(table.getRecordByHwTypeId(ids[i], idx) && (idx == addedIdx[i]), ids[i]);
+    }
+    // Before and after the index is built
+    table.getCatalogueIndex();
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    TEST_ASSERT(table.getRecordByHwTypeId("other:0x0084", idx) && (idx == addedIdx[1]), "other scheme, same value");
+    TEST_ASSERT(!table.getRecordByHwTypeId("rsao:0x84", idx), "another form of the value isn't the same ID");
+    TEST_ASSERT(!table.getRecordByHwTypeId("rsao:0x008", idx), "a prefix isn't the same ID");
+    TEST_ASSERT(!table.getRecordByHwTypeId("RSAO:0x0084", idx), "case-sensitive");
+    TEST_ASSERT(table.getRecord(addedIdx[0]) && (strcmp(table.getRecord(addedIdx[0])->hwTypeId, "rsao:0x0084") == 0),
+                "the record keeps its ID");
+
+    // The syntax check
+    TEST_ASSERT(DeviceTypeRecord::isValidHwTypeId("rsao:0x008F") && DeviceTypeRecord::isValidHwTypeId("a:b") &&
+                DeviceTypeRecord::isValidHwTypeId("usb-pid:1234:5678"), "valid IDs");
+    TEST_ASSERT(!DeviceTypeRecord::isValidHwTypeId(nullptr) && !DeviceTypeRecord::isValidHwTypeId("") &&
+                !DeviceTypeRecord::isValidHwTypeId("rsao:") && !DeviceTypeRecord::isValidHwTypeId(":1") &&
+                !DeviceTypeRecord::isValidHwTypeId("RSAO:1") && !DeviceTypeRecord::isValidHwTypeId("rsao 1") &&
+                !DeviceTypeRecord::isValidHwTypeId("rsao:0x 1") && !DeviceTypeRecord::isValidHwTypeId("0x0084") &&
+                !DeviceTypeRecord::isValidHwTypeId("abcdefghijklmnopq:1"), "invalid IDs");
+    std::string longest = "rsao:" + std::string(59, 'x');
+    TEST_ASSERT(DeviceTypeRecord::isValidHwTypeId(longest.c_str()) && !DeviceTypeRecord::isValidHwTypeId((longest + "x").c_str()),
+                "64 characters at most");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -316,10 +359,8 @@ static void testBulkUpdate()
     printf("Running testBulkUpdate...\n");
     DeviceTypeRecords table;
     uint32_t gen0 = table.getGeneration();
-    uint16_t hwTypeId = 0xffe0;
+    const char* hwTypeId = "test:bulk";
     DeviceTypeIndexType idx = 0;
-    while (table.getRecordByHwTypeId(hwTypeId, idx))
-        hwTypeId--;
     {
         DeviceTypeRecords::BulkUpdate bulk(table);
         DeviceTypeRecordDynamic a = makeRecord("BulkA", "");
@@ -355,6 +396,7 @@ int main(int argc, char** argv)
     testExtendedScanPriority();
     testCandidateOrder();
     testHwTypeIdAndGeneration();
+    testHwTypeIdExactMatch();
     testTypeScanPriority();
     testBulkUpdate();
     return testSummary("test_catalogue_index");

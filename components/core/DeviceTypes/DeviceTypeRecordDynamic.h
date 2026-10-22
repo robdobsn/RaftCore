@@ -77,7 +77,7 @@ public:
         devTypeRec.scanPriority = scanPriority;
         devTypeRec.flags = flags;
         devTypeRec.identPriority = identPriority;
-        devTypeRec.hwTypeId = hwTypeId;
+        devTypeRec.hwTypeId = hwTypeId.length() > 0 ? hwTypeId.c_str() : nullptr;
         devTypeRec.initialPolicy = initialPolicy;
 
         return true;
@@ -108,13 +108,12 @@ public:
     uint8_t scanPriority = DeviceTypeRecord::SCAN_PRIORITY_HIGH;
     uint8_t flags = 0;
     int8_t identPriority = 0;
-    uint16_t hwTypeId = 0;
+    String hwTypeId;
     uint8_t initialPolicy = DeviceTypeRecord::POLICY_ENABLED;
 
-    /// @brief Set the hardware type ID (see DeviceTypeRecord::hwTypeId)
-    void setHwTypeId(uint16_t id)
+    /// @brief Set the hardware type ID, "<scheme>:<value>" (see DeviceTypeRecord::hwTypeId)
+    void setHwTypeId(const String& id)
     {
         hwTypeId = id;
-        flags |= DeviceTypeRecord::FLAG_HAS_HW_TYPE_ID;
     }
 };

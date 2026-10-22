@@ -160,9 +160,10 @@ public:
             _scanLists[level].shrink_to_fit();
         }
 
-        // Hardware type IDs sorted by ID (stable, so extended records come first for the same ID)
+        // Hardware type IDs sorted by ID (stable, so extended records come first for the same ID). The strings are
+        // the records' own, which are never changed or freed while the firmware runs
         std::stable_sort(_hwTypeIds.begin(), _hwTypeIds.end(), [](const HwTypeIdEntry& a, const HwTypeIdEntry& b) {
-            return a.hwTypeId < b.hwTypeId;
+            return strcmp(a.hwTypeId, b.hwTypeId) < 0;
         });
         _hwTypeIds.shrink_to_fit();
     }
@@ -214,14 +215,16 @@ public:
     }
 
     /// @brief Find the record with a hardware type ID
-    /// @param hwTypeId hardware type ID
+    /// @param hwTypeId hardware type ID, "<scheme>:<value>" (matched exactly)
     /// @param deviceTypeIndex (out) device type index
     /// @return true if found
-    bool findByHwTypeId(uint16_t hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const
+    bool findByHwTypeId(const char* hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const
     {
+        if (!hwTypeId)
+            return false;
         auto it = std::lower_bound(_hwTypeIds.begin(), _hwTypeIds.end(), hwTypeId,
-                [](const HwTypeIdEntry& entry, uint16_t id) { return entry.hwTypeId < id; });
-        if ((it == _hwTypeIds.end()) || (it->hwTypeId != hwTypeId))
+                [](const HwTypeIdEntry& entry, const char* id) { return strcmp(entry.hwTypeId, id) < 0; });
+        if ((it == _hwTypeIds.end()) || (strcmp(it->hwTypeId, hwTypeId) != 0))
             return false;
         deviceTypeIndex = it->deviceTypeIndex;
         return true;
@@ -264,7 +267,7 @@ private:
     // Hardware type ID -> device type index, sorted by ID
     struct HwTypeIdEntry
     {
-        uint16_t hwTypeId;
+        const char* hwTypeId;
         DeviceTypeIndexType deviceTypeIndex;
     };
     std::vector<HwTypeIdEntry> _hwTypeIds;

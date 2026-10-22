@@ -130,8 +130,11 @@ static void testRecordChecks()
     const Case cases[] = {
         {"deviceType mismatch", R"("deviceType":"Other",)" + good, "deviceType field says 'Other'"},
         {"bad addresses", R"("addresses":"0x51,junk","detectionValues":"0x00=0x12")", "addresses item 'junk'"},
-        {"bad deviceTypeId", R"("deviceTypeId":"0x1FFFF",)" + good, "deviceTypeId"},
-        {"deviceTypeId text", R"("deviceTypeId":"abc",)" + good, "deviceTypeId"},
+        {"deviceTypeId (the old name)", R"("deviceTypeId":"0x0084",)" + good, "deviceTypeId is now hwTypeId"},
+        {"hwTypeId number", R"("hwTypeId":132,)" + good, "hwTypeId must be a string"},
+        {"hwTypeId without a scheme", R"("hwTypeId":"0x0084",)" + good, "hwTypeId must be a string"},
+        {"hwTypeId empty value", R"("hwTypeId":"rsao:",)" + good, "hwTypeId must be a string"},
+        {"hwTypeId space", R"("hwTypeId":"rsao:0x 84",)" + good, "hwTypeId must be a string"},
         {"identPriority range", R"("identPriority":200,)" + good, "identPriority"},
         {"grammar error", R"("addresses":"0x51","detectionValues":"0x00=0xZZ")", "detectionValues BadCheck"},
         {"read limit", R"("addresses":"0x51","detectionValues":"0x00=r2000")", "reads 2000 bytes in one command, limit 1024"},
@@ -171,8 +174,8 @@ static void testRecordFields()
     printf("Running testRecordFields...\n");
     DeviceTypeRecords table;
     std::string json = R"({"devTypes":{)"
-                R"("Rsao":{"deviceTypeId":"0x00AB","excludeFromAddrMap":true,"addresses":"0x10-0x17","pollInfo":{"c":"0x01=r2","i":100,"s":1},"devInfoJson":{"resp":{"b":2}}},)"
-                R"("Num":{"deviceTypeId":172,"addresses":"0x52","identPriority":-5,"scanPriority":2,"detectionValues":"0x00=0x12"},)"
+                R"("Rsao":{"hwTypeId":"rsao:0x00AB","excludeFromAddrMap":true,"addresses":"0x10-0x17","pollInfo":{"c":"0x01=r2","i":100,"s":1},"devInfoJson":{"resp":{"b":2}}},)"
+                R"("Num":{"hwTypeId":"other:172","addresses":"0x52","identPriority":-5,"scanPriority":2,"detectionValues":"0x00=0x12"},)"
                 R"("NoAddr":{"detectionValues":"0x00=0x12"},)"
                 R"("Warn":{"addresses":"0x53","detectionValues":"0x00=0x123","_notes":"ignored"})"
                 "}}";
@@ -180,15 +183,17 @@ static void testRecordFields()
     TEST_ASSERT((result.added == 4) && (result.rejected == 0), ("records added: " + std::string(result.firstError.c_str())).c_str());
     DeviceTypeIndexType idx;
     const DeviceTypeRecord* pRsao = table.getRecord("Rsao", idx);
-    TEST_ASSERT(pRsao && pRsao->isProbeOnly() && (pRsao->hwTypeId == 0xab) && (pRsao->flags & DeviceTypeRecord::FLAG_HAS_HW_TYPE_ID),
+    TEST_ASSERT(pRsao && pRsao->isProbeOnly() && pRsao->hasHwTypeId() && (strcmp(pRsao->hwTypeId, "rsao:0x00AB") == 0),
                 "probe-only record with hwTypeId");
     TEST_ASSERT(pRsao && (pRsao->scanPriority == DeviceTypeRecord::SCAN_PRIORITY_NONE), "scanPriority absent: none (as the generator)");
     DeviceTypeIndexType rsaoIdx = idx;
-    TEST_ASSERT(table.getRecordByHwTypeId(0xab, idx) == pRsao && (idx == rsaoIdx), "found by hwTypeId");
+    TEST_ASSERT(table.getRecordByHwTypeId("rsao:0x00AB", idx) == pRsao && (idx == rsaoIdx), "found by hwTypeId");
+    TEST_ASSERT(pRsao && (DeviceTypeFileLoader::recordToFileEntry(*pRsao, DeviceTypeRecord::POLICY_ENABLED).indexOf(
+                "\"hwTypeId\":\"rsao:0x00AB\"") > 0), "hwTypeId exported");
     const DeviceTypeRecord* pNum = table.getRecord("Num", idx);
     TEST_ASSERT(pNum && (pNum->identPriority == -5) && (pNum->scanPriority == 1), "identPriority and numeric scanPriority");
-    TEST_ASSERT(pNum && (pNum->hwTypeId == 172), "numeric deviceTypeId");
-    TEST_ASSERT(result.warnings == 2, "warnings: no addresses or deviceTypeId; odd hex");
+    TEST_ASSERT(pNum && pNum->hasHwTypeId() && (strcmp(pNum->hwTypeId, "other:172") == 0), "another scheme");
+    TEST_ASSERT(result.warnings == 2, "warnings: no addresses or hwTypeId; odd hex");
     TEST_ASSERT(result.firstWarning.startsWith("NoAddr: no addresses"), "first warning");
     TEST_ASSERT(pNum && pNum->isScannedWhilePolled(), "scanned while polled by default");
 
@@ -213,15 +218,15 @@ static void testDuplicateHwTypeId()
     printf("Running testDuplicateHwTypeId...\n");
     DeviceTypeRecords table;
     std::string json = R"({"devTypes":{)"
-                R"("RsaoA":{"deviceTypeId":"0x0084","excludeFromAddrMap":true,"addresses":"0x10"},)"
-                R"("RsaoB":{"deviceTypeId":132,"excludeFromAddrMap":true,"addresses":"0x10"},)"
-                R"("RsaoC":{"deviceTypeId":"0x0085","excludeFromAddrMap":true,"addresses":"0x10"})"
+                R"("RsaoA":{"hwTypeId":"rsao:0x0084","excludeFromAddrMap":true,"addresses":"0x10"},)"
+                R"("RsaoB":{"hwTypeId":"rsao:0x0084","excludeFromAddrMap":true,"addresses":"0x10"},)"
+                R"("RsaoC":{"hwTypeId":"rsao:0x0085","excludeFromAddrMap":true,"addresses":"0x10"})"
                 "}}";
     DeviceTypeFileLoader::Result result = applyFile(table, json);
     TEST_ASSERT((result.added == 2) && (result.rejected == 1), "the record with a duplicate ID is rejected");
-    TEST_ASSERT(result.firstError == "RsaoB: deviceTypeId 0x0084 is already used by RsaoA", result.firstError.c_str());
+    TEST_ASSERT(result.firstError == "RsaoB: hwTypeId rsao:0x0084 is already used by RsaoA", result.firstError.c_str());
     DeviceTypeIndexType idx;
-    const DeviceTypeRecord* pFound = table.getRecordByHwTypeId(0x84, idx);
+    const DeviceTypeRecord* pFound = table.getRecordByHwTypeId("rsao:0x0084", idx);
     TEST_ASSERT(pFound && (strcmp(pFound->deviceType, "RsaoA") == 0), "the ID still finds the first record");
 
     // The same within a bulk update (as a device loads its type file): the generation is held, but the check sees
@@ -240,14 +245,14 @@ static void testDuplicateHwTypeId()
     }
 
     // The same key again (the same content) keeps its own ID
-    result = applyFile(table, R"({"devTypes":{"RsaoA":{"deviceTypeId":"0x0084","excludeFromAddrMap":true,"addresses":"0x10"}}})");
+    result = applyFile(table, R"({"devTypes":{"RsaoA":{"hwTypeId":"rsao:0x0084","excludeFromAddrMap":true,"addresses":"0x10"}}})");
     TEST_ASSERT((result.rejected == 0) && (result.unchanged == 1), "the same record again is not a duplicate");
 
     // Code-registered records are trusted: added, with a warning logged
     DeviceTypeRecordDynamic dyn;
     dyn.deviceTypeName = "CodeRec";
     dyn.addresses = "0x11";
-    dyn.setHwTypeId(0x85);
+    dyn.setHwTypeId("rsao:0x0085");
     TEST_ASSERT(table.addRecord(dyn, idx) == DeviceTypeRecords::AddResult::Added, "code-registered duplicate is added");
 }
 
@@ -551,7 +556,7 @@ static void testCatalogueRoundTrip(const char* pCataloguePath)
                     same(pB->pollInfo, pF->pollInfo) && sameJson(pB->devInfoJson, pF->devInfoJson) &&
                     (pB->pollDataSizeBytes == pF->pollDataSizeBytes) && (pB->scanPriority == pF->scanPriority) &&
                     (pB->flags == pF->flags) && (pB->identPriority == pF->identPriority) &&
-                    (pB->hwTypeId == pF->hwTypeId) && (pB->initialPolicy == pF->initialPolicy);
+                    same(pB->hwTypeId, pF->hwTypeId) && (pB->initialPolicy == pF->initialPolicy);
         if (!equal)
         {
             numDiffer++;
@@ -565,7 +570,7 @@ static void testCatalogueRoundTrip(const char* pCataloguePath)
                         (pB->scanPriority == pF->scanPriority) ? "" : " scanPriority",
                         (pB->flags == pF->flags) ? "" : " flags",
                         (pB->identPriority == pF->identPriority) ? "" : " identPriority",
-                        (pB->hwTypeId == pF->hwTypeId) ? "" : " hwTypeId",
+                        same(pB->hwTypeId, pF->hwTypeId) ? "" : " hwTypeId",
                         (pB->initialPolicy == pF->initialPolicy) ? "" : " initialPolicy");
             if (!pF)
                 printf("  (no record from the file)\n");
@@ -615,7 +620,7 @@ static void testRecordToFileEntry()
                     !same(pB->initValues, pF->initValues) || !same(pB->pollInfo, pF->pollInfo) ||
                     !same(pB->devInfoJson, pF->devInfoJson) || (pB->pollDataSizeBytes != pF->pollDataSizeBytes) ||
                     (pB->scanPriority != pF->scanPriority) || (pB->flags != pF->flags) ||
-                    (pB->identPriority != pF->identPriority) || (pB->hwTypeId != pF->hwTypeId))
+                    (pB->identPriority != pF->identPriority) || !same(pB->hwTypeId, pF->hwTypeId))
         {
             numDiffer++;
             printf("  %s differs after export\n", pB->deviceType);

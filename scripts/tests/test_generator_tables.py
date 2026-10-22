@@ -69,14 +69,15 @@ class GeneratorTableTests(unittest.TestCase):
 
     @staticmethod
     def ident_fields(header):
-        """The scanPriority, flags, identPriority, hwTypeId emitted at the end of each record (before the policy)"""
-        return [(int(a), int(b), int(c), int(d, 16)) for a, b, c, d, _ in
-                re.findall(r",\n        (-?\d+), (\d+), (-?\d+), (0x[0-9a-f]{4}), (\d+)\n    \},", header)]
+        """The scanPriority, flags, identPriority, hwTypeId (a string, or None for nullptr) emitted at the end of each
+        record (before the policy)"""
+        return [(int(a), int(b), int(c), None if d == "nullptr" else json.loads(d)) for a, b, c, d, _ in
+                re.findall(r',\n        (-?\d+), (\d+), (-?\d+), (nullptr|"(?:[^"\\]|\\.)*"), (\d+)\n    \},', header)]
 
     @staticmethod
     def policies(header):
         """The initial policy emitted at the end of each record"""
-        return [int(p) for p in re.findall(r", 0x[0-9a-f]{4}, (\d+)\n    \},", header)]
+        return [int(p) for p in re.findall(r', (?:nullptr|"(?:[^"\\]|\\.)*"), (\d+)\n    \},', header)]
 
     def test_disable_entries(self):
         # A record can be disabled in its own body, or by a policy-only entry in a later file (D23)
@@ -99,23 +100,30 @@ class GeneratorTableTests(unittest.TestCase):
             "Plain": make_record(),
             "High": dict(make_record(), scanPriority="high"),
             "Low3": dict(make_record(), scanPriority=3),
-            "Probe": dict(make_record(addresses=""), excludeFromAddrMap=True, scanPriority="high", deviceTypeId="0x0084"),
+            "Probe": dict(make_record(addresses=""), excludeFromAddrMap=True, scanPriority="high", hwTypeId="rsao:0x0084"),
             "ProbeNew": dict(make_record(), probeOnly=True),
-            "Ident": dict(make_record(), identPriority=-5, deviceTypeId=300),
+            "Ident": dict(make_record(), identPriority=-5, hwTypeId='other:"x"\\y'),
             "NoScan": dict(make_record(), scanWhilePolled=False),
             "Scan": dict(make_record(), scanWhilePolled=True),
         }
         result, header = self.run_with_records(records)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.ident_fields(header), [
-            (255, 0, 0, 0), (0, 0, 0, 0), (2, 0, 0, 0), (0, 3, 0, 0x84), (255, 1, 0, 0), (255, 2, -5, 300), (255, 4, 0, 0),
-            (255, 0, 0, 0)])
+            (255, 0, 0, None), (0, 0, 0, None), (2, 0, 0, None), (0, 1, 0, "rsao:0x0084"), (255, 1, 0, None),
+            (255, 0, -5, 'other:"x"\\y'), (255, 4, 0, None), (255, 0, 0, None)])
 
     def test_bad_ident_fields_are_errors(self):
-        for bad in [{"deviceTypeId": "zz"}, {"deviceTypeId": 0x10000}, {"identPriority": 200}, {"identPriority": "1"},
-                    {"scanWhilePolled": "no"}, {"scanWhilePolled": 0}]:
+        for bad in [{"hwTypeId": 132}, {"hwTypeId": "0x0084"}, {"hwTypeId": "rsao:"}, {"hwTypeId": "RSAO:0x0084"},
+                    {"hwTypeId": "rsao:0x 84"}, {"hwTypeId": "rsao:" + "x" * 60}, {"identPriority": 200},
+                    {"identPriority": "1"}, {"scanWhilePolled": "no"}, {"scanWhilePolled": 0}]:
             result, _ = self.run_with_records({"Bad": dict(make_record(), **bad)})
             self.assertNotEqual(result.returncode, 0, bad)
+
+    def test_device_type_id_is_an_error_naming_hw_type_id(self):
+        # The old field: its values had no scheme, so it is refused with a message naming the new field (M14)
+        result, _ = self.run_with_records({"Old": dict(make_record(), deviceTypeId="0x0084")})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('"Old" has deviceTypeId - it is now hwTypeId', result.stderr)
 
     def test_duplicate_key_across_files_warns(self):
         result, header = self.run_with_records({"Dup": make_record()}, {"Dup": make_record(addresses="0x11")})
@@ -124,13 +132,16 @@ class GeneratorTableTests(unittest.TestCase):
 
     def test_duplicate_hw_type_id_warns(self):
         # Two records with one hardware type ID: lookups by the ID find only the first (N2)
-        a = dict(make_record("0x10"), deviceTypeId="0x0084")
-        b = dict(make_record("0x11"), deviceTypeId=0x84)
-        c = dict(make_record("0x12"), deviceTypeId="0x0085")
-        result, _ = self.run_with_records({"A": a, "B": b, "C": c})
+        # The same value in two schemes, or written in two forms, is two IDs: matching is exact
+        a = dict(make_record("0x10"), hwTypeId="rsao:0x0084")
+        b = dict(make_record("0x11"), hwTypeId="rsao:0x0084")
+        c = dict(make_record("0x12"), hwTypeId="rsao:0x0085")
+        d = dict(make_record("0x13"), hwTypeId="other:0x0084")
+        e = dict(make_record("0x14"), hwTypeId="rsao:0x84")
+        result, _ = self.run_with_records({"A": a, "B": b, "C": c, "D": d, "E": e})
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("deviceTypeId 0x0084 is used by A, B - lookups by hardware type ID return A", result.stderr)
-        self.assertNotIn("0x0085 is used by", result.stderr)
+        self.assertIn("hwTypeId rsao:0x0084 is used by A, B - lookups by hardware type ID return A", result.stderr)
+        self.assertEqual(result.stderr.count("is used by"), 1, result.stderr)
 
     def test_record_bus_speed_warns(self):
         # The poll bus speed is a choice for the board (DevMan typeSettings), no longer part of a record

@@ -2,8 +2,9 @@
 
 Status: decisions M1-M7 and M9-M12 agreed, M8 to be reviewed (§5). **Phases 1a, 1b, 2, 2b and 3 done (2026-10-17), phase 4 done
 (2026-10-18)** on the `feature/device-type-records` branches of RaftCore, Axiom, raftjs and RaftCLI (see §6); of phase 5
-(optional items), `fsImage` is done (2026-10-18). **Phase 6 planned (2026-10-21):** the hardware type ID becomes a
-scheme-qualified string (`"hwTypeId": "rsao:0x008F"`) and Axiom's `RSAOTypeRegistry` is removed (§7). It follows the device identification plan
+(optional items), `fsImage` is done (2026-10-18). **Phase 6 implemented (2026-10-22, RaftCore `feature/hw-type-id`,
+Axiom `feature/device-type-records`):** the hardware type ID is a scheme-qualified string (`"hwTypeId": "rsao:0x008F"`)
+and Axiom's `RSAOTypeRegistry` is removed (§7). It follows the device identification plan
 (`device-identification-improvement-plan.md`, Stages 0-11 done) and comes before its Stage 12 (record improvements),
 which is mostly record-by-record edits that this plan makes easier.
 
@@ -602,7 +603,18 @@ Stage 12 of the identification plan (record improvements) can start after phase 
 
 ## 7. Hardware type ID as a scheme-qualified string; Axiom's RSAO registry removed (phase 6, planned 2026-10-21)
 
-Not started. RaftCore, Axiom and the wiki; no other repo reads the field (checked 2026-10-21: raftjs, RaftCLI,
+**Implemented 2026-10-22** as planned below, with these changes from the plan:
+- 6a is on its own RaftCore branch (`feature/hw-type-id`, released as 1.60.0): `feature/device-type-records` was merged
+  and released as 1.59.0 before this was done. Axiom `main`'s records use `deviceTypeId`, so it doesn't build against
+  1.60.0 until Axiom's `feature/device-type-records` (6b) is merged.
+- Axiom has 14 RSAO records, not 11: the three from `device-library` (RoboticalForceSensor 0x0112, RoboticalLEDStick
+  0x0123, RoboticalDistanceStrip 0x0124) were added with `hwTypeId`.
+- The canonical form is defined once, in Axiom's portable core (`formatRSAOHwTypeId` in `IRSAOTypeLookup.h`), used by
+  the lookup, the handler's log and the host tests.
+- The record check (7.4 step 6) is `scripts/check_rsao_records.py`, run by `ctest` in `tests/rsao`.
+- Still checked 2026-10-22: no repo other than RaftCore, Axiom and the wiki reads the field.
+
+RaftCore, Axiom and the wiki; no other repo reads the field (checked 2026-10-21: raftjs, RaftCLI,
 RaftI2C, RaftSysMods and RaftROS have no use of it). Decisions M13-M17 (§5).
 
 ### 7.1 Why
@@ -733,8 +745,10 @@ key; `RSAOSysMod::identHook` then finds the index with `getDeviceInfo(key)`.
 **Gained:** an RSAO type added by a type file (`hwTypeId` with an `rsao:` ID, `excludeFromAddrMap`) is identified
 without a firmware build. The ID → key mapping exists only in the records. One lookup instead of two.
 
-**Not in this change:** the WHOAMI suffix in each RSAO record's `detectionValues` (`…&0x00=0x008F`) is a third copy
-of the ID, but probe-only records' detection is never run; removing it is a record edit for Stage 12.
+**Also done (2026-10-22, not in the original plan):** the RSAO records' `detectionValues` are removed. A probe-only
+record's detection is never run (the catalogue index doesn't make it a candidate, and re-verification skips it), so
+the string - START_APP, the ROBOTICAL_ID probe and a WHOAMI check, a third copy of the ID - was unused. The record
+check rejects an RSAO record that has one.
 `split_rsao_records.py` (identification review §3.4) is already gone from Axiom.
 
 ### 7.5 Order and verification

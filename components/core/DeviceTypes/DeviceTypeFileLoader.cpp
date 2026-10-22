@@ -364,23 +364,27 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
     }
     if (rec.contains("deviceTypeId"))
     {
-        int64_t hwTypeId = 0;
-        if (!parseWholeNumber(rec, "deviceTypeId", 0, 0xffff, hwTypeId))
+        reject(result, key, "deviceTypeId is now hwTypeId, a string \"<scheme>:<value>\", e.g. \"rsao:0x0084\"");
+        return;
+    }
+    if (rec.contains("hwTypeId"))
+    {
+        String hwTypeId = rec.getString("hwTypeId", "");
+        if ((rec.getType("hwTypeId", arrayLen) != RaftJsonIF::RAFT_JSON_STRING) ||
+                    !DeviceTypeRecord::isValidHwTypeId(hwTypeId.c_str()))
         {
-            reject(result, key, "deviceTypeId must be 0 to 65535 or a 0x hex string");
+            reject(result, key, "hwTypeId must be a string \"<scheme>:<value>\", e.g. \"rsao:0x0084\"");
             return;
         }
-        devTypeRec.setHwTypeId((uint16_t)hwTypeId);
+        devTypeRec.setHwTypeId(hwTypeId);
 
         // A hardware type ID names one record: one used by a record with another key would make lookups by the ID
         // ambiguous (and the file's record would take over the devices of the other) - N2
         DeviceTypeIndexType otherIdx = DEVICE_TYPE_INDEX_INVALID;
-        const DeviceTypeRecord* pOther = table.getRecordByHwTypeId((uint16_t)hwTypeId, otherIdx);
+        const DeviceTypeRecord* pOther = table.getRecordByHwTypeId(hwTypeId.c_str(), otherIdx);
         if (pOther && pOther->deviceType && !key.equals(pOther->deviceType))
         {
-            char idStr[8];
-            snprintf(idStr, sizeof(idStr), "0x%04x", (unsigned)hwTypeId);
-            reject(result, key, String("deviceTypeId ") + idStr + " is already used by " + pOther->deviceType);
+            reject(result, key, "hwTypeId " + hwTypeId + " is already used by " + pOther->deviceType);
             return;
         }
     }
@@ -397,9 +401,9 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
     }
     devTypeRec.initialPolicy = initialPolicy;
 
-    // A record with no addresses and no deviceTypeId can't be identified (it can still be used by a static device)
-    if ((addresses.length() == 0) && !(devTypeRec.flags & DeviceTypeRecord::FLAG_HAS_HW_TYPE_ID))
-        warn(result, key, "no addresses or deviceTypeId, so it can't be identified");
+    // A record with no addresses and no hwTypeId can't be identified (it can still be used by a static device)
+    if ((addresses.length() == 0) && (devTypeRec.hwTypeId.length() == 0))
+        warn(result, key, "no addresses or hwTypeId, so it can't be identified");
 
     // Command strings: the grammar the firmware uses. An error is a reason to reject the record
     String detectionValues = rec.getString("detectionValues", "");
@@ -759,11 +763,7 @@ String DeviceTypeFileLoader::recordToFileEntry(const DeviceTypeRecord& rec, uint
     if (rec.identPriority != 0)
         json += ",\"identPriority\":" + String((int)rec.identPriority);
     if (rec.hasHwTypeId())
-    {
-        char buf[8];
-        snprintf(buf, sizeof(buf), "0x%04x", (unsigned)rec.hwTypeId);
-        appendStr("deviceTypeId", buf);
-    }
+        appendStr("hwTypeId", rec.hwTypeId);
     if (rec.isProbeOnly())
         json += ",\"excludeFromAddrMap\":true";
     if (!rec.isScannedWhilePolled())
@@ -943,7 +943,7 @@ void DeviceTypeFileLoader::checkJson(const DeviceTypeRecords& live, const std::v
         dyn.scanPriority = pRec->scanPriority;
         dyn.flags = pRec->flags;
         dyn.identPriority = pRec->identPriority;
-        dyn.hwTypeId = pRec->hwTypeId;
+        dyn.hwTypeId = pRec->hasHwTypeId() ? pRec->hwTypeId : "";
         dyn.initialPolicy = pRec->initialPolicy;
         DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
         scratch.addRecord(dyn, idx);

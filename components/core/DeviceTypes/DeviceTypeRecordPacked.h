@@ -5,6 +5,7 @@
 // Storage for one extended device type record in a single allocation (in PSRAM when the board has it):
 //
 //   [DeviceTypeRecord view][key\0][addresses\0][detectionValues\0][initValues\0][pollInfo\0][devInfoJson\0]
+//   [hwTypeId\0 (if it has one)]
 //
 // The view's string pointers point into the same allocation, so a lookup returns a const DeviceTypeRecord*
 // for an extended record just as for a base record (which is in flash). A packed record is never changed or
@@ -35,7 +36,8 @@ public:
                 src.detectionValues.length() + 1 +
                 src.initValues.length() + 1 +
                 src.pollInfo.length() + 1 +
-                src.devInfoJson.length() + 1;
+                src.devInfoJson.length() + 1 +
+                (src.hwTypeId.length() > 0 ? src.hwTypeId.length() + 1 : 0);
     }
 
     /// @brief Create a packed copy of a record
@@ -60,7 +62,7 @@ public:
         pRec->scanPriority = src.scanPriority;
         pRec->flags = src.flags;
         pRec->identPriority = src.identPriority;
-        pRec->hwTypeId = src.hwTypeId;
+        pRec->hwTypeId = src.hwTypeId.length() > 0 ? copyStr(pStr, src.hwTypeId.c_str(), src.hwTypeId.length()) : nullptr;
         pRec->initialPolicy = src.initialPolicy;
         return pRec;
     }
@@ -90,7 +92,7 @@ public:
                 // made at runtime) - that is still the same record
                 (!src.pollResultDecodeFn || (packed.pollResultDecodeFn == src.pollResultDecodeFn)) &&
                 (packed.scanPriority == src.scanPriority) && (packed.flags == src.flags) &&
-                (packed.identPriority == src.identPriority) && (packed.hwTypeId == src.hwTypeId) &&
+                (packed.identPriority == src.identPriority) && strEq(packed.hwTypeId, src.hwTypeId.c_str()) &&
                 (packed.initialPolicy == src.initialPolicy);
     }
 

@@ -1761,7 +1761,7 @@ Rules:
 
 ## 10. Alignment with the device library branch
 
-Review added 2026-10-15 of Nikos's `feature/device-library` work, now at:
+Review added 2026-10-15 of Nikos's `feature/device-library` work (updated 2026-10-22 in §10.9), then at:
 - **Axiom:** `bbaa98b` (2026-10-15). Five commits since the review: VL53L5CX ported into the device-library
   firmware, PSRAM releases v0.1.19 and v0.1.20, and a SPIRAM allocator fix.
 - **RaftCore:** `d032e24`. The only new commit is the SPIRAM fix, which is already on `main`.
@@ -1906,7 +1906,7 @@ Checked against review §5, §7 and §9 and principles P1–P15. Items already i
 | D21 | Confirm D2 for library files: an override replaces the base record, with no fall-through, although the branch falls through? | Yes; a deliberate difference (§10.4). Tell Nikos now so the branch spec and example file can warn about it, and list it in the Stage 6 release notes |
 | D22 | Where do the limits for untrusted records live? | In the RaftCore loader, applied to file and REST sources only; compiled records and code-registered records are not limited. Once I6 is fixed, replace the ring-size limit with a configurable per-record byte cap |
 | D23 | Can a compiled catalogue (or a SysType) contain `disable` entries? | Yes. The generator emits them as policy settings, not records. This gives boards a way to say "never X" (N11) and removes the trap of an empty record being compiled |
-| D24 | **Decided 2026-10-15: yes, `hwTypeId` (Stage 3).** Should RaftCore take over the RSAO-style "hardware type ID → record" mapping, and what is it called? | Decide in Stage 3. Today `deviceTypeId` is used only by RSAO records and Axiom's RSAO code. Recommendation: RaftCore takes it over (removing Axiom's duplicated registry and making file-loaded RSAO records work). Then the C++ name is generic (e.g. `hwTypeId`, matching principles §2) since the core holds no vendor knowledge (P4); it is documented as an ID the device reports when probed by an identification hook, in that hook's own numbering. The JSON field stays `deviceTypeId`. Not `rsaoWHOAMI`: that names the RSAO command, and WHO_AM_I is also a common register on ordinary sensors. **Revised 2026-10-21:** the ID is a string `"<scheme>:<value>"` (e.g. `rsao:0x008F`) matched exactly, so other hooks can use it without clashing with RSAO IDs; the JSON field is `hwTypeId` and `deviceTypeId` is no longer accepted. Plan: record management plan §7 (M13-M17) |
+| D24 | **Decided 2026-10-15: yes, `hwTypeId` (Stage 3).** Should RaftCore take over the RSAO-style "hardware type ID → record" mapping, and what is it called? | Decide in Stage 3. Today `deviceTypeId` is used only by RSAO records and Axiom's RSAO code. Recommendation: RaftCore takes it over (removing Axiom's duplicated registry and making file-loaded RSAO records work). Then the C++ name is generic (e.g. `hwTypeId`, matching principles §2) since the core holds no vendor knowledge (P4); it is documented as an ID the device reports when probed by an identification hook, in that hook's own numbering. The JSON field stays `deviceTypeId`. Not `rsaoWHOAMI`: that names the RSAO command, and WHO_AM_I is also a common register on ordinary sensors. **Revised 2026-10-21:** the ID is a string `"<scheme>:<value>"` (e.g. `rsao:0x008F`) matched exactly, so other hooks can use it without clashing with RSAO IDs; the JSON field is `hwTypeId` and `deviceTypeId` is no longer accepted. Plan: record management plan §7 (M13-M17) - **implemented 2026-10-22** |
 
 ### 10.7 Ideas taken from the branch
 
@@ -1959,6 +1959,55 @@ confirmed on `main` by reading the code.
   the item 1 host test, with every shipped detection string and its expected mask and value bytes, so the
   regression cannot return. Confirm on hardware with any of the affected parts. Until the fix lands, the
   branch's workaround (explicit `0xA0,…,0xAF` alternatives for LTR-329) is an option for that record only.
+
+### 10.9 Update 2026-10-22: the branch since the review, and what Axiom takes before merging
+
+RaftCore 1.59.0 and the companion libraries (RaftI2C 1.21.0, RaftSysMods 1.24.0, RaftWebServer 1.17.0, RaftROS 1.1.0)
+are merged and released. Axiom's `feature/device-type-records` is not merged yet. It contains `main` and none of the
+device-library branch (all its commits are Rob's; its only merge is `origin/main`; `git cherry` finds no branch
+change on it).
+
+**The branch now:**
+- **RaftCore** `feature/device-library`: still `d032e24`. **RaftI2C**: still `91ce811`. Nothing new.
+- **Axiom** `feature/device-library`: `1211900` (2026-10-21), 11 commits since `bbaa98b`, all about RSAO records:
+
+| Commits | Author | What |
+|-|-|-|
+| `1e90bb7` | Sandy | Force sensor RSAO record (0x0112). **Added under the key `RoboticalThermocoupleAmp`**, so it silently replaced that record (a duplicate key in one JSON file) |
+| `189e2d2`, `1d24c2d` | Nik | Renamed to `RoboticalForceSensor`; a test that rejects duplicate keys and checks identities |
+| `8848a3e`, `c19bd5f`, `8cfcaf8` | Rob | `RoboticalLEDStick` (0x0123), with a stack-light pattern |
+| `909dfe6`, `715dd8b` | Rob | `RoboticalDistanceStrip` (0x0124), with `distPattern` and `patternOff` actions |
+| `8c2d8d5` | Nik | LED stick command contract test (for ROS controls); clearer field descriptions |
+| `c928240`, `df53463` | Nik | v0.1.21 RSAO firmware release (registry test entries for the three IDs; diary) |
+| `1211900` | Rob | Merge |
+
+`feature/2026-10-new-sensors` is the branch up to `1e90bb7` (32 of its 33 commits are Nik's), so it holds the
+uncorrected force sensor record.
+
+**Compared with Axiom `feature/device-type-records`:**
+- The 11 RSAO records both have are identical (apart from `_notes` and `deviceType`).
+- The branch has three RSAO types `feature/device-type-records` doesn't: `RoboticalForceSensor`, `RoboticalLEDStick`,
+  `RoboticalDistanceStrip`. All three pass RaftCore 1.59.0's generator checks; `RoboticalForceSensor` gets a D13
+  warning (its `devInfoJson.type` is `"Force"`, not the key).
+- v0.1.21 firmware with these types is published from the branch, so units may already use them. An Axiom release from
+  `feature/device-type-records` without them would stop identifying those modules.
+
+**Recommended before merging Axiom `feature/device-type-records`:**
+1. **The three RSAO records**, taken from the branch tip (not from `1e90bb7` or `2026-10-new-sensors`), as
+   `devtypes/RoboticalForceSensor.json`, `devtypes/RoboticalLEDStick.json` and `devtypes/RoboticalDistanceStrip.json`
+   (one file per record, so a duplicate key can't happen), plus their entries in `RSAOTypeRegistry.cpp` and
+   `tests/rsao/test_rsao_type_registry.cpp`. Consider setting the force sensor's `devInfoJson.type` to its key.
+2. **Nik's two descriptor tests**, adapted to `devtypes/`: identities (`deviceType` equals the key, IDs unique and
+   matching the registry) and the LED stick's command contract. The duplicate-key part is moot with one file per
+   record.
+3. **Not taken:** the release and diary commits, and the branch's firmware publishing workflow changes.
+
+**Still open:**
+- M13-M17 (record management plan §7): the `"<scheme>:<value>"` `hwTypeId` is decided but not implemented. RaftCore
+  1.59.0 still reads `deviceTypeId`, and every RSAO record, on both branches, uses it. Converting them is part of that
+  work.
+- D21 (tell Nikos about the override difference, §10.4) and N7 (the fallback hook runs where no record matched) are
+  unchanged.
 
 ## 11. Observations for future work
 
@@ -2013,4 +2062,4 @@ Everything else in this plan is done. Still open:
 | N7 | Run the identification hook only where no address-identified record exists (unless that record is `Disabled`) | Changes behaviour at addresses with known records whose detection fails; exposure is already reduced by the hook address ranges and Axiom's own reserved addresses |
 | Stage 1 items 3 and 10 (N13) | Tie-break on the selected multiplexer slot and on bus speed | Left until measurements show a need; the LSM6DS missed polls in §11 may be the first sign |
 | D19 second release | The strict record grammar rejects instead of warning | After a release with the warnings has been out |
-| Hardware type ID string (D24 revised 2026-10-21) | `hwTypeId` as `"<scheme>:<value>"` in RaftCore; Axiom's RSAO hook looks up `rsao:` IDs and `RSAOTypeRegistry` (`kDefaultTypes`) is removed | record management plan §7 (phase 6) |
+| Hardware type ID string (D24 revised 2026-10-21) | `hwTypeId` as `"<scheme>:<value>"` in RaftCore; Axiom's RSAO hook looks up `rsao:` IDs and `RSAOTypeRegistry` (`kDefaultTypes`) is removed | record management plan §7 (phase 6) - **done 2026-10-22** (RaftCore 1.60.0) |

@@ -84,7 +84,7 @@ public:
     static constexpr uint8_t FLAG_PROBE_ONLY = 0x01;        // not identified by address: adopted by an identification
                                                             // hook, and not reserved or prioritised for scanning
                                                             // (JSON "excludeFromAddrMap" or "probeOnly")
-    static constexpr uint8_t FLAG_HAS_HW_TYPE_ID = 0x02;    // hwTypeId is set
+    // 0x02 was FLAG_HAS_HW_TYPE_ID (retired: a record has a hardware type ID if hwTypeId is a non-empty string)
     static constexpr uint8_t FLAG_NO_SCAN_WHILE_POLLED = 0x04;  // an online device being polled isn't probed by the
                                                             // scanner, however slowly it's polled: its presence comes
                                                             // from its polls (JSON "scanWhilePolled": false) - for a
@@ -94,9 +94,11 @@ public:
     // Candidates for an address are tried in descending identPriority, then in record order (JSON "identPriority")
     int8_t identPriority = 0;
 
-    // Hardware type ID: the ID the device reports when probed by an identification hook, in that hook's own
-    // numbering (e.g. the RSAO WHOAMI response). JSON "deviceTypeId". Valid if FLAG_HAS_HW_TYPE_ID is set
-    uint16_t hwTypeId = 0;
+    // Hardware type ID: the ID the device reports when probed by an identification hook, as "<scheme>:<value>" -
+    // the scheme names the hook's numbering and the value is written in that scheme's one canonical form, e.g.
+    // "rsao:0x008F" (the RSAO WHOAMI type). Matched exactly; RaftCore checks only the syntax (isValidHwTypeId).
+    // JSON "hwTypeId". nullptr (or empty) if the record has none
+    const char* hwTypeId = nullptr;
 
     // Policy: whether the record is used for identification. Only identification is affected - typeinfo,
     // decoding and subscriptions are the same for every policy
@@ -127,8 +129,35 @@ public:
     }
     bool hasHwTypeId() const
     {
-        return (flags & FLAG_HAS_HW_TYPE_ID) != 0;
+        return hwTypeId && hwTypeId[0];
     }
+
+    /// @brief Check the syntax of a hardware type ID: "<scheme>:<value>", the scheme [a-z][a-z0-9-]{0,15} and the
+    ///        value one or more printable ASCII characters other than space (0x21-0x7e), 64 characters at most in all
+    static bool isValidHwTypeId(const char* pId)
+    {
+        if (!pId || (*pId < 'a') || (*pId > 'z'))
+            return false;
+        uint32_t len = 1;
+        while (pId[len] && (pId[len] != ':'))
+        {
+            char c = pId[len];
+            if (!(((c >= 'a') && (c <= 'z')) || ((c >= '0') && (c <= '9')) || (c == '-')) || (len >= 16))
+                return false;
+            len++;
+        }
+        if (pId[len] != ':')
+            return false;
+        uint32_t valueStart = ++len;
+        while (pId[len])
+        {
+            if ((pId[len] < 0x21) || (pId[len] > 0x7e) || (len >= MAX_HW_TYPE_ID_LEN))
+                return false;
+            len++;
+        }
+        return len > valueStart;
+    }
+    static constexpr uint32_t MAX_HW_TYPE_ID_LEN = 64;
     bool isScannedWhilePolled() const
     {
         return (flags & FLAG_NO_SCAN_WHILE_POLLED) == 0;

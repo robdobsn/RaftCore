@@ -59,8 +59,13 @@ SCAN_PRIORITY_NONE = 0xff
 SCAN_PRIORITY_NAMES = {"high": 0, "medium": 1, "low": 2}
 NUM_SCAN_PRIORITY_LEVELS = 3
 FLAG_PROBE_ONLY = 0x01
-FLAG_HAS_HW_TYPE_ID = 0x02
+# 0x02 was FLAG_HAS_HW_TYPE_ID (retired: a record has a hardware type ID if hwTypeId is set)
 FLAG_NO_SCAN_WHILE_POLLED = 0x04
+
+# Hardware type ID "<scheme>:<value>" (DeviceTypeRecord::isValidHwTypeId): the scheme names the identification hook's
+# numbering, the value is printable ASCII without spaces, 64 characters at most in all
+HW_TYPE_ID_RE = re.compile(r"[a-z][a-z0-9-]{0,15}:[\x21-\x7e]+")
+HW_TYPE_ID_MAX_LEN = 64
 
 POLICY_ENABLED = 0
 POLICY_DISABLED = 1
@@ -132,10 +137,11 @@ def record_ident_fields(dev_type, dev_type_key):
     (scanPriority, flags, identPriority, hwTypeId)
 
     scanPriority: "high"/"medium"/"low" or 1-3 gives 0-2 (clamped); absent gives SCAN_PRIORITY_NONE
-    flags: FLAG_PROBE_ONLY for "excludeFromAddrMap" or "probeOnly"; FLAG_HAS_HW_TYPE_ID if "deviceTypeId" is set;
-           FLAG_NO_SCAN_WHILE_POLLED for "scanWhilePolled": false
+    flags: FLAG_PROBE_ONLY for "excludeFromAddrMap" or "probeOnly"; FLAG_NO_SCAN_WHILE_POLLED for
+           "scanWhilePolled": false
     identPriority: -128 to 127, default 0
-    hwTypeId: "deviceTypeId" as a number or a string such as "0x0084", 0 to 0xffff
+    hwTypeId: the "hwTypeId" string "<scheme>:<value>" (e.g. "rsao:0x0084"), or None; "deviceTypeId" (its old name)
+              is an error
     """
     scan_priority = SCAN_PRIORITY_NONE
     if "scanPriority" in dev_type:
@@ -158,18 +164,18 @@ def record_ident_fields(dev_type, dev_type_key):
         sys.exit(1)
     if not scan_while_polled:
         flags |= FLAG_NO_SCAN_WHILE_POLLED
-    hw_type_id = 0
     if "deviceTypeId" in dev_type:
-        value = dev_type["deviceTypeId"]
-        try:
-            hw_type_id = int(value, 0) if isinstance(value, str) else int(value)
-        except (TypeError, ValueError):
-            print(f"ERROR: record \"{dev_type_key}\" has an invalid deviceTypeId {value!r}", file=sys.stderr)
+        print(f"ERROR: record \"{dev_type_key}\" has deviceTypeId - it is now hwTypeId, a string \"<scheme>:<value>\", "
+              f"e.g. \"rsao:0x0084\"", file=sys.stderr)
+        sys.exit(1)
+    hw_type_id = None
+    if "hwTypeId" in dev_type:
+        value = dev_type["hwTypeId"]
+        if not is_valid_hw_type_id(value):
+            print(f"ERROR: record \"{dev_type_key}\" hwTypeId {value!r} must be a string \"<scheme>:<value>\", "
+                  f"e.g. \"rsao:0x0084\"", file=sys.stderr)
             sys.exit(1)
-        if not 0 <= hw_type_id <= 0xffff:
-            print(f"ERROR: record \"{dev_type_key}\" deviceTypeId {value!r} is outside 0-0xffff", file=sys.stderr)
-            sys.exit(1)
-        flags |= FLAG_HAS_HW_TYPE_ID
+        hw_type_id = value
     ident_priority = dev_type.get("identPriority", 0)
     if not isinstance(ident_priority, int) or isinstance(ident_priority, bool) or not -128 <= ident_priority <= 127:
         print(f"ERROR: record \"{dev_type_key}\" identPriority must be an integer from -128 to 127", file=sys.stderr)
@@ -177,22 +183,27 @@ def record_ident_fields(dev_type, dev_type_key):
     return scan_priority, flags, ident_priority, hw_type_id
 
 
+def is_valid_hw_type_id(value):
+    """Check a hardware type ID's syntax: "<scheme>:<value>" (as DeviceTypeRecord::isValidHwTypeId)"""
+    return isinstance(value, str) and len(value) <= HW_TYPE_ID_MAX_LEN and HW_TYPE_ID_RE.fullmatch(value) is not None
+
+
+def c_string_literal(value):
+    """A C string literal for a string of printable ASCII"""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def duplicate_hw_type_id_warnings(dev_types):
-    """Warnings for hardware type IDs (deviceTypeId) used by more than one record
+    """Warnings for hardware type IDs (hwTypeId) used by more than one record (compared exactly)
 
     Lookups by hardware type ID (getRecordByHwTypeId) return only one of them - the first in catalogue order
     """
     keys_by_id = {}
     for dev_type_key, dev_type in dev_types.items():
-        if "deviceTypeId" not in dev_type:
-            continue
-        value = dev_type["deviceTypeId"]
-        try:
-            hw_type_id = int(value, 0) if isinstance(value, str) else int(value)
-        except (TypeError, ValueError):
-            continue
-        keys_by_id.setdefault(hw_type_id, []).append(dev_type_key)
-    return [f"WARNING: deviceTypeId 0x{hw_type_id:04x} is used by {', '.join(keys)} - lookups by hardware type ID "
+        value = dev_type.get("hwTypeId")
+        if is_valid_hw_type_id(value):
+            keys_by_id.setdefault(value, []).append(dev_type_key)
+    return [f"WARNING: hwTypeId {hw_type_id} is used by {', '.join(keys)} - lookups by hardware type ID "
             f"return {keys[0]}" for hw_type_id, keys in sorted(keys_by_id.items()) if len(keys) > 1]
 
 def report_grammar_issues(dev_type, dev_type_key, decode_generator=None):
@@ -437,7 +448,8 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
 
             # Identification and scanning fields: scanPriority, flags, identPriority, hwTypeId
             scan_priority, flags, ident_priority, hw_type_id = record_ident_fields(dev_type, dev_type_key)
-            header_file.write(f',\n        {scan_priority}, {flags}, {ident_priority}, 0x{hw_type_id:04x}, '
+            hw_type_id_c = c_string_literal(hw_type_id) if hw_type_id is not None else "nullptr"
+            header_file.write(f',\n        {scan_priority}, {flags}, {ident_priority}, {hw_type_id_c}, '
                               f'{record_initial_policy(dev_type, dev_type_key)}')
 
             # Init values (initCode): the function and the value names

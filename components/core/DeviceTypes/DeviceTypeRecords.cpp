@@ -149,9 +149,11 @@ bool DeviceTypeRecords::isAddrReserved(BusElemAddrType addr) const
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get the record with a hardware type ID
-const DeviceTypeRecord* DeviceTypeRecords::getRecordByHwTypeId(uint16_t hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const
+const DeviceTypeRecord* DeviceTypeRecords::getRecordByHwTypeId(const char* hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const
 {
     deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (!hwTypeId || !hwTypeId[0])
+        return nullptr;
 
     // The catalogue index if it is up to date
     std::shared_ptr<const CatalogueIndex> pIndex;
@@ -169,14 +171,14 @@ const DeviceTypeRecord* DeviceTypeRecords::getRecordByHwTypeId(uint16_t hwTypeId
     }
 
     // Otherwise the records, in the index's order (extended as added, then base; the first found): a type file's
-    // records are added one at a time and each is checked for its deviceTypeId - building the index for each was
+    // records are added one at a time and each is checked for its hwTypeId - building the index for each was
     // a large part of a load's time
     uint32_t numExt = _extCount.load(std::memory_order_acquire);
     for (uint32_t i = 0; i < numExt + BASE_DEV_TYPE_ARRAY_SIZE; i++)
     {
         DeviceTypeIndexType idx = (DeviceTypeIndexType)((i < numExt) ? (BASE_DEV_TYPE_ARRAY_SIZE + i) : (i - numExt));
         const DeviceTypeRecord* pRec = getRecord(idx);
-        if (pRec && pRec->hasHwTypeId() && (pRec->hwTypeId == hwTypeId))
+        if (pRec && pRec->hasHwTypeId() && (strcmp(pRec->hwTypeId, hwTypeId) == 0))
         {
             deviceTypeIndex = idx;
             return pRec;
@@ -891,13 +893,13 @@ DeviceTypeRecords::AddResult DeviceTypeRecords::addRecord(const DeviceTypeRecord
 
     // A hardware type ID already used by a record with another key makes lookups by the ID ambiguous (the record
     // added later is found first) - reported, as code-registered records are trusted (N2)
-    if (devTypeRec.flags & DeviceTypeRecord::FLAG_HAS_HW_TYPE_ID)
+    if (devTypeRec.hwTypeId.length() > 0)
     {
         DeviceTypeIndexType otherIdx = DEVICE_TYPE_INDEX_INVALID;
-        const DeviceTypeRecord* pOther = getRecordByHwTypeId(devTypeRec.hwTypeId, otherIdx);
+        const DeviceTypeRecord* pOther = getRecordByHwTypeId(devTypeRec.hwTypeId.c_str(), otherIdx);
         if (pOther && pOther->deviceType && (devTypeRec.deviceTypeName != pOther->deviceType))
-            LOG_W(MODULE_PREFIX, "addRecord %s deviceTypeId 0x%04x is already used by %s", devTypeRec.deviceTypeName.c_str(),
-                        (unsigned)devTypeRec.hwTypeId, pOther->deviceType);
+            LOG_W(MODULE_PREFIX, "addRecord %s hwTypeId %s is already used by %s", devTypeRec.deviceTypeName.c_str(),
+                        devTypeRec.hwTypeId.c_str(), pOther->deviceType);
     }
 
     // Lock

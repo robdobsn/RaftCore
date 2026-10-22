@@ -98,11 +98,12 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get the record with a hardware type ID (the ID a device reports when probed by an identification
-    ///        hook, JSON "deviceTypeId")
-    /// @param hwTypeId hardware type ID
+    ///        hook, JSON "hwTypeId")
+    /// @param hwTypeId hardware type ID, "<scheme>:<value>" in the scheme's canonical form, e.g. "rsao:0x008F"
+    ///        (matched exactly - see DeviceTypeRecord::hwTypeId)
     /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not found)
     /// @return the record, or nullptr if there is none
-    const DeviceTypeRecord* getRecordByHwTypeId(uint16_t hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const;
+    const DeviceTypeRecord* getRecordByHwTypeId(const char* hwTypeId, DeviceTypeIndexType& deviceTypeIndex) const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get the device type record for a device type index (no copy, no lock)
