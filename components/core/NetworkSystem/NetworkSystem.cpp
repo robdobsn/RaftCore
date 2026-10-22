@@ -1590,8 +1590,10 @@ void NetworkSystem::handleWiFiStaDisconnectEvent()
         setConnInfoStr(_wifiIPV4Addr, "");
         setConnInfoStr(_wifiStaSSID, "");
     }
-    // Clear connected bit
+    // Clear connected bits (the IP is lost with the connection - IP_EVENT_STA_LOST_IP only
+    // arrives after a timeout, so without this the IP bit is still set on re-association)
     xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_CONNECTED_BIT);
+    xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
