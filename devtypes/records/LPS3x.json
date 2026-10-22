@@ -1,0 +1,55 @@
+{
+    "_notes": "ST LPS33HW / LPS35HW (Adafruit LPS3x boards) at 0x5D (default, SA0 high) or 0x5C. Also identifies the LPS22HB, which has the same WHO_AM_I (0xB1) and register map. Detection: WHO_AM_I (0x0F) = 0xB1. Init: software reset (CTRL_REG2 0x11 = 0x14: SWRESET, keeping IF_ADD_INC so register reads auto-increment); RPDS_L/RPDS_H (0x18-0x19, the one-point calibration offset, subtracted as RPDS*256 from the pressure) and RES_CONF (0x1A) to their defaults of 0, as the software reset doesn't reset them and a write meant for another device can leave them set (a probe written to register 0x99 lands on 0x19 - the RSAO identification hook did, giving readings 64 hPa low); then CTRL_REG1 (0x10) = 0x22: 10 Hz continuous, block data update. Poll: 6 bytes from STATUS (0x27): STATUS, PRESS_OUT_XL/L/H (24-bit, hPa = raw/4096), TEMP_OUT_L/H (signed, degC = raw/100). Unlike the LPS25, auto-increment is set in CTRL_REG2 rather than by bit 7 of the register address, and STATUS has P_DA in bit 0 and T_DA in bit 1.",
+    "addresses": "0x5C-0x5D",
+    "detectionValues": "0x0f=0xb1",
+    "initValues": "0x1114=p10&0x18000000=&0x1022=",
+    "pollInfo": {
+        "c": "0x27=r6",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Pressure Sensor",
+        "desc": "",
+        "manu": "ST",
+        "type": "LPS3x",
+        "clas": ["PRES","TEMP"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "status",
+                    "t": "B",
+                    "r": [0,255],
+                    "m": "0xff",
+                    "f": "02x",
+                    "o": "uint8",
+                    "vs": false,
+                    "bl": {"0x01": "P_DA", "0x02": "T_DA", "0x10": "P_OR", "0x20": "T_OR"}
+                },
+                {
+                    "n": "pressure",
+                    "at": 0,
+                    "t": "<I",
+                    "u": "hPa",
+                    "r": [260,1260],
+                    "s": 8,
+                    "d": 4096,
+                    "f": "4.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "temperature",
+                    "at": 4,
+                    "t": "<h",
+                    "u": "&deg;C",
+                    "r": [-40,85],
+                    "d": 100,
+                    "f": "3.2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}
