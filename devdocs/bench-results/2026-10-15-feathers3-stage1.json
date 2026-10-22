@@ -1,0 +1,941 @@
+{
+ "label": "stage1-final",
+ "when": "2026-10-15T19:40:47.443Z",
+ "ip": "192.168.86.52",
+ "scenarios": [
+  {
+   "name": "defaults",
+   "durationS": 20.458,
+   "devices": {
+    "1_68": {
+     "configuredUs": 50000,
+     "configuredHz": 20,
+     "firmware": {
+      "dtIdx": 52,
+      "cfgUs": 50000,
+      "n": 409,
+      "meanUs": 50001,
+      "minUs": 46524,
+      "maxUs": 53871,
+      "p95ErrUs": 4000,
+      "missed": 0,
+      "rateHz": 20,
+      "busUs": 3728,
+      "errHist": [
+       19,
+       45,
+       57,
+       88,
+       85,
+       45,
+       49,
+       21,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": 0,
+     "delivered": {
+      "samples": 410,
+      "rateHz": 20.04
+     }
+    },
+    "1_39": {
+     "configuredUs": 100000,
+     "configuredHz": 10,
+     "firmware": {
+      "dtIdx": 51,
+      "cfgUs": 100000,
+      "n": 204,
+      "meanUs": 100015,
+      "minUs": 96862,
+      "maxUs": 104199,
+      "p95ErrUs": 4000,
+      "missed": 0,
+      "rateHz": 10,
+      "busUs": 3510,
+      "errHist": [
+       12,
+       32,
+       23,
+       30,
+       38,
+       31,
+       26,
+       10,
+       2,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -0.01,
+     "delivered": {
+      "samples": 205,
+      "rateHz": 10.02
+     }
+    }
+   },
+   "activity": {
+    "windows": 10,
+    "busyPct": {
+     "n": 10,
+     "min": 42.3,
+     "mean": 42.8,
+     "max": 43.4
+    },
+    "passesPerS": {
+     "n": 10,
+     "min": 135.4581673306773,
+     "mean": 139.5,
+     "max": 143.85614385614386
+    },
+    "maxPassUs": {
+     "n": 10,
+     "min": 6699,
+     "mean": 7986.9,
+     "max": 9096
+    },
+    "scanProbesPerS": {
+     "n": 10,
+     "min": 417.16566866267465,
+     "mean": 444,
+     "max": 481.5184815184815
+    },
+    "pollStepsPerS": {
+     "n": 10,
+     "min": 29.821073558648113,
+     "mean": 30.1,
+     "max": 30.87649402390438
+    },
+    "usPerS": {
+     "handler": {
+      "n": 10,
+      "min": 3045.8167330677293,
+      "mean": 3934.6,
+      "max": 5069.860279441118
+     },
+     "scan": {
+      "n": 10,
+      "min": 260551.44855144856,
+      "mean": 268376.3,
+      "max": 277513.4328358209
+     },
+     "requests": {
+      "n": 10,
+      "min": 10374.625374625375,
+      "mean": 11438.1,
+      "max": 13428.855721393034
+     },
+     "muxIO": {
+      "n": 10,
+      "min": 8476.616915422886,
+      "mean": 9481.3,
+      "max": 10320.39800995025
+     },
+     "poll": {
+      "n": 10,
+      "min": 124397.20558882235,
+      "mean": 134949.5,
+      "max": 145106.8931068931
+     }
+    }
+   }
+  },
+  {
+   "name": "all_100ms",
+   "durationS": 20.491,
+   "devices": {
+    "1_68": {
+     "configuredUs": 100000,
+     "configuredHz": 10,
+     "firmware": {
+      "dtIdx": 52,
+      "cfgUs": 100000,
+      "n": 205,
+      "meanUs": 99998,
+      "minUs": 96080,
+      "maxUs": 102873,
+      "p95ErrUs": 2000,
+      "missed": 0,
+      "rateHz": 10,
+      "busUs": 3774,
+      "errHist": [
+       11,
+       21,
+       24,
+       45,
+       45,
+       25,
+       25,
+       9,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": 0,
+     "delivered": {
+      "samples": 206,
+      "rateHz": 10.05
+     }
+    },
+    "1_39": {
+     "configuredUs": 100000,
+     "configuredHz": 10,
+     "firmware": {
+      "dtIdx": 51,
+      "cfgUs": 100000,
+      "n": 204,
+      "meanUs": 99985,
+      "minUs": 97032,
+      "maxUs": 103362,
+      "p95ErrUs": 2000,
+      "missed": 0,
+      "rateHz": 10,
+      "busUs": 3222,
+      "errHist": [
+       7,
+       22,
+       27,
+       44,
+       48,
+       27,
+       25,
+       4,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": 0.02,
+     "delivered": {
+      "samples": 205,
+      "rateHz": 10
+     }
+    }
+   },
+   "activity": {
+    "windows": 10,
+    "busyPct": {
+     "n": 10,
+     "min": 40.1,
+     "mean": 40.9,
+     "max": 42
+    },
+    "passesPerS": {
+     "n": 10,
+     "min": 134.86513486513488,
+     "mean": 137.3,
+     "max": 139.58125623130607
+    },
+    "maxPassUs": {
+     "n": 10,
+     "min": 7171,
+     "mean": 8051.1,
+     "max": 10121
+    },
+    "scanProbesPerS": {
+     "n": 10,
+     "min": 444.7761194029851,
+     "mean": 474.4,
+     "max": 493.5323383084577
+    },
+    "pollStepsPerS": {
+     "n": 10,
+     "min": 19.90049751243781,
+     "mean": 20,
+     "max": 20.916334661354583
+    },
+    "usPerS": {
+     "handler": {
+      "n": 10,
+      "min": 3002,
+      "mean": 3833.6,
+      "max": 5360.63936063936
+     },
+     "scan": {
+      "n": 10,
+      "min": 284046,
+      "mean": 291765.6,
+      "max": 303566.43356643355
+     },
+     "requests": {
+      "n": 10,
+      "min": 10298.105682951147,
+      "mean": 11486.5,
+      "max": 14290.547263681592
+     },
+     "muxIO": {
+      "n": 10,
+      "min": 8312.375249500998,
+      "mean": 9292.2,
+      "max": 10580.677290836653
+     },
+     "poll": {
+      "n": 10,
+      "min": 87016.96606786427,
+      "mean": 92283,
+      "max": 106995
+     }
+    }
+   }
+  },
+  {
+   "name": "all_50ms",
+   "durationS": 20.463,
+   "devices": {
+    "1_68": {
+     "configuredUs": 50000,
+     "configuredHz": 20,
+     "firmware": {
+      "dtIdx": 52,
+      "cfgUs": 50000,
+      "n": 409,
+      "meanUs": 50002,
+      "minUs": 46963,
+      "maxUs": 53452,
+      "p95ErrUs": 2000,
+      "missed": 0,
+      "rateHz": 20,
+      "busUs": 3699,
+      "errHist": [
+       16,
+       47,
+       38,
+       114,
+       88,
+       42,
+       54,
+       10,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": 0,
+     "delivered": {
+      "samples": 410,
+      "rateHz": 20.04
+     }
+    },
+    "1_39": {
+     "configuredUs": 50000,
+     "configuredHz": 20,
+     "firmware": {
+      "dtIdx": 51,
+      "cfgUs": 50000,
+      "n": 409,
+      "meanUs": 50004,
+      "minUs": 44784,
+      "maxUs": 53964,
+      "p95ErrUs": 4000,
+      "missed": 0,
+      "rateHz": 20,
+      "busUs": 3480,
+      "errHist": [
+       23,
+       56,
+       52,
+       80,
+       68,
+       50,
+       57,
+       23,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -0.01,
+     "delivered": {
+      "samples": 410,
+      "rateHz": 20.04
+     }
+    }
+   },
+   "activity": {
+    "windows": 10,
+    "busyPct": {
+     "n": 10,
+     "min": 43.6,
+     "mean": 45.1,
+     "max": 47
+    },
+    "passesPerS": {
+     "n": 10,
+     "min": 132.86713286713288,
+     "mean": 142.3,
+     "max": 152
+    },
+    "maxPassUs": {
+     "n": 10,
+     "min": 6018,
+     "mean": 8611.1,
+     "max": 10025
+    },
+    "scanProbesPerS": {
+     "n": 10,
+     "min": 341.65834165834167,
+     "mean": 388.1,
+     "max": 438
+    },
+    "pollStepsPerS": {
+     "n": 10,
+     "min": 39.8406374501992,
+     "mean": 40.1,
+     "max": 40.83665338645418
+    },
+    "usPerS": {
+     "handler": {
+      "n": 10,
+      "min": 3044.9550449550447,
+      "mean": 3698.6,
+      "max": 4308.691308691309
+     },
+     "scan": {
+      "n": 10,
+      "min": 243245,
+      "mean": 256422.8,
+      "max": 273181.8181818182
+     },
+     "requests": {
+      "n": 10,
+      "min": 11820.717131474104,
+      "mean": 13592.5,
+      "max": 15823.529411764706
+     },
+     "muxIO": {
+      "n": 10,
+      "min": 9042.828685258964,
+      "mean": 10415.6,
+      "max": 12235.29411764706
+     },
+     "poll": {
+      "n": 10,
+      "min": 161960,
+      "mean": 167498.3,
+      "max": 178160.19900497512
+     }
+    }
+   }
+  },
+  {
+   "name": "all_25ms",
+   "durationS": 20.462,
+   "devices": {
+    "1_68": {
+     "configuredUs": 25000,
+     "configuredHz": 40,
+     "firmware": {
+      "dtIdx": 52,
+      "cfgUs": 25000,
+      "n": 819,
+      "meanUs": 25009,
+      "minUs": 18014,
+      "maxUs": 33762,
+      "p95ErrUs": 4000,
+      "missed": 0,
+      "rateHz": 39.99,
+      "busUs": 4070,
+      "errHist": [
+       58,
+       127,
+       93,
+       121,
+       140,
+       109,
+       114,
+       49,
+       6,
+       2,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -0.04,
+     "delivered": {
+      "samples": 820,
+      "rateHz": 40.07
+     }
+    },
+    "1_39": {
+     "configuredUs": 25000,
+     "configuredHz": 40,
+     "firmware": {
+      "dtIdx": 51,
+      "cfgUs": 25000,
+      "n": 820,
+      "meanUs": 25004,
+      "minUs": 18767,
+      "maxUs": 32504,
+      "p95ErrUs": 4000,
+      "missed": 0,
+      "rateHz": 39.99,
+      "busUs": 3555,
+      "errHist": [
+       66,
+       122,
+       99,
+       139,
+       99,
+       105,
+       123,
+       62,
+       5,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -0.02,
+     "delivered": {
+      "samples": 820,
+      "rateHz": 40.07
+     }
+    }
+   },
+   "activity": {
+    "windows": 10,
+    "busyPct": {
+     "n": 10,
+     "min": 53.2,
+     "mean": 54.6,
+     "max": 55.9
+    },
+    "passesPerS": {
+     "n": 10,
+     "min": 135.59322033898306,
+     "mean": 145,
+     "max": 150.84915084915085
+    },
+    "maxPassUs": {
+     "n": 10,
+     "min": 8544,
+     "mean": 9602.6,
+     "max": 10682
+    },
+    "scanProbesPerS": {
+     "n": 10,
+     "min": 193,
+     "mean": 209,
+     "max": 237.05179282868525
+    },
+    "pollStepsPerS": {
+     "n": 10,
+     "min": 79.52286282306163,
+     "mean": 80,
+     "max": 80.67729083665338
+    },
+    "usPerS": {
+     "handler": {
+      "n": 10,
+      "min": 3132.6021934197406,
+      "mean": 4828,
+      "max": 7041.7495029821075
+     },
+     "scan": {
+      "n": 10,
+      "min": 169559.7609561753,
+      "mean": 182980,
+      "max": 192836.65338645419
+     },
+     "requests": {
+      "n": 10,
+      "min": 12389.830508474577,
+      "mean": 15075.1,
+      "max": 18871.128871128873
+     },
+     "muxIO": {
+      "n": 10,
+      "min": 10162.350597609562,
+      "mean": 12027.8,
+      "max": 15697.211155378485
+     },
+     "poll": {
+      "n": 10,
+      "min": 322863.5458167331,
+      "mean": 330987.1,
+      "max": 340308
+     }
+    }
+   }
+  },
+  {
+   "name": "all_10ms",
+   "durationS": 20.503,
+   "devices": {
+    "1_68": {
+     "configuredUs": 10000,
+     "configuredHz": 100,
+     "firmware": {
+      "dtIdx": 52,
+      "cfgUs": 10000,
+      "n": 1495,
+      "meanUs": 13728,
+      "minUs": 4002,
+      "maxUs": 28097,
+      "p95ErrUs": 16000,
+      "missed": 23,
+      "rateHz": 72.84,
+      "busUs": 4650,
+      "errHist": [
+       42,
+       20,
+       10,
+       16,
+       30,
+       40,
+       159,
+       537,
+       561,
+       77,
+       3,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -27.16,
+     "delivered": {
+      "samples": 1497,
+      "rateHz": 73.01
+     }
+    },
+    "1_39": {
+     "configuredUs": 10000,
+     "configuredHz": 100,
+     "firmware": {
+      "dtIdx": 51,
+      "cfgUs": 10000,
+      "n": 1478,
+      "meanUs": 13897,
+      "minUs": 3887,
+      "maxUs": 26103,
+      "p95ErrUs": 16000,
+      "missed": 36,
+      "rateHz": 71.96,
+      "busUs": 4133,
+      "errHist": [
+       34,
+       11,
+       8,
+       16,
+       22,
+       38,
+       172,
+       509,
+       562,
+       105,
+       1,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -28.04,
+     "delivered": {
+      "samples": 1478,
+      "rateHz": 72.09
+     }
+    }
+   },
+   "activity": {
+    "windows": 10,
+    "busyPct": {
+     "n": 10,
+     "min": 81.5,
+     "mean": 83.3,
+     "max": 83.9
+    },
+    "passesPerS": {
+     "n": 10,
+     "min": 138,
+     "mean": 145,
+     "max": 148.25870646766168
+    },
+    "maxPassUs": {
+     "n": 10,
+     "min": 9509,
+     "mean": 10973,
+     "max": 14031
+    },
+    "scanProbesPerS": {
+     "n": 10,
+     "min": 75,
+     "mean": 84,
+     "max": 90.54726368159204
+    },
+    "pollStepsPerS": {
+     "n": 10,
+     "min": 138,
+     "mean": 144.9,
+     "max": 148.25870646766168
+    },
+    "usPerS": {
+     "handler": {
+      "n": 10,
+      "min": 4058,
+      "mean": 5807.4,
+      "max": 6994
+     },
+     "scan": {
+      "n": 10,
+      "min": 118347.9125248509,
+      "mean": 125521.2,
+      "max": 131724.37810945272
+     },
+     "requests": {
+      "n": 10,
+      "min": 12434.131736526946,
+      "mean": 17226.8,
+      "max": 22059
+     },
+     "muxIO": {
+      "n": 10,
+      "min": 10894.632206759443,
+      "mean": 14216.5,
+      "max": 17637
+     },
+     "poll": {
+      "n": 10,
+      "min": 644453,
+      "mean": 670464.6,
+      "max": 682202.5819265144
+     }
+    }
+   }
+  },
+  {
+   "name": "mixed_10ms_100ms",
+   "durationS": 21.087,
+   "devices": {
+    "1_68": {
+     "configuredUs": 10000,
+     "configuredHz": 100,
+     "firmware": {
+      "dtIdx": 52,
+      "cfgUs": 10000,
+      "n": 2109,
+      "meanUs": 10012,
+      "minUs": 4004,
+      "maxUs": 18815,
+      "p95ErrUs": 4000,
+      "missed": 0,
+      "rateHz": 99.88,
+      "busUs": 4284,
+      "errHist": [
+       246,
+       301,
+       234,
+       310,
+       290,
+       247,
+       240,
+       179,
+       60,
+       2,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -0.12,
+     "delivered": {
+      "samples": 2111,
+      "rateHz": 100.11
+     }
+    },
+    "1_39": {
+     "configuredUs": 100000,
+     "configuredHz": 10,
+     "firmware": {
+      "dtIdx": 51,
+      "cfgUs": 100000,
+      "n": 210,
+      "meanUs": 100008,
+      "minUs": 93262,
+      "maxUs": 106609,
+      "p95ErrUs": 4000,
+      "missed": 0,
+      "rateHz": 10,
+      "busUs": 3757,
+      "errHist": [
+       37,
+       35,
+       12,
+       16,
+       21,
+       17,
+       34,
+       29,
+       9,
+       0,
+       0,
+       0,
+       0
+      ]
+     },
+     "pollRateErrorPct": -0.01,
+     "delivered": {
+      "samples": 211,
+      "rateHz": 10.01
+     }
+    }
+   },
+   "activity": {
+    "windows": 10,
+    "busyPct": {
+     "n": 10,
+     "min": 65.6,
+     "mean": 69.1,
+     "max": 73.1
+    },
+    "passesPerS": {
+     "n": 10,
+     "min": 123.26043737574552,
+     "mean": 132.3,
+     "max": 144.1351888667992
+    },
+    "maxPassUs": {
+     "n": 10,
+     "min": 9599,
+     "mean": 11096,
+     "max": 12436
+    },
+    "scanProbesPerS": {
+     "n": 10,
+     "min": 142.85714285714286,
+     "mean": 181.7,
+     "max": 236
+    },
+    "pollStepsPerS": {
+     "n": 10,
+     "min": 109.67098703888335,
+     "mean": 110,
+     "max": 110.33797216699801
+    },
+    "usPerS": {
+     "handler": {
+      "n": 10,
+      "min": 3534.396809571286,
+      "mean": 5255,
+      "max": 6888.888888888889
+     },
+     "scan": {
+      "n": 10,
+      "min": 160823.0616302187,
+      "mean": 174123.7,
+      "max": 192840
+     },
+     "requests": {
+      "n": 10,
+      "min": 11012.922465208747,
+      "mean": 13637.1,
+      "max": 16047.856430707876
+     },
+     "muxIO": {
+      "n": 10,
+      "min": 9284.158415841584,
+      "mean": 11824.6,
+      "max": 15028.82703777336
+     },
+     "poll": {
+      "n": 10,
+      "min": 450076.2376237624,
+      "mean": 486186.2,
+      "max": 528869.0476190476
+     }
+    }
+   }
+  }
+ ],
+ "firmware": {
+  "version": "1.0.1-10-g3aced89",
+  "sysType": "SysTypeFeatherS3C3Test"
+ },
+ "listdevs": [
+  {
+   "deviceid": "1_39",
+   "dtIdx": 51
+  },
+  {
+   "deviceid": "1_68",
+   "dtIdx": 52
+  }
+ ],
+ "identTiming": [
+  {
+   "addr": "39",
+   "seenMs": 191,
+   "onlineMs": 359,
+   "identMs": 397,
+   "dtIdx": 51
+  },
+  {
+   "addr": "68",
+   "seenMs": 594,
+   "onlineMs": 723,
+   "identMs": 734,
+   "dtIdx": 52
+  }
+ ],
+ "mainLoopStart": {
+  "avgUs": 998.39,
+  "maxUs": 18357,
+  "minUs": 269,
+  "slowUs": {
+   "CommsMan": 17433,
+   "LogManager": 10803
+  },
+  "slow": {
+   "n": 0,
+   "maxMs": 0,
+   "maxMod": "",
+   "fsSlowWrites": 0,
+   "fsSlowWriteMs": 0
+  }
+ },
+ "listdevsEnd": [
+  {
+   "deviceid": "1_39",
+   "dtIdx": 51
+  },
+  {
+   "deviceid": "1_68",
+   "dtIdx": 52
+  }
+ ],
+ "mainLoopEnd": {
+  "avgUs": 3694.36,
+  "maxUs": 19176,
+  "minUs": 960,
+  "slowUs": {
+   "WebServer": 10780,
+   "Publish": 6776
+  },
+  "slow": {
+   "n": 0,
+   "maxMs": 0,
+   "maxMod": "",
+   "fsSlowWrites": 0,
+   "fsSlowWriteMs": 0
+  }
+ },
+ "health": {
+  "connectionKept": true,
+  "devicesStable": true
+ }
+}

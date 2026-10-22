@@ -11,7 +11,9 @@
 #include "limits.h"
 #include "RaftUtils.h"
 #include "DevicePollingInfo.h"
+#include "PollPlan.h"
 #include "PollDataAggregatorIF.h"
+#include "DevicePollTimingStats.h"
 #include "RaftDeviceConsts.h"
 #include <memory>
 
@@ -28,6 +30,8 @@ public:
     {
         deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
         deviceIdentPolling.clear();
+        pPollPlan.reset();
+        pollTimingStats.reset();
         if (pDataAggregator)
             pDataAggregator->clear();
     }
@@ -37,11 +41,45 @@ public:
         return deviceTypeIndex != DEVICE_TYPE_INDEX_INVALID;
     }
 
-    /// @brief Get pending ident poll info
+    /// @brief Get the time the next poll (or the next step of a split poll) is due
+    /// @param timeNowUs time in us (passed in to aid testing)
+    /// @param dueUs (out) time the next poll or step is due (may be in the past)
+    /// @return false if the device isn't polled
+    bool getNextPollDueUs(uint64_t timeNowUs, uint64_t& dueUs);
+
+    /// @brief Set the poll interval
+    /// @param pollIntervalUs poll interval in us (clamped to the minimum allowed)
+    /// @param timeNowUs time in us (passed in to aid testing)
+    void setPollIntervalUs(uint32_t pollIntervalUs, uint64_t timeNowUs);
+
+    /// @brief Get the poll (or the next step of a split poll) that is due, if one is
+    /// @param timeNowUs time in us (passed in to aid testing)
+    /// @param job (out) the device's poll plan (shared, not copied), the first request to send and the bus speed
+    /// @return true if a poll is due
+    bool getPendingPollJob(uint64_t timeNowUs, DevicePollJob& job);
+
+    /// @brief Get pending ident poll info - as getPendingPollJob, with a copy of the polling info (including the
+    ///        requests)
     /// @param timeNowUs time in us (passed in to aid testing)
     /// @param pollInfo (out) polling info
     /// @return true if there is a pending request
     bool getPendingIdentPollInfo(uint64_t timeNowUs, DevicePollingInfo& pollInfo);
+
+    /// @brief Make the poll plan from the polling info (its requests move into the plan). Done when the device
+    ///        is identified; also done at the first poll after the polling info is filled in some other way
+    void buildPollPlan()
+    {
+        pPollPlan = PollPlan::takeFrom(deviceIdentPolling);
+    }
+
+    /// @brief The poll requests (from the plan, or from the polling info if it has been filled since the plan was
+    ///        made)
+    const std::vector<BusRequestInfo>& getPollReqs() const
+    {
+        if (deviceIdentPolling.pollReqs.size() > 0 || !pPollPlan)
+            return deviceIdentPolling.pollReqs;
+        return pPollPlan->pollReqs;
+    }
 
     /// @brief Store poll results
     /// @param nextReqIdx index of next request to store (0 = full poll, 1+ = partial poll)
@@ -49,9 +87,11 @@ public:
     /// @param pollResult poll result data
     /// @param pPollInfo pointer to device polling info (maybe nullptr)
     /// @param pauseAfterSendMs pause after send in ms
+    /// @param pCompletePollResult (out, optional) at the end of a poll (nextReqIdx 0): the whole poll result as stored
+    ///        - with the timestamp and the parts read before a pause (pollResult is only the part after the last pause)
     /// @return true if result stored
     bool storePollResults(uint32_t nextReqIdx, uint64_t timeNowUs, const std::vector<uint8_t>& pollResult, 
-        const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs);
+        const DevicePollingInfo* pPollInfo, uint32_t pauseAfterSendMs, std::vector<uint8_t>* pCompletePollResult = nullptr);
 
     // Get device type index
     DeviceTypeIndexType getDeviceTypeIndex() const
@@ -62,7 +102,7 @@ public:
     // Get number of poll requests
     uint32_t getNumPollRequests() const
     {
-        return deviceIdentPolling.pollReqs.size();
+        return getPollReqs().size();
     }
 
     /// @brief Get number of available poll responses
@@ -133,37 +173,18 @@ public:
         pDataAggregator = pAggregator;
     }
 
-    // Debug FIFO overrun counter (per-device, cleared on read)
-    void debugIncFifoOverrunCount(uint32_t inc = 1)
-    {
-        _debugFifoOverrunCount += inc;
-    }
-
-    uint32_t debugGetAndClearFifoOverrunCount()
-    {
-        uint32_t count = _debugFifoOverrunCount;
-        _debugFifoOverrunCount = 0;
-        return count;
-    }
-
-    // Debug FIFO full counter (per-device, cleared on read)
-    void debugIncFifoFullCount(uint32_t inc = 1)
-    {
-        _debugFifoFullCount += inc;
-    }
-
-    uint32_t debugGetAndClearFifoFullCount()
-    {
-        uint32_t count = _debugFifoFullCount;
-        _debugFifoFullCount = 0;
-        return count;
-    }
-
     // Device type index
     DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
 
-    // Device ident polling - polling related to the device type
+    // Device ident polling - polling related to the device type (its requests are moved into pPollPlan)
     DevicePollingInfo deviceIdentPolling;
+
+    // What a poll sends and how responses are checked - shared by every poll, never changed (a new plan is made
+    // if the device is identified again)
+    std::shared_ptr<const PollPlan> pPollPlan;
+
+    // How closely polls keep to the configured interval (from one full poll start to the next)
+    DevicePollTimingStats pollTimingStats;
 
     // Data aggregator
     std::shared_ptr<PollDataAggregatorIF> pDataAggregator;
@@ -171,12 +192,10 @@ public:
     // Per-device publish sequence counter (wrapping uint8)
     uint8_t publishSeqCounter = 0;
 
-    // Debug FIFO overrun counter
-    uint32_t _debugFifoOverrunCount = 0;
-
-    // Debug FIFO full counter
-    uint32_t _debugFifoFullCount = 0;
-
     // Debug
-    static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";    
+    static constexpr const char* MODULE_PREFIX = "RaftI2CDevStat";
+
+private:
+    // Advance the poll schedule if a poll (or a step of a split poll) is due
+    bool takeDuePoll(uint64_t timeNowUs);
 };

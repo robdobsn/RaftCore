@@ -15,6 +15,7 @@
 #include "RaftArduino.h"
 #include "RaftDeviceConsts.h"
 #include "DevicePollingInfo.h"
+#include "BusIdentState.h"
 
 // Forward declarations (full definitions not needed by the interface)
 class DeviceStatus;
@@ -99,19 +100,19 @@ public:
     virtual String getDevTypeInfoJsonByAddr(BusElemAddrType address, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get device type information by device type name
-    /// @param deviceType - device type name
+    /// @brief Get device type information by device type key
+    /// @param deviceTypeKey - device type key
     /// @param includePlugAndPlayInfo - true to include plug and play information
     /// @param deviceTypeIndex (out) device type index
     /// @return JSON string
-    virtual String getDevTypeInfoJsonByTypeName(const String& deviceType, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const = 0;
+    virtual String getDevTypeInfoJsonByTypeName(const String& deviceTypeKey, bool includePlugAndPlayInfo, DeviceTypeIndexType& deviceTypeIndex) const = 0;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get device type info JSON by device type index
-    /// @param deviceTypeIdx device type index
+    /// @param deviceTypeIndex device type index
     /// @param includePlugAndPlayInfo include plug and play info
     /// @return JSON string
-    virtual String getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIdx, bool includePlugAndPlayInfo) const = 0;
+    virtual String getDevTypeInfoJsonByTypeIdx(DeviceTypeIndexType deviceTypeIndex, bool includePlugAndPlayInfo) const = 0;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Get queued device data in JSON format
@@ -244,6 +245,54 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Identification information for a device (state, attempts, candidates in the order tried, ...)
+    /// @param address device address
+    /// @return JSON object ("{}" if not supported or not known)
+    virtual String getIdentInfoJson(BusElemAddrType address) const
+    {
+        (void)address;
+        return "{}";
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Run an identified device's initialisation again (without identifying it again)
+    /// @param address device address
+    /// @param doneFn called with the result when done (on the bus task) - not called if false is returned
+    /// @return true if accepted
+    virtual bool requestReInit(BusElemAddrType address, std::function<void(bool ok)> doneFn)
+    {
+        (void)address;
+        (void)doneFn;
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Stop or resume polling a device (it stays identified; while not polled it is scanned for presence)
+    /// @param address device address
+    /// @param enabled true to poll
+    /// @return true if the device is known and the setting applied
+    virtual bool setDevicePollingEnabled(BusElemAddrType address, bool enabled)
+    {
+        (void)address;
+        (void)enabled;
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Ask for devices to be identified again (e.g. after a device type policy changes)
+    /// @param request which devices (BusReIdentScope)
+    /// @return true if the request was accepted - it is carried out on the bus task
+    /// @note A device that is identified keeps being polled as its type until a different result is known (it is
+    ///       then reported as TypeChanged, or Lost if nothing matches), and isn't initialised again if the same type
+    ///       matches. Devices identified by an identification hook (probe-only types) are only re-identified by
+    ///       address
+    virtual bool requestReIdentify(const BusReIdentRequest& request)
+    {
+        (void)request;
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Register a handler invoked for newly-detected devices that no device type record matched
     /// @param newDeviceIdentFn handler function (nullptr to clear)
     /// @param pCtx opaque context passed to the handler
@@ -255,6 +304,18 @@ public:
     {
         (void)newDeviceIdentFn;
         (void)pCtx;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set the addresses the new-device identification handler handles (inclusive ranges of 7-bit
+    ///        addresses); empty (the default) means every address
+    /// @param ranges address ranges, e.g. {{0x0F, 0x6F}}
+    /// @note The handler is only offered devices at these addresses, and only these addresses (and those a device
+    ///       type record can identify) are scanned often - addresses nothing can claim are scanned in a slow
+    ///       background sweep
+    virtual void setNewDeviceIdentAddrRanges(const std::vector<std::pair<uint32_t, uint32_t>>& ranges)
+    {
+        (void)ranges;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

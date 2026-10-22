@@ -12,6 +12,12 @@
 #include "RaftThreading.h"
 #include "DeviceDataSubscribers.h"
 #include "DeviceNames.h"
+#include "DeviceFactory.h"
+#include "DeviceTypeFileLoader.h"
+#include "DeviceSettingsStore.h"
+#include "DeviceTypeSettings.h"
+#include <memory>
+#include "DeviceTypeRecords.h"
 
 class RaftBusDevicesIF;
 #include <unordered_map>
@@ -78,6 +84,11 @@ public:
     /// @return role string, or "normal" if no role is mapped
     String getDeviceRole(RaftDeviceID deviceID) const;
 
+    /// @brief Get the device type key a device is expected to be (Devices entry "expectType")
+    /// @param deviceID device ID
+    /// @return the key, or empty if none is configured
+    String getDeviceExpectedType(RaftDeviceID deviceID) const;
+
     /// @brief Check whether a device is tagged with role "system"
     /// @param deviceID Device identifier
     /// @return true if role is "system"
@@ -102,14 +113,40 @@ public:
             uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);
 
     /// @brief Register for device data notifications (note that callbacks may occur on different threads)
-    /// @param deviceTypeName Device type name
+    /// @param deviceTypeKeyOrAddr Device type key, or a device address of the form "<bus>_<addr>[@slot]"
     /// @param dataChangeCB Callback for data change
     /// @param minTimeBetweenReportsMs Minimum time between reports (ms)
     /// @param pCallbackInfo Callback info (passed to the callback)
     /// @param unregister true to unregister the callback instead of registering
-    void registerForDeviceData(const char* deviceTypeName, RaftDeviceDataChangeCB dataChangeCB,
+    void registerForDeviceData(const char* deviceTypeKeyOrAddr, RaftDeviceDataChangeCB dataChangeCB,
             uint32_t minTimeBetweenReportsMs, const void* pCallbackInfo = nullptr, bool unregister = false);            
             
+    /// @brief Ask for devices to be identified again (e.g. after a change to the device type records)
+    /// @param request which devices (BusReIdentScope - Address is a bus address, so busNum names its bus)
+    /// @param busNum bus number (for Address; ignored otherwise - every bus is asked)
+    /// @return number of buses that accepted the request
+    /// @note A device that is identified keeps its type until a different result is known; see
+    ///       RaftBusDevicesIF::requestReIdentify
+    uint32_t requestReIdentify(const BusReIdentRequest& request, BusNumType busNum = 0);
+
+    /// @brief Set a device type's policy at runtime (not saved), and identify the devices it affects again: those
+    ///        identified as it if it is no longer enabled, or those it now outranks if it is enabled
+    /// @param deviceTypeKey device type key
+    /// @param policy DeviceTypeRecord::POLICY_...
+    /// @return the result (a protected type can't be disabled)
+    DeviceTypeRecords::PolicyResult setTypePolicy(const char* deviceTypeKey, uint8_t policy);
+
+    /// @brief A device's display name: its name if it has one, otherwise its type's display name and its device ID
+    ///        (e.g. "Accelerometer 1_68")
+    String getDeviceDisplayName(RaftDeviceID deviceID) const;
+
+    /// @brief Note that the device type file has been changed by this device (or a change has been made that only
+    ///        a restart applies) - devman/typefile then reports restartRequired until the next restart
+    void markTypeFileChanged()
+    {
+        _typeFileChanged = true;
+    }
+
     /// @brief Register for device status changes
     /// @param statusChangeCB Callback for status change
     void registerForDeviceStatusChange(RaftDeviceStatusChangeCB statusChangeCB);
@@ -189,11 +226,25 @@ private:
     /// @param devManConfig Device manager configuration
     void setupStaticDevices(const char* pConfigPrefix, RaftJsonIF& devManConfig);
 
-    // /// @brief Setup a single device
-    // /// @param pDeviceClass class of the device to setup
-    // /// @param devConfig configuration for the device
-    // /// @return RaftDevice* pointer to the created device or nullptr if failed
-    // RaftDevice* setupDevice(const char* pDeviceClass, RaftJsonIF& devConfig);
+    /// @brief Apply the type table settings (protected types, record policies) from the configuration
+    void applyTypeTableConfig(RaftJsonIF& devManConfig);
+
+    // Settings for device types chosen by the board or product (DevMan "typeSettings"): devconfig settings applied
+    // when a device of the type is identified (under the device's own), and scan priorities
+    DeviceTypeSettings _typeSettings;
+    bool _applyingStoredSettings = false;   // devconfig applied from type or remembered settings (not remembered again)
+    void applyTypeScanPriorities(bool reportUnknown);
+
+    /// @brief Create a static device and add it to the static device list
+    /// @param pCreateFn create function for the device's class
+    /// @param pDevClass device class name
+    /// @param devConf device configuration (its optional "name" and "role" are applied)
+    /// @return the device, or nullptr if it could not be created
+    RaftDevice* addStaticDevice(RaftDeviceCreateFn pCreateFn, const char* pDevClass, RaftJson& devConf);
+
+    /// @brief Set up a static device and register its device type record (if it has one)
+    /// @param pDevice device
+    void setupStaticDevice(RaftDevice* pDevice);
     
     /// @brief Bus element status callback
     /// @param bus a reference to the bus which has elements with changed status
@@ -228,6 +279,20 @@ private:
 
     /// @brief Handle devman/typeinfo
     RaftRetCode apiDevManTypeInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Append the "deviceTypeKey" field for a device type index (nothing is appended if there is no record)
+    /// @param jsonFields (in/out) JSON fields (without braces) to append to
+    /// @param deviceTypeIndex device type index
+    void appendDecoderKind(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const;
+    void appendDeviceTypeKey(String& jsonFields, DeviceTypeIndexType deviceTypeIndex) const;
+
+    /// @brief Get the device type a request names: deviceTypeIndex=<n>, deviceTypeKey=<key>, or type=<key or index>
+    ///        (the older form: a value starting with a digit is tried as an index, then as a key)
+    /// @param jsonParams request parameters
+    /// @param deviceTypeIndex (out) device type index (DEVICE_TYPE_INDEX_INVALID if not found)
+    /// @param given (out) whether any of the parameters was given
+    /// @return the record, or nullptr if none was given or it wasn't found
+    const DeviceTypeRecord* getRequestedType(const RaftJson& jsonParams, DeviceTypeIndexType& deviceTypeIndex, bool& given) const;
 
     /// @brief Handle devman/cmdraw
     RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
@@ -319,6 +384,117 @@ private:
 
     /// @brief Handle devman/slot API endpoint (set or query slot mode)
     RaftRetCode apiDevManSlot(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    // Settings made with devconfig, by device (packed device ID), for the type they were made for - applied again when
+    // the device is identified again as that type
+    struct DevConfigSettings
+    {
+        DeviceTypeIndexType deviceTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+        std::vector<RaftJson::NameValuePair> values;
+    };
+    std::unordered_map<uint64_t, DevConfigSettings> _devConfigSettings;
+    void rememberDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex, const RaftJson& jsonParams);
+    void reapplyDevConfig(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex);
+
+    // Saved device settings (names, roles, devconfig settings, polling) - DevMan "deviceSettingsFile"
+    DeviceSettingsStore _settingsStore;
+    String _settingsFilePath;
+    void loadDeviceSettings();
+    bool saveDeviceSettings();
+
+    // Devices whose polling is stopped (devman/devenable), by packed device ID - applied again when identified
+    std::unordered_map<uint64_t, bool> _pollingStopped;
+    void applyPollingSetting(RaftDeviceID deviceID);
+
+    // Re-initialisations waiting to complete a deferred response (the result is set on the bus task)
+    struct PendingReInit
+    {
+        uint32_t deferToken = 0;
+        uint32_t startMs = 0;
+        String reqStr;
+        std::atomic<int> result{-1};
+    };
+    std::vector<std::shared_ptr<PendingReInit>> _pendingReInits;
+    static constexpr uint32_t REINIT_TIMEOUT_MS = 5000;
+    static constexpr uint32_t MAX_DEVICE_SETTINGS_FILE_BYTES = 16384;
+    void servicePendingReInits();
+
+    // File helpers ("/local/x.json" is file system "local", file "x.json")
+    static void splitFsPath(const String& path, String& fsName, String& fileName);
+    bool readFileText(const String& path, uint32_t maxBytes, String& text, bool& present);
+    bool writeFileText(const String& path, const String& text);
+
+    // Display name for a device of a type
+    String displayNameFor(RaftDeviceID deviceID, DeviceTypeIndexType deviceTypeIndex) const;
+
+    // Stage 10 endpoints
+    RaftRetCode apiDevManTypes(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManIdentInfo(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManReInit(const String &reqStr, String &respStr, const RaftJson& jsonParams, const APISourceInfo& sourceInfo);
+    RaftRetCode apiDevManDevEnable(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    RaftRetCode apiDevManReserved(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    // System configuration (for settings of other modules read for compatibility)
+    RaftJsonIF& _sysConfig;
+
+    // Device type file: extended records, overrides and disabled types loaded before devices are identified
+    String _typeFilePath;
+    bool _typeFileRequired = false;
+    uint32_t _typeFileSourceId = UINT32_MAX;
+    DeviceTypeFileLoader::Limits _typeFileLimits;
+    DeviceTypeFileLoader::Result _typeFileResult;
+    const char* _typeFileState = "none";            // loading, none, missing, error or applied
+    bool _typeFilePresent = false;
+    uint16_t _typeFileCrc16 = 0;
+    uint32_t _typeFileRecordsAvailable = 0;         // extended records free before the file was loaded
+    bool _typeFileChanged = false;                  // changed since it was loaded (markTypeFileChanged)
+    std::vector<String> _typeFileKeys;              // records the type file added or replaced at startup
+    bool checkTypeFile(const String& path, DeviceTypeFileLoader::Result& result, String& json, String& fileError);
+    static String typeFileEntriesJson(const DeviceTypeFileLoader::Result& result);
+
+    /// @brief Check whether the device type file differs from the one loaded at startup (so a restart is needed to
+    ///        apply it)
+    bool isTypeFileRestartRequired();
+
+    /// @brief Handle devman/reident (identify devices again)
+    RaftRetCode apiDevManReIdent(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Handle devman/typepolicy (set a device type's policy at runtime)
+    RaftRetCode apiDevManTypePolicy(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+
+    /// @brief Read the device type file settings and register the file as a record source (before buses start)
+    void setupTypeFile();
+
+    /// @brief Load the device type file and mark its record source ready
+    void loadTypeFile();
+
+    /// @brief Handle devman/typefile (status) and devman/typefile/apply (restart to apply a new file)
+    RaftRetCode apiDevManTypeFile(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+                const APISourceInfo& sourceInfo);
+
+    // A type file check or apply with a deferred reply (devman/typefile/check and apply): the file is read and
+    // written a chunk per loop() call, and the check runs in a task with its stack in PSRAM - created for it, so
+    // no internal RAM is kept for it, and doing no flash access (a task with its stack in PSRAM mustn't) - so
+    // the main loop isn't held up
+    struct TypeFileJob;
+    std::unique_ptr<TypeFileJob> _pTypeFileJob;
+    RaftRetCode startTypeFileJob(bool apply, const String& reqStr, const String& path, const APISourceInfo& sourceInfo,
+                String& respStr);
+    void serviceTypeFileJob();
+    void finishTypeFileJob(const String& respStr);
+    static void typeFileCheckWork(TypeFileJob& job);
+    static void typeFileCheckTaskFn(void* pArg);
+    static String typeFileCheckJson(const String& path, const char* pText, uint32_t textLen,
+                const DeviceTypeFileLoader::Result& result);
+    static const uint32_t TYPE_FILE_JOB_TIMEOUT_MS = 60000;   // the most a deferred response can wait
+    static const uint32_t TYPE_FILE_READ_CHUNK = 2048;
+    static const uint32_t TYPE_FILE_WRITE_CHUNK = 1024;
+    static const uint32_t TYPE_FILE_CHECK_TASK_STACK = 16384;
+    static const uint32_t TYPE_FILE_CHECK_TASK_PRIORITY = 0;    // tskIDLE_PRIORITY
+    static const int TYPE_FILE_CHECK_TASK_CORE = 0;
+
+    /// @brief Handle devlib (status, with the fields of the feature/device-library branch's endpoint)
+    RaftRetCode apiDevLib(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
 
     // Last report time
     uint32_t _debugLastReportTimeMs = 0;

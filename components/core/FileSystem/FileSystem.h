@@ -57,6 +57,9 @@ public:
 
     // Delete file on file system
     bool deleteFile(const String& fileSystemStr, const String& filename);
+
+    // Rename a file on a file system, replacing one with the new name (atomically on LittleFS)
+    bool renameFile(const String& fileSystemStr, const String& fromName, const String& toName);
     
     // Test file exists and get info
     bool getFileInfo(const String& fileSystemStr, const String& filename, uint32_t& fileLength);
@@ -166,7 +169,7 @@ public:
     // Get temporary file name
     String getTempFileName();
 
-    // Get file system size
+    // Get file system size and bytes used (false if not known - e.g. an SD card's used bytes are still being computed)
     bool getFileSystemSize(const String& fileSystemStr, uint64_t& fsSizeBytes, uint64_t& fsUsedBytes);
     
 private:

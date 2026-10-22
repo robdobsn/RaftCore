@@ -1,0 +1,50 @@
+{
+    "addresses": "0x1d,0x53",
+    "detectionValues": "0x00=0xAD1DCB",
+    "initValues": "0x310b=&0x2d08=",
+    "pollInfo": {
+        "c": "0x32=r6",
+        "i": 100,
+        "s": 3
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Accelerometer",
+        "desc": "3-Axis Accel",
+        "manu": "Analog Devices",
+        "type": "ADXL313",
+        "clas": ["ACC"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "ax",
+                    "t": "<h",
+                    "u": "g",
+                    "r": [-4.0, 4.0],
+                    "d": 1024,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "ay",
+                    "t": "<h",
+                    "u": "g",
+                    "r": [-4.0,4.0],
+                    "d": 1024,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "az",
+                    "t": "<h",
+                    "u": "g",
+                    "r": [-4.0,4.0],
+                    "d": 1024,
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

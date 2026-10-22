@@ -1,0 +1,45 @@
+{
+    "_notes": "Detection per datasheet DS86-2014-0006: PART_ID (0x86) part number 0xA (revision nibble ignored), MANUFAC_ID (0x87) 0x05.",
+    "addresses": "0x29",
+    "detectionValues": "0x86=0b1010XXXX&0x87=0x05",
+    "initValues": "0x8002&=p20&0x8501&0x8001",
+    "pollInfo": {
+        "c": "0x88=r4",
+        "i": 100,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Light Sensor (IR and visible)",
+        "desc": "",
+        "manu": "Lite On",
+        "type": "LTR-329",
+        "clas": ["LGHT"],
+        "resp": {
+            "b": 4,
+            "a": [
+                {
+                    "n": "ir",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0, 64000],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "visible",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0, 64000],
+                    "f": "d",
+                    "o": "uint16"
+                }
+            ],
+            "c": {
+                "n": "ltr329_light_calc",
+                "c": "int combined = buf[2] + (((uint16_t)buf[3])<<8); out.ir = buf[0] + (((uint16_t)buf[1])<<8); out.visible = combined - out.ir;",
+                "j": "let combined = buf[2] + (buf[3]<<8); let ir = buf[0] + (buf[1]<<8); attrValues['ir'].push(ir); attrValues['visible'].push(combined-ir);"
+            }
+        },
+        "actions": []
+    }
+}

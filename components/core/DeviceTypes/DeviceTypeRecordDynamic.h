@@ -1,6 +1,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// RaftCore Device Type Record
+// RaftCore Device Type Record (extended)
+//
+// Holds the data of an extended device type record: one added at runtime (e.g. by a static device),
+// as opposed to a base record, which is generated at build time and held in flash
 //
 // Rob Dobson 2024
 //
@@ -20,7 +23,7 @@ public:
     }
 
     /// @brief Constructor
-    /// @param deviceTypeName 
+    /// @param deviceTypeKey device type key
     /// @param addresses - comma separated list of addresses and/or ranges (e.g. "0x10,0x11" or "0x10-0x17")
     /// @param detectionValues 
     /// @param initValues 
@@ -28,7 +31,7 @@ public:
     /// @param pollDataSizeBytes 
     /// @param devInfoJson 
     /// @param pollResultDecodeFn 
-    DeviceTypeRecordDynamic(const char* deviceTypeName,
+    DeviceTypeRecordDynamic(const char* deviceTypeKey,
             const char* addresses,
             const char* detectionValues,
             const char* initValues,
@@ -38,10 +41,10 @@ public:
             DeviceTypeRecordDecodeFn pollResultDecodeFn)
     {
         // Check valid
-        if (!deviceTypeName)
+        if (!deviceTypeKey)
             return;
         // Store values
-        this->deviceTypeName = deviceTypeName;
+        deviceTypeName = deviceTypeKey;
         this->addresses = addresses ? addresses : "";
         this->detectionValues = detectionValues ? detectionValues : "";
         this->initValues = initValues ? initValues : "";
@@ -71,17 +74,22 @@ public:
         devTypeRec.pollDataSizeBytes = pollDataSizeBytes;
         devTypeRec.devInfoJson = devInfoJson.data();
         devTypeRec.pollResultDecodeFn = pollResultDecodeFn;
+        devTypeRec.scanPriority = scanPriority;
+        devTypeRec.flags = flags;
+        devTypeRec.identPriority = identPriority;
+        devTypeRec.hwTypeId = hwTypeId;
+        devTypeRec.initialPolicy = initialPolicy;
 
         return true;
     }
 
-    /// @brief Get device type name matches
+    /// @brief Check whether the device type keys match
     bool nameMatches(const DeviceTypeRecordDynamic& other) const
     {
         return deviceTypeName == other.deviceTypeName;
     }
 
-    // Device type storage
+    // Device type storage (deviceTypeName holds the device type key - the name is kept for compatibility)
     String deviceTypeName;
     String addresses;
     String detectionValues;
@@ -90,4 +98,23 @@ public:
     uint16_t pollDataSizeBytes = 0;
     SpiramAwareString devInfoJson;
     DeviceTypeRecordDecodeFn pollResultDecodeFn = nullptr;
+
+    // Init code (initCode "c") of a record from a type file, run by the code interpreter (RAFT_RUNTIME_DECODE_CODE)
+    // when the record has no compiled init values function
+    String initCode;
+
+    // Identification and scanning (see DeviceTypeRecord). An extended record's addresses are scanned at high
+    // priority unless set otherwise
+    uint8_t scanPriority = DeviceTypeRecord::SCAN_PRIORITY_HIGH;
+    uint8_t flags = 0;
+    int8_t identPriority = 0;
+    uint16_t hwTypeId = 0;
+    uint8_t initialPolicy = DeviceTypeRecord::POLICY_ENABLED;
+
+    /// @brief Set the hardware type ID (see DeviceTypeRecord::hwTypeId)
+    void setHwTypeId(uint16_t id)
+    {
+        hwTypeId = id;
+        flags |= DeviceTypeRecord::FLAG_HAS_HW_TYPE_ID;
+    }
 };

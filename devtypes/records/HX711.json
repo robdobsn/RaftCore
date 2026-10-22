@@ -1,0 +1,39 @@
+{
+    "detectionValues": "",
+    "initValues": "",
+    "pollInfo": {
+        "c": "=r5",
+        "i": 100,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Force Sensor",
+        "desc": "",
+        "manu": "Avia",
+        "type": "HX711",
+        "clas": ["FRCE"],
+        "resp": {
+            "b": 5,
+            "a": [
+                {
+                    "n": "force",
+                    "t": ">I",
+                    "u": "N",
+                    "r": [-10000,10000],
+                    "m": "0x00ffffff",
+                    "d": 44000,
+                    "sb": 23,
+                    "f": ".3f",
+                    "o": "float"
+                },
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [0,1],
+                    "vl": {"0": "no", "1": "yes"}
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,41 @@
+{
+    "addresses": "0x36",
+    "_notes": "sensor must be wrapped in heatshrink to produce sensible values. very sensitive to human proximity",
+    "detectionValues": "0x0001=p25&=0x55",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x0F10=p250&=r2&0x0004=p250&=r4",
+        "i": 1000,
+        "s": 5
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Soil Moisture Sensor",
+        "desc": "",
+        "manu": "Adafruit",
+        "type": "AdafruitSoilSensor",
+        "clas": ["SOIL"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "moisture",
+                    "t": ">H",
+                    "u": "",
+                    "r": [0, 65535],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "temperature",
+                    "t": ">i",
+                    "u": "&deg;C",
+                    "r": [-45, 175],
+                    "d": 65536,
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

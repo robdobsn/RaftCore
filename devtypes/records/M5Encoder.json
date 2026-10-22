@@ -1,0 +1,54 @@
+{
+    "addresses": "0x40",
+    "detectionValues": "0x20=0b0000000X11111111",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x10=r2&0x20=r2",
+        "i": 100,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Rotary Encoder",
+        "desc": "",
+        "manu": "M5Stack",
+        "type": "M5Encoder",
+        "clas": ["ROT"],
+        "resp": {
+            "b": 4,
+            "a": [
+                {
+                    "n": "rotation",
+                    "t": "<h",
+                    "u": "steps",
+                    "r": [-32768, 32767],
+                    "f": "d",
+                    "o": "int16"
+                },
+                {
+                    "n": "press",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0, 1],
+                    "x": "0x01",
+                    "m": "0x01",
+                    "f": "b",
+                    "o": "bool"
+                }
+
+            ]
+        },
+        "actions": [
+            {
+                "n": "pixels",
+                "t": "BBBB",
+                "w": "30",
+                "f": "LEDPIX",
+                "NX": 2,
+                "NY": 1,
+                "concat": false,
+                "r": [0,255]
+            }
+        ]
+    }
+}

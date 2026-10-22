@@ -1,0 +1,62 @@
+{
+    "_notes": "Gas sensor for IAQ. Detection: 0x0000 = 0x58, 0x00 = config. Init: Send IAQ_INIT and wait 100ms, then poll. Poll: Send MEASURE_IAQ and read 6 bytes (CO2 & TVOC). setBaseline restores the IAQ baseline: TVOC baseline, then eCO2 baseline (the reverse of the order get_baseline returns them). setHumidity: absolute humidity for compensation, 0 turns it off.",
+    "addresses": "0x58",
+    "detectionValues": "0x0000=0x58",
+    "initValues": "0x2003=p100",
+    "pollInfo": {
+        "c": "0x2008=r6",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Gas Sensor (VOC)",
+        "desc": "",
+        "manu": "Sensirion",
+        "type": "SGP30",
+        "clas": ["VOC"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "eCO2",
+                    "t": ">H",
+                    "u": "ppm",
+                    "r": [400, 60000],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "VOC",
+                    "at": 3,
+                    "t": ">H",
+                    "u": "ppb",
+                    "r": [0, 60000],
+                    "f": "5d",
+                    "o": "uint16"
+                }
+            ]
+        },
+        "actions": [
+            {
+                "n": "setBaseline",
+                "t": ">HH",
+                "w": "201e",
+                "crc": "crc8w",
+                "r": [0, 65535],
+                "d": 0,
+                "desc": "Set baseline"
+            },
+            {
+                "n": "setHumidity",
+                "t": ">H",
+                "w": "2061",
+                "crc": "crc8w",
+                "mul": 256,
+                "r": [0, 255],
+                "d": 0,
+                "desc": "Humidity (g/m3)"
+            }
+        ]
+    }
+}

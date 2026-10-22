@@ -459,6 +459,27 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
 // Delete
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+bool FileSystem::renameFile(const String& fileSystemStr, const String& fromName, const String& toName)
+{
+    // Check file system supported
+    String nameOfFS;
+    if (!checkFileSystem(fileSystemStr, nameOfFS))
+        return false;
+
+    // Take mutex
+    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+        return false;
+    String fromPath = getFilePath(nameOfFS, fromName);
+    String toPath = getFilePath(nameOfFS, toName);
+    bool ok = (rename(fromPath.c_str(), toPath.c_str()) == 0);
+#if !defined(__linux__)
+    markFileCacheDirty(nameOfFS, fromName);
+    markFileCacheDirty(nameOfFS, toName);
+#endif
+    RaftMutex_unlock(_fileSysMutex);
+    return ok;
+}
+
 bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
 {
     // Check file system supported
@@ -1351,6 +1372,7 @@ bool FileSystem::localFileSystemSetupSPIFFS(bool formatIfCorrupt)
     _localFsCache.fsSizeBytes = 1024 * 1024 * 100; // 100MB
     _localFsCache.fsUsedBytes = 0;
     RaftAtomicBool_set(_localFsCache.isSizeInfoValid, true);
+    RaftAtomicBool_set(_localFsCache.isUsedInfoValid, true);
     LOG_I(MODULE_PREFIX, "localFileSystemSetup Linux directory /tmp/sandbot_local created");
     return true;
 }
@@ -1450,6 +1472,7 @@ bool FileSystem::sdFileSystemSetup(bool enableSD, int sdMOSIPin, int sdMISOPin, 
     _sdFsCache.fsSizeBytes = 1024 * 1024 * 1000; // 1GB
     _sdFsCache.fsUsedBytes = 0;
     RaftAtomicBool_set(_sdFsCache.isSizeInfoValid, true);
+    RaftAtomicBool_set(_sdFsCache.isUsedInfoValid, true);
     LOG_I(MODULE_PREFIX, "sdFileSystemSetup Linux directory /tmp/sandbot_sd created");
     return true;
 }
@@ -1663,6 +1686,41 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
 }
 
 #endif  // !defined(__linux__) - ESP32-only cache function
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the size of a file system and the bytes used
+/// @param fileSystemStr file system name ("local", "sd", or empty for the default)
+/// @param fsSizeBytes (out) size
+/// @param fsUsedBytes (out) bytes used
+/// @return false if not known (no such file system, or the SD card's used bytes are still being computed)
+/// @note Uses the cached figures, updated first if a write has made them stale (for the local file system that is
+///       quick; an SD card's used bytes are computed in the background, so the first call for one may return false)
+bool FileSystem::getFileSystemSize(const String& fileSystemStr, uint64_t& fsSizeBytes, uint64_t& fsUsedBytes)
+{
+    fsSizeBytes = 0;
+    fsUsedBytes = 0;
+    String fsName;
+    if (!checkFileSystem(fileSystemStr, fsName))
+        return false;
+    CachedFileSystem& cachedFs = fsName.equalsIgnoreCase(LOCAL_FILE_SYSTEM_NAME) ? _localFsCache : _sdFsCache;
+
+    // Refresh stale figures (if the file system is busy the last figures are used; the Linux build's figures are
+    // fixed)
+#ifndef __linux__
+    if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid))
+    {
+        String respStr;
+        fileSysInfoUpdateCache("", cachedFs, respStr);
+    }
+#endif
+    if (!RaftAtomicBool_get(cachedFs.isUsedInfoValid))
+        sdRequestUsedBytesUpdate(cachedFs);
+    if ((cachedFs.fsSizeBytes == 0) || !RaftAtomicBool_get(cachedFs.isUsedInfoValid))
+        return false;
+    fsSizeBytes = cachedFs.fsSizeBytes;
+    fsUsedBytes = cachedFs.fsUsedBytes;
+    return true;
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get JSON file info immediately

@@ -1,0 +1,34 @@
+{
+    "addresses": "0x18-0x1f",
+    "detectionValues": "0x06=0b0000000001010100&0x07=0b00000100XXXXXXXX",
+    "initValues": "0x010000",
+    "pollInfo": {
+        "c": "0x05=r2",
+        "i": 5000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Temperature Sensor",
+        "desc": "",
+        "manu": "Microchip",
+        "type": "MCP9808",
+        "clas": ["TEMP"],
+        "resp": {
+            "b": 2,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": ">H",
+                    "u": "&deg;C",
+                    "r": [-40,125],
+                    "m": "0x1fff",
+                    "d": 16,
+                    "sb": 12,
+                    "f": "3.2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

@@ -78,7 +78,9 @@ private:
     // Mutex for state synchronization
     RaftMutex _stateMutex;
 
-    // Pixel working buffer
+    // Pixel working buffer - in PSRAM, which the RMT driver's encoder reads in its interrupt. Fine while
+    // CONFIG_RMT_ISR_IRAM_SAFE is off (the interrupt is held off while a flash write has the cache disabled);
+    // with it on, this buffer (and this object, which rmtTxCompleteCB writes) must be in internal RAM
     SpiramAwareUint8Vector _pixelBuffer;
 
     // Last transmitted buffer (to skip redundant transmissions)

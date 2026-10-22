@@ -1,0 +1,211 @@
+# Runtime decoding of device type records (D11)
+
+Date: 2026-10-19.
+
+**Status:**
+- **Option 1, attribute decoding: implemented** (sections 1-4).
+- **Option 2, the code interpreter: implemented** (section 5).
+
+## 1. Why
+
+A record compiled into the firmware gets a generated C++ decoder. A record that arrives at runtime gets none, unless it overrides a compiled record with the same response layout. That covers a new record from a device type file, an override with a changed `resp`, and a record registered by firmware code.
+
+Without a decoder, the on-device users of decoded data don't work for that record: DataLogger CSV, RaftROS AutoPub (N5) and named values. Only clients that decode the data themselves (raftjs, the WebUI) see its values. That limited the "all records at runtime" setup (record management plan, M8).
+
+## 2. Design
+
+**Where:** `DeviceTypeRuntimeDecoder` (RaftCore `components/core/DeviceTypes`).
+
+**What it does:**
+- It reads a record's `resp` attribute list.
+- It builds the same struct layout and field descriptions (`AttrFieldDesc`) that `DecodeGenerator.py` generates.
+- It decodes poll results the way the generated standard decode does.
+
+**Exactness:** each step mirrors the generated code.
+- The value is read with the same `Raft::get…AndInc` reader, unsigned for a signed type with `m`.
+- The working value is the generator's intermediate type, a signed type one size larger. It is held in 64 bits and wrapped to the intermediate type's width after each operation. Bitwise and modular arithmetic then give the same bits as the generated code, with any C literal type.
+- A float intermediate stays a `float`, so even a NaN's bits match.
+- The value is stored to the field's type, then `d` and `a` are applied in that type. An integer literal (`8192`) and a floating one (`1024.0`) behave as they do in C++: integer or float arithmetic.
+- `lut` is worked in a double, as generated.
+- An `at` list of byte positions assembles the bytes into one value. The generated code's bounds check for this case compares pointers into different buffers; no record uses it.
+
+**Hook-up:** `DeviceTypeRecords` gives any record with no decoder a runtime decoder when the record is added (`attachRuntimeDecoderLocked`). It fills the record's `pollResultDecodeFn`, `pollFieldDescs`, `pollFieldCount` and `pollStructSize`, so every user of a record works unchanged.
+
+**The function pointer:** `DeviceTypeRecordDecodeFn` is a plain function pointer. So each decoder takes one of `RAFT_RUNTIME_DECODE_MAX_DECODERS` (default 64) slots, and each slot has its own small function.
+
+**Lifetime:** records are never freed while their table exists. Decoders live as long as the table, and free their slots with it.
+
+**Re-adding a record:** a record given no decode function that has one attached (inherited or runtime) still matches itself when added again (`DeviceTypeRecordPacked::contentMatches`).
+
+**When:** a record's decoder is made when a device of its type is first identified, not when the record is added
+(section 8).
+
+**Reporting:**
+- `devman/typeinfo` gives `"decoder": "compiled" | "runtime" | "runtimePending" | "runtimeFailed" | "none"`.
+- The type file check's `noDecoder` reflects what the firmware built.
+- The host-side type file build (`AssembleDeviceTypes.py --typefile`) reports `decoder: "runtime"` for a record with no compiled decoder, or `"none"` for one with custom code.
+
+**Not decoded at runtime:**
+- records with custom decode code (`resp.c`), which needs option 2;
+- records with an attribute the build couldn't decode (e.g. `t: "h"` with no endian). These are logged.
+
+## 3. Build flags
+
+Set in a SysType's `features.cmake`:
+
+| Flag | Default | Effect |
+|-|-|-|
+| `RAFT_RUNTIME_DECODE` | `ON` | Builds the attribute decoder. `OFF` saves about 17 KB of flash (Axiom018: 1,944,112 vs 1,926,608 bytes) |
+| `RAFT_RUNTIME_DECODE_CODE` | `OFF` | The code interpreter (option 2): custom decode code and init code of type file records. About 23 KB more (Axiom018: 1,967,616 vs 1,945,040 bytes) |
+| `RAFT_RUNTIME_DECODE_VERIFY` | `OFF` | Debug only: compares runtime decoders with the compiled ones on the device (section 6). About 7 KB |
+
+The RaftCore CMake turns them into compile definitions of the same names. The Linux unit tests build with `RAFT_RUNTIME_DECODE`.
+
+**Flash, by function:** about 15.6 KB in all.
+- `parse` (the attribute JSON): 4.9 KB.
+- `decodeElem` (the per-field-type store paths): 4 KB.
+- The rest: small functions, plus 64 slot functions.
+
+A first version templated on every working, field and literal type cost 41 KB.
+
+## 4. Tests
+
+**`linux_unit_tests/test_runtime_decoder`:**
+- **Equivalence:** for every compiled RaftCore record with a standard decode (47 records), a decoder made from the record's own JSON must have the same struct size and field descriptions. It must also decode 3000 random poll buffers to the same bytes, record count and timestamp state as the compiled decoder. The buffers are biased towards 0x00, 0xFF, 0x7F and 0x80, and include several records and truncated ends. The first runs caught a float NaN difference, which is fixed.
+- **Integration:** a type file record gets a runtime decoder and decodes through its `pollResultDecodeFn`. The same file applied again isn't a conflict. Custom code gets no decoder. Slots are freed with the table.
+- **Also tested:** `at` lists, and attributes the decoder refuses.
+
+**Elsewhere:**
+- `test_device_type_file`: `noDecoder` follows the build flag.
+- Python: `decoder` entries in the type file build.
+
+**On Axiom018:** the Power device's code-registered record now reports `"decoder":"runtime"`, and compiled records report `"compiled"`.
+
+## 5. Option 2: the code interpreter (implemented)
+
+**Why:**
+- 11 RaftCore records use custom decode code: BME280/680/690, MS8607PT, GravityO2, LTR-329, MICS6814Pimoroni, SCD30, MAX30101 and LSM6DS3/TRC.
+- The same interpreter lets type files carry init code (`initCode`, `computed-init-values.md`).
+
+**What the language means:** the build passes the code token by token into C++, so its meaning is C++'s:
+- `int` and `float` are 32-bit;
+- a literal such as `16.0` is a `double`;
+- `buf[i]` is an unsigned byte promoted to `int`;
+- `out.<name>` has its struct field's type.
+
+**How the interpreter matches it:** `DeviceTypeCodeProgram` (`DeviceTypeCodeInterpreter.h/.cpp`) compiles the code once, when the record is added, into a typed tree.
+- **At compile time:** each expression's type is worked out by C++'s rules (literal types, integer promotions, the usual arithmetic conversions).
+- **At run time:** it evaluates with the same C++ operations on those types.
+- **Accepted:** declarations (`int`, `float`, `int8_t` to `uint32_t`), assignment and compound assignment, `++`/`--`, casts, `if`/`else`, `while`, `return`, `next`, the C operators (no `?:` or comma operator), decimal/hex/float literals, `buf[]`, `out.<attribute>` (arrays written only, `out.<name>[i] = value`) and `init.<name>`.
+- **Refused:** anything else, such as function calls, undeclared names or float operands of integer operators.
+
+**Protections compiled code doesn't need:**
+- `buf[]` outside the data gives 0;
+- integer division by zero gives 0;
+- an instruction budget (200,000 per decode call, 100,000 per init) stops a loop that doesn't end.
+
+**The custom decode wrapper** (`DeviceTypeRuntimeDecoder::decodeCustom`) follows the generated one:
+- the per-record timestamp;
+- array fields zeroed for each sample;
+- at `next`: the sign extension of signed attributes stored as float, the move to the next output record (when full, a `break` out of the innermost loop) and the `us` sample time step;
+- `next` appended to code without one (found the way the build's lexer finds it);
+- `return` returning the function's result.
+
+**Init code** (`DeviceTypeRuntimeInit`) runs as the record's init values function:
+- **Contract:** false if fewer bytes were read than the init steps before the first slot or guard read; the names follow their first use.
+- **Slots:** its own pool of `RAFT_RUNTIME_INIT_MAX` (16).
+- **Type files:**
+  - With the interpreter, a record may carry `initCode`; it must compute every value slot and guard its init string uses. An override's own `initCode` replaces the compiled one.
+  - Without the interpreter, the earlier rule stays: the record must override a compiled record whose init code computes them.
+  - The host-side type file build reports `initCode: "runtime"` (only firmware with the interpreter runs it) or `"runtime or compiled"`.
+
+**Tests** (`test_runtime_decoder`):
+- **Decode:** all 58 records with a decode, including the 11 custom ones, decode byte for byte as their compiled decoders over 3000 random poll buffers each, with output room for 1, 4 or 32 records.
+- **Init:** the 4 records with init code (BME680, BME690, MICS6814Pimoroni, SCD30) give the compiled init functions' results and values over 5000 random read buffers each.
+- **Language:** cases against native C++, covering signed/unsigned comparison, integer division, double literals stored to float, casts, shifts, `++`, compound assignment, loops, `!`/`~`/`&&`/`||`, out-of-range `buf`, division by zero and `int8_t` wrapping. Plus the budget, `return`, and refused code.
+- **Type files** (`test_device_type_file`): a record's own `initCode` computes its slot and writes it; a slot its code doesn't compute is refused, and so is code outside the language.
+
+## 6. Checking on a device: the decode verifier
+
+**Why:** the host tests compare the decoders on random data. The verifier compares them on real sensor data, on the device's own CPU and compiler, and measures the time and stack a runtime decode takes there.
+
+**What it does** (`DeviceTypeDecodeVerifier`, with `RAFT_RUNTIME_DECODE_VERIFY`):
+- Every poll result of a device whose type has a compiled decoder is decoded twice: by the compiled decoder and by a runtime decoder made from the record's JSON. The two outputs, record counts and timestamp states are compared byte for byte.
+- When a device is identified, a compiled record's init values function is compared with its init code run by the interpreter, on the bytes the init steps read. The build keeps the init code text for this (`baseDevTypeInitCode`, generated only with the flag).
+- The decodes run where poll results are delivered (the bus task), as a subscriber's decode does. The runtime decoders and init functions are made in DeviceManager's loop, as making them (JSON parsing, the code compiler) needs much more stack than running them.
+- A call with less than 3 KB of stack free is skipped and counted.
+- The verifier's decoders and init functions are made without slots (`create(..., takeSlot = false)`).
+
+**Results:** `devman/decodeverify` (`reset=1` clears them after reporting):
+- totals: `polls`, `mismatches`, `initRuns`, `initMismatches`, `skippedLowStack`;
+- `stackMinFree`: the least stack the verifying task has ever had left (its high water mark), and `stackAtCallMinFree`: the least free where the verifier was called;
+- per type: `decoder` (`compared`, `pending`, `notCompared` with a `problem`, `notCompiled`, `noPolls`), `polls`, `records`, `mismatches`, `notReady` (results before its decoder was made), `depth` (the interpreter's deepest nesting), `us` (mean and max microseconds for each decoder), `first` (the first mismatch: poll data, record counts, field, both decoders' bytes) and `init`.
+
+**First results on Axiom018** (2026-10-20, IMU, fuel gauge and SCD30):
+- 1,367 polls, 6,968 records, 0 mismatches; SCD30's init values the same.
+- Time per decode, compiled vs runtime: LSM6DS3 FIFO (custom code, about 5 samples per poll) 87 vs 800 µs (max 3.1 ms); MAX17048 60 vs 188 µs; SCD30 49 vs 291 µs.
+- Stack: 3.3 KB free in the I2C task where poll results are delivered (5 KB stack), 2.1 KB at its lowest with verification running.
+
+**A bug it found:** a poll split by pauses (e.g. SCD30's `0x0202=p5&=r3&...`) is completed over several bus passes, and a device's data subscribers were given only the part after the last pause, without the timestamp - so DataLogger and other subscribers decoded wrong data for such devices (the devbin stream was right: it is stored whole). Fixed: `DeviceStatus::storePollResults` gives the whole result (`pCompletePollResult`) and RaftI2C's `BusStatusMgr` passes it to the callback. SCD30 then: 24 polls, 24 records, 0 mismatches.
+
+**Stack use of the interpreter:** a frame per level of nesting, on ESP32 (Xtensa) 112 bytes per expression level (`eval`) and 80 per statement level (`exec`) since `Val` became a 16-byte tagged union (176 and 208 before). The deepest compiled records reach eval 9 (BME280/690) and exec 10 (SCD30), so about 1.8 KB. The first verify build made its decoders in the bus task: compiling there overflowed the 5 KB I2C task stack at boot.
+
+**For records decoded only at runtime:** a subscriber that decodes in the bus task (DataLogger) runs the interpreter there, with the frames above and about 10 times the compiled decode time for custom code.
+
+## 7. All records from a type file (Axiom018, 2026-10-21)
+
+**Setup:** no compiled records (`builtin.include` empty), all 56 of Axiom018's records (RaftCore's and Axiom's) in the type file (53.6 KB), uploaded and applied from the dashboard over BLE. The firmware is 79 KB smaller.
+
+**Results:**
+- The file's check: 56 added, 0 rejected (one warning: HX711 has no address); check and apply each block the main loop for about 1.3 s.
+- All 6 connected devices identified from the file's records, with runtime decoders (4 with custom decode code as bytecode); the init code from the file ran (MICS6814 registers as compiled); the power manager reads the fuel gauge through its runtime decoder.
+- DataLogger CSV session of all 6 devices (its decodes in the I2C task): 6,663 samples, no overflows.
+
+| | Compiled records | All from the type file |
+|-|-|-|
+| Internal heap free / lowest | 118 KB / 80.7 KB | 113.5 KB / 49.5 KB |
+| Main loop average | 655 us | 756 us |
+| I2C worker stack least free (5000) | 2,008 B | 2,040 B; 1,400 B with a DataLogger session |
+
+**Found and fixed on the way:**
+- Internal RAM: the first run had 32 KB free, 1.2 KB at its lowest (WiFi couldn't create a task). Allocations under 16 KB go to internal RAM (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`), and the records' parsed command strings, decoder fields and interpreter trees are many small ones. Now: a record's parsed command strings are cached when first used (as a compiled record's are), not when it is added; a program's tree is freed once it has bytecode; decoder fields are in PSRAM (`SpiramAwareAllocator`); vectors sized exactly. The bytecode stays in internal RAM (read every poll).
+- A type file check made a runtime decoder (with one of the 64 slots) per record beside the device's own: a check-only table now makes them without slots.
+- DataLogger re-registered its devices without unsubscribing the old contexts (use after free) - Axiom.
+
+**Internal RAM, measured again like for like** (same code; the "compiled records" figures above were with older code and a one-record type file, and their main loop figure without the dashboard connected - its BLE publishing, not the type file, is the extra 100 us):
+
+| Axiom018, internal RAM free (steady / lowest) | |
+|-|-|
+| Compiled records, no type file | 168.8 / 107.0 KB |
+| All 56 from a type file, before the changes below | 113.5 / 49.6 KB |
+| + compiler: tokens refer to the code, tokens and tree in PSRAM | (lowest during the load 49.6 -> 60.9 KB) |
+| + decoders, their field descriptions and names in PSRAM | 137.4 / 82.7 KB |
+| + bytecode in PSRAM | 159.9 / 97.9 KB |
+
+Decode times with the decoders and bytecode in PSRAM (verify build) are the same as before within the run to run variation (tens of us cold); the attribute decoder of MAX17048 is about 6 us slower warm.
+
+**`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`** (malloc puts blocks under this in internal RAM; 16384 is ESP-IDF's default): 4096 gave about 9 KB more internal RAM free (169.3 / 108.1 KB with all records from the type file) with no change in decode times or DataLogger flush times. The I2C interrupt (ESP_INTR_FLAG_IRAM) reads and writes the caller's buffers while the flash cache may be disabled (a file system write): with poll read buffers in PSRAM (threshold 64) the Axiom boot-looped with "Cache disabled but cached memory region accessed". With the default threshold every I2C buffer is internal (a transfer is at most about 1.5 KB, and BusRequestInfo copies write data into its own vector). RaftI2C now copies a buffer that isn't in internal RAM through an internal bounce buffer (tested with threshold 64), so a lower threshold is safe for I2C; other interrupt handlers would need the same check before lowering it.
+
+## 8. Decoders made on demand (2026-10-22)
+
+Plan and decisions: [runtime-decoders-on-demand-plan.md](runtime-decoders-on-demand-plan.md).
+
+- A record is checked when it is added (a decoder is made and thrown away), and marked `runtimePending`. Its decoder
+  is made by `DeviceTypeRecords::ensureDecoder` when a device of the type is first identified, and kept. A record
+  with custom decode code still gets its decoder when it is added.
+- `ensureDecoder` is called by `DeviceManager::busElemStatusCB` on the main task, for each device reported
+  identified, before its status listeners are told and before its data dispatcher is installed. So nothing decodes
+  a device's data before its decoder exists. `setupStaticDevice` calls it for a static device's type.
+- Not on the bus task: making the decoder of a large record (TrillSquare, 16 attributes) takes about 2 KB of stack
+  and 7-10 ms on an ESP32-S3, and the I2C worker task (5000 bytes) has about 2 KB free on an Axiom (section 7).
+- Settings (DevMan `typeTable`): `runtimeDecoders` (`onIdentify`, `atLoad`, `off`) and `maxDecoderBytes` (default
+  no limit with PSRAM, 8192 without).
+- The decode function is written last (release) and read with acquire, so a reader that sees it sees the fields.
+
+Measured (`unit_tests`, ESP32-S3, typical 4-attribute records):
+
+| | Before | On demand |
+|-|-|-|
+| No PSRAM, 32 records added | 48.4 KB internal | 18.3 KB internal; 950 B for each decoder made, 8 within the 8 KB budget |
+| PSRAM, 256 records added | 202 KB PSRAM, 192 records with no decoder (64 slots used by the first 64) | 144 KB PSRAM; decoders only for the types identified, a slot each |
+

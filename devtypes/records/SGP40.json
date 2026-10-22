@@ -1,0 +1,32 @@
+{
+    "_notes": "Gas sensor for VOC measurements (0-500). Hotplate temp controlled by command 0x59. Init: None needed. Poll: Send 0x2600 + humidity/temp compensation (default to 50%RH=0x8000, 25°C=0x6666), read raw signal (VOC ticks).",
+    "addresses": "0x59",
+    "detectionValues": "",
+    "initValues": "0x260f8000a2666693",
+    "pollInfo": {
+        "c": "=r3&0x260f8000a2666693=",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "SGP40",
+        "desc": "Gas Sensor",
+        "manu": "Sensirion",
+        "type": "SGP40",
+        "clas": ["VOC"],
+        "resp": {
+            "b": 3,
+            "a": [
+                {
+                    "n": "vocTicks",
+                    "t": ">H",
+                    "u": "ticks",
+                    "r": [0, 65535],
+                    "f": "5d",
+                    "o": "uint16"
+                }
+            ]
+        }
+    }
+}

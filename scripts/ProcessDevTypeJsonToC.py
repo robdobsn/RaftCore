@@ -4,6 +4,9 @@ import re
 import argparse
 
 from DecodeGenerator import DecodeGenerator
+import DeviceTypeGrammar
+import AssembleDeviceTypes
+from PseudocodeHandler import PseudocodeHandler
 from MicroPythonGenerator import MicroPythonGenerator
 
 # ProcessDevTypeJsonToC.py
@@ -23,6 +26,197 @@ from MicroPythonGenerator import MicroPythonGenerator
 # --POLL_RESULT_RESOLUTION_US - the resolution of the timestamp in the poll result data
 # --DECODE_STRUCT_TIMESTAMP_C_TYPE - the C data type for the timestamp in the decoded data struct
 # --DECODE_STRUCT_TIMESTAMP_RESOLUTION_US - the resolution of the timestamp in the decoded data struct
+
+# Records whose devInfoJson "type" has always differed from the device type key. Clients may match on these
+# values, so they are kept as they are (the device type key is available to clients as deviceTypeKey)
+DEV_INFO_TYPE_DIFFERS_FROM_KEY = {
+    "AdafruitGamepad": "Gamepad",
+    "RoboticalThermocoupleAmp": "Thermocouple",
+}
+
+def check_and_normalise_device_type_keys(dev_types, json_file_path):
+    """Check the device type key of each record and fill in its deviceType field
+
+    The key of each record in devTypes is the device type key - the record's identifier. A record may omit
+    "deviceType"; if present it must equal the key. Afterwards every record's "deviceType" is the key, so the
+    rest of the generator (and the MicroPython generator) gets the key from either.
+    devInfoJson "type" is a copy of the key kept for clients; a new mismatch gives a warning
+    """
+    for dev_type_key, dev_type in dev_types.items():
+        declared_type = dev_type.get("deviceType")
+        if (declared_type is not None) and (declared_type != dev_type_key):
+            print(f"ERROR: {json_file_path}: record \"{dev_type_key}\" has deviceType \"{declared_type}\" - "
+                  f"deviceType must equal the record's key (or be omitted)", file=sys.stderr)
+            sys.exit(1)
+        dev_type["deviceType"] = dev_type_key
+        dev_info = dev_type.get("devInfoJson")
+        if isinstance(dev_info, dict) and ("type" in dev_info) and (dev_info["type"] != dev_type_key):
+            if DEV_INFO_TYPE_DIFFERS_FROM_KEY.get(dev_type_key) != dev_info["type"]:
+                print(f"WARNING: {json_file_path}: record \"{dev_type_key}\" has devInfoJson type \"{dev_info['type']}\" "
+                      f"which differs from its key")
+
+SCAN_PRIORITY_NONE = 0xff
+SCAN_PRIORITY_NAMES = {"high": 0, "medium": 1, "low": 2}
+NUM_SCAN_PRIORITY_LEVELS = 3
+FLAG_PROBE_ONLY = 0x01
+FLAG_HAS_HW_TYPE_ID = 0x02
+FLAG_NO_SCAN_WHILE_POLLED = 0x04
+
+POLICY_ENABLED = 0
+POLICY_DISABLED = 1
+POLICY_DISABLED_CLAIM = 2
+
+INIT_VALUE_NAME_RE = re.compile(r"\binit\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def init_values(dev_type, dev_type_key):
+    """A record's init values (initCode, devdocs/computed-init-values.md): (names, C++ function) or (None, None) if it
+    has none. Errors (exit): {name} value slots or {?name} guards in initValues with no initCode, or one whose value
+    initCode doesn't assign. The function computes the values from the bytes read by the init steps before the first
+    step with a slot or guard"""
+    compiled = DeviceTypeGrammar.compile(dev_type.get("initValues", ""), "init")
+    slot_names = []
+    read_before_slots = 0
+    seen_slot = False
+    for step in compiled.steps:
+        if step.slots or step.guard:
+            seen_slot = True
+            slot_names += [name for _, name in step.slots] + ([step.guard] if step.guard else [])
+        elif not seen_slot:
+            read_before_slots += step.read
+    init_code = dev_type.get("initCode")
+    code = (init_code.get("c", "") if isinstance(init_code, dict) else (init_code or "")).strip()
+    if not code:
+        if slot_names:
+            print(f"ERROR: record \"{dev_type_key}\" initValues has value slots or guards ({', '.join(sorted(set(slot_names)))}) but "
+                  f"no initCode to compute them", file=sys.stderr)
+            sys.exit(1)
+        return None, None
+    names = list(dict.fromkeys(INIT_VALUE_NAME_RE.findall(code)))
+    missing = [name for name in dict.fromkeys(slot_names) if name not in names]
+    if missing:
+        print(f"ERROR: record \"{dev_type_key}\" initCode doesn't assign init.{', init.'.join(missing)} (used in "
+              f"initValues)", file=sys.stderr)
+        sys.exit(1)
+    if not slot_names:
+        print(f"WARNING: record \"{dev_type_key}\" has initCode but initValues has no value slots or guards to use it")
+    for problem in PseudocodeHandler().check_code(code, [], code_kind="init"):
+        print(f"INIT CODE WARNING: record \"{dev_type_key}\" initCode: {problem}")
+    handler = PseudocodeHandler()
+    body = handler.generate_cpp_code(list(handler.lexer(code)),
+                                     {rf"^init\.{name}$": f"pValues[{idx}]" for idx, name in enumerate(names)})
+    body = "\n".join("            " + line for line in body.strip().split("\n"))
+    fn = ("[](const uint8_t* buf, uint32_t readBufLen, int32_t* pValues, uint32_t numValues) -> bool {\n"
+          f"            if ((readBufLen < {read_before_slots}) || (numValues < {len(names)})) return false;\n"
+          f"{body}\n"
+          "            return true;\n"
+          "        }")
+    return names, fn
+
+
+def record_initial_policy(dev_type, dev_type_key):
+    """A record's initial policy from "disable": absent or false = enabled, true = disabled, "claim" = disabled with
+    the address still claimed (reserved, and the identification hook not run there)"""
+    value = dev_type.get("disable", False)
+    if value is False:
+        return POLICY_ENABLED
+    if value is True:
+        return POLICY_DISABLED
+    if value == "claim":
+        return POLICY_DISABLED_CLAIM
+    print(f"ERROR: record \"{dev_type_key}\" disable must be true, false or \"claim\"", file=sys.stderr)
+    sys.exit(1)
+
+def record_ident_fields(dev_type, dev_type_key):
+    """Identification and scanning fields of a record, as emitted in its DeviceTypeRecord:
+    (scanPriority, flags, identPriority, hwTypeId)
+
+    scanPriority: "high"/"medium"/"low" or 1-3 gives 0-2 (clamped); absent gives SCAN_PRIORITY_NONE
+    flags: FLAG_PROBE_ONLY for "excludeFromAddrMap" or "probeOnly"; FLAG_HAS_HW_TYPE_ID if "deviceTypeId" is set;
+           FLAG_NO_SCAN_WHILE_POLLED for "scanWhilePolled": false
+    identPriority: -128 to 127, default 0
+    hwTypeId: "deviceTypeId" as a number or a string such as "0x0084", 0 to 0xffff
+    """
+    scan_priority = SCAN_PRIORITY_NONE
+    if "scanPriority" in dev_type:
+        value = dev_type["scanPriority"]
+        if isinstance(value, bool):
+            value = None
+        if isinstance(value, int):
+            scan_priority = min(max(value - 1, 0), NUM_SCAN_PRIORITY_LEVELS - 1)
+        elif isinstance(value, str) and value in SCAN_PRIORITY_NAMES:
+            scan_priority = SCAN_PRIORITY_NAMES[value]
+        else:
+            # Matches the address map built before records carried this field: an unrecognised value is low
+            scan_priority = NUM_SCAN_PRIORITY_LEVELS - 1
+    flags = 0
+    if dev_type.get("excludeFromAddrMap", False) or dev_type.get("probeOnly", False):
+        flags |= FLAG_PROBE_ONLY
+    scan_while_polled = dev_type.get("scanWhilePolled", True)
+    if not isinstance(scan_while_polled, bool):
+        print(f"ERROR: record \"{dev_type_key}\" scanWhilePolled must be true or false", file=sys.stderr)
+        sys.exit(1)
+    if not scan_while_polled:
+        flags |= FLAG_NO_SCAN_WHILE_POLLED
+    hw_type_id = 0
+    if "deviceTypeId" in dev_type:
+        value = dev_type["deviceTypeId"]
+        try:
+            hw_type_id = int(value, 0) if isinstance(value, str) else int(value)
+        except (TypeError, ValueError):
+            print(f"ERROR: record \"{dev_type_key}\" has an invalid deviceTypeId {value!r}", file=sys.stderr)
+            sys.exit(1)
+        if not 0 <= hw_type_id <= 0xffff:
+            print(f"ERROR: record \"{dev_type_key}\" deviceTypeId {value!r} is outside 0-0xffff", file=sys.stderr)
+            sys.exit(1)
+        flags |= FLAG_HAS_HW_TYPE_ID
+    ident_priority = dev_type.get("identPriority", 0)
+    if not isinstance(ident_priority, int) or isinstance(ident_priority, bool) or not -128 <= ident_priority <= 127:
+        print(f"ERROR: record \"{dev_type_key}\" identPriority must be an integer from -128 to 127", file=sys.stderr)
+        sys.exit(1)
+    return scan_priority, flags, ident_priority, hw_type_id
+
+
+def duplicate_hw_type_id_warnings(dev_types):
+    """Warnings for hardware type IDs (deviceTypeId) used by more than one record
+
+    Lookups by hardware type ID (getRecordByHwTypeId) return only one of them - the first in catalogue order
+    """
+    keys_by_id = {}
+    for dev_type_key, dev_type in dev_types.items():
+        if "deviceTypeId" not in dev_type:
+            continue
+        value = dev_type["deviceTypeId"]
+        try:
+            hw_type_id = int(value, 0) if isinstance(value, str) else int(value)
+        except (TypeError, ValueError):
+            continue
+        keys_by_id.setdefault(hw_type_id, []).append(dev_type_key)
+    return [f"WARNING: deviceTypeId 0x{hw_type_id:04x} is used by {', '.join(keys)} - lookups by hardware type ID "
+            f"return {keys[0]}" for hw_type_id, keys in sorted(keys_by_id.items()) if len(keys) > 1]
+
+def report_grammar_issues(dev_type, dev_type_key, decode_generator=None):
+    """Print the grammar's errors and warnings for a record's command strings. Returns the number of errors"""
+    num_errors = 0
+    for field, result in DeviceTypeGrammar.check_record(dev_type):
+        source = dev_type.get("detectionValues", "") if field == "detection" else (
+            dev_type.get("initValues", "") if field == "init" else dev_type.get("pollInfo", {}).get("c", ""))
+        for code, pos in result.issues:
+            kind = "ERROR" if DeviceTypeGrammar.is_error(code) else "WARNING"
+            num_errors += 1 if kind == "ERROR" else 0
+            print(f"GRAMMAR {kind}: record \"{dev_type_key}\" {DeviceTypeGrammar.FIELD_NAMES[field]}: {code} at {pos} "
+                  f"in \"{source}\"")
+        # The poll size the firmware computes from the steps must equal the size this generator works out
+        if field == "poll" and decode_generator is not None and not dev_type.get("pollInfo", {}).get("ext", 0):
+            grammar_size = sum(step.read for step in result.steps)
+            try:
+                generator_size = decode_generator._get_polling_config_result_len_bytes(source)
+            except ValueError:
+                generator_size = None
+            if generator_size is not None and grammar_size != generator_size:
+                print(f"GRAMMAR WARNING: record \"{dev_type_key}\" pollInfo.c reads {grammar_size} bytes in the firmware "
+                      f"but the generator sizes it as {generator_size}")
+    return num_errors
 
 def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, gen_options):
     # Remove any leading or trailing square brackets
@@ -44,28 +238,38 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
     for json_file_path in json_files:
         if json_file_path.strip() == "":
             continue
-        with open(json_file_path.strip(), 'r') as json_file:
-            file_json = json.load(json_file)
-            # Merge device types from multiple JSON files
-            dev_ident_json['devTypes'].update(file_json.get('devTypes', {}))
+        # A catalogue file ({"devTypes": {...}}) or a folder of record files (<Key>.json, in key order) - see
+        # AssembleDeviceTypes.py
+        try:
+            file_records, _ = AssembleDeviceTypes.load_catalogue(json_file_path.strip(), record_file=False)
+        except AssembleDeviceTypes.AssembleError as err:
+            print(f"ERROR: {err}", file=sys.stderr)
+            sys.exit(1)
+        file_dev_types = file_records
+        # Policy-only entries ({"disable": true} or {"disable": "claim"}, no record body) set the policy of a
+        # record from an earlier file and are not records themselves (D23)
+        for dev_type_key in list(file_dev_types.keys()):
+            entry = file_dev_types[dev_type_key]
+            if isinstance(entry, dict) and "disable" in entry and set(entry.keys()) <= {"disable", "deviceType", "_notes"}:
+                del file_dev_types[dev_type_key]
+                if dev_type_key in dev_ident_json['devTypes']:
+                    dev_ident_json['devTypes'][dev_type_key]["disable"] = entry["disable"]
+                else:
+                    print(f"WARNING: {json_file_path.strip()}: \"{dev_type_key}\" sets a policy but no earlier file "
+                          f"has a record with that key - ignored")
+        check_and_normalise_device_type_keys(file_dev_types, json_file_path.strip())
+        # Merge device types from multiple JSON files (a later file's record replaces an earlier one's)
+        for dev_type_key in file_dev_types:
+            if dev_type_key in dev_ident_json['devTypes']:
+                print(f"WARNING: {json_file_path.strip()}: record \"{dev_type_key}\" replaces a record with the "
+                      f"same key in an earlier file")
+        dev_ident_json['devTypes'].update(file_dev_types)
 
-    # Address range
-    min_addr_array_index = 0
-    max_addr_array_index = 0x7f
-    min_valid_i2c_addr = 0x04
+    # Highest address the firmware identifies by
     max_valid_i2c_addr = 0x77
 
-    # Address indexes
-    addr_index_to_dev_record = {}
-
-    # Scan priorities
-    NUM_PRIORITY_LEVELS = 3
-    addr_scan_priority_sets = [set() for _ in range(NUM_PRIORITY_LEVELS)]
-    scan_priority_values = {
-        "high": 0,
-        "medium": 1,
-        "low": 2
-    }
+    # Records (in order) that identify a device by each address - for the shadowing report
+    addr_to_record_keys = {}
 
     # Iterate device type records
     dev_record_index = 0
@@ -92,64 +296,69 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
                     print(f"Invalid address range {addr_range}")
                     sys.exit(1)
 
+            # Addresses above the 7-bit range used by the firmware's address index can't be identified -
+            # fail rather than drop them silently (C12)
+            bad_addrs = [addr for addr in addr_list if addr > max_valid_i2c_addr]
+            if len(bad_addrs) > 0:
+                bad_addrs_hex = ",".join([f'0x{addr:02x}' for addr in bad_addrs])
+                print(f"ERROR: record \"{dev_type['deviceType']}\" has addresses {bad_addrs_hex} above "
+                      f"0x{max_valid_i2c_addr:02x}, which can't be identified", file=sys.stderr)
+                sys.exit(1)
+
         # Debug
         addr_list_hex = ",".join([f'0x{addr:02x}' for addr in addr_list])
-        print(f"Record {dev_record_index} Addresses {addr_range} Addr List {addr_list_hex}")
+        print(f"Record {dev_record_index} Addresses {addresses} Addr List {addr_list_hex}")
 
-        # Some device types (e.g. Robotical RSAOs) are identified by probing rather than by
-        # bus address, and several share the same addresses. They are excluded from the
-        # address->record map (and scan-priority sets) so they are not auto-identified by
-        # address; they keep their record (index, decode fn, addresses string) and are
-        # adopted explicitly by the RSAO identification hook instead.
-        exclude_from_addr_map = bool(dev_type.get("excludeFromAddrMap", False))
+        # Identification and scanning fields (validated here; the firmware builds its address map and scan lists
+        # from them at runtime). A probe-only record (e.g. Robotical RSAOs, identified by an identification
+        # hook rather than by bus address) isn't identified by address
+        _, flags, _, _ = record_ident_fields(dev_type, dev_type["deviceType"])
 
-        # Scan priority
-        # A record with no "addresses" contributes no addresses to prioritise. Guard for it:
-        # without this, addr_list[0] below raises IndexError for any record that declares a
-        # scanPriority but no addresses (all RSAO records are in exactly that state today, so
-        # clearing excludeFromAddrMap on one would crash the build rather than do anything).
-        if "scanPriority" in dev_type and not exclude_from_addr_map and len(addr_list) > 0:
-            scan_priority = dev_type.get("scanPriority", 0)
+        # Command strings: report problems found by the grammar the firmware uses (D19: reported, not yet
+        # rejected - an error means the firmware won't use that detection string, or drops that step)
+        report_grammar_issues(dev_type, dev_type["deviceType"], decodeGenerator)
 
-            # If scan_priority is an array then set scan priority for primary address to first
-            # element and for all other addresses to the second element
-            priority_value = scan_priority-1 if isinstance(scan_priority, int) else scan_priority_values[scan_priority] if isinstance(scan_priority, str) else NUM_PRIORITY_LEVELS-1
-            if priority_value < 0:
-                priority_value = 0
-            if priority_value > NUM_PRIORITY_LEVELS-1:
-                priority_value = NUM_PRIORITY_LEVELS-1
-            if priority_value == 0:
-                addr_scan_priority_sets[0].add(addr_list[0])
-                for addr in addr_list[1:]:
-                    addr_scan_priority_sets[1].add(addr)
-            else:
-                for addr in addr_list:
-                    addr_scan_priority_sets[priority_value].add(addr)
+        # The poll bus speed is a choice for the board (DevMan "typeSettings"), no longer part of a record
+        for bus_key in ("busHz", "h", "busHzSlots", "hSlots"):
+            if bus_key in dev_type.get("pollInfo", {}):
+                print(f"WARNING: record \"{dev_type['deviceType']}\" pollInfo.{bus_key} is no longer used - set the "
+                      f"poll bus speed in the SysType's DevMan typeSettings")
 
-        # Generate a dictionary with all addresses referring to a record index
-        if not exclude_from_addr_map:
+        # Decode code is compiled into the firmware: report anything outside the decode language (a record from a git
+        # source with such code is rejected when the records are assembled - AssembleDeviceTypes.py)
+        custom_decode = dev_type.get("devInfoJson", {}).get("resp", {}).get("c")
+        if isinstance(custom_decode, dict) and custom_decode.get("c"):
+            attr_names = [attr.get("n", "") for attr in dev_type["devInfoJson"]["resp"].get("a", [])]
+            for problem in PseudocodeHandler().check_code(custom_decode["c"], attr_names):
+                print(f"DECODE CODE WARNING: record \"{dev_type['deviceType']}\" resp.c: {problem}")
+        if not (flags & FLAG_PROBE_ONLY):
             for addr in addr_list:
-                if addr in addr_index_to_dev_record:
-                    addr_index_to_dev_record[addr].append(dev_record_index)
-                else:
-                    addr_index_to_dev_record[addr] = [dev_record_index]
+                addr_to_record_keys.setdefault(addr, []).append(dev_type["deviceType"])
 
         # Bump index
         dev_record_index += 1
 
-    # Generate array covering all addresses from 0x00 to 0x77
-    max_count_of_dev_types_for_addr = 0
-    addr_index_to_dev_array = []
-    for addr in range(min_addr_array_index, max_addr_array_index+1):
-        if addr in addr_index_to_dev_record:
-            addr_index_to_dev_array.append(addr_index_to_dev_record[addr])
-            if len(addr_index_to_dev_record[addr]) > max_count_of_dev_types_for_addr:
-                max_count_of_dev_types_for_addr = len(addr_index_to_dev_record[addr])
-        else:
-            addr_index_to_dev_array.append([])
+    # Shadowing report: a record whose detection compares nothing matches any device at its address, so records
+    # tried after it there are never tried. The firmware tries records at an address in order of descending
+    # identPriority, then descending detection strength (the bits compared), then record order - so this happens
+    # only when such a record has a higher identPriority, or another record also compares nothing (a record whose
+    # detection has errors never matches, so it isn't shadowed)
+    dev_types_by_key = dev_ident_json['devTypes']
+    record_order = {key: i for i, key in enumerate(dev_types_by_key.keys())}
 
-    # Debug
-    print(addr_index_to_dev_record)
+    def detection_strength(key):
+        return DeviceTypeGrammar.detection_strength(
+            DeviceTypeGrammar.compile(dev_types_by_key[key].get("detectionValues", ""), "detection"))
+
+    for addr, keys in sorted(addr_to_record_keys.items()):
+        keys = sorted(keys, key=lambda k: (-dev_types_by_key[k].get("identPriority", 0), -detection_strength(k),
+                                           record_order[k]))
+        for i, key in enumerate(keys[:-1]):
+            shadowed = [k for k in keys[i+1:] if detection_strength(k) >= 0]
+            if (detection_strength(key) == 0) and shadowed:
+                print(f"WARNING: record \"{key}\" has no detection values, so at address 0x{addr:02x} it is matched "
+                      f"before {', '.join(shadowed)}")
+                break
 
     # Generate poll records header file
     with open(dev_poll_header_path, 'w') as header_file:
@@ -183,11 +392,16 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
         header_file.write('using namespace Raft;\n\n')
 
         # Generate the DeviceTypeRecord array
-        header_file.write('static DeviceTypeRecord baseDevTypeRecords[] =\n')
+        header_file.write('static const DeviceTypeRecord baseDevTypeRecords[] =\n')
         header_file.write('{\n')
+
+        # A hardware type ID should name one record (N2)
+        for warning in duplicate_hw_type_id_warnings(dev_ident_json['devTypes']):
+            print(warning, file=sys.stderr)
 
         # Iterate records
         dev_record_index = 0
+        init_code_texts = []
         for dev_type_key, dev_type in dev_ident_json['devTypes'].items():
 
             # Get the poll data size
@@ -203,7 +417,7 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             polling_config_json_str = json.dumps(dev_type.get("pollInfo",{}), separators=(',', ':'))
             dev_info_json_str = json.dumps(dev_type.get("devInfoJson",{}), separators=(',', ':'))
             header_file.write('    {\n')
-            header_file.write(f'        R"JSON({dev_type.get("deviceType","")})JSON",\n')
+            header_file.write(f'        R"JSON({dev_type_key})JSON",\n')
             header_file.write(f'        R"JSON({dev_type.get("addresses","")})JSON",\n')
             header_file.write(f'        R"JSON({dev_type.get("detectionValues","")})JSON",\n')
             header_file.write(f'        R"JSON({dev_type.get("initValues","")})JSON",\n')
@@ -218,83 +432,48 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
             if gen_options.get("gen_decode", False):
                 header_file.write(f',\n        {decodeGenerator.decode_fn(dev_type, dev_type_key)}')
                 header_file.write(f',\n        {decodeGenerator.field_desc_ref(dev_type, dev_type_key)}')
+            else:
+                header_file.write(',\n        nullptr, nullptr, 0, 0')
+
+            # Identification and scanning fields: scanPriority, flags, identPriority, hwTypeId
+            scan_priority, flags, ident_priority, hw_type_id = record_ident_fields(dev_type, dev_type_key)
+            header_file.write(f',\n        {scan_priority}, {flags}, {ident_priority}, 0x{hw_type_id:04x}, '
+                              f'{record_initial_policy(dev_type, dev_type_key)}')
+
+            # Init values (initCode): the function and the value names
+            init_names, init_fn = init_values(dev_type, dev_type_key)
+            if init_fn:
+                if gen_options.get("gen_decode", False):
+                    header_file.write(f',\n        {init_fn},\n        R"JSON({",".join(init_names)})JSON"')
+                    init_code = dev_type.get("initCode")
+                    init_code_texts.append((dev_record_index, (init_code.get("c", "") if isinstance(init_code, dict) else init_code).strip()))
+                else:
+                    print(f"WARNING: record \"{dev_type_key}\" has initCode, which isn't generated without decode "
+                          f"generation - its init will fail")
 
             header_file.write('\n    },\n')
             dev_record_index += 1
 
         header_file.write('};\n\n')
 
-        # Write constants for the min and max values of array index
-        header_file.write(f'static const uint32_t BASE_DEV_INDEX_BY_ARRAY_MIN_ADDR = 0;\n')
-        header_file.write(f'static const uint32_t BASE_DEV_INDEX_BY_ARRAY_MAX_ADDR = 0x77;\n\n')
+        # The init code of records with initCode, for the decode verifier (DeviceTypeDecodeVerifier), which runs it
+        # with the code interpreter beside the compiled init values function
+        header_file.write('#ifdef RAFT_RUNTIME_DECODE_VERIFY\n')
+        header_file.write('struct BaseDevTypeInitCode { uint16_t recordIndex; const char* code; };\n')
+        header_file.write('static const BaseDevTypeInitCode baseDevTypeInitCode[] =\n{\n')
+        for record_index, code in init_code_texts:
+            header_file.write(f'    {{{record_index}, R"CODE({code})CODE"}},\n')
+        header_file.write('    {0xffff, nullptr}\n};\n#endif\n\n')
 
-        # Generate the count of device types for each address
-        header_file.write(f'static const uint8_t baseDevTypeCountByAddr[] =\n')
+        # Generate the record indexes sorted by device type key (byte order, as strcmp) for binary search
+        dev_type_keys = list(dev_ident_json['devTypes'].keys())
+        sorted_key_indexes = sorted(range(len(dev_type_keys)), key=lambda i: dev_type_keys[i].encode('utf-8'))
+        header_file.write('\nstatic const uint16_t baseDevTypeIndexByKey[] =\n')
         header_file.write('{\n    ')
-        for addr_index in addr_index_to_dev_array:
-            header_file.write(f'{len(addr_index)},')
-        header_file.write('\n};\n\n')
+        for record_index in sorted_key_indexes:
+            header_file.write(f'{record_index},')
+        header_file.write('\n};\n')
 
-        # For every non-zero length array, generate a C variable specific to that array
-        for addr in range(min_addr_array_index, max_addr_array_index+1):
-            if len(addr_index_to_dev_array[addr]) > 0:
-                header_file.write(f'static uint16_t baseDevTypeIndexByAddr_0x{addr:02x}[] = ')
-                header_file.write('{')
-                if len(addr_index_to_dev_array[addr]) > 0:
-                    header_file.write(f'{addr_index_to_dev_array[addr][0]}')
-                    for i in range(1, len(addr_index_to_dev_array[addr])):
-                        header_file.write(f', {addr_index_to_dev_array[addr][i]}')
-                header_file.write('};\n')
-
-        # Generate the DeviceTypeRecord index by address
-        header_file.write(f'\nstatic uint16_t* baseDevTypeIndexByAddr[] =\n')
-        header_file.write('{\n')
-
-        # Iterate address array
-        for addr in range(min_addr_array_index, max_addr_array_index+1):
-            if len(addr_index_to_dev_array[addr]) == 0:
-                header_file.write('    nullptr,\n')
-            else:
-                header_file.write(f'    baseDevTypeIndexByAddr_0x{addr:02x},\n')
-
-        header_file.write('};\n')
-
-        # Generate the scan priority lists
-        addr_scan_priority_lists = []
-        for i in range(NUM_PRIORITY_LEVELS):
-            if i == 0:
-                addr_scan_priority_lists.append(sorted(addr_scan_priority_sets[i]))
-            else:
-                if i == NUM_PRIORITY_LEVELS-1:
-                    addr_scan_priority_sets[i] = set(range(min_valid_i2c_addr, max_valid_i2c_addr+1))
-                for j in range(i):
-                    addr_scan_priority_sets[i] = addr_scan_priority_sets[i] - addr_scan_priority_sets[j]
-                addr_scan_priority_lists.append(sorted(addr_scan_priority_sets[i]))
-
-        # Write out the priority scan lists
-        for i in range(NUM_PRIORITY_LEVELS):
-            header_file.write(f'\n\nstatic const uint8_t scanPriority{i}[] =\n')
-            header_file.write('{\n    ')
-            for addr in addr_scan_priority_lists[i]:
-                header_file.write(f'0x{addr:02x},')
-            header_file.write('\n};\n')
-
-        # Write a record for scan lists
-        header_file.write('\nstatic const uint8_t* scanPriorityLists[] =\n')
-        header_file.write('{\n')
-        for i in range(NUM_PRIORITY_LEVELS):
-            header_file.write(f'    scanPriority{i},\n')
-        header_file.write('};\n')
-
-        # Write out the lengths of the priority scan lists
-        header_file.write('\nstatic const uint8_t scanPriorityListLengths[] =\n')
-        header_file.write('{\n')
-        for i in range(NUM_PRIORITY_LEVELS):
-            header_file.write(f'    {len(addr_scan_priority_lists[i])},\n')
-        header_file.write('};\n')
-
-        # Write out the number of priority scan lists
-        header_file.write(f'\nstatic const uint8_t numScanPriorityLists = {NUM_PRIORITY_LEVELS};\n')
 
     # Generate MicroPython files if requested
     if micropython_generator:

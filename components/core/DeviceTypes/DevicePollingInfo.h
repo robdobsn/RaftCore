@@ -21,8 +21,11 @@ public:
 
     void clear()
     {
-        lastPollTimeUs = 0;
+        pollScheduleStarted = false;
+        nextPollDueUs = 0;
+        nextStepDueUs = 0;
         pollIntervalUs = 0;
+        scanWhilePolled = true;
         pollBusHz = 0;
         pollBusHzSlotMask = 0;
         pollResultSizeIncTimestamp = 0;
@@ -39,6 +42,8 @@ public:
     {
         partialPollNextReqIdx = nextReqIdx;
         partialPollPauseAfterSendMs = pauseAfterSendMs;
+        // The next step is due once the pause has elapsed
+        nextStepDueUs = timeNowUs + (uint64_t)pauseAfterSendMs * 1000;
         // Check length of poll result is within limits
         if (_pollDataResult.size() + pollResult.size() <= pollResultSizeIncTimestamp)
         {
@@ -58,11 +63,33 @@ public:
     // cmdId used for ident-polling
     static const uint32_t DEV_IDENT_POLL_CMD_ID = UINT32_MAX;
 
-    // Last poll time
-    uint64_t lastPollTimeUs = 0;
+    // Poll interval used when a record doesn't specify one, and the shortest interval allowed
+    static const uint32_t POLL_INTERVAL_DEFAULT_US = 100000;
+    static const uint32_t POLL_INTERVAL_MIN_US = 2000;
+
+    /// @brief Poll interval clamped to the minimum allowed
+    static uint32_t clampPollIntervalUs(uint64_t pollIntervalUs)
+    {
+        if (pollIntervalUs < POLL_INTERVAL_MIN_US)
+            return POLL_INTERVAL_MIN_US;
+        if (pollIntervalUs > UINT32_MAX)
+            return UINT32_MAX;
+        return (uint32_t)pollIntervalUs;
+    }
+
+    // Poll schedule: a full poll is due at nextPollDueUs, which advances by the poll interval each time a poll
+    // starts (so lateness doesn't accumulate). The later steps of a poll split by a pause are due at
+    // nextStepDueUs. pollScheduleStarted is false until the first check, which sets the first due time
+    bool pollScheduleStarted = false;
+    uint64_t nextPollDueUs = 0;
+    uint64_t nextStepDueUs = 0;
 
     // Poll interval
     uint32_t pollIntervalUs = 0;
+
+    // Whether the scanner probes the device while it is polled (if polled slowly - see BusScanner). False for a record
+    // with "scanWhilePolled": false: its presence comes from its polls alone
+    bool scanWhilePolled = true;
 
     // Bus frequency Hz for this device's polls (0 = use bus default)
     uint32_t pollBusHz = 0;

@@ -1,0 +1,56 @@
+{
+  "_notes": "Example device library. Upload to /local/devlib.json and restart. Shows the three things the library can do: add a type the firmware does not know, override one it does, and suppress one that must not be detected.",
+  "devTypes": {
+    "MCP9808": {
+      "_notes": "OVERRIDE of a compiled type. Same record as the built-in one except the poll interval, which is 5000ms as shipped. Overrides are matched ahead of the compiled record but do not remove it, so if these detectionValues fail to match, identification still falls through to the built-in definition.",
+      "addresses": "0x18-0x1f",
+      "deviceType": "MCP9808",
+      "detectionValues": "0x06=0b0000000001010100&0x07=0b00000100XXXXXXXX",
+      "initValues": "0x010000",
+      "pollInfo": { "c": "0x05=r2", "i": 1000, "s": 1 },
+      "scanPriority": "high",
+      "devInfoJson": {
+        "name": "Temperature Sensor (1s)",
+        "desc": "Overridden to poll once a second",
+        "manu": "Microchip",
+        "type": "MCP9808",
+        "clas": ["TEMP"],
+        "resp": {
+          "b": 2,
+          "a": [
+            { "n": "temp", "t": ">H", "u": "&deg;C", "r": [-40, 125], "m": "0x1fff",
+              "d": 16, "sb": 12, "ss": 4096, "f": "3.2f", "o": "float" }
+          ]
+        }
+      }
+    },
+
+    "ExampleTempSensor": {
+      "_notes": "ADDITION - a device type this firmware has never heard of. Address 0x4a is not claimed by anything in the compiled library.",
+      "addresses": "0x4a",
+      "deviceType": "ExampleTempSensor",
+      "detectionValues": "0x00=0b0101XXXX",
+      "initValues": "0x0100",
+      "pollInfo": { "c": "0x00=r2", "i": 2000, "s": 1 },
+      "scanPriority": "high",
+      "devInfoJson": {
+        "name": "Example Sensor",
+        "desc": "Added from the device library, not compiled in",
+        "manu": "Example",
+        "type": "ExampleTempSensor",
+        "clas": ["TEMP"],
+        "resp": {
+          "b": 2,
+          "a": [
+            { "n": "value", "t": ">H", "u": "", "r": [0, 65535], "f": "d", "o": "uint16" }
+          ]
+        }
+      }
+    },
+
+    "LSM6DS3": {
+      "_notes": "SUPPRESSION. Everything except the name is ignored when disable is true, so a record can be disabled by copying it and adding one field. This unit has an LSM6DS3 on the main bus at 0x6a, which should stop being identified.",
+      "disable": true
+    }
+  }
+}

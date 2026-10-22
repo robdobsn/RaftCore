@@ -1,0 +1,55 @@
+{
+    "addresses": "0x5C-0x5D",
+    "detectionValues": "0x0f=0b10111101",
+    "initValues": "0x2104=p5&0x20C4=",
+    "pollInfo": {
+        "c": "0xA7=r6",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Pressure Sensor",
+        "desc": "",
+        "manu": "ST",
+        "type": "LPS25",
+        "clas": ["PRES","TEMP"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "status",
+                    "t": "B",
+                    "r": [0,255],
+                    "m": "0xff",
+                    "f": "02x",
+                    "o": "uint8",
+                    "vs": false,
+                    "bl": {"0x01": "T_DA", "0x02": "P_DA", "0x10": "T_OR", "0x20": "P_OR"}
+                },
+                {
+                    "n": "pressure",
+                    "at": 0,
+                    "t": "<I",
+                    "u": "hPa",
+                    "r": [260,1260],
+                    "s": 8,
+                    "d": 4096,
+                    "f": "4.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "temperature",
+                    "at": 4,
+                    "t": "<h",
+                    "u": "&deg;C",
+                    "r": [-30,105],
+                    "d": 480,
+                    "a": 42.5,
+                    "f": "3.2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

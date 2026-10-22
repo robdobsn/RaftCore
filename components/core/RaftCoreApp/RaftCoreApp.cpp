@@ -67,8 +67,10 @@ RaftCoreApp::RaftCoreApp() :
     _defaultSystemConfig(defaultConfigJSON, false),
     _sysManager("SysManager", _systemConfig, "system", _sysTypeManager),
     _commsChannelManager("CommsMan", _systemConfig),
-    _protocolExchange("ProtExchg", _systemConfig),
-    _deviceManager("DevMan", _systemConfig)
+    _protocolExchange("ProtExchg", _systemConfig)
+#ifndef RAFT_CORE_NO_DEVICE_MANAGER
+    , _deviceManager("DevMan", _systemConfig)
+#endif
 {
     // Chain the default config to the SysType so that it is used as a fallback
     // if no SysTypes are specified
@@ -93,7 +95,9 @@ RaftCoreApp::RaftCoreApp() :
     _sysManager.setRestAPIEndpoints(_restAPIEndpointManager);
     _sysManager.setCommsCore(&_commsChannelManager);
     _sysManager.setProtocolExchange(&_protocolExchange);
+#ifndef RAFT_CORE_NO_DEVICE_MANAGER
     _sysManager.setDeviceManager(&_deviceManager);
+#endif
     _sysManager.preSetup();
 
     // Get the system version (maybe overridden by SysType)

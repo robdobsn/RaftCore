@@ -25,6 +25,15 @@
 typedef uint32_t (*DeviceTypeRecordDecodeFn)(const uint8_t* pPollBuf, uint32_t pollBufLen, void* pStructOut, uint32_t structOutSize, 
             uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState);
 
+/// @brief Init value function - computes the values written in an init string's {name} value slots from the bytes the
+///        earlier init steps read (generated from the record's initCode; devdocs/computed-init-values.md)
+/// @param pReadBuf bytes read by the init steps before the first value slot, in order
+/// @param readBufLen number of bytes
+/// @param pValues (out) the values, in the order of the record's initValueNames
+/// @param numValues number of values
+/// @return false if the bytes read aren't enough (e.g. a read step failed)
+typedef bool (*DeviceTypeRecordInitFn)(const uint8_t* pReadBuf, uint32_t readBufLen, int32_t* pValues, uint32_t numValues);
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @enum AttrType
 /// @brief Attribute field type for decoded poll structs
@@ -52,7 +61,7 @@ struct AttrFieldDesc
 class DeviceTypeRecord
 {
 public:
-    const char* deviceType = nullptr;
+    const char* deviceType = nullptr;       // Device type key
     const char* addresses = nullptr;
     const char* detectionValues = nullptr;
     const char* initValues = nullptr;
@@ -63,6 +72,67 @@ public:
     const AttrFieldDesc* pollFieldDescs = nullptr;
     uint16_t pollFieldCount = 0;
     uint16_t pollStructSize = 0;
+
+    // Scan priority of the record's addresses: the first address goes in scan list 0 and the others in list 1
+    // for high (0); all go in list 1 for medium and list 2 for low. NONE: addresses are scanned only in the last
+    // list (JSON "scanPriority": "high"/"medium"/"low" or 1-3)
+    static constexpr uint8_t SCAN_PRIORITY_HIGH = 0;
+    static constexpr uint8_t SCAN_PRIORITY_NONE = 0xff;
+    uint8_t scanPriority = SCAN_PRIORITY_NONE;
+
+    // Flags
+    static constexpr uint8_t FLAG_PROBE_ONLY = 0x01;        // not identified by address: adopted by an identification
+                                                            // hook, and not reserved or prioritised for scanning
+                                                            // (JSON "excludeFromAddrMap" or "probeOnly")
+    static constexpr uint8_t FLAG_HAS_HW_TYPE_ID = 0x02;    // hwTypeId is set
+    static constexpr uint8_t FLAG_NO_SCAN_WHILE_POLLED = 0x04;  // an online device being polled isn't probed by the
+                                                            // scanner, however slowly it's polled: its presence comes
+                                                            // from its polls (JSON "scanWhilePolled": false) - for a
+                                                            // device that a scan probe disturbs, e.g. the SCD30
+    uint8_t flags = 0;
+
+    // Candidates for an address are tried in descending identPriority, then in record order (JSON "identPriority")
+    int8_t identPriority = 0;
+
+    // Hardware type ID: the ID the device reports when probed by an identification hook, in that hook's own
+    // numbering (e.g. the RSAO WHOAMI response). JSON "deviceTypeId". Valid if FLAG_HAS_HW_TYPE_ID is set
+    uint16_t hwTypeId = 0;
+
+    // Policy: whether the record is used for identification. Only identification is affected - typeinfo,
+    // decoding and subscriptions are the same for every policy
+    //   ENABLED         an identification candidate
+    //   DISABLED        not a candidate: the next candidate, or the identification hook, gets the device
+    //   DISABLED_CLAIM  not a candidate, but the address still counts as claimed: it stays reserved and the
+    //                   identification hook isn't run there
+    // initialPolicy is the policy the record starts with (JSON "disable": true or "claim"); it can be changed at
+    // runtime (DeviceTypeRecords::setPolicy)
+    static constexpr uint8_t POLICY_ENABLED = 0;
+    static constexpr uint8_t POLICY_DISABLED = 1;
+    static constexpr uint8_t POLICY_DISABLED_CLAIM = 2;
+    uint8_t initialPolicy = POLICY_ENABLED;
+
+    // Init values: the function computing the values for the init string's {name} value slots, and their names
+    // (comma separated, in the order the function writes them) - only records with initCode, which must be compiled in
+    DeviceTypeRecordInitFn initValuesFn = nullptr;
+    const char* initValueNames = nullptr;
+
+    static const char* getPolicyStr(uint8_t policy)
+    {
+        return policy == POLICY_DISABLED ? "disabled" : (policy == POLICY_DISABLED_CLAIM ? "disabledClaim" : "enabled");
+    }
+
+    bool isProbeOnly() const
+    {
+        return (flags & FLAG_PROBE_ONLY) != 0;
+    }
+    bool hasHwTypeId() const
+    {
+        return (flags & FLAG_HAS_HW_TYPE_ID) != 0;
+    }
+    bool isScannedWhilePolled() const
+    {
+        return (flags & FLAG_NO_SCAN_WHILE_POLLED) == 0;
+    }
 
     String getJson(bool includePlugAndPlayInfo) const
     {

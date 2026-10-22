@@ -1,0 +1,74 @@
+{
+    "addresses": "0x10-0x18",
+    "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x008F",
+    "initValues": "=p250&0x6004ff9c=p250&0x2001",
+    "pollInfo": {
+        "c": "=r6",
+        "i": 100,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Robotical Servo",
+        "desc": "Servo",
+        "manu": "Robotical",
+        "type": "RoboticalServo",
+        "clas": ["SRVO"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "angle",
+                    "t": ">h",
+                    "r": [-180.0, 180.0],
+                    "f": ".1f",
+                    "d": 10,
+                    "o": "int16",
+                    "u": "degrees"
+                },
+                {
+                    "n": "current",
+                    "t": "b",
+                    "r": [-128, 127],
+                    "f": "d",
+                    "o": "int8"
+                },
+                {
+                    "n": "state",
+                    "t": "B",
+                    "r": [0, 255],
+                    "f": "02x",
+                    "o": "uint8"
+                },
+                {
+                    "n": "velocity",
+                    "t": ">h",
+                    "r": [-32768, 32767],
+                    "f": "d",
+                    "o": "int16"
+                }
+            ]
+        },
+        "actions": [
+            {
+                "n": "angle",
+                "t": ">h",
+                "w": "0001",
+                "wz": "0064",
+                "f": ".1f",
+                "mul": 10,
+                "sub": 0,
+                "r": [-180.0,180.0],
+                "d": 0
+            },
+            {
+                "n": "enable",
+                "t": "B",
+                "w": "20",
+                "f": "b",
+                "r": [0,1],
+                "d": 1
+            }
+        ]
+    }
+}

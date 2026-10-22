@@ -1,0 +1,56 @@
+{
+    "_notes": "SGX MiCS-6814 gas sensor (reducing gases e.g. CO, NH3, oxidising gases e.g. NO2) on Pimoroni's breakout at 0x19: a Nuvoton MS51 running Pimoroni's IO Expander firmware reads the three sensing elements with its ADC and switches the heater (as Pimoroni's mics6814 and ioexpander Python libraries do). Detection: the IO Expander chip ID (0xFA-0xFB) 0xE26A - shared by Pimoroni's IO Expander boards; 0x19 is the MICS6814's address. Init: read the pin mode registers P0M1, P0M2, P1M1, P1M2 (0x71-0x74) and ADCCON1 (0xA1); initCode computes read-modify-write values (the same registers set the modes of the pins the firmware itself uses): P0.5-P0.7 input-only for the ADC (AIN4, AIN3, AIN2), P1.5 push-pull for the heater enable; then P1.5 low (bit-addressed P1 write 0x05: heater on) and the ADC enabled. Poll: for each of reducing (AIN2), NH3 (AIN3), oxidising (AIN4): select the channel (AINDIDS0 0xB6), start a conversion (ADCCON0 0xA8 = 0x40 | channel), 2 ms, read ADCRL/ADCRH (12 bits: low nibble of 0x82, high 8 bits in 0x83). Decode: each element's resistance R = raw * 56000 / (4095 - raw) ohms (the board's 56k divider, as the library). The heater needs some minutes to warm up before the resistances settle.",
+    "addresses": "0x19",
+    "detectionValues": "0xfa=0x6ae2",
+    "initValues": "0x71=r1&0x72=r1&0x73=r1&0x74=r1&0xa1=r1&0x71{p0m1}&0x72{p0m2}&0x73{p1m1}&0x74{p1m2}&0x5005&0xa1{adccon1}",
+    "initCode": {
+        "n": "mics6814_pins",
+        "c": "init.p0m1=buf[0]|224;init.p0m2=buf[1]&31;init.p1m1=buf[2]&223;init.p1m2=buf[3]|32;init.adccon1=buf[4]|1;"
+    },
+    "pollInfo": {
+        "c": "0xb604&0xa842=p2&0x82=r2&0xb608&0xa843=p2&0x82=r2&0xb610&0xa844=p2&0x82=r2",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Gas Sensor",
+        "desc": "Reducing, NH3 and oxidising gases",
+        "manu": "Pimoroni",
+        "type": "MICS6814Pimoroni",
+        "clas": ["GAS"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "reducing",
+                    "t": "<f",
+                    "u": "&Omega;",
+                    "r": [0,1000000],
+                    "f": "8.0f",
+                    "o": "float"
+                },
+                {
+                    "n": "nh3",
+                    "t": "<f",
+                    "u": "&Omega;",
+                    "r": [0,1000000],
+                    "f": "8.0f",
+                    "o": "float"
+                },
+                {
+                    "n": "oxidising",
+                    "t": "<f",
+                    "u": "&Omega;",
+                    "r": [0,1000000],
+                    "f": "8.0f",
+                    "o": "float"
+                }
+            ],
+            "c": {
+                "n": "mics6814_resistance",
+                "c": "int r=(buf[0]&15)|(buf[1]<<4);float red=0.0;if(r<4095){red=r*56000.0/(4095-r);}out.reducing=red;int n=(buf[2]&15)|(buf[3]<<4);float nh3=0.0;if(n<4095){nh3=n*56000.0/(4095-n);}out.nh3=nh3;int o=(buf[4]&15)|(buf[5]<<4);float ox=0.0;if(o<4095){ox=o*56000.0/(4095-o);}out.oxidising=ox;"
+            }
+        }
+    }
+}

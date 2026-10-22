@@ -12,6 +12,7 @@
 #include "DeviceStatus.h"
 #include "RaftBusConsts.h"
 #include "BusAddrStatus.h"
+#include "BusIdentState.h"
 #include "Logger.h"
 
 /// @brief Full address record for internal bus status management
@@ -57,6 +58,23 @@ public:
     // Device status
     DeviceStatus deviceStatus;
 
+    // Identification (see BusIdentState.h): state, consecutive attempts with that outcome, when it is next due, the
+    // device type records generation and hook epoch of the last attempt, and a re-verification request (after a poll
+    // failure that the device recovered from)
+    BusIdentState identState = BusIdentState::Pending;
+    bool reverifyRequested : 1 = false;
+    bool identChangePending : 1 = false;    // the identity may have changed since it was last reported
+    bool reidentRequested : 1 = false;      // identify again (keeping the type until the result is known)
+    bool pollingDisabled : 1 = false;       // not polled (it stays identified)
+    uint8_t identAttempts = 0;
+    uint8_t reidentAttempts = 0;
+    uint32_t nextIdentMs = 0;
+    uint32_t identGeneration = 0;
+    uint32_t identHookEpoch = 0;
+
+    // Type last reported to consumers (for identity-change events)
+    DeviceTypeIndexType reportedTypeIndex = DEVICE_TYPE_INDEX_INVALID;
+
     // Device data change callback and info
     RaftDeviceDataChangeCB dataChangeCB = nullptr;
     const void* pCallbackInfo = nullptr;
@@ -101,6 +119,34 @@ public:
     {
         return BusAddrStatus(address, onlineState, isChange, isNewlyIdentified, 
                              deviceStatus.deviceTypeIndex);
+    }
+
+    /// @brief Create the status change to report, with any identity change since the last report (which is then
+    ///        the reported type)
+    BusAddrStatus takeStatusChange()
+    {
+        bool isGone = (onlineState == DeviceOnlineState::OFFLINE) || (onlineState == DeviceOnlineState::PENDING_DELETION);
+        DeviceTypeIndexType typeNow = isGone ? DEVICE_TYPE_INDEX_INVALID : deviceStatus.deviceTypeIndex;
+        BusIdentEvent event = BusIdentEvent::None;
+        DeviceTypeIndexType prevType = reportedTypeIndex;
+        if (identChangePending || isNewlyIdentified || isGone)
+            event = BusIdentSchedule::deriveEvent(reportedTypeIndex, typeNow);
+        if (event != BusIdentEvent::None)
+            reportedTypeIndex = typeNow;
+        bool newlyIdentified = isNewlyIdentified && (typeNow != DEVICE_TYPE_INDEX_INVALID);
+        BusAddrStatus status(address, onlineState, isChange, newlyIdentified, deviceStatus.deviceTypeIndex);
+        status.identEvent = event;
+        status.prevDeviceTypeIndex = (event == BusIdentEvent::None) ? DEVICE_TYPE_INDEX_INVALID : prevType;
+        isChange = false;
+        isNewlyIdentified = false;
+        identChangePending = false;
+        return status;
+    }
+
+    /// @brief Check whether there is a change to report
+    bool hasStatusChange() const
+    {
+        return isChange || isNewlyIdentified || identChangePending;
     }
 
     // Get JSON for device status

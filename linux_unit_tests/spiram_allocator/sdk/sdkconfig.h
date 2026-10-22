@@ -1,0 +1,9 @@
+#pragma once
+
+#ifdef TEST_CONFIG_SPIRAM
+#define CONFIG_SPIRAM 1
+#endif
+
+#ifdef TEST_CONFIG_ESP32_SPIRAM_SUPPORT
+#define CONFIG_ESP32_SPIRAM_SUPPORT 1
+#endif

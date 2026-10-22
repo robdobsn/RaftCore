@@ -119,6 +119,11 @@ idf_component_register(
     "components/core/DeviceManager/DeviceManager.cpp"
     "components/core/DeviceManager/DemoDevice.cpp"
     "components/core/DeviceTypes/DeviceTypeRecords.cpp"
+    "components/core/DeviceTypes/DeviceTypeGrammar.cpp"
+    "components/core/DeviceTypes/DeviceTypeFileLoader.cpp"
+    "components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp"
+    "components/core/DeviceTypes/DeviceTypeCodeInterpreter.cpp"
+    "components/core/DeviceTypes/DeviceTypeDecodeVerifier.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"
@@ -211,6 +216,51 @@ idf_component_register(
 
 if(NOT CMAKE_SCRIPT_MODE_FILE)
   target_compile_definitions(${COMPONENT_LIB} PRIVATE ${RAFT_CORE_COMPILE_DEFINITIONS})
+
+  # Runtime decoding of device type records with no compiled decoder (a record from a device type file, or one
+  # registered by code), so on-device users of decoded data (DataLogger, RaftROS, named values) work for them too.
+  # Included unless the project sets RAFT_RUNTIME_DECODE OFF in features.cmake - e.g. a small board whose data is
+  # only decoded by its subscribers. RAFT_RUNTIME_DECODE_CODE (OFF unless set ON) adds the code interpreter: custom
+  # decode code (resp.c) and init code (initCode) of records from a device type file
+  if(NOT DEFINED RAFT_RUNTIME_DECODE OR RAFT_RUNTIME_DECODE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE)
+    if(DEFINED RAFT_RUNTIME_DECODE_CODE AND RAFT_RUNTIME_DECODE_CODE)
+      target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE_CODE)
+    endif()
+    # Debug: RAFT_RUNTIME_DECODE_VERIFY (OFF unless set ON) decodes every poll result of a compiled record again
+    # with a runtime decoder, runs compiled init code beside the interpreter's, and compares them
+    # (devman/decodeverify, DeviceTypeDecodeVerifier.h)
+    if(DEFINED RAFT_RUNTIME_DECODE_VERIFY AND RAFT_RUNTIME_DECODE_VERIFY)
+      target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFT_RUNTIME_DECODE_VERIFY)
+      message(STATUS "RaftCore: runtime decoders verified against compiled ones (RAFT_RUNTIME_DECODE_VERIFY)")
+    endif()
+  else()
+    message(STATUS "RaftCore: runtime decoding not included (RAFT_RUNTIME_DECODE OFF)")
+  endif()
+
+  # Float arithmetic as C++ specifies it - each operation rounded, no fused multiply-add (which GCC otherwise uses
+  # where the target has it, e.g. ESP32-S3 madd.s): the compiled decoders (DeviceTypeRecords.cpp), the runtime
+  # decoder and the code interpreter then decode to the same bytes, on every target
+  set_property(SOURCE
+      components/core/DeviceTypes/DeviceTypeRecords.cpp
+      components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp
+      components/core/DeviceTypes/DeviceTypeCodeInterpreter.cpp
+    APPEND PROPERTY COMPILE_OPTIONS -ffp-contract=off)
+
+  # DeviceManager (devices, buses, device type records and the devman/* endpoints) is included unless the
+  # project sets RAFT_DEVICE_MANAGER OFF (e.g. set(RAFT_DEVICE_MANAGER OFF) in features.cmake). Without it the
+  # linker drops the device code (about 100 KB). The definition is PUBLIC because it changes RaftCoreApp's layout
+  if(DEFINED RAFT_DEVICE_MANAGER AND NOT RAFT_DEVICE_MANAGER)
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC RAFT_CORE_NO_DEVICE_MANAGER)
+    foreach(_raft_dev_lib RaftI2C RaftMotorControl)
+      foreach(_raft_comp ${RAFT_COMPONENTS})
+        if(_raft_comp MATCHES "^${_raft_dev_lib}([@#].*)?$")
+          message(WARNING "RAFT_DEVICE_MANAGER is OFF but ${_raft_dev_lib} is in RAFT_COMPONENTS - its devices won't be set up")
+        endif()
+      endforeach()
+    endforeach()
+    message(STATUS "RaftCore: DeviceManager not included (RAFT_DEVICE_MANAGER OFF)")
+  endif()
 endif()
 
 # Enable NetBIOS name service (NBSTAT) responses so IP scanners can discover device hostnames

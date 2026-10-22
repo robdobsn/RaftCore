@@ -1,0 +1,31 @@
+{
+    "addresses": "0x06",
+    "detectionValues": "",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x03=r2",
+        "i": 100,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Magnetic Encoder",
+        "desc": "",
+        "manu": "MagnTek",
+        "type": "MT6701",
+        "clas": ["ANG"],
+        "resp": {
+            "b": 2,
+            "a": [
+                {
+                    "n": "angle",
+                    "t": ">H",
+                    "u": "degrees",
+                    "r": [0, 360],
+                    "f": "3.1f",
+                    "o": "float",
+                    "d": 182.04444444444444
+                }
+            ]
+        }
+    }
+}

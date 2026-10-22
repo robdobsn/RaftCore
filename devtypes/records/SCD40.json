@@ -1,0 +1,101 @@
+{
+    "_notes": "Sensirion SCD40 CO2/temperature/humidity. No detection values (unique address 0x62). read_measurement (0xEC05) returns three big-endian words, each followed by a CRC byte: CO2 (ppm) at 0, T at 3 (-45 + 175*raw/65535), RH at 6 (100*raw/65535). Standard decode. temperatureOffset, altitude, autoCalibration and calibrationTarget are only accepted while periodic measurement is stopped; the record keeps it running, so at present the sensor ignores them. ambientPressure (hPa) overrides the altitude and is accepted during measurement.",
+    "addresses": "0x62",
+    "detectionValues": "",
+    "initValues": "0x21b1=",
+    "pollInfo": {
+        "c": "0xec05=r9",
+        "i": 5000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "CO2 Sensor",
+        "desc": "",
+        "manu": "Sensirion",
+        "type": "SCD40",
+        "clas": ["CO2", "TEMP", "RH"],
+        "resp": {
+            "b": 9,
+            "a": [
+                {
+                    "n": "CO2",
+                    "t": ">H",
+                    "u": "ppm",
+                    "r": [0, 40000],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "temperature",
+                    "at": 3,
+                    "t": ">H",
+                    "u": "&deg;C",
+                    "r": [-45, 175],
+                    "d": 374.4857142857143,
+                    "a": -45,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "humidity",
+                    "at": 6,
+                    "t": ">H",
+                    "u": "%",
+                    "r": [0, 100],
+                    "d": 655.35,
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ]
+        },
+        "actions": [
+            {
+                "n": "temperatureOffset",
+                "t": ">H",
+                "w": "241d",
+                "crc": "crc8w",
+                "mul": 374.4857,
+                "r": [0, 20],
+                "d": 4,
+                "desc": "Temp offset (C)"
+            },
+            {
+                "n": "altitude",
+                "t": ">H",
+                "w": "2427",
+                "crc": "crc8w",
+                "r": [0, 3000],
+                "d": 0,
+                "desc": "Altitude (m)"
+            },
+            {
+                "n": "ambientPressure",
+                "t": ">H",
+                "w": "e000",
+                "crc": "crc8w",
+                "r": [700, 1200],
+                "d": 1013,
+                "desc": "Pressure (hPa)"
+            },
+            {
+                "n": "autoCalibration",
+                "t": ">H",
+                "w": "2416",
+                "crc": "crc8w",
+                "r": [0, 1],
+                "d": 1,
+                "desc": "Auto-calibration"
+            },
+            {
+                "n": "calibrationTarget",
+                "t": ">H",
+                "w": "243a",
+                "crc": "crc8w",
+                "r": [0, 65535],
+                "d": 400,
+                "desc": "ASC target (ppm)"
+            }
+        ]
+    }
+}

@@ -90,8 +90,11 @@ private:
     // ProtocolExchange
     ProtocolExchange _protocolExchange;
 
-    // Device manager
+    // Device manager (not included if the project sets RAFT_DEVICE_MANAGER OFF - getDeviceManager() is then
+    // nullptr)
+#ifndef RAFT_CORE_NO_DEVICE_MANAGER
     DeviceManager _deviceManager;
+#endif
 
     // SysManager is setup
     bool _sysManagerSetupDone = false;

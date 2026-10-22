@@ -1,0 +1,46 @@
+{
+    "_notes": "ToF distance sensor with range 0-1.3m",
+    "addresses": "0x29",
+    "identPriority": 1,
+    "detectionValues": "0x010F=0xEBAA",
+    "initValues": "0x002D0001011102000208000810010100000000FF000F0000000000200B000002142100&0x004e000500000000c8000038ff010008000001cc0701f10500a0008008380000&006c00000f89000000000000000107050606000002c7ff9b000000010000&0x008740=p200&0x008601&0x008780&0x000809&0x000b00&0x00240500&0x006c00000000&0x005e02f2&0x006103a1&008721",
+    "pollInfo": {
+        "c": "0x008601=&0x0089=r1&0x0096=r2",
+        "i": 100,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Distance Sensor",
+        "desc": "",
+        "manu": "ST",
+        "type": "VL53L4CD",
+        "clas": ["DIST"],
+        "resp": {
+            "b": 3,
+            "a": [
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [0, 1],
+                    "m": "0x04",
+                    "x": "0x04",
+                    "s": 2,
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                },
+                {
+                    "n": "dist",
+                    "t": ">H",
+                    "u": "mm",
+                    "r": [0, 1000],
+                    "f": "3d",
+                    "o": "uint16",
+                    "vft": "valid"
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,76 @@
+{
+    "addresses": "0x36",
+    "detectionValues": "0x08=0b000000000001XXXX",
+    "initValues": "0x0c9716&=p100&0x14a0d7",
+    "pollInfo": {
+        "c": "0x02=r2&0x04=r2&0x16=r2&0x1a=r1",
+        "i": 1000,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Battery Fuel Gauge",
+        "desc": "",
+        "manu": "Analog Devices",
+        "type": "MAX17048",
+        "clas": ["FUEL", "BATT"],
+        "resp": {
+            "b": 7,
+            "a": [
+                {
+                    "n": "voltage",
+                    "t": ">H",
+                    "u": "V",
+                    "r": [0, 5.12],
+                    "d": 12800,
+                    "f": ".3f",
+                    "o": "float"
+                },
+                {
+                    "n": "charge",
+                    "t": ">H",
+                    "u": "%",
+                    "r": [0, 100],
+                    "d": 256,
+                    "f": ".1f",
+                    "o": "float"
+                },
+                {
+                    "n": "chargeRate",
+                    "t": ">h",
+                    "u": "%/hr",
+                    "r": [-300, 300],
+                    "d": 4.808,
+                    "f": ".1f",
+                    "o": "float"
+                },
+                {
+                    "n": "status",
+                    "t": "B",
+                    "at": 6,
+                    "r": [0, 255],
+                    "m": "0xff",
+                    "f": "02x",
+                    "o": "uint8",
+                    "vs": false,
+                    "bl": {"0": "OK", "0x01": "RI", "0x02": "VH", "0x04": "VL", "0x08": "VR", "0x10": "HD", "0x20": "SC", "0x40": ""}
+                }
+            ]
+        },
+        "actions": [
+            {
+                "n": "config",
+                "t": ">H",
+                "w": "0c",
+                "f": "B",
+                "r": [0, 65535],
+                "d": 38678,
+                "desc": "CONFIG register"
+            },
+            {
+                "n": "reset config",
+                "w": "0c9716",
+                "desc": "Reset CONFIG"
+            }
+        ]
+    }
+}

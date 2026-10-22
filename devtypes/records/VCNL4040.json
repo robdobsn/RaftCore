@@ -1,0 +1,48 @@
+{
+    "addresses": "0x60",
+    "detectionValues": "0x0c=0b100001100000XXXX",
+    "initValues": "0x041007=&0x030e08=&0x000000=",
+    "pollInfo": {
+        "c": "0x08=r2&0x09=r2&0x0a=r2",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Light Sensor (ambient & proximity)",
+        "desc": "",
+        "manu": "Vishay",
+        "type": "VCNL4040",
+        "clas": ["PROX","LGHT"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "prox",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0,65535],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "als",
+                    "t": "<H",
+                    "u": "lux",
+                    "r": [0,65535],
+                    "d": 10,
+                    "f": "5.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "white",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0,65535],
+                    "f": "5d",
+                    "o": "uint16"
+                }
+            ]
+        }
+    }
+}

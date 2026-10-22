@@ -1,0 +1,34 @@
+{
+    "_notes": "High-Accuracy Temperature Sensor. Detection: 0x0F (DevID) = 0x0117. Init: 0x01 (Config) = 0x0220 (1s continuous mode, 8 avg). Poll: 0x00 (Temp) = 2 bytes.",
+    "addresses": "0x48-0x4B",
+    "detectionValues": "0x0F=0x0117",
+    "initValues": "0x010220=",
+    "pollInfo": {
+        "c": "0x00=r2",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Temperature Sensor",
+        "desc": "",
+        "manu": "Texas Instruments",
+        "type": "TMP117",
+        "clas": ["TEMP"],
+        "resp": {
+            "b": 2,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": ">h",
+                    "u": "&deg;C",
+                    "r": [-55, 150],
+                    "d": 128,
+                    "a": 0,
+                    "f": "3.2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

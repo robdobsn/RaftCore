@@ -384,6 +384,12 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Reset the bus status statistics that measure over a period (e.g. poll timing)
+    virtual void resetBusStatus()
+    {
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Set virtual pin levels on IO expander (pins must be on the same expander or on GPIO)
     /// @param numPins - number of pins to set
     /// @param pPinNums - array of pin numbers

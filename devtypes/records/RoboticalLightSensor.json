@@ -1,0 +1,53 @@
+{
+    "addresses": "0x28",
+    "detectionValues": "=p250&0x6004ff9c=p250&0x9904ff63=0x526f626f746963616c&0x00=0x0084",
+    "initValues": "=p250&0x6004ff9c=p250",
+    "pollInfo": {
+        "c": "=r7",
+        "i": 100,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Robotical Light Sensor",
+        "desc": "Light Sensor",
+        "manu": "Robotical",
+        "type": "RoboticalLightSensor",
+        "clas": ["LGHT"],
+        "resp": {
+            "b": 7,
+            "a": [
+                {
+                    "n": "status",
+                    "t": "B",
+                    "r": [0, 255],
+                    "f": "x",
+                    "o": "uint8"
+                },
+                {
+                    "n": "right",
+                    "t": ">H",
+                    "r": [0, 1023],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "center",
+                    "t": ">H",
+                    "r": [0, 1023],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "left",
+                    "t": ">H",
+                    "r": [0, 1023],
+                    "f": "d",
+                    "o": "uint16"
+                }
+            ]
+        },
+        "actions": [
+        ]
+    }
+}

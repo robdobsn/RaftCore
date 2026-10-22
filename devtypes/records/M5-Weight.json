@@ -1,0 +1,38 @@
+{
+    "addresses": "0x26",
+    "identPriority": -1,
+    "detectionValues": "0xFF=0x26",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0x10=r4&0x00=r4",
+        "i": 250,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Weight Sensor",
+        "desc": "",
+        "manu": "M5 Stack",
+        "type": "M5-Weight",
+        "clas": ["WGHT"],
+        "resp": {
+            "b": 8,
+            "a": [
+                {
+                    "n": "weight",
+                    "t": "<f",
+                    "u": "g",
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "ADC",
+                    "t": "<I",
+                    "u": "",
+                    "f": ".3f",
+                    "o": "int"
+                }
+            ]
+        },
+        "actions": []
+    }
+}

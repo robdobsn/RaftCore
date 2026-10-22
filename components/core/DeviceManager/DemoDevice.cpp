@@ -312,7 +312,7 @@ bool DemoDevice::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
         "",
         "",
         "",
-        1, // Device type index for demo
+        14, // Poll data size (bytes) - matches resp.b in devInfoJson
         devInfoJson,
         nullptr
     );

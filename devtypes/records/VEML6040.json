@@ -1,0 +1,56 @@
+{
+    "_notes": "RGBW ambient light sensor. I2C address fixed at 0x10. No dedicated device ID register, so detection relies on address and response behavior.",
+    "addresses": "0x10",
+    "detectionValues": "",
+    "initValues": "0x000000=",
+    "pollInfo": {
+        "c": "0x08=r2&0x09=r2&0x0a=r2&0x0b=r2",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Light Sensor (RGBW)",
+        "desc": "",
+        "manu": "Vishay",
+        "type": "VEML6040",
+        "clas": ["LGHT"],
+        "resp": {
+            "b": 8,
+            "a": [
+                {
+                    "n": "red",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0,65535],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "green",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0,65535],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "blue",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0,65535],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "white",
+                    "t": "<H",
+                    "u": "",
+                    "r": [0,65535],
+                    "f": "5d",
+                    "o": "uint16"
+                }
+            ]
+        }
+    }
+}

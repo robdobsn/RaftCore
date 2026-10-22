@@ -1,0 +1,61 @@
+{
+    "addresses": "0x28",
+    "detectionValues": "0xfd=0b01101101",
+    "initValues": "0x0000&0x1f06",
+    "pollInfo": {
+        "c": "0x02=r2&0x0000",
+        "i": 100,
+        "s": 5
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Capacitive Touch",
+        "desc": "",
+        "manu": "Sparkfun",
+        "type": "CAP1203",
+        "clas": ["TCH"],
+        "resp": {
+            "b": 2,
+            "a": [
+                {
+                    "n": "A",
+                    "at": 1,
+                    "t": "B",
+                    "r": [0, 1],
+                    "m": "0x01",
+                    "s": 0,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "B",
+                    "at": 1,
+                    "t": "B",
+                    "r": [0, 1],
+                    "m": "0x02",
+                    "s": 1,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "C",
+                    "at": 1,
+                    "t": "B",
+                    "r": [0, 1],
+                    "m": "0x04",
+                    "s": 2,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "status",
+                    "t": ">H",
+                    "vs": false,
+                    "f": "04x",
+                    "o": "uint16",
+                    "bl": {"0x0001": "CS1", "0x0002": "CS2", "0x0004": "CS3", "0x0100": "TOUCH", "0x0200": "MTP", "0x0400": "MULT", "0x1000": "PWR", "0x2000": "ACAL_FAIL", "0x4000": "BC_OUT"}
+                }
+            ]
+        }
+    }
+}

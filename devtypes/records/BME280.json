@@ -1,0 +1,52 @@
+{
+    "_notes": "Bosch BME280 (temperature, pressure, humidity) at 0x76 (SDO low) or 0x77 (SDO high, Adafruit default). Detection: chip ID (0xD0) 0x60 - a BMP280 (0x56-0x58) or BME680 (0x61) doesn't match. Init: soft reset (0xE0B6), 5 ms; config (0xF5) standby 500 ms, filter off; ctrl_hum (0xF2) humidity x1 - written before ctrl_meas, which applies it; ctrl_meas (0xF4) temperature x1, pressure x1, normal mode. Poll: the calibration (0x88, 26 bytes; 0xE1, 7 bytes) and the data (0xF7, 8 bytes) - the decode code applies Bosch's floating-point compensation (datasheet 8.1). 0x76 is also a common multiplexer address (Axiom018's), where the BME280 can't be used.",
+    "addresses": "0x76-0x77",
+    "detectionValues": "0xd0=0x60",
+    "initValues": "0xe0b6=p5&0xf580&0xf201&0xf427",
+    "pollInfo": {
+        "c": "0x88=r26&0xe1=r7&0xf7=r8",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "devInfoJson": {
+        "name": "Temperature, Pressure & Humidity Sensor",
+        "desc": "",
+        "manu": "Bosch",
+        "type": "BME280",
+        "clas": ["TEMP","PRES","RH"],
+        "resp": {
+            "b": 41,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": "<f",
+                    "u": "&deg;C",
+                    "r": [-40,85],
+                    "f": "3.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "pressure",
+                    "t": "<f",
+                    "u": "hPa",
+                    "r": [300,1100],
+                    "f": "4.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "humidity",
+                    "t": "<f",
+                    "u": "%",
+                    "r": [0,100],
+                    "f": "3.1f",
+                    "o": "float"
+                }
+            ],
+            "c": {
+                "n": "bme280_compensate",
+                "c": "int T1=buf[0]|(buf[1]<<8);int T2=buf[2]|(buf[3]<<8);if(T2>32767){T2=T2-65536;}int T3=buf[4]|(buf[5]<<8);if(T3>32767){T3=T3-65536;}int P1=buf[6]|(buf[7]<<8);int P2=buf[8]|(buf[9]<<8);if(P2>32767){P2=P2-65536;}int P3=buf[10]|(buf[11]<<8);if(P3>32767){P3=P3-65536;}int P4=buf[12]|(buf[13]<<8);if(P4>32767){P4=P4-65536;}int P5=buf[14]|(buf[15]<<8);if(P5>32767){P5=P5-65536;}int P6=buf[16]|(buf[17]<<8);if(P6>32767){P6=P6-65536;}int P7=buf[18]|(buf[19]<<8);if(P7>32767){P7=P7-65536;}int P8=buf[20]|(buf[21]<<8);if(P8>32767){P8=P8-65536;}int P9=buf[22]|(buf[23]<<8);if(P9>32767){P9=P9-65536;}int H1=buf[25];int H2=buf[26]|(buf[27]<<8);if(H2>32767){H2=H2-65536;}int H3=buf[28];int E4=buf[29];if(E4>127){E4=E4-256;}int H4=E4*16+(buf[30]&15);int E6=buf[31];if(E6>127){E6=E6-256;}int H5=E6*16+(buf[30]>>4);int H6=buf[32];if(H6>127){H6=H6-256;}int aP=(buf[33]<<12)|(buf[34]<<4)|(buf[35]>>4);int aT=(buf[36]<<12)|(buf[37]<<4)|(buf[38]>>4);int aH=(buf[39]<<8)|buf[40];float v1=(aT/16384.0-T1/1024.0)*T2;float d=aT/131072.0-T1/8192.0;float v2=d*d*T3;float tf=v1+v2;out.temperature=tf/5120.0;v1=tf/2.0-64000.0;v2=v1*v1*P6/32768.0+v1*P5*2.0;v2=v2/4.0+P4*65536.0;v1=(P3*v1*v1/524288.0+P2*v1)/524288.0;v1=(1.0+v1/32768.0)*P1;float p=0.0;if(v1>0.0){p=1048576.0-aP;p=(p-v2/4096.0)*6250.0/v1;float w1=P9*p*p/2147483648.0;float w2=p*P8/32768.0;p=p+(w1+w2+P7)/16.0;}out.pressure=p/100.0;float h=tf-76800.0;h=(aH-(H4*64.0+H5/16384.0*h))*(H2/65536.0*(1.0+H6/67108864.0*h*(1.0+H3/67108864.0*h)));h=h*(1.0-H1*h/524288.0);if(h>100.0){h=100.0;}if(h<0.0){h=0.0;}out.humidity=h;"
+            }
+        }
+    }
+}
