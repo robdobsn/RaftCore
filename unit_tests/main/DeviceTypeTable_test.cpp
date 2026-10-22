@@ -176,7 +176,7 @@ TEST_CASE("extended device type records freed with the table", "[DeviceTypeTable
 }
 
 // Stack and time to make large records' decoders, one after another as their devices are identified. They are
-// made on the main task (DeviceManager): a bus's worker task (the I2C one has 5000 bytes) hasn't the stack to spare
+// made on the main task (DeviceManager): a bus's worker task (the I2C one has 5500 bytes) hasn't the stack to spare
 // (measured 2026-10-22: about 2 KB for create() alone, 7-10 ms each, on an ESP32-S3)
 // devInfoJson of four of the largest RaftCore records decoded from their attribute lists (TrillSquare and CAP1188
 // have 16 attributes each)
