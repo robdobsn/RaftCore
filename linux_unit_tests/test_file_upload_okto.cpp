@@ -214,6 +214,30 @@ static void testTimerAckStartsTheBatchAgain()
     TEST_ASSERT(acks == "7:8 12:13", ("in step after the timer ack " + acks).c_str());
 }
 
+static void testFitInMemory()
+{
+    printf("Running testFitInMemory...\n");
+    using P = FileUploadOKTOProtocol;
+    // Plenty of memory (PSRAM): unchanged
+    uint32_t block = 16000, batch = 3;
+    TEST_ASSERT(P::fitInMemory(4000000, block, batch) && block == 16000 && batch == 3, "PSRAM unchanged");
+    // Exactly enough: (16384 + 2 * 7 * 800 - 16384) / 2 holds 7 blocks of 800, a batch of 3 plus 4 copies
+    block = 800, batch = 3;
+    TEST_ASSERT(P::fitInMemory(P::UPLOAD_HEAP_MARGIN_BYTES + 2 * 7 * 800, block, batch) && batch == 3, "just fits");
+    // Short of memory: the batch gets smaller first
+    block = 800, batch = 10;
+    TEST_ASSERT(!P::fitInMemory(P::UPLOAD_HEAP_MARGIN_BYTES + 2 * 7 * 800, block, batch), "batch reduced reported");
+    TEST_ASSERT(block == 800 && batch == 3, ("batch reduced " + String(block) + "," + String(batch)).c_str());
+    // Very short: one block at a time, and the block gets smaller
+    block = 16000, batch = 3;
+    TEST_ASSERT(!P::fitInMemory(P::UPLOAD_HEAP_MARGIN_BYTES + 2 * 5 * 1000, block, batch), "block reduced reported");
+    TEST_ASSERT(block == 1000 && batch == 1, ("block reduced " + String(block) + "," + String(batch)).c_str());
+    // Almost none: the smallest block
+    block = 800, batch = 10;
+    P::fitInMemory(1000, block, batch);
+    TEST_ASSERT(block == P::FILE_BLOCK_SIZE_MIN && batch == 1, "smallest block");
+}
+
 int main()
 {
     testInOrder();
@@ -221,5 +245,6 @@ int main()
     testSecondBlockLost();
     testBlockSentAgain();
     testTimerAckStartsTheBatchAgain();
+    testFitInMemory();
     return testSummary("test_file_upload_okto");
 }

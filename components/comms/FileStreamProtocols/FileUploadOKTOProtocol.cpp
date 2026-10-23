@@ -11,6 +11,7 @@
 #include "FileSystem.h"
 #include "CommsChannelMsg.h"
 #include "CommsCoreIF.h"
+#include "SpiramAwareAllocator.h"
 
 // #define DEBUG_SHOW_FILE_UPLOAD_PROGRESS
 // #define DEBUG_RICREST_FILEUPLOAD
@@ -232,6 +233,32 @@ String FileUploadOKTOProtocol::getDebugJSON(bool includeBraces)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Make the block and batch sizes fit in memory - each block is held several times over on the way in (link receive
+// buffers, the HDLC frame, the channel queue, the decoded message) and a batch can be queued before it is written.
+// An allocation that fails can't be detected (exceptions are disabled) and would crash, so blocks and batches are
+// made smaller when memory is short (e.g. a device without PSRAM, or with its PSRAM in use). Half the memory left
+// after a margin may be used. Returns false if the sizes were reduced
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FileUploadOKTOProtocol::fitInMemory(uint32_t largestFreeBlock, uint32_t& blockSize, uint32_t& batchAckSize)
+{
+    uint32_t memAvailable = largestFreeBlock > UPLOAD_HEAP_MARGIN_BYTES ? (largestFreeBlock - UPLOAD_HEAP_MARGIN_BYTES) / 2 : 0;
+    uint32_t maxBlocksInMem = blockSize > 0 ? memAvailable / blockSize : 0;
+    if (maxBlocksInMem >= batchAckSize + BLOCK_COPIES_ON_RX)
+        return true;
+    if (maxBlocksInMem > BLOCK_COPIES_ON_RX)
+    {
+        batchAckSize = maxBlocksInMem - BLOCK_COPIES_ON_RX;
+    }
+    else
+    {
+        batchAckSize = 1;
+        blockSize = Raft::clamp(memAvailable / (1 + BLOCK_COPIES_ON_RX), FILE_BLOCK_SIZE_MIN, blockSize);
+    }
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // File transfer start
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -287,6 +314,14 @@ RaftRetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqM
             _batchAckSize = MAX_TOTAL_BYTES_IN_BATCH / _blockSize;
             if (_batchAckSize == 0)
                 _batchAckSize = 1;
+        }
+
+        // Check a batch fits in memory (see fitInMemory)
+        uint32_t largestFreeBlock = SpiramAwareAllocator<uint8_t>::max_allocatable();
+        if (!fitInMemory(largestFreeBlock, _blockSize, _batchAckSize))
+        {
+            LOG_W(MODULE_PREFIX, "handleStartMsg memory short (largest free block %d) blockSize %d batchAckSize %d",
+                        (int)largestFreeBlock, (int)_blockSize, (int)_batchAckSize);
         }
 
 #ifdef DEBUG_RICREST_HANDLE_CMD_FRAME
