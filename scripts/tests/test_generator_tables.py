@@ -125,6 +125,29 @@ class GeneratorTableTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('"Old" has deviceTypeId - it is now hwTypeId', result.stderr)
 
+    def test_hw_probe_effects_checked_and_not_compiled_in(self):
+        # Valid: accepted, any number of schemes, and nothing of it in the generated tables (only tooling reads it)
+        good = dict(make_record(), hwProbeEffects={"rsao": {"effect": "readEffect", "basis": "source", "note": "pops a FIFO"},
+                                                   "other-2": {"effect": "none"}})
+        result, header = self.run_with_records({"Good": good})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("pops a FIFO", header)
+        self.assertNotIn("hwProbeEffects", header)
+        # Invalid: refused, naming the problem
+        bad_cases = [
+            ("none", "must be an object keyed by scheme"),
+            ({"RSAO": {"effect": "none"}}, "scheme 'RSAO' must be"),
+            ({"rsao": {"basis": "bench"}}, "rsao effect must be one of"),
+            ({"rsao": {"effect": "fine"}}, "rsao effect must be one of"),
+            ({"rsao": {"effect": "none", "basis": "guess"}}, "rsao basis must be one of"),
+            ({"rsao": {"effect": "none", "note": 1}}, "rsao note must be a string"),
+            ({"rsao": {"effect": "none", "efect": "x"}}, "rsao has unknown field(s) efect"),
+        ]
+        for value, expected in bad_cases:
+            result, _ = self.run_with_records({"Bad": dict(make_record(), hwProbeEffects=value)})
+            self.assertNotEqual(result.returncode, 0, value)
+            self.assertIn('"Bad" hwProbeEffects ' + expected, result.stderr)
+
     def test_duplicate_key_across_files_warns(self):
         result, header = self.run_with_records({"Dup": make_record()}, {"Dup": make_record(addresses="0x11")})
         self.assertEqual(result.returncode, 0, result.stderr)

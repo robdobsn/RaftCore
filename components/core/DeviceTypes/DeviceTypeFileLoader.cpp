@@ -126,6 +126,52 @@ bool forEachMember(const char* p, const char* pEnd,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check a record's "hwProbeEffects": {"<scheme>": {"effect": ..., "basis": ..., "note": ...}} (as the generator's
+// hw_probe_effects_problem); empty if valid, else a description of the first problem
+String hwProbeEffectsProblem(const RaftJson& rec)
+{
+    int arrayLen = 0;
+    if (rec.getType("hwProbeEffects", arrayLen) != RaftJsonIF::RAFT_JSON_OBJECT)
+        return "must be an object keyed by scheme, e.g. {\"rsao\": {\"effect\": \"none\"}}";
+    static const char* EFFECTS[] = {"none", "readEffect", "changes", "unknown"};
+    static const char* BASES[] = {"bench", "datasheet", "source", "inferred"};
+    auto isOneOf = [](const String& value, const char* const* pNames, uint32_t numNames) {
+        for (uint32_t i = 0; i < numNames; i++)
+            if (value.equals(pNames[i]))
+                return true;
+        return false;
+    };
+    std::vector<String> schemes;
+    rec.getKeys("hwProbeEffects", schemes);
+    for (const String& scheme : schemes)
+    {
+        if (!DeviceTypeRecord::isValidHwScheme(scheme.c_str()))
+            return "scheme " + scheme + " must be [a-z][a-z0-9-]{0,15} (as in hwTypeId)";
+        String entryPath = "hwProbeEffects/" + scheme;
+        if (rec.getType(entryPath.c_str(), arrayLen) != RaftJsonIF::RAFT_JSON_OBJECT)
+            return scheme + " must be an object with \"effect\"";
+        std::vector<String> fields;
+        rec.getKeys(entryPath.c_str(), fields);
+        for (const String& field : fields)
+            if (!field.equals("effect") && !field.equals("basis") && !field.equals("note"))
+                return scheme + " has unknown field " + field;
+        String effectPath = entryPath + "/effect";
+        if ((rec.getType(effectPath.c_str(), arrayLen) != RaftJsonIF::RAFT_JSON_STRING) ||
+                    !isOneOf(rec.getString(effectPath.c_str(), ""), EFFECTS, sizeof(EFFECTS) / sizeof(EFFECTS[0])))
+            return scheme + " effect must be one of none, readEffect, changes, unknown";
+        String basisPath = entryPath + "/basis";
+        if (rec.contains(basisPath.c_str()) &&
+                    ((rec.getType(basisPath.c_str(), arrayLen) != RaftJsonIF::RAFT_JSON_STRING) ||
+                     !isOneOf(rec.getString(basisPath.c_str(), ""), BASES, sizeof(BASES) / sizeof(BASES[0]))))
+            return scheme + " basis must be one of bench, datasheet, source, inferred";
+        String notePath = entryPath + "/note";
+        if (rec.contains(notePath.c_str()) && (rec.getType(notePath.c_str(), arrayLen) != RaftJsonIF::RAFT_JSON_STRING))
+            return scheme + " note must be a string";
+    }
+    return "";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Parse a whole number from a JSON number or a string ("0x" hex or decimal); false if not one or out of range
 bool parseWholeNumber(const RaftJson& rec, const char* pPath, int64_t minVal, int64_t maxVal, int64_t& value)
 {
@@ -385,6 +431,17 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         if (pOther && pOther->deviceType && !key.equals(pOther->deviceType))
         {
             reject(result, key, "hwTypeId " + hwTypeId + " is already used by " + pOther->deviceType);
+            return;
+        }
+    }
+    // What other protocols' identification probes do to the device (keyed by scheme): checked, not kept - only
+    // tooling reads it
+    if (rec.contains("hwProbeEffects"))
+    {
+        String problem = hwProbeEffectsProblem(rec);
+        if (problem.length() > 0)
+        {
+            reject(result, key, "hwProbeEffects " + problem);
             return;
         }
     }

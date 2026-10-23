@@ -187,8 +187,9 @@ $(OBJDIR)/%.o: ../../%.cpp
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c -o $@ $<
 
-# The RaftCore catalogue as one file, from the record files
-$(DEV_TYPE_CATALOGUE): $(DEV_TYPE_RECORD_FILES) ../scripts/AssembleDeviceTypes.py
+# The RaftCore catalogue as one file, from the record files (and the folder, whose time changes when a record is
+# removed)
+$(DEV_TYPE_CATALOGUE): $(DEV_TYPE_RECORD_FILES) $(DEV_TYPE_RECORDS_DIR) ../scripts/AssembleDeviceTypes.py
 	mkdir -p $(DEV_TYPE_GEN_DIR)
 	python3 ../scripts/AssembleDeviceTypes.py --raftcore .. --all --out $@
 
