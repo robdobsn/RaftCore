@@ -255,6 +255,20 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Identification state of a device (cheap enough to call for every device several times a second)
+    /// @param address device address
+    /// @param state (out) identification state
+    /// @param attempts (out) consecutive identification attempts with this outcome (0 when identified)
+    /// @return false if not supported or the device isn't known
+    virtual bool getIdentState(BusElemAddrType address, BusIdentState& state, uint32_t& attempts) const
+    {
+        (void)address;
+        (void)state;
+        (void)attempts;
+        return false;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Run an identified device's initialisation again (without identifying it again)
     /// @param address device address
     /// @param doneFn called with the result when done (on the bus task) - not called if false is returned
