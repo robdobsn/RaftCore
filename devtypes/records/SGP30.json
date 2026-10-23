@@ -1,14 +1,15 @@
 {
-    "_notes": "Gas sensor for IAQ. Detection: 0x0000 = 0x58, 0x00 = config. Init: Send IAQ_INIT and wait 100ms, then poll. Poll: Send MEASURE_IAQ and read 6 bytes (CO2 & TVOC). setBaseline restores the IAQ baseline: TVOC baseline, then eCO2 baseline (the reverse of the order get_baseline returns them). setHumidity: absolute humidity for compensation, 0 turns it off.",
+    "_notes": "Sensirion SGP30 indoor air quality (eCO2 and TVOC) at 0x58 (fixed). Detection: get_feature_set (0x202F, 10 ms) - one word with its Sensirion CRC-8 (:crc8w) whose top 4 bits are the product type, 0 for the SGP30. Init: iaq_init (0x2003, 10 ms). Poll (1 s - measure_iaq must be called once a second for the chip's own dynamic baseline compensation): measure_iaq (0x2008), wait 12 ms, read eCO2 (ppm) and TVOC (ppb), each word followed by a CRC (not checked). For the first 15 s after iaq_init it reports 400 ppm and 0 ppb. setBaseline restores the IAQ baseline: TVOC baseline, then eCO2 baseline (the reverse of the order get_iaq_baseline returns them; the record has no action to read the baseline). setHumidity: absolute humidity for compensation, 8.8 fixed point in g/m3, 0 turns it off.",
     "addresses": "0x58",
-    "detectionValues": "0x0000=0x58",
-    "initValues": "0x2003=p100",
+    "detectionValues": "0x202f=p10&=0b0000XXXXXXXXXXXXXXXXXXXX:crc8w",
+    "initValues": "0x2003=p10",
     "pollInfo": {
-        "c": "0x2008=r6",
+        "c": "0x2008=p12&=r6",
         "i": 1000,
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "bench", "note": "bench (Axiom018, 2026-10-23): the lone 0x99 is NACKed (half a 16-bit command); the serial number, feature set and measurements are unchanged"}},
     "devInfoJson": {
         "name": "Gas Sensor (VOC)",
         "desc": "",
