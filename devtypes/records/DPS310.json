@@ -1,0 +1,45 @@
+{
+    "_notes": "Infineon DPS310 barometric pressure and temperature sensor (Adafruit board) at 0x77 (default, SDO high) or 0x76. Also matches the Goertek SPL06-001, which has the same ID, registers and compensation. Detection: PRODUCT_ID (0x0D) = 0x10 (REV_ID 1, PROD_ID 0); a BME280/BME680/BME690 reads otherwise there (a BME690 0x04 on the bench). Init: soft reset (RESET 0x0C = 0x89), 50 ms for the coefficients to be ready; Infineon's temperature correction sequence (0x0E = 0xA5, 0x0F = 0x96, 0x62 = 0x02, 0x0E = 0, 0x0F = 0), without which some chips read temperatures about twice too high; PRS_CFG (0x06) 8 measurements/s, 16x oversampling (27.6 ms each); TMP_CFG (0x07) the external (MEMS) temperature sensor, 8/s, 1x; CFG_REG (0x09) P_SHIFT, needed above 8x pressure oversampling; MEAS_CFG (0x08) continuous pressure and temperature. TMP_CFG's sensor must match the one the coefficients were calibrated with (COEF_SRCE, 0x28 bit 7): the external one on every chip seen (0xA9 on the bench), which the init assumes. Poll: PSR_B2-B0 and TMP_B2-B0 (0x00, 6 bytes, 24-bit two's complement, big-endian) and the coefficients (0x10, 18 bytes); the decode code applies Infineon's compensation (datasheet 4.9) with the scale factors for 16x (pressure, 253952) and 1x (temperature, 524288) oversampling, so a change to PRS_CFG or TMP_CFG oversampling needs them changed too.",
+    "addresses": "0x76-0x77",
+    "detectionValues": "0x0d=0x10",
+    "initValues": "0x0c89=p50&0x0ea5&0x0f96&0x6202&0x0e00&0x0f00&0x0634&0x07b0&0x0904&0x0807",
+    "pollInfo": {
+        "c": "0x00=r6&0x10=r18",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "bench", "note": "bench (Axiom018, 2026-10-23): the lone 0x99 + 9-byte read (registers 0x99-0xA1, not in the map) read zeros; configuration, coefficients and COEF_SRCE unchanged and measuring carried on. Its addresses are in Axiom's excluded RSAO range anyway"}},
+    "devInfoJson": {
+        "name": "Pressure & Temperature Sensor",
+        "desc": "",
+        "manu": "Infineon",
+        "type": "DPS310",
+        "clas": ["PRES","TEMP"],
+        "resp": {
+            "b": 24,
+            "a": [
+                {
+                    "n": "temperature",
+                    "t": "<f",
+                    "u": "&deg;C",
+                    "r": [-40,85],
+                    "f": "3.2f",
+                    "o": "float"
+                },
+                {
+                    "n": "pressure",
+                    "t": "<f",
+                    "u": "hPa",
+                    "r": [300,1200],
+                    "f": "4.2f",
+                    "o": "float"
+                }
+            ],
+            "c": {
+                "n": "dps310_compensate",
+                "c": "int pr=(buf[0]<<16)|(buf[1]<<8)|buf[2];if(pr>8388607){pr=pr-16777216;}int tr=(buf[3]<<16)|(buf[4]<<8)|buf[5];if(tr>8388607){tr=tr-16777216;}int c0=(buf[6]<<4)|(buf[7]>>4);if(c0>2047){c0=c0-4096;}int c1=((buf[7]&15)<<8)|buf[8];if(c1>2047){c1=c1-4096;}int c00=(buf[9]<<12)|(buf[10]<<4)|(buf[11]>>4);if(c00>524287){c00=c00-1048576;}int c10=((buf[11]&15)<<16)|(buf[12]<<8)|buf[13];if(c10>524287){c10=c10-1048576;}int c01=(buf[14]<<8)|buf[15];if(c01>32767){c01=c01-65536;}int c11=(buf[16]<<8)|buf[17];if(c11>32767){c11=c11-65536;}int c20=(buf[18]<<8)|buf[19];if(c20>32767){c20=c20-65536;}int c21=(buf[20]<<8)|buf[21];if(c21>32767){c21=c21-65536;}int c30=(buf[22]<<8)|buf[23];if(c30>32767){c30=c30-65536;}float ts=tr/524288.0;float ps=pr/253952.0;out.temperature=c0*0.5+c1*ts;float p=c00+ps*(c10+ps*(c20+ps*c30))+ts*c01+ts*ps*(c11+ps*c21);out.pressure=p/100.0;"
+            }
+        }
+    }
+}
