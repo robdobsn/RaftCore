@@ -8,6 +8,7 @@
         "s": 5
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "changes", "basis": "source", "note": "the read handler doesn't check the register pointer: from 0x99 the length wraps to 65415 and the handler holds the clock line for an estimated 0.3-0.6 s (bus stall), returning leftover RAM; no setting changes (Qwiic_Button e89a82f interrupts.ino 76-91). Its default address is excluded from RSAO addressing"}},
     "devInfoJson": {
         "name": "QWIIC Button",
         "desc": "",

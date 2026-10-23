@@ -4,6 +4,7 @@
     "initValues": "",
     "pollInfo": {},
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "source", "note": "0x99 isn't a command and there is no read handler, so the read returns 0xFF (Qwiic_LED_Stick 50bdbbc)"}},
     "devInfoJson": {
         "name": "RGB LED Stick",
         "desc": "",

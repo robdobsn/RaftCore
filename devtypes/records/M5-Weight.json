@@ -8,6 +8,7 @@
         "i": 250,
         "s": 1
     },
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "source", "note": "0x99 isn't a defined register, so the write is ignored and the read returns the previous reply; every action needs a data byte (m5stack/M5Unit-Miniscale-Internal-FW)"}},
     "devInfoJson": {
         "name": "Weight Sensor",
         "desc": "",

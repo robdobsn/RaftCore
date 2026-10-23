@@ -8,6 +8,7 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "bench", "note": "lone 0x99 + 9-byte read (2026-10-23): pointer to 0x19 (reserved), no configuration register changed, pressure unchanged"}},
     "devInfoJson": {
         "name": "Pressure Sensor",
         "desc": "",
