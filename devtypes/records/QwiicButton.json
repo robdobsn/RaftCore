@@ -8,7 +8,7 @@
         "s": 5
     },
     "scanPriority": "high",
-    "hwProbeEffects": {"rsao": {"effect": "changes", "basis": "source", "note": "the read handler doesn't check the register pointer: from 0x99 the length wraps to 65415 and the handler holds the clock line for an estimated 0.3-0.6 s (bus stall), returning leftover RAM; no setting changes (Qwiic_Button e89a82f interrupts.ino 76-91). Its default address is excluded from RSAO addressing"}},
+    "hwProbeEffects": {"rsao": {"effect": "changes", "basis": "bench", "note": "bench (Axiom018, button on a mux slot, 2026-10-23): the lone 0x99 + 9-byte read fails with an I2C hardware timeout and the button drops off the bus for about 1.1 s, then is found and identified again; devices on other slots and the main bus are unaffected (the mux isolates the slot, the master times out after about 1.6 ms). Source: the read handler doesn't check the register pointer, so from 0x99 the length wraps to 65415 and the handler loops inside the I2C interrupt, holding the clock (Qwiic_Button e89a82f interrupts.ino 76-91). No setting changes. Its default address 0x6F is excluded from RSAO addressing"}},
     "devInfoJson": {
         "name": "QWIIC Button",
         "desc": "",
