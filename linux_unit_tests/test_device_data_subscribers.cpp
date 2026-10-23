@@ -63,6 +63,26 @@ static void testRateLimitPerDevice()
     TEST_ASSERT(slow == 3, "testRateLimitPerDevice limited subscriber limited per device");
 }
 
+// A device polled at the subscriber's rate: samples a little early or late are all delivered; a device polled
+// faster is thinned to about the rate
+static void testRateLimitJitter()
+{
+    DeviceDataSubscribers subs;
+    int got = 0;
+    subs.addForType(6, [&](uint16_t, std::vector<uint8_t>, const void*) { got++; }, 250, (const void*)1);
+    RaftDeviceID d1(1, 1);
+    for (uint32_t t : {1000u, 1249u, 1498u, 1751u, 1999u})
+        subs.dispatch(d1, 6, sample(1), t);
+    TEST_ASSERT(got == 5, "testRateLimitJitter samples at the rate +-2 ms all delivered");
+
+    DeviceDataSubscribers fastSubs;
+    int fastGot = 0;
+    fastSubs.addForType(6, [&](uint16_t, std::vector<uint8_t>, const void*) { fastGot++; }, 250, (const void*)1);
+    for (uint32_t t = 1000; t <= 2000; t += 100)
+        fastSubs.dispatch(d1, 6, sample(1), t);
+    TEST_ASSERT(fastGot == 4, "testRateLimitJitter a device polled every 100 ms is thinned (1000, 1300, 1600, 1900)");
+}
+
 static void testRemoveMatchesInfo()
 {
     DeviceDataSubscribers subs;
@@ -136,6 +156,7 @@ int main()
     testTwoSubscribersSameDevice();
     testTypeAndIdSubscribers();
     testRateLimitPerDevice();
+    testRateLimitJitter();
     testRemoveMatchesInfo();
     testRemoveWaitsForCallbackOnOtherThread();
     testSelfRemoveInsideCallback();

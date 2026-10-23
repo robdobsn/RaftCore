@@ -164,6 +164,8 @@ private:
         RaftDeviceID deviceID;
         uint32_t timeMs = 0;
     };
+    // Rate limits allow a sample this fraction (1/n) of the interval early (poll timing jitter)
+    static constexpr uint32_t RATE_TOLERANCE_DIVISOR = 8;
     struct Sub
     {
         enum class Kind { DEVICE_ID, DEVICE_TYPE };
@@ -194,7 +196,10 @@ private:
             {
                 if (!(r.deviceID == id))
                     continue;
-                if (timeNowMs - r.timeMs < minTimeBetweenReportsMs)
+                // A sample due within an eighth of the interval is taken: samples from a device polled at the
+                // subscriber's rate arrive a millisecond or two either side of it, and without the slack one in a
+                // few was refused and the next taken at twice the interval
+                if (timeNowMs - r.timeMs < minTimeBetweenReportsMs - minTimeBetweenReportsMs / RATE_TOLERANCE_DIVISOR)
                     return false;
                 r.timeMs = timeNowMs;
                 return true;
