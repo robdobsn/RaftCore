@@ -1,7 +1,7 @@
 {
-    "_notes": "Gas sensor for VOC measurements (0-500). Hotplate temp controlled by command 0x59. Init: None needed. Poll: Send 0x2600 + humidity/temp compensation (default to 50%RH=0x8000, 25°C=0x6666), read raw signal (VOC ticks).",
+    "_notes": "Sensirion SGP40 VOC sensor at 0x59 (fixed). Detection: get_serial_number (0x3682, 1 ms) - three data words, each with a Sensirion CRC-8 (:crc8w). Init: start a raw measurement - measure_raw_signal (0x260F) with the default compensation 50 %RH (0x8000, CRC 0xA2) and 25 degC (0x6666, CRC 0x93); the result is ready after 30 ms. Poll (1 s, the rate Sensirion's VOC algorithm expects): read the previous measurement (SRAW_VOC word + its CRC, which isn't checked), then start the next, so no poll waits for the measurement. The value is the raw signal in ticks: the VOC index (0-500) needs Sensirion's gas index algorithm, run by the host (e.g. the app). Compensation stays at the defaults: the record can't feed in another sensor's humidity and temperature.",
     "addresses": "0x59",
-    "detectionValues": "",
+    "detectionValues": "0x3682=p1&=0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:crc8w",
     "initValues": "0x260f8000a2666693",
     "pollInfo": {
         "c": "=r3&0x260f8000a2666693=",
@@ -9,6 +9,7 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "bench", "note": "bench (Axiom018, 2026-10-23): the lone 0x99 is NACKed (half a 16-bit command), so nothing is sent on; the serial number and the measurement are unchanged"}},
     "devInfoJson": {
         "name": "SGP40",
         "desc": "Gas Sensor",
