@@ -135,6 +135,8 @@ private:
     uint32_t _expectedFilePos = 0;
     uint32_t _batchBlockCount = 0;
     uint32_t _batchBlockAckRetry = 0;
+    // An out-of-sequence block has been acked (cleared by the next block accepted)
+    bool _outOfSequenceAcked = false;
 
     // Debug
     uint32_t _debugLastStatsMs = millis();
