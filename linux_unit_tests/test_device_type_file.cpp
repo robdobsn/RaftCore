@@ -135,6 +135,15 @@ static void testRecordChecks()
         {"hwTypeId without a scheme", R"("hwTypeId":"0x0084",)" + good, "hwTypeId must be a string"},
         {"hwTypeId empty value", R"("hwTypeId":"rsao:",)" + good, "hwTypeId must be a string"},
         {"hwTypeId space", R"("hwTypeId":"rsao:0x 84",)" + good, "hwTypeId must be a string"},
+        {"hwProbeEffects not an object", R"("hwProbeEffects":"none",)" + good, "hwProbeEffects must be an object"},
+        {"hwProbeEffects bad scheme", R"("hwProbeEffects":{"RSAO":{"effect":"none"}},)" + good, "scheme RSAO must be"},
+        {"hwProbeEffects no effect", R"("hwProbeEffects":{"rsao":{"basis":"bench"}},)" + good, "rsao effect must be one of"},
+        {"hwProbeEffects bad effect", R"("hwProbeEffects":{"rsao":{"effect":"fine"}},)" + good, "rsao effect must be one of"},
+        {"hwProbeEffects bad basis", R"("hwProbeEffects":{"rsao":{"effect":"none","basis":"guess"}},)" + good,
+                    "rsao basis must be one of"},
+        {"hwProbeEffects note", R"("hwProbeEffects":{"rsao":{"effect":"none","note":1}},)" + good, "rsao note must be a string"},
+        {"hwProbeEffects unknown field", R"("hwProbeEffects":{"rsao":{"effect":"none","efect":"x"}},)" + good,
+                    "rsao has unknown field efect"},
         {"identPriority range", R"("identPriority":200,)" + good, "identPriority"},
         {"grammar error", R"("addresses":"0x51","detectionValues":"0x00=0xZZ")", "detectionValues BadCheck"},
         {"read limit", R"("addresses":"0x51","detectionValues":"0x00=r2000")", "reads 2000 bytes in one command, limit 1024"},
@@ -158,6 +167,15 @@ static void testRecordChecks()
         TEST_ASSERT(ok, c.name);
         DeviceTypeIndexType idx;
         TEST_ASSERT(table.getRecord("FileRec", idx) == nullptr, (std::string(c.name) + ": not added").c_str());
+    }
+
+    // A valid hwProbeEffects (any number of schemes) is accepted - and not kept: only tooling reads it
+    {
+        DeviceTypeRecords probeTable;
+        DeviceTypeFileLoader::Result probeResult = applyFile(probeTable, oneRecordFile("FileRec",
+                    std::string(R"("hwProbeEffects":{"rsao":{"effect":"readEffect","basis":"source","note":"pops a FIFO"},)"
+                                R"("other-2":{"effect":"none"}},)") + good));
+        TEST_ASSERT((probeResult.added == 1) && (probeResult.rejected == 0), "valid hwProbeEffects accepted");
     }
 
     // One bad record doesn't stop the others; the first error is kept

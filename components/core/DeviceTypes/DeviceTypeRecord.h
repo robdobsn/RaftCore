@@ -158,6 +158,22 @@ public:
         return len > valueStart;
     }
     static constexpr uint32_t MAX_HW_TYPE_ID_LEN = 64;
+
+    /// @brief Check the syntax of a hardware scheme name, as at the start of a hardware type ID: [a-z][a-z0-9-]{0,15}
+    ///        (also the keys of a record's "hwProbeEffects", which RaftCore checks but doesn't keep)
+    static bool isValidHwScheme(const char* pScheme)
+    {
+        if (!pScheme || (*pScheme < 'a') || (*pScheme > 'z'))
+            return false;
+        uint32_t len = 1;
+        for (; pScheme[len]; len++)
+        {
+            char c = pScheme[len];
+            if (!(((c >= 'a') && (c <= 'z')) || ((c >= '0') && (c <= '9')) || (c == '-')) || (len >= 16))
+                return false;
+        }
+        return true;
+    }
     bool isScannedWhilePolled() const
     {
         return (flags & FLAG_NO_SCAN_WHILE_POLLED) == 0;

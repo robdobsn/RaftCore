@@ -8,6 +8,7 @@
         "s": 5
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "readEffect", "basis": "source", "note": "ATtiny seesaw: shipped firmware has no handler for 0x99 (read NACKed); library 2.0.0 discards one-byte writes, so the read answers for the previous register and, if that was GPIO bulk, clears the interrupt flags (Adafruit_seesawPeripheral 8070dfb, f7f738d)"}},
     "devInfoJson": {
         "name": "Adafruit Gamepad",
         "desc": "",

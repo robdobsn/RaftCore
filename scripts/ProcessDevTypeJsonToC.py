@@ -66,6 +66,11 @@ FLAG_NO_SCAN_WHILE_POLLED = 0x04
 # numbering, the value is printable ASCII without spaces, 64 characters at most in all
 HW_TYPE_ID_RE = re.compile(r"[a-z][a-z0-9-]{0,15}:[\x21-\x7e]+")
 HW_TYPE_ID_MAX_LEN = 64
+# "hwProbeEffects": what another protocol's identification probe does to the device, keyed by scheme (as hwTypeId's).
+# Read by tooling (e.g. to keep a protocol's addresses away from devices its probe changes), never compiled in
+HW_SCHEME_RE = re.compile(r"[a-z][a-z0-9-]{0,15}")
+HW_PROBE_EFFECTS = ("none", "readEffect", "changes", "unknown")
+HW_PROBE_BASES = ("bench", "datasheet", "source", "inferred")
 
 POLICY_ENABLED = 0
 POLICY_DISABLED = 1
@@ -176,6 +181,11 @@ def record_ident_fields(dev_type, dev_type_key):
                   f"e.g. \"rsao:0x0084\"", file=sys.stderr)
             sys.exit(1)
         hw_type_id = value
+    if "hwProbeEffects" in dev_type:
+        problem = hw_probe_effects_problem(dev_type["hwProbeEffects"])
+        if problem:
+            print(f"ERROR: record \"{dev_type_key}\" hwProbeEffects {problem}", file=sys.stderr)
+            sys.exit(1)
     ident_priority = dev_type.get("identPriority", 0)
     if not isinstance(ident_priority, int) or isinstance(ident_priority, bool) or not -128 <= ident_priority <= 127:
         print(f"ERROR: record \"{dev_type_key}\" identPriority must be an integer from -128 to 127", file=sys.stderr)
@@ -186,6 +196,29 @@ def record_ident_fields(dev_type, dev_type_key):
 def is_valid_hw_type_id(value):
     """Check a hardware type ID's syntax: "<scheme>:<value>" (as DeviceTypeRecord::isValidHwTypeId)"""
     return isinstance(value, str) and len(value) <= HW_TYPE_ID_MAX_LEN and HW_TYPE_ID_RE.fullmatch(value) is not None
+
+
+def hw_probe_effects_problem(value):
+    """Check "hwProbeEffects": {"<scheme>": {"effect": ..., "basis": ..., "note": ...}} (as DeviceTypeFileLoader)
+
+    Returns a description of the first problem, or None if it is valid"""
+    if not isinstance(value, dict):
+        return "must be an object keyed by scheme, e.g. {\"rsao\": {\"effect\": \"none\"}}"
+    for scheme, entry in value.items():
+        if HW_SCHEME_RE.fullmatch(scheme) is None:
+            return f"scheme {scheme!r} must be [a-z][a-z0-9-]{{0,15}} (as in hwTypeId)"
+        if not isinstance(entry, dict):
+            return f"{scheme} must be an object with \"effect\""
+        unknown = set(entry) - {"effect", "basis", "note"}
+        if unknown:
+            return f"{scheme} has unknown field(s) {', '.join(sorted(unknown))}"
+        if entry.get("effect") not in HW_PROBE_EFFECTS:
+            return f"{scheme} effect must be one of {', '.join(HW_PROBE_EFFECTS)}"
+        if ("basis" in entry) and (entry["basis"] not in HW_PROBE_BASES):
+            return f"{scheme} basis must be one of {', '.join(HW_PROBE_BASES)}"
+        if ("note" in entry) and not isinstance(entry["note"], str):
+            return f"{scheme} note must be a string"
+    return None
 
 
 def c_string_literal(value):

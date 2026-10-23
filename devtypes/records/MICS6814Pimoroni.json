@@ -13,6 +13,7 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "inferred", "note": "Pimoroni IO Expander firmware (not public): a one-byte write only sets the pointer; 0x99-0xA1 are PWM and ADC configuration registers with no read side effect (ioe-python register map)"}},
     "devInfoJson": {
         "name": "Gas Sensor",
         "desc": "Reducing, NH3 and oxidising gases",

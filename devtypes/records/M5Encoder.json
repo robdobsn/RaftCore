@@ -8,6 +8,7 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "source", "note": "disassembled v1.1 firmware: 0x99 falls through the register dispatch. One-byte writes of 0x00, 0x30 or 0x40 act on stale buffer bytes, so those values must not be used as probes"}},
     "devInfoJson": {
         "name": "Rotary Encoder",
         "desc": "",

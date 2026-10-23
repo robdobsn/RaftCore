@@ -9,6 +9,7 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "source", "note": "Trill firmware v2: the first byte is a buffer offset and 0x99 is beyond the 64-byte buffer, so it is NACKed and ignored; reads have no side effects (BelaPlatform/Trill 537ebd6). Firmware v3 isn't public"}},
     "devInfoJson": {
         "name": "Trill Square",
         "desc": "Capacitive Touch Square",

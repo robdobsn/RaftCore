@@ -310,12 +310,22 @@ public:
     /// @brief Set the addresses the new-device identification handler handles (inclusive ranges of 7-bit
     ///        addresses); empty (the default) means every address
     /// @param ranges address ranges, e.g. {{0x0F, 0x6F}}
-    /// @note The handler is only offered devices at these addresses, and only these addresses (and those a device
-    ///       type record can identify) are scanned often - addresses nothing can claim are scanned in a slow
-    ///       background sweep
+    /// @note The handler is only offered devices at these addresses. Covering an address doesn't make it scanned
+    ///       often: an address only the handler covers is scanned in the background sweep, unless it is boosted
+    ///       (setScanBoostAddrs)
     virtual void setNewDeviceIdentAddrRanges(const std::vector<std::pair<uint32_t, uint32_t>>& ranges)
     {
         (void)ranges;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set addresses to scan most often (the highest scan priority), e.g. those where the new-device
+    ///        identification handler expects its devices; replaces the addresses set before (an empty list clears
+    ///        them). They are added to any scan boost addresses in the bus configuration
+    /// @param addrs 7-bit addresses (on the main bus and every slot)
+    virtual void setScanBoostAddrs(const std::vector<uint32_t>& addrs)
+    {
+        (void)addrs;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

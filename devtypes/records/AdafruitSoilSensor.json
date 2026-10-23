@@ -9,6 +9,7 @@
         "s": 5
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "source", "note": "SAMD09 seesaw: 0x99 isn't a module base, so the command is ignored and the read returns 0xFF or stale reply bytes (adafruit/seesaw 20e2892)"}},
     "devInfoJson": {
         "name": "Soil Moisture Sensor",
         "desc": "",
