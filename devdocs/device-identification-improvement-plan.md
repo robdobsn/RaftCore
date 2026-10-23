@@ -1300,6 +1300,12 @@ What was done:
   addresses (the hook is then offered only those); a hook without ranges handles every address, as before. Axiom
   RSAO registers its default address and assignable range (0x0F, 0x10-0x6F). FeatherS3 lists: 28/54/5 addresses
   with 29 in the background.
+  *(Changed in RaftI2C 1.23.0 / RaftCore 1.61.0: an address only the hook handles goes to the background sweep too -
+  handling an address no longer makes it scanned often. A hook boosts the addresses where it expects its devices
+  with `RaftBusDevicesIF::setScanBoostAddrs()`, scanned in the first list only. Axiom RSAO boosts 0x0F and its
+  tier-1 addresses and covers 0x0F and 0x10-0x6F minus its excluded ranges: lists 37/39/1 with 39 in the
+  background, an RSAO outside the boosted addresses found in about 5 s instead of 15-18 s. See Axiom
+  `devdocs/rsao-probe-safety-and-address-selection-plan.md`.)*
 - **Confirmation probe:** an address that answers once is probed again on the next pass, so it is online within a
   few ms instead of when the scan comes round (boot: seen to online 120-196 ms before, 5-7 ms now).
 - **Share (item 1):** slow scanning earns time at `scanShareMaxPct` (30%) scaled down by the poll load to
