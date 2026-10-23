@@ -1,5 +1,5 @@
 {
-    "_notes": "ScioSense ENS160 digital metal-oxide multi-gas sensor (Adafruit and SparkFun boards) at 0x53 (default, ADDR high) or 0x52. Detection: PART_ID (0x00, 2 bytes little-endian) = 0x0160. Init: OPMODE (0x10) idle (0x01), then compensation TEMP_IN (0x13, kelvin x 64) = 25 degC and RH_IN (0x15, %RH x 512) = 50 %RH in one write, then OPMODE standard (0x02), which measures once a second. Poll (1 s): 6 bytes from DEVICE_STATUS (0x20): status, DATA_AQI (UBA air quality index 1-5, bits 2:0), DATA_TVOC (ppb) and DATA_ECO2 (ppm), both little-endian. Status: STATAS (bit 7) = an operating mode is running, STATER (bit 6) = error, VALIDITY (bits 3:2) 0 = normal, 1 = warm-up (the first 3 min after each power-on), 2 = initial start-up (the first hour of operation in the sensor's life), 3 = invalid output; NEWDAT (bit 1) = new data. Readings during warm-up or initial start-up are not yet reliable. The compensation actions take degC and %RH (e.g. from another sensor); the mode action switches between deep sleep, idle and standard.",
+    "_notes": "ScioSense ENS160 digital metal-oxide multi-gas sensor (Adafruit and SparkFun boards) at 0x53 (default, ADDR high) or 0x52. Detection: PART_ID (0x00, 2 bytes little-endian) = 0x0160. Init: OPMODE (0x10) idle (0x01), then compensation TEMP_IN (0x13, kelvin x 64) = 25 degC and RH_IN (0x15, %RH x 512) = 50 %RH in one write, then OPMODE standard (0x02), which measures once a second. Poll (1 s): 6 bytes from DEVICE_STATUS (0x20): status, DATA_AQI (UBA air quality index 1-5, bits 2:0), DATA_TVOC (ppb) and DATA_ECO2 (ppm), both little-endian. Status: STATAS (bit 7) = an operating mode is running, STATER (bit 6) = error, VALIDITY (bits 3:2) 0 = normal, 1 = warm-up (the first 3 min after each power-on), 2 = initial start-up (the first hour of operation in the sensor's life), 3 = invalid output; NEWDAT (bit 1) = new data, NEWGPR (bit 0) = new general-purpose register data; the status labels are S (STATAS), E (STATER), D (NEWDAT) and G (NEWGPR), with the validity bits left to the validity attribute. Readings during warm-up or initial start-up are not yet reliable. The compensation actions take degC and %RH (e.g. from another sensor); the mode action switches between deep sleep, idle and standard.",
     "addresses": "0x52-0x53",
     "detectionValues": "0x00=0x6001",
     "initValues": "0x1001=p10&0x138a4a0064=&0x1002=p10",
@@ -27,7 +27,7 @@
                     "f": "02x",
                     "o": "uint8",
                     "vs": false,
-                    "bl": {"0x80": "STATAS", "0x40": "STATER", "0x02": "NEWDAT", "0x01": "NEWGPR"}
+                    "bl": {"0x80": "S", "0x40": "E", "0x08": "", "0x04": "", "0x02": "D", "0x01": "G"}
                 },
                 {
                     "n": "validity",
@@ -37,7 +37,8 @@
                     "m": "0x0c",
                     "s": 2,
                     "f": "d",
-                    "o": "uint8"
+                    "o": "uint8",
+                    "vl": {"0": "normal", "1": "warm-up", "2": "start-up", "3": "invalid"}
                 },
                 {
                     "n": "AQI",
