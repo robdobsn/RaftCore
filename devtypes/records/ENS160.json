@@ -1,0 +1,103 @@
+{
+    "_notes": "ScioSense ENS160 digital metal-oxide multi-gas sensor (Adafruit and SparkFun boards) at 0x53 (default, ADDR high) or 0x52. Detection: PART_ID (0x00, 2 bytes little-endian) = 0x0160. Init: OPMODE (0x10) idle (0x01), then compensation TEMP_IN (0x13, kelvin x 64) = 25 degC and RH_IN (0x15, %RH x 512) = 50 %RH in one write, then OPMODE standard (0x02), which measures once a second. Poll (1 s): 6 bytes from DEVICE_STATUS (0x20): status, DATA_AQI (UBA air quality index 1-5, bits 2:0), DATA_TVOC (ppb) and DATA_ECO2 (ppm), both little-endian. Status: STATAS (bit 7) = an operating mode is running, STATER (bit 6) = error, VALIDITY (bits 3:2) 0 = normal, 1 = warm-up (the first 3 min after each power-on), 2 = initial start-up (the first hour of operation in the sensor's life), 3 = invalid output; NEWDAT (bit 1) = new data. Readings during warm-up or initial start-up are not yet reliable. The compensation actions take degC and %RH (e.g. from another sensor); the mode action switches between deep sleep, idle and standard.",
+    "addresses": "0x52-0x53",
+    "detectionValues": "0x00=0x6001",
+    "initValues": "0x1001=p10&0x138a4a0064=&0x1002=p10",
+    "pollInfo": {
+        "c": "0x20=r6",
+        "i": 1000,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "readEffect", "basis": "bench", "note": "bench (Axiom018, 2026-10-23): the chip ignores bit 7 of the register address, so the lone 0x99 points at 0x19 and the 9-byte read covers 0x19-0x21, ending with DEVICE_STATUS and DATA_AQI. No configuration register changed (OPMODE, CONFIG, TEMP_IN, RH_IN) and measuring carried on; reading DATA_AQI may clear the NEWDAT flag (transient)"}},
+    "devInfoJson": {
+        "name": "Gas Sensor (VOC, eCO2)",
+        "desc": "",
+        "manu": "ScioSense",
+        "type": "ENS160",
+        "clas": ["VOC","CO2"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "status",
+                    "t": "B",
+                    "r": [0,255],
+                    "m": "0xff",
+                    "f": "02x",
+                    "o": "uint8",
+                    "vs": false,
+                    "bl": {"0x80": "STATAS", "0x40": "STATER", "0x02": "NEWDAT", "0x01": "NEWGPR"}
+                },
+                {
+                    "n": "validity",
+                    "at": 0,
+                    "t": "B",
+                    "r": [0,3],
+                    "m": "0x0c",
+                    "s": 2,
+                    "f": "d",
+                    "o": "uint8"
+                },
+                {
+                    "n": "AQI",
+                    "at": 1,
+                    "t": "B",
+                    "u": "UBA",
+                    "r": [1,5],
+                    "m": "0x07",
+                    "f": "d",
+                    "o": "uint8"
+                },
+                {
+                    "n": "TVOC",
+                    "at": 2,
+                    "t": "<H",
+                    "u": "ppb",
+                    "r": [0,65000],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "eCO2",
+                    "at": 4,
+                    "t": "<H",
+                    "u": "ppm",
+                    "r": [400,65000],
+                    "f": "5d",
+                    "o": "uint16"
+                }
+            ]
+        },
+        "actions": [
+            {
+                "n": "temperature compensation",
+                "desc": "Ambient temperature for compensation, in degC (e.g. from another sensor)",
+                "t": "<H",
+                "w": "13",
+                "sub": -273.15,
+                "mul": 64,
+                "r": [-40,85],
+                "d": 25
+            },
+            {
+                "n": "humidity compensation",
+                "desc": "Ambient relative humidity for compensation, in %RH",
+                "t": "<H",
+                "w": "15",
+                "mul": 512,
+                "r": [0,100],
+                "d": 50
+            },
+            {
+                "n": "mode",
+                "desc": "Operating mode: standard measures once a second; deep sleep uses least power",
+                "map": {
+                    "deep sleep": "1000",
+                    "idle": "1001",
+                    "standard": "1002"
+                }
+            }
+        ]
+    }
+}
