@@ -432,6 +432,7 @@ bool FileUploadOKTOProtocol::validateFileStreamStart(const String& fileName, uin
     _expectedFilePos = 0;
     _batchBlockCount = 0;
     _batchBlockAckRetry = 0;
+    _outOfSequenceAcked = false;
     return true;
 }
 
@@ -458,6 +459,8 @@ void FileUploadOKTOProtocol::transferService(bool& genAck)
             LOG_W(MODULE_PREFIX, "transferService blockMsgs timeOut - okto ack needed bytesRx %d lastOkTo %d lastMsgMs %d curMs %d blkCount %d blkSize %d batchSize %d retryCount %d",
                         _bytesCount, getOkTo(), _lastMsgMs, (int)nowMillis, _blockCount, _blockSize, _batchAckSize, _batchBlockAckRetry);
             _lastMsgMs = nowMillis;
+            // The host sends a new batch from the position acked, so count the batch from there
+            _batchBlockCount = 0;
             genAck = true;
             return;
         }
@@ -494,43 +497,52 @@ void FileUploadOKTOProtocol::validateRxBlock(uint32_t filePos, uint32_t blockLen
     isFirstBlock = false;
     genAck = false;
 
-    // Add to batch
-    _batchBlockCount++;
+    // Any block is activity (the timer acks only when blocks stop)
     _lastMsgMs = millis();
+    _batchBlockAckRetry = 0;
 
-    // Check
+    // A block out of sequence (after a lost block, or one sent again) is dropped. The first of a run of them is
+    // acked at once with the position wanted, so the host sends again from there without waiting for the timer
+    // ack. The rest aren't counted towards the batch, which is counted again from the next block accepted: if they
+    // were, acks would then fall part-way through the host's batches
     if (filePos != _expectedFilePos)
     {
 #ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK
         LOG_W(MODULE_PREFIX, "validateRxBlock unexpected %d != %d, blockCount %d batchBlockCount %d, batchAckSize %d", 
                     filePos, _expectedFilePos, _blockCount, _batchBlockCount, _batchAckSize);
 #endif
+        if (!_outOfSequenceAcked)
+        {
+            _outOfSequenceAcked = true;
+            _batchBlockCount = 0;
+            genAck = true;
+        }
+        return;
     }
-    else
-    {
-        // Valid block so bump values
-        blockValid = true;
-        _expectedFilePos += blockLen;
-        _blockCount++;
-        _bytesCount += blockLen;
-        _blocksInWindow++;
-        _bytesInWindow += blockLen;
-        isFirstBlock = filePos == 0;
 
-        // Check if this is the final block
-        isFinalBlock = checkFinalBlock(filePos, blockLen);
+    // Valid block so bump values
+    _outOfSequenceAcked = false;
+    blockValid = true;
+    _batchBlockCount++;
+    _expectedFilePos += blockLen;
+    _blockCount++;
+    _bytesCount += blockLen;
+    _blocksInWindow++;
+    _bytesInWindow += blockLen;
+    isFirstBlock = filePos == 0;
+
+    // Check if this is the final block
+    isFinalBlock = checkFinalBlock(filePos, blockLen);
 
 #ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK
-        LOG_I(MODULE_PREFIX, "validateRxBlock ok blockCount %d batchBlockCount %d, batchAckSize %d",
-                    _blockCount, _batchBlockCount, _batchAckSize);
+    LOG_I(MODULE_PREFIX, "validateRxBlock ok blockCount %d batchBlockCount %d, batchAckSize %d",
+                _blockCount, _batchBlockCount, _batchAckSize);
 #endif
-    }
 
-    // Generate an ack on the first block received and on completion of each batch
+    // Generate an ack on the first block accepted and on completion of each batch
     bool batchComplete = (_batchBlockCount == _batchAckSize) || (_blockCount == 1) || isFinalBlock;
     if (batchComplete)
         _batchBlockCount = 0;
-    _batchBlockAckRetry = 0;
     genAck = batchComplete;
 }
 
