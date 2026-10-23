@@ -1254,7 +1254,10 @@ for the type file at startup (Stage 6), so a restart applies a change cleanly. D
    forward from Stage 10). Requests are queued and applied on the bus task. **Make-before-break:** an identified
    device is polled as its type until the result is known; the same type matching changes nothing (no re-init, no
    event); another type is initialised and reported as TypeChanged; no match is Lost; a bus error or a deferral keeps
-   the type and is tried again (3 times). Hook-identified (probe-only) devices are only re-identified by address.
+   the type and is tried again (3 times). Hook-identified (probe-only) devices are only re-identified by address. *(Changed 2026-10-22, RaftI2C
+   `feature/hook-device-reident`: they are re-identified, by the hook, in every scope but Outranked - so disabling a
+   hook type drops its devices at once. Outranked still skips them: a probe-only type is never a candidate at an
+   address, so any record enabled there would count as outranking it and its detection would be run on the device.)*
    Unidentified devices in scope are tried at once.
 2. **Live policy:** `DeviceManager::setTypePolicy()` and `devman/typepolicy?type=&policy=` (brought forward from
    Stage 10; not saved): disabling re-identifies the devices of that type; enabling re-identifies the devices it now

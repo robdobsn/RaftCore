@@ -613,6 +613,11 @@ Stage 12 of the identification plan (record improvements) can start after phase 
   the lookup, the handler's log and the host tests.
 - The record check (7.4 step 6) is `scripts/check_rsao_records.py`, run by `ctest` in `tests/rsao`.
 - Still checked 2026-10-22: no repo other than RaftCore, Axiom and the wiki reads the field.
+- **M16 is met by RaftI2C, not by the lookup.** The lookup first refused a record whose policy isn't enabled, as 7.4
+  step 3 says. On hardware, disabling a fitted RSAO's type then left it identified: the hook deferred, and a deferral
+  on re-identification keeps the device's type (it is normally transient). RaftI2C already applies policy to every
+  hook's result (`runIdentHook`: a disabled type isn't used), so the lookup returns the record whatever its policy:
+  a device of a disabled type isn't identified, and one already identified is dropped when it is identified again.
 
 RaftCore, Axiom and the wiki; no other repo reads the field (checked 2026-10-21: raftjs, RaftCLI,
 RaftI2C, RaftSysMods and RaftROS have no use of it). Decisions M13-M17 (§5).
