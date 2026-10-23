@@ -1,4 +1,5 @@
 {
+    "_notes": "SparkFun Qwiic Button (ATtiny84 with SparkFun firmware) at 0x6F by default (the address can be changed in software). The LED is a single colour (red or green, depending on the board), so it has brightness and pulse settings, not a colour. Every LED and debounce setting is saved in the button's EEPROM, so it survives a power cycle (a new button: brightness 255, no pulsing, debounce 10 ms). The pulse step must not be 0: the firmware divides by it. Poll: the status register (0x03), bit 2 = pressed; its clicked and event bits stay set until written back, so they aren't decoded.",
     "addresses": "0x6f",
     "detectionValues": "0x00=0b01011101",
     "initValues": "",
@@ -32,28 +33,53 @@
         },
         "actions": [
             {
-                "n": "brightness",
+                "n": "LED",
+                "desc": "LED presets: off, on (full brightness, steady) or breathe (full brightness, 1 s pulse, 0.5 s off)",
+                "map": {
+                    "off": {"w": "1900&1b0000"},
+                    "on": {"w": "19ff&1b0000"},
+                    "breathe": {"w": "19ff&1a01&1be803&1df401"}
+                }
+            },
+            {
+                "n": "LED brightness",
+                "desc": "LED brightness, 0-255 (when pulsing, the peak of each pulse)",
                 "t": "B",
                 "w": "19",
-                "r": [0,255]
+                "r": [0,255],
+                "d": 255
             },
             {
-                "n": "granularity",
+                "n": "LED pulse step",
+                "desc": "Brightness change at each step of a pulse, 1-255 (1 is smoothest)",
                 "t": "B",
                 "w": "1a",
-                "r": [1,255]
+                "r": [1,255],
+                "d": 1
             },
             {
-                "n": "cycle time",
+                "n": "LED pulse time",
+                "desc": "Length of one pulse (ramp up and down) in ms; 0 = no pulsing, the LED stays at its brightness",
                 "t": "<H",
                 "w": "1b",
-                "r": [0,65535]
+                "r": [0,65535],
+                "d": 0
             },
             {
-                "n": "off time",
+                "n": "LED off time",
+                "desc": "Time the LED stays off between pulses, in ms",
                 "t": "<H",
                 "w": "1d",
-                "r": [0,65535]
+                "r": [0,65535],
+                "d": 0
+            },
+            {
+                "n": "debounce",
+                "desc": "Button debounce time in ms",
+                "t": "<H",
+                "w": "05",
+                "r": [1,1000],
+                "d": 10
             }
         ]
     }
