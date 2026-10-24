@@ -33,6 +33,7 @@ make -C linux_unit_tests check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tes
 | `test_protocol_exchange` | `ProtocolExchange`: a real-time stream session from start to final block, the file stream activity hook, and refusal of a stream to an unknown endpoint |
 | `test_file_upload_okto` | `FileUploadOKTOProtocol`: when it acks - the first block, each batch, the last block, at once for the first block out of sequence (a lost block or one sent again), and on its timer - and that its acks stay in step with the host's batches after a loss or a timer ack |
 | `test_thread_safe_queue` | `ThreadSafeQueue` (with its `SpiramAwareAllocator` deque): order, length limits, peek/pop/clear, many elements, and a producer and consumer on two threads |
+| `test_simple_buffer` | `SimpleBuffer` (MiniHDLC's frame buffers): grows geometrically and only when the memory is there (fails instead of crashing), `clear()` releases a buffer grown by a long frame; frames through MiniHDLC, including after a run longer than the limit |
 | `scripts/tests` (Python) | The device type record generator: generated decoders (`test_standard_decode`), pseudocode arrays, and device type key handling (`test_device_type_keys`) |
 | `test_espnow_config` | ESP-NOW configuration parsing. The code is on the RaftSysMods branch `feature/ESPNow-as-first-class-protocol`, so `make check` skips this test unless `../../RaftSysMods/components/ESPNowManager` exists. It should move to RaftSysMods with that code |
 

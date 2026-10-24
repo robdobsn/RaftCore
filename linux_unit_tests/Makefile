@@ -111,11 +111,12 @@ SOURCES_test_runtime_decoder = test_runtime_decoder.cpp $(CORE)/DeviceTypes/Devi
 SOURCES_test_protocol_exchange = test_protocol_exchange.cpp $(COMMS_SOURCES) $(COMMON_SOURCES)
 SOURCES_test_file_upload_okto = test_file_upload_okto.cpp $(COMMS_SOURCES) $(COMMON_SOURCES)
 SOURCES_test_thread_safe_queue = test_thread_safe_queue.cpp $(COMMON_SOURCES)
+SOURCES_test_simple_buffer = test_simple_buffer.cpp $(CORE)/MiniHDLC/MiniHDLC.cpp $(COMMON_SOURCES)
 SOURCES_test_espnow_config = test_espnow_config.cpp $(ESPNOW_DIR)/ESPNowConfig.cpp $(COMMON_SOURCES)
 
 # Tests run by "make check"
 TESTS = test_raft_json test_raft_utils test_device_names test_device_settings test_device_type_settings test_device_data_subscribers test_device_type_records \
-  test_device_type_table test_device_type_grammar test_device_type_policy test_device_type_file test_catalogue_index test_runtime_decoder test_bus_ident test_bus_scan_schedule test_device_poll_timing test_device_poll_scheduler test_poll_plan test_protocol_exchange test_file_upload_okto test_thread_safe_queue
+  test_device_type_table test_device_type_grammar test_device_type_policy test_device_type_file test_catalogue_index test_runtime_decoder test_bus_ident test_bus_scan_schedule test_device_poll_timing test_device_poll_scheduler test_poll_plan test_protocol_exchange test_file_upload_okto test_thread_safe_queue test_simple_buffer
 
 # Extra device type catalogues for test_device_type_records to sweep, e.g.
 #   make check DEV_TYPE_CATALOGUES="../../RaftI2C/linux_unit_tests/TestDevTypeRecs.json"
