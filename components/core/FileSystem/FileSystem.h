@@ -10,6 +10,7 @@
 #pragma once
 
 #include <list>
+#include <vector>
 #include <atomic>
 #include <string>
 #include "RaftUtils.h"
@@ -239,7 +240,18 @@ private:
     CachedFileSystem _localFsCache;
 
     // Mutex controlling access to file system
-    mutable RaftMutex _fileSysMutex;
+    // A lock for each file system, so that a slow write to one (e.g. a file upload written on the file system
+    // worker) doesn't hold up access to the other
+    mutable RaftMutex _localFsMutex;
+    mutable RaftMutex _sdFsMutex;
+    RaftMutex& fsMutex(const char* nameOfFS) const;
+    RaftMutex& fsMutex(const String& nameOfFS, const String& filename) const;
+    RaftMutex& pathMutex(const char* path) const;
+    RaftMutex& fileMutex(FILE* pFile) const;
+
+    // Files open on the SD card (fileMutex() gives the lock for a file from these)
+    std::vector<FILE*> _sdOpenFiles;
+    mutable RaftMutex _openFilesMutex;
 
     // File system partition name
     String _fsPartitionName;
