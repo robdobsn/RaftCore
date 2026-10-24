@@ -41,12 +41,19 @@ Usage:
                            [--cache-dir <dir>] [--lock <file>] [--override-dir <dir>] [--update]
     AssembleDeviceTypes.py --raftcore <dir> --all --out <catalogue.json>     (every RaftCore record, one file)
     AssembleDeviceTypes.py --split <catalogue.json> --out-dir <records dir>   (one file per record, as written)
+    AssembleDeviceTypes.py --raftcore <dir> --pages <site dir> --label <v1.62.0 or main>
+    AssembleDeviceTypes.py --pages-index <site dir>
+        The catalogue on RaftCore's GitHub Pages site: <site dir>/<label>/ has records/<Key>.json (each file as it is),
+        catalogue.json (key, file, SHA-256 and a summary of each record) and DeviceTypeRecords.json (all of them);
+        index.json lists the versions, "main" first, then releases, newest first
     AssembleDeviceTypes.py --raftcore <dir> --select <file>[,<file>] --typefile --out <devlib.json>
                            [--compiled <catalogue.json>] [--max-bytes <n>] [--report <report.json>]
         A device type file for the device's file system from the typeFile selection: minified, without _notes; each
         record is new, an override of a compiled record or unchanged (left out); typeFile policies for compiled types
         become {"disable": ...} entries. Records with no on-device decoder are listed. The compiled records are the
-        builtin selection of the same files unless --compiled gives them
+        builtin selection of the same files unless --compiled gives them. The file's top-level _sources (ignored by
+        the device) says what it was made from: the sources that supplied a record (git ones with their commit,
+        RaftCore's with its version) and the typeFile selection
 
     AssembleDeviceTypes.py --raftcore <dir> --select <file>[,<file>] --fs-image <dir> --systypes <SysTypes.json>
                            --compiled <file or folder>[,...] [--compiled-out <catalogue.json>]
@@ -81,6 +88,8 @@ POLICY_VALUES = {"enabled": None, "disabled": True, "disabledClaim": "claim"}
 SECTIONS = ("builtin", "typeFile")
 LOCK_FORMAT_VERSION = 1
 SOURCE_FORMAT_VERSION = 1
+PROVENANCE_FORMAT_VERSION = 1   # a type file's _sources
+PAGES_FORMAT_VERSION = 1        # the published catalogue (--pages)
 SOURCE_MANIFEST = "raftdevtypes.json"
 
 
@@ -452,6 +461,7 @@ class Assembly:
         self.messages = []
         self.inputs = []                 # files and folders read
         self.fs_image = False
+        self.provenance = None           # what the records were selected from (build_type_file writes it as _sources)
 
 
 def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None):
@@ -568,7 +578,42 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
             result.records[key].pop("disable", None)
         else:
             result.records[key]["disable"] = value
+    result.provenance = _provenance(selection, section, chosen, result, raftcore_dir)
     return result
+
+
+def _provenance(selection, section, chosen, result, raftcore_dir):
+    """What a selection's records came from, so a type file can say how it was made (its _sources): the sources that
+    supplied a record - a git source with the commit its ref resolved to, RaftCore's records with RaftCore's version,
+    a path source with its path (the records themselves are only in the file) - and the section's selection"""
+    used = set(source for source, _ in result.origin.values())
+    sources = OrderedDict()
+    for name, (spec, _, _) in selection["sources"].items():
+        if name not in used:
+            continue
+        if "git" in spec:
+            entry = OrderedDict([("git", spec["git"])])
+            for field in ("ref", "path"):
+                if field in spec:
+                    entry[field] = spec[field]
+            if name in result.commits:
+                entry["commit"] = result.commits[name]
+        elif spec.get("bundled"):
+            entry = OrderedDict([("bundled", True)])
+            version = raftcore_version(raftcore_dir)
+            if version:
+                entry["raftCore"] = version
+        else:
+            entry = OrderedDict([("path", spec.get("path", ""))])
+        sources[name] = entry
+    chosen_out = OrderedDict()
+    if chosen["hasInclude"]:
+        chosen_out["include"] = list(chosen["include"])
+    if chosen["exclude"]:
+        chosen_out["exclude"] = list(chosen["exclude"])
+    if chosen["policy"]:
+        chosen_out["policy"] = OrderedDict(chosen["policy"])
+    return OrderedDict([("formatVersion", PROVENANCE_FORMAT_VERSION), ("sources", sources), (section, chosen_out)])
 
 
 ################################################################################################################
@@ -683,9 +728,11 @@ def _response_layout(record):
     return None if resp is None else json.dumps(resp, separators=(",", ":"))
 
 
-def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
+def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT, provenance=None):
     """A device type file from an assembled typeFile selection
     result: the Assembly of the typeFile section; compiled: the records compiled into the firmware (key -> record)
+    provenance: what the file is made from, written as its top-level _sources (the device ignores it); default the
+    Assembly's, False for none
     Returns (file text, entries) - entries: [{key, kind: new | override | unchanged | policy, noDecoder, decoder}].
     noDecoder: the record has no compiled decoder (a new key, or an override whose response layout changed); decoder
     then says what decodes it on the device: "runtime" (from its attributes, in firmware built with
@@ -742,11 +789,87 @@ def build_type_file(result, compiled, max_bytes=TYPE_FILE_MAX_BYTES_DEFAULT):
             raise AssembleError(f"typeFile.policy \"{key}\": a type file can't enable a compiled type (only disable it)")
         dev_types[key] = OrderedDict([("disable", value)])
         entries.append(OrderedDict([("key", key), ("kind", "policy"), ("policy", policy)]))
-    text = json.dumps({"devTypes": OrderedDict((k, dev_types[k]) for k in sorted(dev_types, key=lambda k: k.encode("utf-8")))},
-                      separators=(",", ":"))
+    content = OrderedDict([("devTypes", OrderedDict((k, dev_types[k]) for k in sorted(dev_types, key=lambda k: k.encode("utf-8"))))])
+    if provenance is None:
+        provenance = getattr(result, "provenance", None)
+    if provenance:
+        content["_sources"] = provenance
+    text = json.dumps(content, separators=(",", ":"))
     if len(text) > max_bytes:
         raise AssembleError(f"the type file is {len(text)} bytes, more than the {max_bytes} byte limit")
     return text, entries
+
+
+################################################################################################################
+# The catalogue published on RaftCore's GitHub Pages site (devtypes/), read by raftjs and the Device Types app
+################################################################################################################
+
+def _record_summary(record):
+    """What a catalogue lists of a record, for searching without loading every record"""
+    info = record.get("devInfoJson", {}) if isinstance(record.get("devInfoJson"), dict) else {}
+    resp = info.get("resp", {}) if isinstance(info.get("resp"), dict) else {}
+    summary = OrderedDict()
+    for field in ("name", "manu", "type", "clas"):
+        if info.get(field) not in (None, "", []):
+            summary[field] = info[field]
+    for field in ("addresses", "hwTypeId"):
+        if record.get(field):
+            summary[field] = record[field]
+    summary["hasData"] = isinstance(resp.get("b"), (int, float)) and resp.get("b", 0) > 0
+    summary["customCode"] = "c" in resp
+    summary["initCode"] = bool(record.get("initCode"))
+    return summary
+
+
+def build_pages(raftcore_dir, out_dir, label):
+    """<out_dir>/<label>/: records/<Key>.json (each record file as it is, so its SHA-256 is the manifest's),
+    catalogue.json (a summary of each record) and DeviceTypeRecords.json (every record, one file)"""
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", label or ""):
+        raise AssembleError(f"--label \"{label}\": letters, digits, '.', '_' and '-' only")
+    records, files = load_catalogue(raftcore_records_path(raftcore_dir))
+    folder = os.path.join(out_dir, label)
+    records_dir = os.path.join(folder, "records")
+    if os.path.isdir(folder):
+        shutil.rmtree(folder)
+    os.makedirs(records_dir)
+    keys = sorted(records, key=lambda k: k.encode("utf-8"))
+    entries = []
+    for key in keys:
+        path = os.path.join(records_dir, key + ".json")
+        if os.path.basename(files[key]) == key + ".json":
+            shutil.copyfile(files[key], path)
+        else:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(records[key], indent=4) + "\n")
+        entries.append(OrderedDict([("key", key), ("file", "records/" + key + ".json"), ("sha256", _sha256(path)),
+                                    ("summary", _record_summary(records[key]))]))
+    catalogue = OrderedDict([("formatVersion", PAGES_FORMAT_VERSION), ("label", label),
+                             ("raftCore", raftcore_version(raftcore_dir)), ("recordFormat", SOURCE_FORMAT_VERSION),
+                             ("count", len(entries)), ("records", entries)])
+    with open(os.path.join(folder, "catalogue.json"), "w", encoding="utf-8") as f:
+        f.write(json.dumps(catalogue, indent=1) + "\n")
+    with open(os.path.join(folder, "DeviceTypeRecords.json"), "w", encoding="utf-8") as f:
+        f.write(catalogue_text(OrderedDict((k, records[k]) for k in keys)))
+    return len(entries)
+
+
+def write_pages_index(out_dir):
+    """<out_dir>/index.json: the versions published (folders with a catalogue.json) - "main" first, then releases,
+    newest first - and the latest release"""
+    versions = []
+    for name in os.listdir(out_dir):
+        path = os.path.join(out_dir, name, "catalogue.json")
+        if os.path.isfile(path):
+            catalogue = _read_json(path)
+            versions.append(OrderedDict([("label", name), ("raftCore", catalogue.get("raftCore")),
+                                         ("count", catalogue.get("count"))]))
+    versions.sort(key=lambda v: (v["label"] != "main", [-n for n in _version_tuple(v["label"])], v["label"]))
+    releases = [v["label"] for v in versions if re.fullmatch(r"v?\d+\.\d+\.\d+", v["label"])]
+    index = OrderedDict([("formatVersion", PAGES_FORMAT_VERSION), ("latest", releases[0] if releases else None),
+                         ("versions", versions)])
+    with open(os.path.join(out_dir, "index.json"), "w", encoding="utf-8") as f:
+        f.write(json.dumps(index, indent=1) + "\n")
+    return index
 
 
 ################################################################################################################
@@ -859,8 +982,22 @@ def main(argv=None):
                         "merged) as one catalogue file, for the raft CLI")
     parser.add_argument("--split", help="catalogue file to split into one file per record")
     parser.add_argument("--out-dir", help="folder for --split")
+    parser.add_argument("--pages", help="folder of the published catalogue: write RaftCore's records into "
+                        "<folder>/<label>/ (with --raftcore and --label)")
+    parser.add_argument("--label", help="the version folder for --pages, e.g. v1.62.0 or main")
+    parser.add_argument("--pages-index", help="folder of the published catalogue: write its index.json")
     args = parser.parse_args(argv)
     try:
+        if args.pages:
+            if not args.raftcore:
+                raise AssembleError("--pages needs --raftcore")
+            count = build_pages(args.raftcore, args.pages, args.label)
+            print(f"DeviceTypeSources: {count} records written to {os.path.join(args.pages, args.label)}")
+            return 0
+        if args.pages_index:
+            index = write_pages_index(args.pages_index)
+            print(f"DeviceTypeSources: index of {len(index['versions'])} versions, latest {index['latest']}")
+            return 0
         if args.split:
             if not args.out_dir:
                 raise AssembleError("--split needs --out-dir")

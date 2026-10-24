@@ -225,6 +225,32 @@ class AssembleTests(unittest.TestCase):
         bad = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["Nope"]}})
         self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--select", bad, "--out", str(out)]), 1)
 
+    def test_pages_catalogue(self):
+        # A version folder: each record file as it is (its SHA-256 the manifest's), a summary of each, one-file catalogue
+        (self.raftcore / "library.json").write_text(json.dumps({"version": "1.70.0"}))
+        site = self.tmp / "site"
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--pages", str(site), "--label", "v1.70.0"]), 0)
+            self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--pages", str(site), "--label", "main"]), 0)
+            self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--pages", str(site), "--label", "v1.9.0"]), 0)
+            self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--pages", str(site), "--label", "../x"]), 1)
+            self.assertEqual(A.main(["--pages-index", str(site)]), 0)
+        folder = site / "v1.70.0"
+        source = self.raftcore / "devtypes" / "records" / "Alpha.json"
+        self.assertEqual((folder / "records" / "Alpha.json").read_bytes(), source.read_bytes())
+        catalogue = json.loads((folder / "catalogue.json").read_text())
+        self.assertEqual([r["key"] for r in catalogue["records"]], ["Alpha", "Bravo", "Charlie"])
+        self.assertEqual((catalogue["raftCore"], catalogue["count"], catalogue["recordFormat"]), ("1.70.0", 3, 1))
+        alpha = catalogue["records"][0]
+        self.assertEqual(alpha["sha256"], A._sha256_record(str(source), "Alpha"))
+        self.assertEqual(alpha["summary"], {"name": "Test", "addresses": "0x11", "hasData": True, "customCode": False,
+                                            "initCode": False})
+        self.assertEqual(list(json.loads((folder / "DeviceTypeRecords.json").read_text())["devTypes"]),
+                         ["Alpha", "Bravo", "Charlie"])
+        index = json.loads((site / "index.json").read_text())
+        self.assertEqual([v["label"] for v in index["versions"]], ["main", "v1.70.0", "v1.9.0"])
+        self.assertEqual(index["latest"], "v1.70.0")
+
     def test_split_keeps_records_as_written(self):
         text = ('{\n    "devTypes": {\n        "Zed": {\n            "addresses": "0x10",\n            "pollInfo": {\n'
                 '                "c": "0x00=r1",\n                "i": 100\n            },\n            "clas": ["A"]\n'
@@ -271,6 +297,23 @@ class AssembleTests(unittest.TestCase):
         self.assertNotIn("_notes", dev_types["Echo"])
         self.assertEqual(dev_types["Charlie"], {"disable": "claim"})
         self.assertEqual(dev_types["Bravo"]["initValues"], "0x0102")
+
+    def test_type_file_sources(self):
+        # _sources: the sources that supplied a record of the file (RaftCore's with its version) and the selection
+        sel = self.type_file_setup()
+        (self.raftcore / "library.json").write_text(json.dumps({"name": "RaftCore", "version": "9.8.7"}))
+        result = self.assemble(sel, section="typeFile")
+        text, _ = A.build_type_file(result, self.assemble(sel).records)
+        content = json.loads(text)
+        self.assertEqual(list(content), ["devTypes", "_sources"])
+        self.assertEqual(content["_sources"], {"formatVersion": 1, "sources": {"local": {"path": "../../devtypes"}},
+                                               "typeFile": {"include": ["local:Alpha", "local:Bravo", "local:Echo"],
+                                                            "policy": {"Charlie": "disabledClaim"}}})
+        builtin = self.assemble(sel).provenance
+        self.assertEqual(builtin["sources"]["raftcore"], {"bundled": True, "raftCore": "9.8.7"})
+        self.assertEqual(builtin["builtin"], {"include": ["raftcore:*"]})
+        text, _ = A.build_type_file(result, self.assemble(sel).records, provenance=False)
+        self.assertEqual(list(json.loads(text)), ["devTypes"])
 
     def test_type_file_override_with_new_layout_has_no_decoder(self):
         sel = self.type_file_setup()

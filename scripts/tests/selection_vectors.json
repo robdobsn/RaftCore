@@ -1,0 +1,590 @@
+{
+ "_doc": "DeviceTypeSources.json selection vectors - see make_selection_vectors.py",
+ "raftCore": "1.62.0",
+ "vectors": [
+  {
+   "name": "include defaults to everything",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Bravo": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Bravo core\"}}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{}}"
+  },
+  {
+   "name": "include forms and exclude",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}, \"builtin\": {\"include\": [\"raftcore:Alpha\", \"local:*\", \"Charlie\"], \"exclude\": [\"local:Delta\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Delta\": {\"addresses\": \"0x13\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Echo\": {\"addresses\": \"0x14\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Echo": {
+     "source": "local",
+     "record": "{\"addresses\":\"0x14\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"},\"local\":{\"path\":\"../../local\"}},\"builtin\":{\"include\":[\"raftcore:Alpha\",\"local:*\",\"Charlie\"],\"exclude\":[\"local:Delta\"]}}"
+  },
+  {
+   "name": "exclude a wildcard and a source",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"*\"], \"exclude\": [\"raftcore:Bravo\", \"Charlie\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"include\":[\"*\"],\"exclude\":[\"raftcore:Bravo\",\"Charlie\"]}}"
+  },
+  {
+   "name": "a local copy replaces",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo local\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Bravo": {
+     "source": "local",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Bravo local\"}}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {
+    "Bravo": [
+     "raftcore"
+    ]
+   },
+   "policyOnly": {},
+   "messages": [
+    "\"Bravo\" from local replaces the record from raftcore"
+   ],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"},\"local\":{\"path\":\"../../local\"}},\"builtin\":{}}"
+  },
+  {
+   "name": "the later path source wins",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"a\": {\"path\": \"../../a\"}, \"b\": {\"path\": \"../../b\"}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "a": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"A\"}}}}"
+    },
+    "b": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"B\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Bravo": {
+     "source": "b",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"B\"}}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {
+    "Bravo": [
+     "raftcore",
+     "a"
+    ]
+   },
+   "policyOnly": {},
+   "messages": [
+    "\"Bravo\" from b replaces the record from raftcore, a"
+   ],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"},\"b\":{\"path\":\"../../b\"}},\"builtin\":{}}"
+  },
+  {
+   "name": "a named source wins over a local copy",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}, \"builtin\": {\"include\": [\"raftcore:Bravo\", \"local:*\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo local\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Bravo": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Bravo core\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"include\":[\"raftcore:Bravo\",\"local:*\"]}}"
+  },
+  {
+   "name": "error: the same key from two other sources",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"other\": {\"bundled\": true}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "other": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "\"Alpha\" is in sources raftcore, other - name the source to use in builtin.include (e.g. \"raftcore:Alpha\")"
+  },
+  {
+   "name": "the same key from two other sources, one named",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"other\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"other:Alpha\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "other": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "other",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"other\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"include\":[\"other:Alpha\"]}}"
+  },
+  {
+   "name": "error: named from two sources",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"other\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"other:Alpha\", \"raftcore:Alpha\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "other": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "\"Alpha\" is named from more than one source: other, raftcore"
+  },
+  {
+   "name": "error: no such record",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"Zulu\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "builtin.include \"Zulu\": no record \"Zulu\" in any source"
+  },
+  {
+   "name": "error: no such record in a source",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"raftcore:Zulu\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "builtin.include \"raftcore:Zulu\": no record \"Zulu\" in source \"raftcore\""
+  },
+  {
+   "name": "error: no such source",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"acme:*\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "\"acme:*\": no source called \"acme\""
+  },
+  {
+   "name": "policies applied",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"policy\": {\"Alpha\": \"disabled\", \"Bravo\": \"disabledClaim\", \"Charlie\": \"enabled\"}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}, \"disable\": true}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"},\"disable\":true}"
+    },
+    "Bravo": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"},\"disable\":\"claim\"}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"policy\":{\"Alpha\":\"disabled\",\"Bravo\":\"disabledClaim\",\"Charlie\":\"enabled\"}}}"
+  },
+  {
+   "name": "error: policy for a record not selected",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"Alpha\"], \"policy\": {\"Bravo\": \"disabled\"}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "builtin.policy \"Bravo\": not a selected record"
+  },
+  {
+   "name": "error: unknown policy",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"policy\": {\"Alpha\": \"off\"}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "systypes/Common/DeviceTypeSources.json: builtin.policy \"Alpha\" must be one of enabled, disabled, disabledClaim"
+  },
+  {
+   "name": "error: unknown key",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"typefile\": {}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "systypes/Common/DeviceTypeSources.json: unknown key \"typefile\""
+  },
+  {
+   "name": "error: bad source name",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"a:b\": {\"bundled\": true}}}"
+   },
+   "sources": {},
+   "section": "builtin",
+   "error": "systypes/Common/DeviceTypeSources.json: source name \"a:b\" can't contain ':' or be '*'"
+  },
+  {
+   "name": "error: include not a list of strings",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [1]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "systypes/Common/DeviceTypeSources.json: builtin.include must be a list of strings"
+  },
+  {
+   "name": "error: fsImage outside typeFile",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"fsImage\": true}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "systypes/Common/DeviceTypeSources.json: fsImage belongs in the typeFile section"
+  },
+  {
+   "name": "include as a string",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": \"Alpha\"}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"include\":[\"Alpha\"]}}"
+  },
+  {
+   "name": "the older name builtin: true",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"builtin\": true}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Bravo": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Bravo core\"}}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [
+    "DeviceTypeSources.json: source \"raftcore\": \"builtin\": true is now \"bundled\": true"
+   ],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{}}"
+  },
+  {
+   "name": "a SysType's file adds to Common's",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}, \"builtin\": {\"include\": [\"raftcore:Alpha\"], \"policy\": {\"Alpha\": \"disabled\"}}, \"typeFile\": {\"include\": [\"local:Delta\"]}}",
+    "systypes/Main/DeviceTypeSources.json": "{\"sources\": {\"local\": {\"path\": \"../../local\"}}, \"builtin\": {\"include\": [\"raftcore:Bravo\"], \"policy\": {\"Alpha\": \"enabled\"}}, \"typeFile\": {\"policy\": {\"Charlie\": \"disabled\"}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Delta\": {\"addresses\": \"0x13\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Bravo": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Bravo core\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"include\":[\"raftcore:Alpha\",\"raftcore:Bravo\"],\"policy\":{\"Alpha\":\"enabled\"}}}"
+  },
+  {
+   "name": "a type file: its records and policies for compiled types",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}, \"typeFile\": {\"include\": [\"local:*\"], \"policy\": {\"Charlie\": \"disabledClaim\", \"Delta\": \"disabled\"}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Delta\": {\"addresses\": \"0x13\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Echo\": {\"addresses\": \"0x14\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "typeFile",
+   "records": {
+    "Delta": {
+     "source": "local",
+     "record": "{\"addresses\":\"0x13\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"},\"disable\":true}"
+    },
+    "Echo": {
+     "source": "local",
+     "record": "{\"addresses\":\"0x14\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {
+    "Charlie": "disabledClaim"
+   },
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"local\":{\"path\":\"../../local\"}},\"typeFile\":{\"include\":[\"local:*\"],\"policy\":{\"Charlie\":\"disabledClaim\",\"Delta\":\"disabled\"}}}"
+  },
+  {
+   "name": "a type file includes nothing unless it says so",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "typeFile",
+   "records": {},
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{},\"typeFile\":{}}"
+  },
+  {
+   "name": "a type file's provenance: only the sources it uses",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}, \"typeFile\": {\"include\": [\"raftcore:Alpha\"], \"exclude\": [\"local:*\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Delta\": {\"addresses\": \"0x13\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Echo\": {\"addresses\": \"0x14\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "typeFile",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"typeFile\":{\"include\":[\"raftcore:Alpha\"],\"exclude\":[\"local:*\"]}}"
+  }
+ ]
+}

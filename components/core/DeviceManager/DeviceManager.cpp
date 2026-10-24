@@ -3141,6 +3141,21 @@ RaftRetCode DeviceManager::apiDevManTypeFile(const String &reqStr, String &respS
     json += ",\"maxFileBytes\":" + String((int)_typeFileLimits.maxFileBytes);
     json += ",\"identReady\":" + String(deviceTypeRecords.areRecordSourcesReady() ? "true" : "false");
     json += ",\"restartRequired\":" + String(isTypeFileRestartRequired() ? "true" : "false");
+    // What this firmware's rules are: its RaftCore version, the record format and the on-device decoding built in
+#ifdef RAFTCORE_VERSION
+    RaftJson::appendStringField(json, "raftCore", RAFTCORE_VERSION);
+#endif
+    json += ",\"recordFormat\":" + String(DeviceTypeFileLoader::RECORD_FORMAT_VERSION);
+#ifdef RAFT_RUNTIME_DECODE
+    json += ",\"decode\":{\"attrs\":true";
+#else
+    json += ",\"decode\":{\"attrs\":false";
+#endif
+#ifdef RAFT_RUNTIME_DECODE_CODE
+    json += ",\"code\":true}";
+#else
+    json += ",\"code\":false}";
+#endif
     if (jsonParams.getBool("entries", false))
         json += ",\"entries\":" + typeFileEntriesJson(_typeFileResult);
     return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, json.c_str());
@@ -3849,6 +3864,9 @@ RaftRetCode DeviceManager::apiDevManTypes(const String &reqStr, String &respStr,
         RaftJson::appendStringField(entry, "key", pRec->deviceType ? pRec->deviceType : "");
         RaftJson::appendStringField(entry, "src", DeviceTypeRecords::getRecordSourceStr(deviceTypeRecords.getRecordSource(deviceTypeIndex)));
         RaftJson::appendStringField(entry, "policy", DeviceTypeRecord::getPolicyStr(deviceTypeRecords.getPolicy(deviceTypeIndex)));
+        // A type a system device expects (expectType) can't be overridden or disabled
+        if (pRec->deviceType && deviceTypeRecords.isProtected(pRec->deviceType))
+            entry += ",\"protected\":true";
         entry += "}";
         if (!first)
             json += ",";
