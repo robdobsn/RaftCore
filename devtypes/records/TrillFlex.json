@@ -1,8 +1,8 @@
 {
-    "_notes": "Bela Trill Flex - flexible 1D capacitive touch with custom electrode connection, 30 channels, up to 5 touches in CENTROID mode (default DIFF). Address jumper-configurable 0x48-0x4F.",
+    "_notes": "Bela Trill Flex - flexible 1D capacitive touch with custom electrode connection, 30 channels, up to 5 touches in CENTROID mode (default DIFF). Address jumper-configurable 0x48-0x4F. Init, as Bela's Trill library (Trill-Linux) for the Flex: CENTROID mode; prescaler 4; scan settings speed 0, 12 bits; a baseline update; noise threshold 123 (0.03 at 12 bits). Poll: up to 5 touches, positions (loc, 0 to 3712 = 29 x 128, the first to the 30th channel; 65535 for no touch) then sizes (size, 0 for no touch; the library scales by 1200 at 12 bits), as 5-element arrays; the dashboard shows them with its touch strip visualizer (vt touchstrip). The prescaler matters: on the bench (Axiom018, 2026-10-23, with the flexible strip) the chip as left after the mode command read 4095 (saturated) on every channel, so no touch was ever seen; prescaler 2 read about 2100-2750 untouched with a finger saturating, 4 about 540-710 with a finger peaking at 1200-1950, and 8 about 0. Bela's library uses DIFF mode for the Flex and finds centroids on the host.",
     "addresses": "0x48-0x4F",
     "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000110",
-    "initValues": "0x000100=p15&0x0006=p30",
+    "initValues": "0x000100=p15&0x000304=p15&0x0002000c=p15&0x0006=p30&0x00047b=p15",
     "pollInfo": {
         "c": "0x04=r20",
         "i": 50,
@@ -19,16 +19,22 @@
         "resp": {
             "b": 20,
             "a": [
-                { "n": "loc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                {
+                    "n": "loc",
+                    "t": ">H[5]",
+                    "r": [0, 3712],
+                    "f": "d",
+                    "o": "uint16",
+                    "vt": "touchstrip",
+                    "vo": {"sizeAttr": "size", "noValue": 65535, "posMax": 3712, "sizeMax": 1200, "numChannels": 30}
+                },
+                {
+                    "n": "size",
+                    "t": ">H[5]",
+                    "r": [0, 65535],
+                    "f": "d",
+                    "o": "uint16"
+                }
             ]
         },
         "actions": [
@@ -46,8 +52,8 @@
                     "diff":     { "w": "000103" }
                 }
             },
-            { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
-            { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
+            { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 123, "desc": "Noise threshold (counts at 12 bits; 123 is the Trill library's 0.03)" },
+            { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [1, 8], "d": 4, "desc": "Prescaler (higher reads lower; lower it for more sensitivity, raise it if channels saturate at 4095)" },
             { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
         ]
     }
