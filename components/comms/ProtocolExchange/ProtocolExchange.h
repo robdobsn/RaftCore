@@ -51,6 +51,7 @@ public:
     // How the channel's last upload written in the background ended (RAFT_BUSY while it is still being written)
     RaftRetCode getFileUploadWriteStatus(uint32_t channelID);
     static const uint32_t HTTP_UPLOAD_PENDING_MAX_BYTES = 16384;
+    static const uint32_t HTTP_UPLOAD_CHUNK_MAX_BYTES = 4096;
 
 protected:
     // Loop - called frequently

@@ -10,12 +10,16 @@
 #pragma once
 
 #include <list>
+#include <vector>
 #include <atomic>
 #include <string>
 #include "RaftUtils.h"
 #include "RaftThreading.h"
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 
 class FileSystem
 {
@@ -158,7 +162,14 @@ public:
         return (_writePacingMaxStallPct > 0) &&
                 ((int32_t)(_writeHoldoffUntilMs.load(std::memory_order_relaxed) - (uint32_t)millis()) > 0);
     }
+    // By default writes are paced only where a flash write stops other code: not when the app runs from PSRAM
+    // (CONFIG_SPIRAM_XIP_FROM_PSRAM) or the flash suspends erases and writes for reads (CONFIG_SPI_FLASH_AUTO_SUSPEND)
+    // - writes are made on the file system worker, so the main loop isn't held up by them either
+#if defined(CONFIG_SPIRAM_XIP_FROM_PSRAM) || defined(CONFIG_SPI_FLASH_AUTO_SUSPEND)
+    static const uint32_t WRITE_PACING_MAX_STALL_PCT_DEFAULT = 0;
+#else
     static const uint32_t WRITE_PACING_MAX_STALL_PCT_DEFAULT = 30;
+#endif
 
     // Get file position
     uint32_t filePos(FILE* pFile);
@@ -216,6 +227,8 @@ private:
         // 64-bit so capacities and usage for cards larger than 4GB do not overflow
         uint64_t fsSizeBytes = 0;
         uint64_t fsUsedBytes = 0;
+        // A refresh of this cache is queued on the file system worker
+        std::atomic<bool> cacheRefreshQueued{false};
         RaftAtomicBool isSizeInfoValid = {0};
         // Used-bytes info is computed separately from total size because on SD
         // (FAT) cards it can require a full FAT scan (f_getfree) taking several
@@ -229,7 +242,18 @@ private:
     CachedFileSystem _localFsCache;
 
     // Mutex controlling access to file system
-    mutable RaftMutex _fileSysMutex;
+    // A lock for each file system, so that a slow write to one (e.g. a file upload written on the file system
+    // worker) doesn't hold up access to the other
+    mutable RaftMutex _localFsMutex;
+    mutable RaftMutex _sdFsMutex;
+    RaftMutex& fsMutex(const char* nameOfFS) const;
+    RaftMutex& fsMutex(const String& nameOfFS, const String& filename) const;
+    RaftMutex& pathMutex(const char* path) const;
+    RaftMutex& fileMutex(FILE* pFile) const;
+
+    // Files open on the SD card (fileMutex() gives the lock for a file from these)
+    std::vector<FILE*> _sdOpenFiles;
+    mutable RaftMutex _openFilesMutex;
 
     // File system partition name
     String _fsPartitionName;
@@ -253,6 +277,9 @@ private:
     static void sdUsedBytesScanTaskStatic(void* pArg);
     void markFileCacheDirty(const String& fsName, const String& filename);
     void fileSystemCacheService(CachedFileSystem& cachedFs);
+    bool fileSystemCacheNeedsService(CachedFileSystem& cachedFs);
+    void fileSystemCacheQueueRefresh(CachedFileSystem& cachedFs);
+    static const uint32_t CACHE_REFRESH_MAX_STEPS = 100;
     String formatJSONFileInfo(const char* req, CachedFileSystem& cachedFs, const String& fileListStr, const String& rootFolder);
     static const uint32_t SERVICE_COUNT_FOR_CACHE_PRIMING = 10;
 

@@ -16,6 +16,8 @@ class FileDownloadOKTOProtocol : public FileStreamBase
 public:
     // Consts
     static const uint32_t MIN_TIME_BETWEEN_BLOCKS_MS = 100;
+    // With the CRC at the end, how long the session waits for dfEnd (its reply carries the CRC) after the last ack
+    static const uint32_t END_MSG_WAIT_MS = 2000;
     static const uint32_t BLOCK_MSGS_TIMEOUT_MS = 3000;
     static const uint32_t MAX_BATCH_BLOCK_ACK_RETRIES = 10;
     static const uint32_t FILE_BLOCK_SIZE_MIN = 20;

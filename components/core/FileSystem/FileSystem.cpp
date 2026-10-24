@@ -8,6 +8,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "FileSystem.h"
+#include "FileSystemWorker.h"
+#include <algorithm>
+#include <strings.h>
 #include "RaftUtils.h"
 #include "Logger.h"
 
@@ -61,12 +64,54 @@ FileSystem fileSystem;
 
 FileSystem::FileSystem()
 {
-    RaftMutex_init(_fileSysMutex);
+    RaftMutex_init(_localFsMutex);
+    RaftMutex_init(_sdFsMutex);
+    RaftMutex_init(_openFilesMutex);
 }
 
 FileSystem::~FileSystem()
 {
-    RaftMutex_destroy(_fileSysMutex);
+    RaftMutex_destroy(_localFsMutex);
+    RaftMutex_destroy(_sdFsMutex);
+    RaftMutex_destroy(_openFilesMutex);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Lock for a file system (by name, by full path, or for an open file)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RaftMutex& FileSystem::fsMutex(const char* nameOfFS) const
+{
+    return (nameOfFS && (strcasecmp(nameOfFS, SD_FILE_SYSTEM_NAME) == 0)) ? _sdFsMutex : _localFsMutex;
+}
+
+RaftMutex& FileSystem::fsMutex(const String& nameOfFS, const String& filename) const
+{
+    // A file system named in the filename is the one used (see getFilePath())
+    if (filename.indexOf(SD_FILE_SYSTEM_PATH_ELEMENT) >= 0)
+        return _sdFsMutex;
+    if (filename.indexOf(LOCAL_FILE_SYSTEM_PATH_ELEMENT) >= 0)
+        return _localFsMutex;
+    return fsMutex(nameOfFS.c_str());
+}
+
+RaftMutex& FileSystem::pathMutex(const char* path) const
+{
+    size_t baseLen = strlen(SD_FILE_SYSTEM_BASE_PATH);
+    bool isSD = path && (strncmp(path, SD_FILE_SYSTEM_BASE_PATH, baseLen) == 0) &&
+                ((path[baseLen] == '/') || (path[baseLen] == 0));
+    return isSD ? _sdFsMutex : _localFsMutex;
+}
+
+RaftMutex& FileSystem::fileMutex(FILE* pFile) const
+{
+    bool isSD = false;
+    if (RaftMutex_lock(_openFilesMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        isSD = std::find(_sdOpenFiles.begin(), _sdOpenFiles.end(), pFile) != _sdOpenFiles.end();
+        RaftMutex_unlock(_openFilesMutex);
+    }
+    return isSD ? _sdFsMutex : _localFsMutex;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -89,9 +134,17 @@ void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsForma
     // Setup SD file system
     _sdIsOk = sdFileSystemSetup(enableSD, sdMOSIPin, sdMISOPin, sdCLKPin, sdCSPin);
 
-    // Service a few times to setup caches
-    for (uint32_t i = 0; i < SERVICE_COUNT_FOR_CACHE_PRIMING; i++)
-        loop();
+    // Set up the caches (here, at boot)
+#if !defined(__linux__)
+    if (_cacheFileSystemInfo)
+    {
+        for (uint32_t i = 0; i < SERVICE_COUNT_FOR_CACHE_PRIMING; i++)
+        {
+            fileSystemCacheService(_localFsCache);
+            fileSystemCacheService(_sdFsCache);
+        }
+    }
+#endif
 
     // Optionally start the (potentially slow) SD used-bytes scan at boot. This runs
     // on a background task so startup is never stalled; when disabled the scan is
@@ -107,10 +160,12 @@ void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsForma
 void FileSystem::loop()
 {
 #if !defined(__linux__)
+    // Refresh the file system info caches on the file system worker (a folder scan or a file system's size and
+    // used space can take a while, e.g. after a file is written)
     if (!_cacheFileSystemInfo)
         return;
-    fileSystemCacheService(_localFsCache);
-    fileSystemCacheService(_sdFsCache);
+    fileSystemCacheQueueRefresh(_localFsCache);
+    fileSystemCacheQueueRefresh(_sdFsCache);
 #endif
 }
 
@@ -183,7 +238,7 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
     // https://www.bountychannel.com/issues/44690700-watchdog-with-system-reset
     // disableCore0WDT();
     // Take mutex so that no other task is using the file system while it is formatted
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS.c_str()), RAFT_MUTEX_WAIT_FOREVER))
     {
         Raft::setJsonErrorResult("reformat", respStr, "fsbusy");
         return false;
@@ -203,7 +258,7 @@ bool FileSystem::reformat(const String& fileSystemStr, String& respStr, bool for
         ret = esp_spiffs_format(NULL);
 #endif
     // enableCore0WDT();
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS.c_str()));
     Raft::setJsonBoolResult("reformat", respStr, ret == ESP_OK);
     LOG_W(MODULE_PREFIX, "Reformat result %s", (ret == ESP_OK ? "OK" : "FAIL"));
 #else
@@ -248,7 +303,7 @@ bool FileSystem::getFileInfo(const String& fileSystemStr, const String& filename
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Check file exists
@@ -257,7 +312,7 @@ bool FileSystem::getFileInfo(const String& fileSystemStr, const String& filename
 
     if (stat(rootFilename.c_str(), &st) != 0)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef DEBUG_FILE_NOT_FOUND
         LOG_I(MODULE_PREFIX, "getFileInfo %s cannot stat", rootFilename.c_str());
 #endif
@@ -265,14 +320,14 @@ bool FileSystem::getFileInfo(const String& fileSystemStr, const String& filename
     }
     if (!S_ISREG(st.st_mode))
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef WARN_ON_FILE_SYSTEM_ERRORS
         LOG_W(MODULE_PREFIX, "getFileInfo %s is a folder", rootFilename.c_str());
 #endif
         return false;
     }
     fileLength = st.st_size;
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
     return true;
 }
 
@@ -330,14 +385,14 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     String rootFilename = getFilePath(nameOfFS, filename);
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return nullptr;
 
     // Get file info - to check length
     struct stat st;
     if (stat(rootFilename.c_str(), &st) != 0)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef WARN_ON_FILE_NOT_FOUND
         LOG_W(MODULE_PREFIX, "getContents %s cannot stat", rootFilename.c_str());
 #endif
@@ -345,7 +400,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     }
     if (!S_ISREG(st.st_mode))
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef WARN_ON_GET_CONTENTS_IS_FOLDER
         LOG_I(MODULE_PREFIX, "getContents %s is a folder", rootFilename.c_str());
 #endif
@@ -359,7 +414,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     }
     if (st.st_size >= maxLen-1)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef WARN_ON_FILE_TOO_BIG
         LOG_W(MODULE_PREFIX, "getContents %s free heap %d size %d too big to read", rootFilename.c_str(), maxLen, (int)st.st_size);
 #endif
@@ -371,7 +426,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     FILE* pFile = fopen(rootFilename.c_str(), "rb");
     if (!pFile)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef WARN_ON_FILE_NOT_FOUND
         LOG_W(MODULE_PREFIX, "getContents failed to open file to read %s", rootFilename.c_str());
 #endif
@@ -388,7 +443,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     if (!pBuf)
     {
         fclose(pFile);
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef WARN_ON_FILE_TOO_BIG
         LOG_W(MODULE_PREFIX, "getContents failed to allocate %d", fileSize);
 #endif
@@ -398,7 +453,7 @@ uint8_t* FileSystem::getFileContents(const String& fileSystemStr, const String& 
     // Read
     size_t bytesRead = fread(pBuf, 1, fileSize, pFile);
     fclose(pFile);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
     pBuf[bytesRead] = 0;
 
 #ifdef DEBUG_GET_FILE_CONTENTS
@@ -425,7 +480,7 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Open file for writing
@@ -433,7 +488,7 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
     FILE* pFile = fopen(rootFilename.c_str(), "wb");
     if (!pFile)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
 #ifdef WARN_ON_FILE_SYSTEM_ERRORS
         LOG_W(MODULE_PREFIX, "setContents failed to open file to write %s", rootFilename.c_str());
 #endif
@@ -451,7 +506,7 @@ bool FileSystem::setFileContents(const String& fileSystemStr, const String& file
 #if !defined(__linux__)
     markFileCacheDirty(nameOfFS, filename);
 #endif
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
     return bytesWritten == fileContents.length();
 }
 
@@ -467,7 +522,7 @@ bool FileSystem::renameFile(const String& fileSystemStr, const String& fromName,
         return false;
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, fromName), RAFT_MUTEX_WAIT_FOREVER))
         return false;
     String fromPath = getFilePath(nameOfFS, fromName);
     String toPath = getFilePath(nameOfFS, toName);
@@ -476,7 +531,7 @@ bool FileSystem::renameFile(const String& fileSystemStr, const String& fromName,
     markFileCacheDirty(nameOfFS, fromName);
     markFileCacheDirty(nameOfFS, toName);
 #endif
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, fromName));
     return ok;
 }
 
@@ -490,7 +545,7 @@ bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
     }
     
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Remove file
@@ -507,7 +562,7 @@ bool FileSystem::deleteFile(const String& fileSystemStr, const String& filename)
 #if !defined(__linux__)
     markFileCacheDirty(nameOfFS, filename);
 #endif
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
     return true;
 }
 
@@ -680,7 +735,7 @@ bool FileSystem::exists(const char* path) const
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st1 = micros();
 #endif
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(pathMutex(path), RAFT_MUTEX_WAIT_FOREVER))
         return false;
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st2 = micros();
@@ -690,7 +745,7 @@ bool FileSystem::exists(const char* path) const
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st3 = micros();
 #endif
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(pathMutex(path));
 #ifdef DEBUG_FILE_EXISTS_PERFORMANCE
     uint64_t st4 = micros();
     LOG_I(MODULE_PREFIX, "exists 1:%lld 2:%lld 3:%lld", st2-st1, st3-st2, st4-st3);
@@ -705,11 +760,11 @@ bool FileSystem::exists(const char* path) const
 FileSystem::FileSystemStatType FileSystem::pathType(const char* filename)
 {
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(pathMutex(filename), RAFT_MUTEX_WAIT_FOREVER))
         return FILE_SYSTEM_STAT_NO_EXIST;
     struct stat buffer;
     bool rslt = stat(filename, &buffer);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(pathMutex(filename));
     if (rslt != 0)
         return FILE_SYSTEM_STAT_NO_EXIST;
     if (S_ISREG(buffer.st_mode))
@@ -733,7 +788,7 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Open file
@@ -741,7 +796,7 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
     FILE* pFile = fopen(rootFilename.c_str(), "rb");
     if (!pFile)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
         LOG_W(MODULE_PREFIX, "getFileSection failed to open file to read %s", rootFilename.c_str());
         return false;
     }
@@ -752,7 +807,7 @@ bool FileSystem::getFileSection(const String& fileSystemStr, const String& filen
     // Read
     readLen = fread((char*)pBuf, 1, sectionLen, pFile);
     fclose(pFile);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
     return true;
 }
 
@@ -775,7 +830,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return SpiramAwareUint8Vector();
 
     // Open file
@@ -783,7 +838,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     FILE* pFile = fopen(rootFilename.c_str(), "rb");
     if (!pFile)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
         LOG_W(MODULE_PREFIX, "getFileSection failed to open file to read %s", rootFilename.c_str());
         return SpiramAwareUint8Vector();
     }
@@ -796,7 +851,7 @@ SpiramAwareUint8Vector FileSystem::getFileSection(const String& fileSystemStr, c
     fileData.resize(sectionLen);
     int readLen = fread((char*)fileData.data(), 1, fileData.size(), pFile);
     fclose(pFile);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
 
     // Return data
     if (readLen <= 0)
@@ -822,7 +877,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Open file for text reading
@@ -830,7 +885,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
     FILE* pFile = fopen(rootFilename.c_str(), "r");
     if (!pFile)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
         LOG_W(MODULE_PREFIX, "getFileLine failed to open file to read %s", rootFilename.c_str());
         return false;
     }
@@ -846,7 +901,7 @@ bool FileSystem::getFileLine(const String& fileSystemStr, const String& filename
 
     // Close
     fclose(pFile);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
 
     // Ok if we got something
     return pReadLine != NULL;
@@ -872,7 +927,7 @@ String FileSystem::getFileLine(const String& fileSystemStr, const String& filena
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return "";
 
     // Open file for text reading
@@ -880,7 +935,7 @@ String FileSystem::getFileLine(const String& fileSystemStr, const String& filena
     FILE* pFile = fopen(rootFilename.c_str(), "r");
     if (!pFile)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(nameOfFS, filename));
         LOG_W(MODULE_PREFIX, "getFileLine failed to open file to read %s", rootFilename.c_str());
         return "";
     }
@@ -896,7 +951,7 @@ String FileSystem::getFileLine(const String& fileSystemStr, const String& filena
 
     // Close
     fclose(pFile);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
 
     // Return line
     return line;
@@ -922,7 +977,7 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(nameOfFS, filename), RAFT_MUTEX_WAIT_FOREVER))
         return nullptr;
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
@@ -981,7 +1036,7 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
 #endif
 
     // Release mutex
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(nameOfFS, filename));
 
 #ifdef DEBUG_FILE_SYSTEM_WRITE_PERFORMANCE
     uint32_t releaseMutexMs = millis() - startMs;
@@ -996,6 +1051,16 @@ FILE* FileSystem::fileOpen(const String& fileSystemStr, const String& filename,
     {
         LOG_W(MODULE_PREFIX, "fileOpen failed to open file to %s %s", writeMode ? "write" : "read", rootFilename.c_str());
         return nullptr;
+    }
+
+    // Files on the SD card are recorded so that fileMutex() gives the SD card's lock for them
+    if (&fsMutex(nameOfFS, filename) == &_sdFsMutex)
+    {
+        if (RaftMutex_lock(_openFilesMutex, RAFT_MUTEX_WAIT_FOREVER))
+        {
+            _sdOpenFiles.push_back(pFile);
+            RaftMutex_unlock(_openFilesMutex);
+        }
     }
 
     if (writeMode)
@@ -1019,8 +1084,9 @@ bool FileSystem::fileClose(FILE* pFile, const String& fileSystemStr, const Strin
     String nameOfFS;
     checkFileSystem(fileSystemStr, nameOfFS);
 
-    // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    // Take mutex (the file system the file was opened on)
+    RaftMutex& closeMutex = fileMutex(pFile);
+    if (!RaftMutex_lock(closeMutex, RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Check if file modified
@@ -1033,9 +1099,14 @@ bool FileSystem::fileClose(FILE* pFile, const String& fileSystemStr, const Strin
     
     // Close file
     fclose(pFile);
+    if (RaftMutex_lock(_openFilesMutex, RAFT_MUTEX_WAIT_FOREVER))
+    {
+        _sdOpenFiles.erase(std::remove(_sdOpenFiles.begin(), _sdOpenFiles.end(), pFile), _sdOpenFiles.end());
+        RaftMutex_unlock(_openFilesMutex);
+    }
 
     // Release mutex
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(closeMutex);
     return true;
 }
 
@@ -1053,14 +1124,14 @@ uint32_t FileSystem::fileRead(FILE* pFile, uint8_t* pBuf, uint32_t readLen)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fileMutex(pFile), RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
     // Read
     uint32_t lenRead = fread((char*)pBuf, 1, readLen, pFile);
 
     // Release mutex
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fileMutex(pFile));
     return lenRead;
 }
 
@@ -1078,7 +1149,7 @@ SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fileMutex(pFile), RAFT_MUTEX_WAIT_FOREVER))
         return SpiramAwareUint8Vector();
 
     // Read
@@ -1087,7 +1158,7 @@ SpiramAwareUint8Vector FileSystem::fileRead(FILE* pFile, uint32_t readLen)
     uint32_t lenRead = fread((char*)fileData.data(), 1, fileData.size(), pFile);
 
     // Release mutex
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fileMutex(pFile));
 
     // Check for error
     if (lenRead == 0)
@@ -1111,7 +1182,7 @@ uint32_t FileSystem::fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeL
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fileMutex(pFile), RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
     // Write (and record slow writes)
@@ -1132,7 +1203,7 @@ uint32_t FileSystem::fileWrite(FILE* pFile, const uint8_t* pBuf, uint32_t writeL
     }
 
     // Release mutex
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fileMutex(pFile));
     return lenWritten;
 }
 
@@ -1159,14 +1230,14 @@ uint32_t FileSystem::filePos(FILE* pFile)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fileMutex(pFile), RAFT_MUTEX_WAIT_FOREVER))
         return 0;
 
     // Read
     uint32_t filePosition = ftell(pFile);
 
     // Release mutex
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fileMutex(pFile));
     return filePosition;
 }
 
@@ -1184,14 +1255,14 @@ bool FileSystem::fileSeek(FILE* pFile, uint32_t seekPos)
     }
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fileMutex(pFile), RAFT_MUTEX_WAIT_FOREVER))
         return false;
 
     // Seek
     fseek(pFile, seekPos, SEEK_SET);
 
     // Release mutex
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fileMutex(pFile));
     return true;
 }
 
@@ -1639,7 +1710,7 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
     }
 
     // Take mutex to protect list iteration
-    if (!RaftMutex_lock(_fileSysMutex, 0))
+    if (!RaftMutex_lock(fsMutex(cachedFs.fsName.c_str()), 0))
     {
         Raft::setJsonErrorResult(req, respStr, "fsbusy");
         return false;
@@ -1648,7 +1719,7 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
     // Re-check validity under mutex
     if (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) || !RaftAtomicBool_get(cachedFs.isFileInfoValid))
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
 #ifdef DEBUG_CACHE_FS_INFO
         LOG_I(MODULE_PREFIX, "fileInfoCacheToJSON cached info became invalid");
 #endif
@@ -1675,7 +1746,7 @@ bool FileSystem::fileInfoCacheToJSON(const char* req, CachedFileSystem& cachedFs
     // Format response
     respStr = formatJSONFileInfo(req, cachedFs, fileListStr, folderStr);
 
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
 
 #ifdef DEBUG_CACHE_FS_INFO
     uint32_t elapsedMs = millis() - debugStartMs;
@@ -1740,7 +1811,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     sdRequestUsedBytesUpdate(cachedFs);
 
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, 0))
+    if (!RaftMutex_lock(fsMutex(cachedFs.fsName.c_str()), 0))
     {
         Raft::setJsonErrorResult(req, respStr, "fsbusy");
         return false;
@@ -1754,7 +1825,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     // Check file system is valid
     if (cachedFs.fsSizeBytes == 0)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
         LOG_W(MODULE_PREFIX, "getFilesJSON No valid file system");
         Raft::setJsonErrorResult(req, respStr, "nofs");
         return false;
@@ -1768,7 +1839,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
     DIR* dir = opendir(rootFolder.c_str());
     if (!dir)
     {
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
         LOG_W(MODULE_PREFIX, "getFilesJSON Failed to open base folder %s", rootFolder.c_str());
         Raft::setJsonErrorResult(req, respStr, "nofolder");
         return false;
@@ -1813,7 +1884,7 @@ bool FileSystem::fileInfoGenImmediate(const char* req, CachedFileSystem& cachedF
 
     // Finished with file list
     closedir(dir);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
 
     // Format response
     respStr = formatJSONFileInfo(req, cachedFs, fileListStr, rootFolder);
@@ -1848,7 +1919,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
 bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cachedFs, String& respStr)
 {
     // Take mutex
-    if (!RaftMutex_lock(_fileSysMutex, 0))
+    if (!RaftMutex_lock(fsMutex(cachedFs.fsName.c_str()), 0))
     {
         Raft::setJsonErrorResult(req, respStr, "fsbusy");
         return false;
@@ -1873,7 +1944,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
 #endif
         if (ret != ESP_OK)
         {
-            RaftMutex_unlock(_fileSysMutex);
+            RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
             LOG_W(MODULE_PREFIX, "fileSysInfoUpdateCache failed to get file system info (error %s)", esp_err_to_name(ret));
             Raft::setJsonErrorResult(req, respStr, "fsInfo");
             return false;
@@ -1901,7 +1972,7 @@ bool FileSystem::fileSysInfoUpdateCache(const char* req, CachedFileSystem& cache
         }
     }
 #endif
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
     uint32_t debugGetFsInfoMs = millis() - debugStartMs;
     LOG_I(MODULE_PREFIX, "fileSysInfoUpdateCache timing fsInfo %dms", debugGetFsInfoMs);
     return true;
@@ -1930,7 +2001,7 @@ void FileSystem::sdUpdateUsedBytes(CachedFileSystem& cachedFs)
     if (!pCard)
         return;
 
-    // This call may block for several seconds while scanning the FAT so _fileSysMutex is deliberately NOT
+    // This call may block for several seconds while scanning the FAT so fsMutex(cachedFs.fsName.c_str()) is deliberately NOT
     // held here - otherwise every file system operation (including those on the local file system made from
     // the main task) would be stalled for the duration. FatFs is built re-entrant in ESP-IDF (FF_FS_REENTRANT)
     // so the volume is protected by its own lock while the scan is in progress.
@@ -1951,12 +2022,12 @@ void FileSystem::sdUpdateUsedBytes(CachedFileSystem& cachedFs)
     }
 
     // Store the result under the mutex (the value is written before the valid flag is set)
-    if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+    if (!RaftMutex_lock(fsMutex(cachedFs.fsName.c_str()), RAFT_MUTEX_WAIT_FOREVER))
         return;
     if (usedBytesValid)
         cachedFs.fsUsedBytes = usedBytes;
     RaftAtomicBool_set(cachedFs.isUsedInfoValid, true);
-    RaftMutex_unlock(_fileSysMutex);
+    RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
     LOG_I(MODULE_PREFIX, "sdUpdateUsedBytes used %llu bytes took %dms",
                 (unsigned long long)cachedFs.fsUsedBytes, (int)(millis() - debugStartMs));
 #else
@@ -2070,7 +2141,41 @@ void FileSystem::markFileCacheDirty(const String& fsName, const String& filename
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // File system cache service
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// File system cache refresh on the file system worker
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FileSystem::fileSystemCacheNeedsService(CachedFileSystem& cachedFs)
+{
+    return RaftAtomicBool_get(cachedFs.isUsed) && (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) ||
+                !RaftAtomicBool_get(cachedFs.isFileInfoSetup) || !RaftAtomicBool_get(cachedFs.isFileInfoValid));
+}
+
+void FileSystem::fileSystemCacheQueueRefresh(CachedFileSystem& cachedFs)
+{
+    if (!fileSystemCacheNeedsService(cachedFs) || cachedFs.cacheRefreshQueued.load())
+        return;
+    cachedFs.cacheRefreshQueued = true;
+    CachedFileSystem* pCachedFs = &cachedFs;
+    bool queued = fileSystemWorker.submit([this, pCachedFs]() {
+        // Each service call does one step (the size, the folder scan, or one file's info) - a step skipped when the
+        // file system is busy is tried again after a pause
+        for (uint32_t step = 0; (step < CACHE_REFRESH_MAX_STEPS) && fileSystemCacheNeedsService(*pCachedFs); step++)
+        {
+            fileSystemCacheService(*pCachedFs);
+            RaftThread_sleep(1);
+        }
+        pCachedFs->cacheRefreshQueued = false;
+    });
+    if (!queued)
+    {
+        // The worker can't take it - a step here
+        cachedFs.cacheRefreshQueued = false;
+        fileSystemCacheService(cachedFs);
+    }
+}
+
+///////////
 
 void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
 {
@@ -2092,7 +2197,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         uint32_t debugStartMs = millis();
 
         // Take mutex
-        if (!RaftMutex_lock(_fileSysMutex, RAFT_MUTEX_WAIT_FOREVER))
+        if (!RaftMutex_lock(fsMutex(cachedFs.fsName.c_str()), RAFT_MUTEX_WAIT_FOREVER))
             return;
 
         // Clear file list
@@ -2103,7 +2208,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         DIR* dir = opendir(rootFolder.c_str());
         if (!dir)
         {
-            RaftMutex_unlock(_fileSysMutex);
+            RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
             return;
         }
         // Read directory entries
@@ -2143,7 +2248,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         closedir(dir);
         RaftAtomicBool_set(cachedFs.isFileInfoSetup, true);
         RaftAtomicBool_set(cachedFs.isFileInfoValid, true);
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
         uint32_t debugCachedFsSetupMs = millis() - debugStartMs;
         LOG_I(MODULE_PREFIX, "fileSystemCacheService fs %s files %d took %dms", 
                     cachedFs.fsName.c_str(), fileCount, debugCachedFsSetupMs);
@@ -2155,7 +2260,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
     {
         // Update info for specific file(s)
         // Take mutex
-        if (!RaftMutex_lock(_fileSysMutex, 0))
+        if (!RaftMutex_lock(fsMutex(cachedFs.fsName.c_str()), 0))
             return;
         String rootFolder = (cachedFs.fsBase + "/").c_str();
         bool allValid = true;
@@ -2190,7 +2295,7 @@ void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
         }
         LOG_I(MODULE_PREFIX, "fileSystemCacheService fileInfo %s", allValid ? "valid" : "invalid");
         RaftAtomicBool_set(cachedFs.isFileInfoValid, allValid);
-        RaftMutex_unlock(_fileSysMutex);
+        RaftMutex_unlock(fsMutex(cachedFs.fsName.c_str()));
     }
 }
 
