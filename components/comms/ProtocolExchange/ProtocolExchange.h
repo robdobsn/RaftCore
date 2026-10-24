@@ -43,6 +43,15 @@ public:
             const APISourceInfo& sourceInfo, FileStreamBase::FileStreamContentType fileStreamContentType,
             const char* restAPIEndpointName);
 
+    // HTTP file uploads are written in the background: whether the channel's upload can take more data now (the
+    // web server stops reading the request when it can't), and whether it is still being written (the reply to the
+    // upload waits until it isn't)
+    bool fileUploadCanAccept(uint32_t channelID);
+    bool isFileUploadWriting(uint32_t channelID);
+    // How the channel's last upload written in the background ended (RAFT_BUSY while it is still being written)
+    RaftRetCode getFileUploadWriteStatus(uint32_t channelID);
+    static const uint32_t HTTP_UPLOAD_PENDING_MAX_BYTES = 16384;
+
 protected:
     // Loop - called frequently
     virtual void loop() override final;
@@ -63,6 +72,11 @@ private:
     // Transfer sessions
     static const uint32_t MAX_SIMULTANEOUS_FILE_STREAM_SESSIONS = 3;
     std::list<FileStreamSession*> _sessions;
+
+    // How the last upload written in the background ended, for each channel (the session is gone by the time an
+    // HTTP upload's reply is sent)
+    std::list<std::pair<uint32_t, RaftRetCode>> _lastUploadWriteStatus;
+    static const uint32_t LAST_UPLOAD_WRITE_STATUS_MAX = 4;
 
     // Activity last reported through the file stream activity hook (to keep SysManager up-to-date)
     bool _activityReportedMainFWUpdate = false;

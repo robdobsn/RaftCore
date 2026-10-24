@@ -25,6 +25,9 @@ typedef std::function<RaftRetCode(FileStreamBlock& fileBlock)> FileStreamBlockWr
 typedef std::function<RaftRetCode(FileStreamBlockOwned& fileBlock, uint32_t filePos, uint32_t maxLen)> FileStreamBlockReadFnType;
 typedef std::function<RaftRetCode(uint32_t& fileCRC, uint32_t& fileLen)> FileStreamGetCRCFnType;
 typedef std::function<void(bool isNormalEnd)> FileStreamCancelEndFnType;
+// Status of writes made in the background: RAFT_BUSY while some are still to be written, RAFT_OK when all are written,
+// or the error that stopped them
+typedef std::function<RaftRetCode()> FileStreamWriteStatusFnType;
 
 class FileStreamBase
 {
@@ -160,12 +163,26 @@ public:
     // Is active
     virtual bool isActive() = 0;
 
+    // Set the function giving the status of writes made in the background (when blocks are written on the file
+    // system worker the upload acknowledges a block only once it has been written)
+    void setWriteStatusFn(FileStreamWriteStatusFnType writeStatusFn)
+    {
+        _fileStreamWriteStatus = writeStatusFn;
+    }
+
 protected:
     // Callbacks
     FileStreamBlockWriteFnType _fileStreamBlockWrite;
     FileStreamBlockReadFnType _fileStreamBlockRead;
     FileStreamGetCRCFnType _fileStreamGetCRC;
     FileStreamCancelEndFnType _fileStreamCancelEnd;
+    FileStreamWriteStatusFnType _fileStreamWriteStatus;
+
+    // Status of background writes (RAFT_OK if there are none)
+    RaftRetCode getWriteStatus()
+    {
+        return _fileStreamWriteStatus ? _fileStreamWriteStatus() : RAFT_OK;
+    }
 
     // Comms core
     CommsCoreIF* _pCommsCore;
