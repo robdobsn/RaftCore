@@ -158,8 +158,29 @@ device `0x4018`). Its flash is much faster than the plant growth board's: 200 KB
   repeat them before relying on the figures.
 - XIP took 1.9 MB of the 8 MB PSRAM (the app is 2.0 MB), and boot time was no longer (mDNS up at 8.9 s, against 9.5
   s). Free internal RAM went up by 7 KB.
-- Not checked yet: the decoder timing (`devman/decodeverify`, which needs a `RAFT_RUNTIME_DECODE_VERIFY` build) and
-  the DataLogger run from Test 1.
+
+**Decoder timing and DataLogger** (a second pair of builds, with `RAFT_RUNTIME_DECODE_VERIFY` on; 30 s of normal
+polling, then the DataLogger run from Test 1: LSM6DS3 at 416 Hz to CSV for 30 s, writing from `loop()` as now):
+
+| | Code from flash | Code from PSRAM (XIP) |
+|-|-|-|
+| Decoders: mismatches over 786 polls | 0 | 0 |
+| LSM6DS3 decode, compiled / runtime: average (max) | 82 (850) / 360 (1779) us | 21 (370) / 152 (648) us |
+| MAX17048 decode, compiled / runtime: average (max) | 64 (99) / 193 (292) us | 14 (14) / 52 (292) us |
+| VCNL4040 decode, compiled / runtime: average (max) | 43 (464) / 190 (798) us | 9 (15) / 39 (62) us |
+| Decode with warm caches (LSM6DS3, compiled / runtime) | 10 / 110 us | 9 / 100 us |
+| I2C bus: busy, longest pass, poll time per second | 46.8 %, 9.1 ms, 152 ms | 36.4 %, 5.6 ms, 83 ms |
+| Polling: longest main loop pass, passes in 30 s | 8.0 ms, 18285 | 5.0 ms, 29639 |
+| Logging: longest main loop pass, passes over 10 ms | 55 ms, 129 | 35 ms, 91 |
+| Logging: main loop passes in 30 s | 13837 | 28491 |
+| Logging: flush time average (max) | 2.3 (13.2) ms | 2.0 (11.5) ms |
+| Stopping the log: longest main loop pass | 16 ms | 11 ms |
+
+- The decoders give the same results either way. They are 2-5 times faster with XIP on average and in the worst
+  case, which is when the code isn't in the cache: cache misses are filled from the octal PSRAM, not the flash in DIO
+  mode. With warm caches the times are the same.
+- The DataLogger still pauses the main loop with XIP (35 ms), since it writes from `loop()`: it needs the worker.
+  Its samples were all logged either way (no buffer overflows).
 - The Axiom's flash isn't on ESP-IDF's auto-suspend list (XM25xxD, GD25QxxE, FM25Q32), so XIP is the option for it.
 
 **Flash auto-suspend** is an alternative where PSRAM is short: the ESP32-S3 supports it
