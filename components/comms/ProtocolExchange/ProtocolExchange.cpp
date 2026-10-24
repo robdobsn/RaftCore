@@ -523,11 +523,12 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
             }
             break;
         case FileStreamBase::FILE_STREAM_MSG_TYPE_DOWNLOAD_START:
+            // No session (e.g. the file doesn't exist) is replied to (sessionNotStarted), so the client needn't wait
+            // for its timeout
             pSession = getFileStreamNewSession(fileStreamName.c_str(), channelID, fileStreamContentType, 
                                     restAPIEndpointName.c_str(), 
                                     FileStreamBase::FILE_STREAM_FLOW_TYPE_RICREST_DOWNLOAD,
                                     fileStreamLength);
-            respondToMismatchedSession = false;
             break;
         case FileStreamBase::FILE_STREAM_MSG_TYPE_DOWNLOAD_END:
             pSession = getFileStreamExistingSession(fileStreamName.c_str(), channelID, streamID);
