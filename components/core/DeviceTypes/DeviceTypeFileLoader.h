@@ -34,6 +34,10 @@ class DeviceTypeRecord;
 class DeviceTypeFileLoader
 {
 public:
+    // Version of the record format this loader understands - the formatVersion of a source's raftdevtypes.json
+    // manifest (AssembleDeviceTypes.py SOURCE_FORMAT_VERSION), reported by devman/typefile as recordFormat
+    static constexpr int RECORD_FORMAT_VERSION = 1;
+
     // Limits for records from a file (compiled and code-registered records are not limited)
     struct Limits
     {

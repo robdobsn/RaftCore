@@ -238,6 +238,14 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
     message(STATUS "RaftCore: runtime decoding not included (RAFT_RUNTIME_DECODE OFF)")
   endif()
 
+  # RaftCore's version (from library.json), reported by devman/typefile so clients can choose records of the format
+  # this firmware understands
+  file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/library.json" RAFTCORE_VERSION_LINE REGEX "\"version\"" LIMIT_COUNT 1)
+  string(REGEX MATCH "\"version\"[ \t]*:[ \t]*\"([^\"]*)\"" RAFTCORE_VERSION_MATCH "${RAFTCORE_VERSION_LINE}")
+  if(CMAKE_MATCH_1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE RAFTCORE_VERSION="${CMAKE_MATCH_1}")
+  endif()
+
   # Float arithmetic as C++ specifies it - each operation rounded, no fused multiply-add (which GCC otherwise uses
   # where the target has it, e.g. ESP32-S3 madd.s): the compiled decoders (DeviceTypeRecords.cpp), the runtime
   # decoder and the code interpreter then decode to the same bytes, on every target
