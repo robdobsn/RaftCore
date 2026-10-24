@@ -16,6 +16,9 @@
 #include "RaftThreading.h"
 #include "FileStreamBlock.h"
 #include "SpiramAwareAllocator.h"
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 
 class FileSystem
 {
@@ -158,7 +161,14 @@ public:
         return (_writePacingMaxStallPct > 0) &&
                 ((int32_t)(_writeHoldoffUntilMs.load(std::memory_order_relaxed) - (uint32_t)millis()) > 0);
     }
+    // By default writes are paced only where a flash write stops other code: not when the app runs from PSRAM
+    // (CONFIG_SPIRAM_XIP_FROM_PSRAM) or the flash suspends erases and writes for reads (CONFIG_SPI_FLASH_AUTO_SUSPEND)
+    // - writes are made on the file system worker, so the main loop isn't held up by them either
+#if defined(CONFIG_SPIRAM_XIP_FROM_PSRAM) || defined(CONFIG_SPI_FLASH_AUTO_SUSPEND)
+    static const uint32_t WRITE_PACING_MAX_STALL_PCT_DEFAULT = 0;
+#else
     static const uint32_t WRITE_PACING_MAX_STALL_PCT_DEFAULT = 30;
+#endif
 
     // Get file position
     uint32_t filePos(FILE* pFile);
