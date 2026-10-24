@@ -135,6 +135,33 @@ mode the cache stays enabled while the flash is erased or written.
 
   On a 2 MB PSRAM board that leaves little PSRAM; on the Axiom (8 MB) it is a quarter.
 
+### Axiom018 (ESP32-S3-WROOM-1-N16R8)
+
+The same test build on the Axiom (16 MB quad flash in DIO mode, 8 MB octal PSRAM; flash ID manufacturer `0x46`,
+device `0x4018`). Its flash is much faster than the plant growth board's: 200 KB takes 0.5-1.2 s, not 4.3 s.
+
+| | Code from flash | Code from PSRAM (XIP) |
+|-|-|-|
+| Idle: longest main loop pass | 8.0 ms | 3.0 ms |
+| Idle: main loop passes in 5 s | 3131 | 5153 |
+| 200 KB from the main loop, 4 KB chunks: longest pass | 19 ms | 27 ms |
+| 200 KB from the main loop, 16 KB chunks: longest pass | 52 ms | 43 ms |
+| 200 KB from a task, 800 B / 4 KB / 16 KB chunks: longest pass | 12.4 / 12.3 / 12.5 ms | 4.0 / 4.0 / 4.0 ms |
+| 200 KB from a task, 4 KB chunks: time taken | 1.18 s | 0.65 s |
+| I2C bus (`devman/busstatus`): busy, longest pass | 43.5 %, 9.3 ms | 35.8 %, 5.2 ms |
+| Free memory: internal, all heaps | 132 KB, 8.38 MB | 139 KB, 6.47 MB |
+
+- **With XIP and a task, writes no longer show in the main loop at all** (longest pass 4 ms, none over 10 ms).
+  Without XIP a task leaves about 12 ms, a little over the target.
+- **XIP made the Axiom faster overall:** the main loop ran about 65 % more passes when idle, and the I2C bus spent
+  less time per poll. The code runs from the octal PSRAM rather than the flash in DIO mode. These are single runs;
+  repeat them before relying on the figures.
+- XIP took 1.9 MB of the 8 MB PSRAM (the app is 2.0 MB), and boot time was no longer (mDNS up at 8.9 s, against 9.5
+  s). Free internal RAM went up by 7 KB.
+- Not checked yet: the decoder timing (`devman/decodeverify`, which needs a `RAFT_RUNTIME_DECODE_VERIFY` build) and
+  the DataLogger run from Test 1.
+- The Axiom's flash isn't on ESP-IDF's auto-suspend list (XM25xxD, GD25QxxE, FM25Q32), so XIP is the option for it.
+
 **Flash auto-suspend** is an alternative where PSRAM is short: the ESP32-S3 supports it
 (`CONFIG_SOC_SPI_MEM_SUPPORT_AUTO_SUSPEND`). It suspends an erase or program when the cache needs the flash, so the
 cache stays enabled. It works only with some flash chips (ESP-IDF: "Optional Features for Flash > Auto Suspend &
@@ -169,7 +196,8 @@ Resume"), so each board's flash chip would need checking. Not tested.
 | Spikes gone, but the software part still matters (e.g. uploads at 13+ ms per chunk) | Enable XIP from PSRAM and add the shared worker |
 | Spikes remain | The worker only helps with the software part; look at the erase behaviour (flash auto-suspend support for this chip, pre-erasing/pre-allocating log files, smaller LittleFS block or cache sizes) |
 
-**Result (2026-10-24):** spikes gone with a task plus code from PSRAM. So, for boards with enough PSRAM, enable XIP
+**Result (2026-10-24):** spikes gone with a task plus code from PSRAM, on both boards (on the Axiom XIP also made
+the main loop and the I2C bus faster). So, for boards with enough PSRAM, enable XIP
 from PSRAM and add the shared worker. For boards without enough PSRAM, the worker still removes the SD pauses and the
 software part of LittleFS writes; check auto-suspend for their flash chips.
 
