@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RaftCore</title>
+<style>
+    :root { --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da; --rule: #d1d9e0; }
+    @media (prefers-color-scheme: dark) {
+        :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8; --rule: #3d444d; }
+    }
+    body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+           margin: 0 auto; max-width: 720px; padding: 32px 16px; }
+    a { color: var(--link); }
+    h1 { margin: 0 0 4px; }
+    p.lede { color: var(--muted); margin-top: 0; }
+    li { margin: 6px 0; }
+    code { font-size: 0.9em; }
+    #versions { color: var(--muted); border-top: 1px solid var(--rule); padding-top: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<h1>RaftCore</h1>
+<p class="lede">A framework for ESP32 applications - device types, buses, communications and more.</p>
+<ul>
+    <li><a href="https://github.com/robdobsn/RaftCore">RaftCore on GitHub</a></li>
+    <li><a href="https://github.com/robdobsn/RaftCore/wiki">Documentation (the wiki)</a></li>
+    <li><a href="devtypes/app/">Device Types</a> - browse the device type records and manage the device type file of a
+        Raft device over Bluetooth or USB serial (Chrome or Edge)</li>
+    <li><a href="devtypes/index.json">Device type catalogue</a> - every RaftCore device type record, for each release
+        (<code>devtypes/&lt;version&gt;/catalogue.json</code>, <code>records/&lt;Key&gt;.json</code>)</li>
+</ul>
+<div id="versions"></div>
+<script>
+    fetch("devtypes/index.json").then(function (r) { return r.json(); }).then(function (index) {
+        var el = document.getElementById("versions");
+        el.textContent = "Catalogue versions: " + index.versions.map(function (v) {
+            return v.label + " (" + v.count + " records)";
+        }).join(", ");
+    }).catch(function () {});
+</script>
+</body>
+</html>

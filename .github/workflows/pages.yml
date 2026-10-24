@@ -1,0 +1,82 @@
+name: Publish the device type catalogue (GitHub Pages)
+
+# RaftCore's GitHub Pages site: the device type catalogue at devtypes/ - a folder per release (from the first with
+# one file per record, v1.59.0) and for main, and index.json listing them - which raftjs and the Device Types app
+# read; and the Device Types app at devtypes/app/, built from raftjs (apps/devtypes) at RAFTJS_REF. See raftjs
+# devdocs/device-type-management-web-plan.md. The whole site is built again each time, so every release's records
+# stay published.
+
+on:
+  push:
+    branches: [main]
+    paths: ["devtypes/**", "library.json", "scripts/AssembleDeviceTypes.py", "scripts/pages/**", ".github/workflows/pages.yml"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  # The raftjs the Device Types app is built from (a tag, to pin it with the catalogue)
+  RAFTJS_REF: main
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build the catalogue for each release and for main
+        run: |
+          set -e
+          SITE=site/devtypes
+          mkdir -p "$SITE"
+          for TAG in $(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'); do
+            # Releases from v1.59.0, the first with one file per record
+            if [ "$(printf '%s\nv1.59.0\n' "$TAG" | sort -V | head -n1)" != "v1.59.0" ]; then continue; fi
+            if ! git cat-file -e "$TAG:devtypes/records" 2>/dev/null; then continue; fi
+            SRC="$RUNNER_TEMP/raftcore-$TAG"
+            mkdir -p "$SRC"
+            git archive "$TAG" devtypes library.json | tar -x -C "$SRC"
+            python3 scripts/AssembleDeviceTypes.py --raftcore "$SRC" --pages "$SITE" --label "$TAG"
+          done
+          python3 scripts/AssembleDeviceTypes.py --raftcore . --pages "$SITE" --label main
+          python3 scripts/AssembleDeviceTypes.py --pages-index "$SITE"
+          cp scripts/pages/index.html site/index.html
+      - uses: actions/checkout@v4
+        with:
+          repository: robdobsn/raftjs
+          ref: ${{ env.RAFTJS_REF }}
+          path: raftjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the Device Types app
+        run: |
+          set -e
+          if [ ! -d raftjs/apps/devtypes ]; then echo "raftjs $RAFTJS_REF has no apps/devtypes - the app isn't published"; exit 0; fi
+          (cd raftjs && npm ci --no-audit --no-fund)
+          (cd raftjs/apps/devtypes && npm ci --no-audit --no-fund && npm run build)
+          cp -r raftjs/apps/devtypes/dist site/devtypes/app
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
