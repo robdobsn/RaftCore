@@ -261,6 +261,7 @@ void MiniHDLC::handleChar(uint8_t ch)
             }
             _framePos = 0;
             _frameCRC = CRC16_CCITT_INIT_VAL;
+            _rxBuffer.clear();
             return;
         }
         _rxBuffer.resize(_framePos+1);
@@ -269,9 +270,10 @@ void MiniHDLC::handleChar(uint8_t ch)
     // Check buffer valid
     if (_framePos >= _rxBuffer.size())
     {
-        // Check valid
+        // Not enough memory - discard and start again
         _framePos = 0;
         _frameCRC = CRC16_CCITT_INIT_VAL;
+        _rxBuffer.clear();
         if (_stats._rxBufAllocFail < __UINT16_MAX__)
             _stats._rxBufAllocFail++;
         return;
@@ -347,7 +349,9 @@ void MiniHDLC::sendFrame(const uint8_t *pFrame, unsigned frameLen)
     // Check if we are sending frame-wise
     if (_frameTxFn && (_txBufferPos > 0))
     {
-        _frameTxFn(_txBuffer.data(), _txBufferPos);
+        // The buffer holds the whole frame unless it couldn't grow (memory short) - a partial frame isn't sent
+        if (_txBuffer.size() >= _txBufferPos)
+            _frameTxFn(_txBuffer.data(), _txBufferPos);
         _txBufferPos = 0;
         _txBufferBitPos = 0;
         _txBuffer.clear();

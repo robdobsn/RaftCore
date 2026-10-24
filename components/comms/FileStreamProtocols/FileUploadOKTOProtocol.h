@@ -27,8 +27,14 @@ public:
     static const uint32_t FILE_BLOCK_SIZE_DEFAULT = 5000;
     static const uint32_t BATCH_ACK_SIZE_DEFAULT = 40;
     static const uint32_t MAX_TOTAL_BYTES_IN_BATCH = 50000;
+    // Copies of a block held at once while it is received, and memory left free during an upload
+    static const uint32_t BLOCK_COPIES_ON_RX = 4;
+    static const uint32_t UPLOAD_HEAP_MARGIN_BYTES = 16384;
     // The overall timeout needs to be very big as BLE transfers can take over 30 minutes
     static const uint32_t UPLOAD_FAIL_TIMEOUT_MS = 2 * 3600 * 1000;
+
+    // Make block and batch sizes fit in memory (returns false if they were reduced)
+    static bool fitInMemory(uint32_t largestFreeBlock, uint32_t& blockSize, uint32_t& batchAckSize);
 
     // Constructor
     FileUploadOKTOProtocol(FileStreamBlockWriteFnType fileBlockWrite, 
