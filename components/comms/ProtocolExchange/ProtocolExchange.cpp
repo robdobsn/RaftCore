@@ -804,8 +804,11 @@ bool ProtocolExchange::fileUploadCanAccept(uint32_t channelID)
 {
     for (FileStreamSession* pSession : _sessions)
     {
+        // Not while the data waiting to be written is at its limit, or the next chunk couldn't be stored (it would
+        // be lost - wait for the waiting data to be written)
         if ((pSession->getChannelID() == channelID) && pSession->isFileSystemActivity() &&
-                    (pSession->getWritePendingBytes() >= HTTP_UPLOAD_PENDING_MAX_BYTES))
+                    ((pSession->getWritePendingBytes() >= HTTP_UPLOAD_PENDING_MAX_BYTES) ||
+                     !pSession->canAcceptWriteBytes(HTTP_UPLOAD_CHUNK_MAX_BYTES)))
             return false;
     }
     return true;

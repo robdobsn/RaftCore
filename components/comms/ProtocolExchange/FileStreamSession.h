@@ -96,6 +96,8 @@ public:
     RaftRetCode getWriteStatus();
     // Bytes received and not yet written
     uint32_t getWritePendingBytes();
+    // Whether len more bytes can be taken now (there's room for them, or the memory to grow the buffer)
+    bool canAcceptWriteBytes(uint32_t len);
     bool isWriteBusy() const
     {
         return _writeJobOutstanding.load();

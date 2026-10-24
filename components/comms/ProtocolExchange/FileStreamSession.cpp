@@ -627,6 +627,9 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
             newCapacity = newSize;
         if (newCapacity + WRITE_HEAP_MARGIN_BYTES > maxAllocatable)
         {
+            // The block is lost, so the upload has failed: later blocks aren't written (the file would have a gap)
+            // and the failure is reported at the end
+            _writeError = RAFT_INSUFFICIENT_RESOURCE;
             RaftMutex_unlock(_writeMutex);
 #ifdef WARN_ON_BACKGROUND_WRITE_FAILED
             LOG_W(MODULE_PREFIX, "writeFileBlock no memory for %d bytes waiting to be written (largest free block %d)",
@@ -727,6 +730,18 @@ RaftRetCode FileStreamSession::getWriteStatus()
         rslt = RAFT_BUSY;
     RaftMutex_unlock(_writeMutex);
     return rslt;
+}
+
+bool FileStreamSession::canAcceptWriteBytes(uint32_t len)
+{
+    RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+    uint32_t newSize = _writePending.size() + len;
+    // Room in the buffer, or the memory to grow it. With nothing waiting, waiting won't free memory - accepted (and
+    // if it then can't be stored the upload fails)
+    bool canAccept = (_writeError != RAFT_OK) || _writePending.empty() || (newSize <= _writePending.capacity()) ||
+                (newSize + WRITE_HEAP_MARGIN_BYTES <= SpiramAwareAllocator<uint8_t>::max_allocatable());
+    RaftMutex_unlock(_writeMutex);
+    return canAccept;
 }
 
 uint32_t FileStreamSession::getWritePendingBytes()
