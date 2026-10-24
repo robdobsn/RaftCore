@@ -199,7 +199,7 @@ private:
     bool _bigEndianCRC = false;
 
     // State vars
-    uint16_t _framePos = 0;
+    uint32_t _framePos = 0;
     uint16_t _frameCRC = CRC16_CCITT_INIT_VAL;
     bool _inEscapeSeq = false;
 
@@ -211,13 +211,13 @@ private:
 
     // Receive buffer
     SimpleBuffer _rxBuffer;
-    uint16_t _rxBufferMaxLen = 0;
+    uint32_t _rxBufferMaxLen = 0;
 
     // Transmit buffer
     SimpleBuffer _txBuffer;
-    uint16_t _txBufferMaxLen = 0;
-    uint16_t _txBufferPos = 0;
-    uint16_t _txBufferBitPos = 0;
+    uint32_t _txBufferMaxLen = 0;
+    uint32_t _txBufferPos = 0;
+    uint32_t _txBufferBitPos = 0;
 
     // Stats
     MiniHDLCStats _stats;
