@@ -34,10 +34,10 @@ public:
                 uint32_t fileStreamLength);
     virtual ~FileStreamSession();
 
-    // Info - a session stays active until its background writes are finished
+    // Info - a session stays active until its background writes and reads are finished
     bool isActive() const
     {
-        return _isActive || _writeJobOutstanding.load();
+        return _isActive || _writeJobOutstanding.load() || _readJobOutstanding.load();
     }
     const String& getFileStreamName() const
     {
@@ -160,6 +160,18 @@ private:
     static constexpr uint32_t DESTRUCT_WRITE_WAIT_MAX_MS = 5000;
     void writeJob();
     RaftRetCode writeToFile(const uint8_t* pBuf, uint32_t len, bool isFinal);
+
+    // Background reads (file downloads): a block is read on the file system worker and the next one read ahead.
+    // fileStreamBlockRead() returns RAFT_BUSY until the block asked for has been read. The job sets the _read...
+    // results, then clears _readJobOutstanding; the main task only uses them when no job is outstanding
+    std::atomic<bool> _readJobOutstanding{false};
+    bool _readDone = false;
+    uint32_t _readFilePos = 0;
+    uint32_t _readMaxLen = 0;
+    SpiramAwareUint8Vector _readData;
+    bool _readFinal = false;
+    bool _readOk = false;
+    void startReadJob(uint32_t filePos, uint32_t maxLen);
 
     // Session idle handler
     uint32_t _sessionLastActiveMs;

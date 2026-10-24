@@ -468,9 +468,15 @@ void FileDownloadOKTOProtocol::transferService()
     }
 #endif
 
-    // Send a block
+    // Send a block (RAFT_BUSY if it is still being read on the file system worker - it is sent on a later pass)
     FileStreamBlockOwned block;
     RaftRetCode retc = _fileStreamBlockRead(block, _lastSentUptoFilePos, _blockSize);
+    if (retc == RaftRetCode::RAFT_BUSY)
+    {
+        // Try again on the next pass (not after the time between blocks)
+        _betweenBlocksMs = nowMillis - MIN_TIME_BETWEEN_BLOCKS_MS;
+        return;
+    }
     if (retc == RaftRetCode::RAFT_OK)
     {
         // Send block

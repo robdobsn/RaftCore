@@ -224,13 +224,14 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
 FileStreamSession::~FileStreamSession()
 {
     // A session is only removed once its background writes are finished (isActive()) - this is a safety net
-    if (_writeJobOutstanding.load())
+    if (_writeJobOutstanding.load() || _readJobOutstanding.load())
     {
         RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
         _writeCancelled = true;
         RaftMutex_unlock(_writeMutex);
         uint32_t waitStartMs = millis();
-        while (_writeJobOutstanding.load() && !Raft::isTimeout(millis(), waitStartMs, DESTRUCT_WRITE_WAIT_MAX_MS))
+        while ((_writeJobOutstanding.load() || _readJobOutstanding.load()) &&
+                    !Raft::isTimeout(millis(), waitStartMs, DESTRUCT_WRITE_WAIT_MAX_MS))
             RaftThread_sleep(1);
     }
 
@@ -408,42 +409,64 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
     if (!_pFileChunker || !_pFileChunker->isActive())
         return RaftRetCode::RAFT_NOT_XFERING;
 
-    // Allocate buffer
-    SpiramAwareUint8Vector chunkBuf;
-    chunkBuf.resize(maxLen);
+    // The block is read on the file system worker - wait for a read in progress
+    if (_readJobOutstanding.load())
+        return RaftRetCode::RAFT_BUSY;
 
-    // Check allocation
-    if (chunkBuf.size() == 0)
-        return RaftRetCode::RAFT_INSUFFICIENT_RESOURCE;
-
-    // Current file pos
-    uint32_t curFilePos = _pFileChunker->getFilePos();
-
-    // Check if at the required position
-    if (curFilePos != filePos)
+    // Not the block read (or none read yet): read it
+    if (!_readDone || (_readFilePos != filePos) || (_readMaxLen != maxLen))
     {
-        // Seek to required position
-        if (!_pFileChunker->seek(filePos))
-            return RaftRetCode::RAFT_NOT_XFERING;
+        startReadJob(filePos, maxLen);
+        return _readJobOutstanding.load() ? RaftRetCode::RAFT_BUSY : fileStreamBlockRead(fileStreamBlock, filePos, maxLen);
     }
 
-    // Get next chunk
-    uint32_t bytesRead = 0;
-    bool finalBlockRead = false;
-    bool readOk = _pFileChunker->nextRead(chunkBuf.data(), chunkBuf.size(), bytesRead, finalBlockRead);
-
-    // Fill fileStreamBlock
+    // Give the block read
+    _readDone = false;
     uint32_t fileLen = _pFileChunker->getFileLen();
     fileStreamBlock.set(_pFileChunker->getFileName().c_str(),
             fileLen,
             filePos,
-            chunkBuf.data(),
-            bytesRead,
-            finalBlockRead,
+            _readData.data(),
+            _readData.size(),
+            _readFinal,
             0, false,
             fileLen, true,
             filePos == 0);
-    return readOk ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_NOT_XFERING;
+    if (!_readOk)
+        return RaftRetCode::RAFT_NOT_XFERING;
+
+    // Read the next block ahead
+    if (!_readFinal)
+        startReadJob(filePos + _readData.size(), maxLen);
+    return RaftRetCode::RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Read a block on the file system worker (or here if the worker can't take the job)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FileStreamSession::startReadJob(uint32_t filePos, uint32_t maxLen)
+{
+    _readDone = false;
+    _readFilePos = filePos;
+    _readMaxLen = maxLen;
+    _readJobOutstanding = true;
+    auto readJob = [this, filePos, maxLen]() {
+        _readOk = false;
+        _readFinal = false;
+        _readData.resize(maxLen);
+        bool seekOk = (_pFileChunker->getFilePos() == filePos) || _pFileChunker->seek(filePos);
+        uint32_t bytesRead = 0;
+        bool finalBlockRead = false;
+        if (seekOk && (_readData.size() == maxLen))
+            _readOk = _pFileChunker->nextRead(_readData.data(), maxLen, bytesRead, finalBlockRead);
+        _readData.resize(bytesRead);
+        _readFinal = finalBlockRead;
+        _readDone = true;
+        _readJobOutstanding = false;
+    };
+    if (!fileSystemWorker.submit(readJob))
+        readJob();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
