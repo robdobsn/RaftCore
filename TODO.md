@@ -1,6 +1,9 @@
 # Todo
 
 - [ ] provide support for device type file compilation through an interface - js? python?
+- [ ] build a UI in gh that allows files to be selected composed and uploaded to file system - and maybe also a web uploader on same page
+- [ ] consider sidecar files for device type info instead of embedded notes
+- [ ] handle sidecar data files like VL53L5CX requires - maybe they need uploading, etc - sourced from somewhere else like ST's website - to avoid copyright?
 - [ ] get VL5L5CX working natively - download binary from file system?
 - [ ] implement a mechanism that allows coord system transforms for devices like rotation/inversion/etc - either as an expression or as a named transformation
 - [ ] consider compressing device types json
