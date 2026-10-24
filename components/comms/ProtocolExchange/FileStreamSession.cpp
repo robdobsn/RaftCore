@@ -204,6 +204,14 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
         _pFileStreamProtocolHandler->setWriteStatusFn(std::bind(&FileStreamSession::getWriteStatus, this));
     }
 
+    // A firmware update may also be written in the background (by the firmware updater)
+    if (_pFileStreamProtocolHandler && (_fileStreamContentType == FileStreamBase::FILE_STREAM_CONTENT_TYPE_FIRMWARE) &&
+                _pFirmwareUpdater && FileStreamBase::isUploadFlowType(_fileStreamFlowType))
+    {
+        _firmwareWrittenInBackground = true;
+        _pFileStreamProtocolHandler->setWriteStatusFn([this]() { return _pFirmwareUpdater->fileStreamWriteStatus(); });
+    }
+
     // Check active
     _isActive = _pFileStreamProtocolHandler != nullptr;
 
@@ -240,7 +248,8 @@ void FileStreamSession::loop()
 {
     // Background writes - checked before the protocol is serviced, so that if they are finished it has sent its
     // final acknowledgement before the session ends
-    bool writesFinished = !_writeJobOutstanding.load();
+    bool writesFinished = !_writeJobOutstanding.load() &&
+                !(_firmwareWrittenInBackground && (_pFirmwareUpdater->fileStreamWriteStatus() == RAFT_BUSY));
     if (!writesFinished)
         _sessionLastActiveMs = millis();
 
@@ -497,7 +506,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
         // Check for final block (with background writes the session ends when it is written)
         if (fileStreamBlock.finalBlock)
         {
-            if (_writeInBackground)
+            if (_writeInBackground || _firmwareWrittenInBackground)
                 _finalBlockReceived = true;
             else
                 _isActive = false;

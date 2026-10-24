@@ -146,6 +146,8 @@ private:
     // swaps _writePending for its own buffer, so blocks keep arriving while it writes. _writeMutex guards the
     // _write... members except _writeJobOutstanding, which is set while _writePending holds data or a job runs
     bool _writeInBackground = false;
+    // A firmware update written in the background by the firmware updater (its fileStreamWriteStatus())
+    bool _firmwareWrittenInBackground = false;
     RaftMutex _writeMutex;
     SpiramAwareUint8Vector _writePending;
     bool _writePendingFinal = false;
