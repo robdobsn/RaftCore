@@ -16,11 +16,14 @@
 #include "RICRESTMsg.h"
 #include "MiniHDLC.h"
 #include "SpiramAwareAllocator.h"
+#include "FileSystemWorker.h"
+#include <algorithm>
 
 // Warn
 #define WARN_ON_FW_UPDATE_FAILED
 #define WARN_ON_STREAM_FAILED
 #define WARN_ON_FILE_CHUNKER_START_FAILED
+#define WARN_ON_BACKGROUND_WRITE_FAILED
 
 // Debug
 // #define DEBUG_FILE_STREAM_START_END
@@ -56,6 +59,7 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
     _pRestAPIEndpointManager = pRestAPIEndpointManager;
     _pStreamChunkCB = nullptr;
     _pStreamIsReadyCB = nullptr;
+    RaftMutex_init(_writeMutex);
 
 #ifdef DEBUG_FILE_STREAM_START_END
     LOG_I(MODULE_PREFIX, "constructor filename %s channelID %d streamID %d endpointName %s", 
@@ -191,6 +195,15 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
         }
     }
     
+    // File uploads are written on the file system worker, the upload protocol waiting for the writes before it
+    // acknowledges blocks
+    if (_pFileStreamProtocolHandler && (_fileStreamContentType == FileStreamBase::FILE_STREAM_CONTENT_TYPE_FILE) &&
+                FileStreamBase::isUploadFlowType(_fileStreamFlowType))
+    {
+        _writeInBackground = true;
+        _pFileStreamProtocolHandler->setWriteStatusFn(std::bind(&FileStreamSession::getWriteStatus, this));
+    }
+
     // Check active
     _isActive = _pFileStreamProtocolHandler != nullptr;
 
@@ -202,9 +215,21 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
 
 FileStreamSession::~FileStreamSession()
 {
+    // A session is only removed once its background writes are finished (isActive()) - this is a safety net
+    if (_writeJobOutstanding.load())
+    {
+        RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+        _writeCancelled = true;
+        RaftMutex_unlock(_writeMutex);
+        uint32_t waitStartMs = millis();
+        while (_writeJobOutstanding.load() && !Raft::isTimeout(millis(), waitStartMs, DESTRUCT_WRITE_WAIT_MAX_MS))
+            RaftThread_sleep(1);
+    }
+
     // Tidy up
     delete _pFileChunker;
     delete _pFileStreamProtocolHandler;
+    RaftMutex_destroy(_writeMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -213,6 +238,12 @@ FileStreamSession::~FileStreamSession()
 
 void FileStreamSession::loop()
 {
+    // Background writes - checked before the protocol is serviced, so that if they are finished it has sent its
+    // final acknowledgement before the session ends
+    bool writesFinished = !_writeJobOutstanding.load();
+    if (!writesFinished)
+        _sessionLastActiveMs = millis();
+
     // Service file/stream protocol
     if (_pFileStreamProtocolHandler)
     {
@@ -225,6 +256,15 @@ void FileStreamSession::loop()
 #endif
             _isActive = false;
         }
+    }
+
+    // The session ends when the final block is written
+    if (_isActive && _finalBlockReceived && writesFinished)
+    {
+#ifdef DEBUG_FILE_STREAM_START_END
+        LOG_I(MODULE_PREFIX, "loop final block written filename %s channelID %d", _fileStreamName.c_str(), _channelID);
+#endif
+        _isActive = false;
     }
 
     // Check for timeouts
@@ -454,10 +494,13 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
         if (fileStreamBlock.firstBlock)
             _startTimeMs = millis();
 
-        // Check for final block
+        // Check for final block (with background writes the session ends when it is written)
         if (fileStreamBlock.finalBlock)
         {
-            _isActive = false;
+            if (_writeInBackground)
+                _finalBlockReceived = true;
+            else
+                _isActive = false;
 #ifdef DEBUG_FILE_STREAM_START_END
             LOG_I(MODULE_PREFIX, "fileStreamBlockWrite final block received, time %dms, totalBytes %d, totalWriteTimeUs %dus, totalChunks %d isActive %d", 
                         (millis() - _startTimeMs), _totalBytes, _totalWriteTimeUs, _totalChunks, _isActive);
@@ -521,13 +564,145 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
     if (!_pFileChunker)
         return RAFT_INVALID_OPERATION;
 
-    uint32_t bytesWritten = 0; 
-    uint64_t startUs = micros();
-    bool chunkerRslt = _pFileChunker->nextWrite(fileStreamBlock.pBlock, fileStreamBlock.blockLen, 
-                    bytesWritten, fileStreamBlock.finalBlock);
-    _totalBytes += bytesWritten;
-    _totalWriteTimeUs += micros() - startUs;
-    return chunkerRslt ? RAFT_OK : RAFT_OTHER_FAILURE;
+    // Written here (not in the background)
+    if (!_writeInBackground)
+    {
+        uint32_t bytesWritten = 0; 
+        uint64_t startUs = micros();
+        bool chunkerRslt = _pFileChunker->nextWrite(fileStreamBlock.pBlock, fileStreamBlock.blockLen, 
+                        bytesWritten, fileStreamBlock.finalBlock);
+        _totalBytes += bytesWritten;
+        _totalWriteTimeUs += micros() - startUs;
+        return chunkerRslt ? RAFT_OK : RAFT_OTHER_FAILURE;
+    }
+
+    // Add the block to the data waiting to be written
+    RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+    if (_writeError != RAFT_OK)
+    {
+        RaftRetCode rslt = _writeError;
+        RaftMutex_unlock(_writeMutex);
+        return rslt;
+    }
+    uint32_t newSize = _writePending.size() + fileStreamBlock.blockLen;
+    if (newSize > _writePending.capacity())
+    {
+        // Check the memory is there before growing (with exceptions disabled a failed allocation would crash).
+        // Grow geometrically, or to just what is needed when memory is short
+        uint32_t maxAllocatable = SpiramAwareAllocator<uint8_t>::max_allocatable();
+        uint32_t newCapacity = std::max(newSize, (uint32_t)_writePending.capacity() * 2);
+        if (newCapacity + WRITE_HEAP_MARGIN_BYTES > maxAllocatable)
+            newCapacity = newSize;
+        if (newCapacity + WRITE_HEAP_MARGIN_BYTES > maxAllocatable)
+        {
+            RaftMutex_unlock(_writeMutex);
+#ifdef WARN_ON_BACKGROUND_WRITE_FAILED
+            LOG_W(MODULE_PREFIX, "writeFileBlock no memory for %d bytes waiting to be written (largest free block %d)",
+                        newSize, maxAllocatable);
+#endif
+            return RAFT_INSUFFICIENT_RESOURCE;
+        }
+        _writePending.reserve(newCapacity);
+    }
+    if (fileStreamBlock.pBlock && (fileStreamBlock.blockLen > 0))
+        _writePending.insert(_writePending.end(), fileStreamBlock.pBlock, fileStreamBlock.pBlock + fileStreamBlock.blockLen);
+    if (fileStreamBlock.finalBlock)
+        _writePendingFinal = true;
+    bool startJob = !_writeJobOutstanding.load();
+    _writeJobOutstanding = true;
+    RaftMutex_unlock(_writeMutex);
+
+    // Start writing (or write here if the worker can't take the job)
+    if (startJob && !fileSystemWorker.submit(std::bind(&FileStreamSession::writeJob, this)))
+        writeJob();
+    return RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Background write job (runs on the file system worker): writes what is waiting until there is nothing left
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FileStreamSession::writeJob()
+{
+    SpiramAwareUint8Vector toWrite;
+    while (true)
+    {
+        // Take what is waiting
+        RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+        if (_writeCancelled || (_writeError != RAFT_OK))
+        {
+            _writePending.clear();
+            _writePendingFinal = false;
+        }
+        if (_writePending.empty() && !_writePendingFinal)
+        {
+            _writeJobOutstanding = false;
+            RaftMutex_unlock(_writeMutex);
+            return;
+        }
+        toWrite.swap(_writePending);
+        bool isFinal = _writePendingFinal;
+        _writePendingFinal = false;
+        RaftMutex_unlock(_writeMutex);
+
+        // Write it
+        RaftRetCode rslt = writeToFile(toWrite.data(), toWrite.size(), isFinal);
+        toWrite.clear();
+        if (rslt != RAFT_OK)
+        {
+#ifdef WARN_ON_BACKGROUND_WRITE_FAILED
+            LOG_W(MODULE_PREFIX, "writeJob write failed filename %s", _fileStreamName.c_str());
+#endif
+            RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+            _writeError = rslt;
+            RaftMutex_unlock(_writeMutex);
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Write to the file in pieces (the file system lock is released between them), closing it after the final block
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RaftRetCode FileStreamSession::writeToFile(const uint8_t* pBuf, uint32_t len, bool isFinal)
+{
+    uint32_t pos = 0;
+    do
+    {
+        uint32_t pieceLen = std::min(len - pos, WRITE_PIECE_MAX_BYTES);
+        bool finalPiece = isFinal && (pos + pieceLen >= len);
+        uint32_t bytesWritten = 0;
+        uint64_t startUs = micros();
+        bool writeOk = _pFileChunker->nextWrite(pBuf ? pBuf + pos : nullptr, pieceLen, bytesWritten, finalPiece);
+        _totalBytes += bytesWritten;
+        _totalWriteTimeUs += micros() - startUs;
+        if (!writeOk)
+            return RAFT_OTHER_FAILURE;
+        pos += pieceLen;
+    } while (pos < len);
+    return RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Background write status
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RaftRetCode FileStreamSession::getWriteStatus()
+{
+    RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+    RaftRetCode rslt = _writeError;
+    if ((rslt == RAFT_OK) && _writeJobOutstanding.load())
+        rslt = RAFT_BUSY;
+    RaftMutex_unlock(_writeMutex);
+    return rslt;
+}
+
+uint32_t FileStreamSession::getWritePendingBytes()
+{
+    RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+    uint32_t pendingBytes = _writePending.size();
+    RaftMutex_unlock(_writeMutex);
+    return pendingBytes;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -550,8 +725,14 @@ RaftRetCode FileStreamSession::writeRealTimeStreamBlock(FileStreamBlock& fileStr
 
 void FileStreamSession::fileStreamCancelEnd(bool isNormalEnd)
 {
-    // Session no longer active
+    // Session no longer active (it is removed once any background write in progress stops)
     _isActive = false;
+    if (!isNormalEnd)
+    {
+        RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+        _writeCancelled = true;
+        RaftMutex_unlock(_writeMutex);
+    }
 
 #ifdef DEBUG_FILE_STREAM_START_END
     LOG_I(MODULE_PREFIX, "fileStreamCancelEnd filename %s channelID %d isActive %d pSession %p", 

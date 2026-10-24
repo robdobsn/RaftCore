@@ -112,29 +112,6 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
     }
 #endif
 
-    // Check if time to generate an ACK
-    if (genAck)
-    {
-        // block returns true when an acknowledgement is required - so send that ack
-        char ackJson[100];
-        snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
-        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
-
-#ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK
-        LOG_I(MODULE_PREFIX, "handleFileBlock BatchOK Sending OkTo %d rxBlockFilePos %d len %d batchCount %d resp %s type %d", 
-                getOkTo(), filePos, bufferLen, _batchBlockCount, respMsg.c_str(), _fileStreamContentType);
-#endif
-    }
-    else
-    {
-        // Just another block - don't ack yet
-#ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK_DETAIL
-        LOG_I(MODULE_PREFIX, "handleFileBlock filePos %d len %d batchCount %d resp %s heapSpace %d", 
-                filePos, bufferLen, _batchBlockCount, respMsg.c_str(),
-                heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-#endif
-    }
-
     // Check valid
     RaftRetCode rslt = RAFT_OK;
     if (blockValid && _fileStreamBlockWrite)
@@ -171,7 +148,39 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
                 Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, R"("cmdName":"ufStatus","reason":"FileWriteFailed")");
                 transferCancel("failFileWrite");
             }
+            return rslt;
         }
+    }
+
+    // Check if time to generate an ACK - when blocks are written in the background it waits until they are
+    // written (loop() sends it): the host then sends no more than a batch ahead of what is on the file system
+    if (genAck)
+    {
+        if (getWriteStatus() == RAFT_BUSY)
+        {
+            _ackDeferred = true;
+        }
+        else
+        {
+            char ackJson[100];
+            snprintf(ackJson, sizeof(ackJson), "\"okto\":%d", (int)getOkTo());
+            Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, ackJson);
+        }
+
+#ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK
+        LOG_I(MODULE_PREFIX, "handleFileBlock BatchOK %s OkTo %d rxBlockFilePos %d len %d batchCount %d resp %s type %d",
+                _ackDeferred ? "deferred" : "sending", getOkTo(), filePos, bufferLen, _batchBlockCount,
+                respMsg.c_str(), _fileStreamContentType);
+#endif
+    }
+    else
+    {
+        // Just another block - don't ack yet
+#ifdef DEBUG_RICREST_FILEUPLOAD_BLOCK_ACK_DETAIL
+        LOG_I(MODULE_PREFIX, "handleFileBlock filePos %d len %d batchCount %d resp %s heapSpace %d", 
+                filePos, bufferLen, _batchBlockCount, respMsg.c_str(),
+                heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+#endif
     }
     return rslt;
 }
@@ -192,10 +201,32 @@ void FileUploadOKTOProtocol::loop()
     // Check active
     if (!_isUploading)
         return;
-    
-    // Handle transfer activity
+
+    // Check blocks written in the background
     bool genBatchAck = false;
-    transferService(genBatchAck);
+    RaftRetCode writeStatus = getWriteStatus();
+    if (writeStatus == RAFT_BUSY)
+    {
+        // Writing is activity: no timer acks while blocks received are still being written
+        _lastMsgMs = millis();
+    }
+    else if (writeStatus != RAFT_OK)
+    {
+        LOG_W(MODULE_PREFIX, "loop background write failed %s", Raft::getRetCodeStr(writeStatus));
+        transferCancel(_fileStreamContentType == FILE_STREAM_CONTENT_TYPE_FIRMWARE ? "failOTAWrite" : "failFileWrite");
+        return;
+    }
+    else if (_ackDeferred)
+    {
+        // The blocks are written - send the ack held back
+        _ackDeferred = false;
+        genBatchAck = true;
+    }
+    else
+    {
+        // Handle transfer activity
+        transferService(genBatchAck);
+    }
     if (genBatchAck)
     {
         char ackJson[100];
@@ -468,6 +499,7 @@ bool FileUploadOKTOProtocol::validateFileStreamStart(const String& fileName, uin
     _batchBlockCount = 0;
     _batchBlockAckRetry = 0;
     _outOfSequenceAcked = false;
+    _ackDeferred = false;
     return true;
 }
 

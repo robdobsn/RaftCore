@@ -84,6 +84,18 @@ void ProtocolExchange::loop()
                         pSession->getFileStreamName().c_str(), pSession->getChannelID(),
                         pSession->getStreamID(), pSession);
 #endif
+            // Record how a file upload's background writes ended (the reply to an HTTP upload reports it)
+            if (pSession->isFileSystemActivity())
+            {
+                RaftRetCode writeStatus = pSession->getWriteStatus();
+                _lastUploadWriteStatus.remove_if([pSession](const std::pair<uint32_t, RaftRetCode>& entry) {
+                    return entry.first == pSession->getChannelID();
+                });
+                _lastUploadWriteStatus.push_back({pSession->getChannelID(), writeStatus});
+                if (_lastUploadWriteStatus.size() > LAST_UPLOAD_WRITE_STATUS_MAX)
+                    _lastUploadWriteStatus.pop_front();
+            }
+
             // Tidy up inactive session
             it = _sessions.erase(it);
             delete pSession;
@@ -781,6 +793,48 @@ RaftRetCode ProtocolExchange::handleFileUploadBlock(const String& req, FileStrea
     
     // Handle the block
     return pSession->fileStreamBlockWrite(fileStreamBlock);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// HTTP file uploads written in the background
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool ProtocolExchange::fileUploadCanAccept(uint32_t channelID)
+{
+    for (FileStreamSession* pSession : _sessions)
+    {
+        if ((pSession->getChannelID() == channelID) && pSession->isFileSystemActivity() &&
+                    (pSession->getWritePendingBytes() >= HTTP_UPLOAD_PENDING_MAX_BYTES))
+            return false;
+    }
+    return true;
+}
+
+RaftRetCode ProtocolExchange::getFileUploadWriteStatus(uint32_t channelID)
+{
+    // A session still here (it may have finished writing and not yet been removed) gives its own status
+    for (FileStreamSession* pSession : _sessions)
+    {
+        if ((pSession->getChannelID() == channelID) && pSession->isFileSystemActivity())
+            return pSession->getWriteStatus();
+    }
+    // Otherwise how the last one ended
+    for (const std::pair<uint32_t, RaftRetCode>& entry : _lastUploadWriteStatus)
+    {
+        if (entry.first == channelID)
+            return entry.second;
+    }
+    return RAFT_OK;
+}
+
+bool ProtocolExchange::isFileUploadWriting(uint32_t channelID)
+{
+    for (FileStreamSession* pSession : _sessions)
+    {
+        if ((pSession->getChannelID() == channelID) && pSession->isWriteBusy())
+            return true;
+    }
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

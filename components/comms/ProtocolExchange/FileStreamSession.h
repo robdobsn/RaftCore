@@ -15,6 +15,9 @@
 #include "FileSystemChunker.h"
 #include "FileStreamBase.h"
 #include "RestAPIEndpoint.h"
+#include "RaftThreading.h"
+#include "SpiramAwareAllocator.h"
+#include <atomic>
 
 class RestAPIEndpointManager;
 
@@ -31,10 +34,10 @@ public:
                 uint32_t fileStreamLength);
     virtual ~FileStreamSession();
 
-    // Info
+    // Info - a session stays active until its background writes are finished
     bool isActive() const
     {
-        return _isActive;
+        return _isActive || _writeJobOutstanding.load();
     }
     const String& getFileStreamName() const
     {
@@ -88,6 +91,16 @@ public:
     RaftRetCode fileStreamGetCRC(uint32_t& crc, uint32_t& fileLen);
     void fileStreamCancelEnd(bool isNormalEnd);
 
+    // Background writes (file uploads are written on the file system worker)
+    // Status: RAFT_BUSY while data received is still to be written, RAFT_OK when it is all written, or the error
+    RaftRetCode getWriteStatus();
+    // Bytes received and not yet written
+    uint32_t getWritePendingBytes();
+    bool isWriteBusy() const
+    {
+        return _writeJobOutstanding.load();
+    }
+
     // Debug
     String getDebugJSON() const;
     
@@ -127,6 +140,24 @@ private:
 
     // Handlers
     RaftSysMod* _pFirmwareUpdater = nullptr;
+
+    // Background writes (file uploads): data received waits in _writePending until the file system worker writes
+    // it, in pieces of up to WRITE_PIECE_MAX_BYTES (the file system lock is released between them). The worker's job
+    // swaps _writePending for its own buffer, so blocks keep arriving while it writes. _writeMutex guards the
+    // _write... members except _writeJobOutstanding, which is set while _writePending holds data or a job runs
+    bool _writeInBackground = false;
+    RaftMutex _writeMutex;
+    SpiramAwareUint8Vector _writePending;
+    bool _writePendingFinal = false;
+    bool _writeCancelled = false;
+    RaftRetCode _writeError = RAFT_OK;
+    std::atomic<bool> _writeJobOutstanding{false};
+    bool _finalBlockReceived = false;
+    static constexpr uint32_t WRITE_PIECE_MAX_BYTES = 4096;
+    static constexpr uint32_t WRITE_HEAP_MARGIN_BYTES = 16384;
+    static constexpr uint32_t DESTRUCT_WRITE_WAIT_MAX_MS = 5000;
+    void writeJob();
+    RaftRetCode writeToFile(const uint8_t* pBuf, uint32_t len, bool isFinal);
 
     // Session idle handler
     uint32_t _sessionLastActiveMs;

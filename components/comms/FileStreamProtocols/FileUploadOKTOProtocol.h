@@ -144,6 +144,9 @@ private:
     // An out-of-sequence block has been acked (cleared by the next block accepted)
     bool _outOfSequenceAcked = false;
 
+    // An ack is held back until the blocks received are written (when they are written in the background)
+    bool _ackDeferred = false;
+
     // Debug
     uint32_t _debugLastStatsMs = millis();
     static const uint32_t DEBUG_STATS_MS = 10000;

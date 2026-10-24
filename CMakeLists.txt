@@ -130,6 +130,7 @@ idf_component_register(
     "components/core/ExpressionEval/tinyexpr.c"
     "components/core/FileSystem/FileSystem.cpp"
     "components/core/FileSystem/FileSystemChunker.cpp"
+    "components/core/FileSystem/FileSystemWorker.cpp"
     "components/core/LEDPixels/ESP32RMTLedStrip.cpp"
     "components/core/LEDPixels/LEDPixels.cpp"
     "components/core/LEDPixels/LEDStripEncoder.c"

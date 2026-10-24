@@ -5,7 +5,7 @@
 // Drives the upload protocol directly (ufStart, then file blocks) and checks when it acks (okto): after the first
 // block accepted, after each batch, after the last block, at once for the first block out of sequence (after a
 // lost block, or one sent again), and on its timer when blocks stop - and that its acks stay in step with the
-// host's batches after a loss.
+// host's batches after a loss. When blocks are written in the background, acks wait until the blocks are written.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -238,6 +238,59 @@ static void testFitInMemory()
     TEST_ASSERT(block == P::FILE_BLOCK_SIZE_MIN && batch == 1, "smallest block");
 }
 
+static void testAckWaitsForBackgroundWrites()
+{
+    printf("Running testAckWaitsForBackgroundWrites...\n");
+    Upload up(20 * BLOCK);
+    RaftRetCode writeStatus = RAFT_OK;
+    up.protocol.setWriteStatusFn([&writeStatus]() { return writeStatus; });
+
+    // The first block's ack waits while it is being written, then loop() sends it
+    writeStatus = RAFT_BUSY;
+    TEST_ASSERT(up.sendBlock(0) == -1, "no ack while the first block is being written");
+    up.protocol.loop();
+    TEST_ASSERT(up.commsCore.sent.empty(), "nothing sent while writing");
+    writeStatus = RAFT_OK;
+    up.protocol.loop();
+    TEST_ASSERT(up.commsCore.sent.size() == 1 && RaftJson(up.commsCore.sent[0]).getInt("okto", -1) == (int)BLOCK,
+                "ack sent once written");
+
+    // A batch: acked at its end, after the writes
+    up.commsCore.sent.clear();
+    writeStatus = RAFT_BUSY;
+    TEST_ASSERT(up.acksFor(range(1, 6)).length() == 0, "no acks in the reply while writing");
+    // Writing is activity: no timer ack even after the timer's time
+    std::this_thread::sleep_for(std::chrono::milliseconds(FileUploadOKTOProtocol::BLOCK_MSGS_TIMEOUT_MS + 100));
+    up.protocol.loop();
+    TEST_ASSERT(up.commsCore.sent.empty(), "no timer ack while writing");
+    writeStatus = RAFT_OK;
+    up.protocol.loop();
+    TEST_ASSERT(up.commsCore.sent.size() == 1 && RaftJson(up.commsCore.sent[0]).getInt("okto", -1) == (int)(6 * BLOCK),
+                "batch acked once written");
+    up.protocol.loop();
+    TEST_ASSERT(up.commsCore.sent.size() == 1, "the held ack is sent once");
+
+    // Not writing: acks in the reply as before
+    TEST_ASSERT(up.acksFor(range(6, 11)) == "10:11", "ack in the reply when nothing is being written");
+    TEST_ASSERT(up.written == std::vector<uint8_t>(up.contents.begin(), up.contents.begin() + 11 * BLOCK), "blocks written");
+}
+
+static void testBackgroundWriteFailureCancels()
+{
+    printf("Running testBackgroundWriteFailureCancels...\n");
+    Upload up(20 * BLOCK);
+    RaftRetCode writeStatus = RAFT_BUSY;
+    up.protocol.setWriteStatusFn([&writeStatus]() { return writeStatus; });
+    up.acksFor(range(0, 3));
+    writeStatus = RAFT_OTHER_FAILURE;
+    up.protocol.loop();
+    TEST_ASSERT(!up.protocol.isActive(), "upload ended");
+    bool cancelSent = false;
+    for (const String& msg : up.commsCore.sent)
+        cancelSent = cancelSent || (RaftJson(msg).getString("reason", "") == "failFileWrite");
+    TEST_ASSERT(cancelSent, "ufCancel failFileWrite sent");
+}
+
 int main()
 {
     testInOrder();
@@ -246,5 +299,7 @@ int main()
     testBlockSentAgain();
     testTimerAckStartsTheBatchAgain();
     testFitInMemory();
+    testAckWaitsForBackgroundWrites();
+    testBackgroundWriteFailureCancels();
     return testSummary("test_file_upload_okto");
 }
