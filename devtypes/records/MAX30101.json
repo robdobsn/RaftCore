@@ -1,28 +1,40 @@
 {
-    "_notes": "init: 0x0940 (reset, then 10 ms), 0x0903 (SpO2 mode Red+IR), 0x085f (4 sample avg, FIFO rollover, FIFO Int 17), 0x00=r1 (clear INT), 0x0A27 (100 samples/s, 18 bit), 0x0c4040 (LED1 and LED2 12.6mA), 0x1121 (slots). Poll: WR_PTR, OVF_COUNTER, RD_PTR, then up to 8 samples (6 bytes each) from FIFO_DATA. Samples are 18 bits. Also matches MAX30102/MAX30105 (same part ID), compatible in SpO2 mode",
+    "_notes": "Maxim MAX30101 / MAX30105 pulse oximetry, heart-rate and particle sensor at 0x57 (fixed). The MAX30102 has the same part ID but no green LED (its green values are meaningless). Detection: PART_ID (0xFF) = 0x15 (all three). Init: reset (0x09 bit 6), 10 ms; MODE_CONFIG (0x09) multi-LED mode (7); FIFO_CONFIG (0x08) 4-sample averaging, rollover on, almost-full 15; INT status 1 read (clears it); SPO2_CONFIG (0x0A) ADC range 4096 nA, 100 samples/s, 411 us pulses (18 bits); LED1-LED3 pulse amplitudes (0x0C-0x0E, red, IR, green) 0x40 = 12.8 mA (0.2 mA per step); slots (0x11-0x12) red, IR, green, none; FIFO pointers cleared (0x04-0x06). Poll: FIFO_WR_PTR, OVF_COUNTER, FIFO_RD_PTR, then 8 samples of 9 bytes from FIFO_DATA (the register pointer stays at 0x07, so one read covers both), 18 bits per LED; then FIFO_RD_PTR again. The decode keeps the samples the read popped (RD_PTR after minus before): a read of an empty FIFO returns the last sample again without moving RD_PTR, and a sample that arrives during the read (about 8 ms) is popped too - counting from the pointers before the read dropped it, about one sample in five at 100/s (bench, 2026-10-24). The rate is the 100 samples/s divided by the on-chip averaging (1-16), each rate polled often enough to keep under 8 samples a poll. In multi-LED mode an LED is turned off by setting its current to 0, so the LED actions also choose what is measured (red only for heart rate, red and IR for SpO2, all three). Bench (Axiom018, 2026-10-24, MAX30105): with nothing in front about 1500 (red) and 2400 (IR), a fingertip about 196000 with a 68 bpm pulse of about 1700 p-p in IR.",
     "addresses": "0x57",
     "detectionValues": "0xff=0x15",
-    "initValues": "0x0940=p10&0x0903&0x085f&0x00=r1&0x0a27&0x0c4040&0x1121",
+    "initValues": "0x0940=p10&0x0907&0x085f&0x00=r1&0x0a27&0x0c404040&0x112103&0x04000000",
     "pollInfo": {
-        "c": "0x04=r51",
+        "c": "0x04=r75&0x06=r1",
         "i": 200,
         "s": 5
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-24, MAX30105): the lone 0x99 + 9-byte read (0x99-0xA1, not in the register map) read 99 af ff ff ff ff ff 00 00; FIFO, mode, SpO2, LED, slot and interrupt-enable registers unchanged and sampling carried on"
+        }
+    },
     "devInfoJson": {
-        "name": "Heart Sensor",
-        "desc": "Rate and SpO2",
+        "name": "Heart & Optical Sensor",
+        "desc": "Red, IR and green reflectance: heart rate, SpO2, proximity and (MAX30105) particles",
         "manu": "Maxim",
         "type": "MAX30101",
-        "clas": ["HRM"],
+        "clas": [
+            "HRM"
+        ],
         "resp": {
-            "b": 51,
+            "b": 76,
             "a": [
                 {
                     "n": "Red",
                     "t": ">I",
                     "u": "Red",
-                    "r": [0, 262143],
+                    "r": [
+                        0,
+                        262143
+                    ],
                     "f": "6d",
                     "o": "uint32"
                 },
@@ -30,16 +42,113 @@
                     "n": "IR",
                     "t": ">I",
                     "u": "IR",
-                    "r": [0, 262143],
+                    "r": [
+                        0,
+                        262143
+                    ],
+                    "f": "6d",
+                    "o": "uint32"
+                },
+                {
+                    "n": "Green",
+                    "t": ">I",
+                    "u": "Green",
+                    "r": [
+                        0,
+                        262143
+                    ],
                     "f": "6d",
                     "o": "uint32"
                 }
             ],
             "c": {
                 "n": "max30101_fifo",
-                "c": "int N=(buf[0]+32-buf[2])%32;if(N==0){if(buf[1]>0){N=8;}}if(N>8){N=8;}int k=3;int i=0;while(i<N){out.Red=((buf[k]<<16)|(buf[k+1]<<8)|buf[k+2])&0x3FFFF;out.IR=((buf[k+3]<<16)|(buf[k+4]<<8)|buf[k+5])&0x3FFFF;k+=6;i++;next;}"
+                "c": "int N=(buf[75]+32-buf[2])%32;if(N>8){N=8;}int k=3;int i=0;while(i<N){out.Red=((buf[k]<<16)|(buf[k+1]<<8)|buf[k+2])&0x3FFFF;out.IR=((buf[k+3]<<16)|(buf[k+4]<<8)|buf[k+5])&0x3FFFF;out.Green=((buf[k+6]<<16)|(buf[k+7]<<8)|buf[k+8])&0x3FFFF;k+=9;i++;next;}"
             },
             "us": 40000
-        }
+        },
+        "actions": [
+            {
+                "n": "_conf.rate",
+                "t": "B",
+                "r": [
+                    6.25,
+                    100
+                ],
+                "d": 25,
+                "desc": "Samples per second (100/s from the chip, averaged on chip)",
+                "map": {
+                    "6.25": {
+                        "w": "089f",
+                        "i": 800000,
+                        "s": 5
+                    },
+                    "12.5": {
+                        "w": "087f",
+                        "i": 400000,
+                        "s": 5
+                    },
+                    "25": {
+                        "w": "085f",
+                        "i": 200000,
+                        "s": 5
+                    },
+                    "50": {
+                        "w": "083f",
+                        "i": 100000,
+                        "s": 5
+                    },
+                    "100": {
+                        "w": "081f",
+                        "i": 50000,
+                        "s": 5
+                    }
+                }
+            },
+            {
+                "n": "red LED",
+                "t": "B",
+                "w": "0c",
+                "r": [
+                    0,
+                    51
+                ],
+                "mul": 5,
+                "d": 12.8,
+                "desc": "Red LED current (mA, 0 = off)"
+            },
+            {
+                "n": "IR LED",
+                "t": "B",
+                "w": "0d",
+                "r": [
+                    0,
+                    51
+                ],
+                "mul": 5,
+                "d": 12.8,
+                "desc": "IR LED current (mA, 0 = off)"
+            },
+            {
+                "n": "green LED",
+                "t": "B",
+                "w": "0e",
+                "r": [
+                    0,
+                    51
+                ],
+                "mul": 5,
+                "d": 12.8,
+                "desc": "Green LED current (mA, 0 = off)"
+            },
+            {
+                "n": "power",
+                "desc": "Shutdown stops sampling and turns the LEDs off",
+                "map": {
+                    "on": "0907",
+                    "shutdown": "0987"
+                }
+            }
+        ]
     }
 }
