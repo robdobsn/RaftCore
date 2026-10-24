@@ -227,6 +227,8 @@ private:
         // 64-bit so capacities and usage for cards larger than 4GB do not overflow
         uint64_t fsSizeBytes = 0;
         uint64_t fsUsedBytes = 0;
+        // A refresh of this cache is queued on the file system worker
+        std::atomic<bool> cacheRefreshQueued{false};
         RaftAtomicBool isSizeInfoValid = {0};
         // Used-bytes info is computed separately from total size because on SD
         // (FAT) cards it can require a full FAT scan (f_getfree) taking several
@@ -275,6 +277,9 @@ private:
     static void sdUsedBytesScanTaskStatic(void* pArg);
     void markFileCacheDirty(const String& fsName, const String& filename);
     void fileSystemCacheService(CachedFileSystem& cachedFs);
+    bool fileSystemCacheNeedsService(CachedFileSystem& cachedFs);
+    void fileSystemCacheQueueRefresh(CachedFileSystem& cachedFs);
+    static const uint32_t CACHE_REFRESH_MAX_STEPS = 100;
     String formatJSONFileInfo(const char* req, CachedFileSystem& cachedFs, const String& fileListStr, const String& rootFolder);
     static const uint32_t SERVICE_COUNT_FOR_CACHE_PRIMING = 10;
 

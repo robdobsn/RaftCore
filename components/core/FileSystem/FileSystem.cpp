@@ -8,6 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "FileSystem.h"
+#include "FileSystemWorker.h"
 #include <algorithm>
 #include <strings.h>
 #include "RaftUtils.h"
@@ -133,9 +134,17 @@ void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsForma
     // Setup SD file system
     _sdIsOk = sdFileSystemSetup(enableSD, sdMOSIPin, sdMISOPin, sdCLKPin, sdCSPin);
 
-    // Service a few times to setup caches
-    for (uint32_t i = 0; i < SERVICE_COUNT_FOR_CACHE_PRIMING; i++)
-        loop();
+    // Set up the caches (here, at boot)
+#if !defined(__linux__)
+    if (_cacheFileSystemInfo)
+    {
+        for (uint32_t i = 0; i < SERVICE_COUNT_FOR_CACHE_PRIMING; i++)
+        {
+            fileSystemCacheService(_localFsCache);
+            fileSystemCacheService(_sdFsCache);
+        }
+    }
+#endif
 
     // Optionally start the (potentially slow) SD used-bytes scan at boot. This runs
     // on a background task so startup is never stalled; when disabled the scan is
@@ -151,10 +160,12 @@ void FileSystem::setup(LocalFileSystemType localFsDefaultType, bool localFsForma
 void FileSystem::loop()
 {
 #if !defined(__linux__)
+    // Refresh the file system info caches on the file system worker (a folder scan or a file system's size and
+    // used space can take a while, e.g. after a file is written)
     if (!_cacheFileSystemInfo)
         return;
-    fileSystemCacheService(_localFsCache);
-    fileSystemCacheService(_sdFsCache);
+    fileSystemCacheQueueRefresh(_localFsCache);
+    fileSystemCacheQueueRefresh(_sdFsCache);
 #endif
 }
 
@@ -2130,7 +2141,41 @@ void FileSystem::markFileCacheDirty(const String& fsName, const String& filename
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // File system cache service
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// File system cache refresh on the file system worker
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FileSystem::fileSystemCacheNeedsService(CachedFileSystem& cachedFs)
+{
+    return RaftAtomicBool_get(cachedFs.isUsed) && (!RaftAtomicBool_get(cachedFs.isSizeInfoValid) ||
+                !RaftAtomicBool_get(cachedFs.isFileInfoSetup) || !RaftAtomicBool_get(cachedFs.isFileInfoValid));
+}
+
+void FileSystem::fileSystemCacheQueueRefresh(CachedFileSystem& cachedFs)
+{
+    if (!fileSystemCacheNeedsService(cachedFs) || cachedFs.cacheRefreshQueued.load())
+        return;
+    cachedFs.cacheRefreshQueued = true;
+    CachedFileSystem* pCachedFs = &cachedFs;
+    bool queued = fileSystemWorker.submit([this, pCachedFs]() {
+        // Each service call does one step (the size, the folder scan, or one file's info) - a step skipped when the
+        // file system is busy is tried again after a pause
+        for (uint32_t step = 0; (step < CACHE_REFRESH_MAX_STEPS) && fileSystemCacheNeedsService(*pCachedFs); step++)
+        {
+            fileSystemCacheService(*pCachedFs);
+            RaftThread_sleep(1);
+        }
+        pCachedFs->cacheRefreshQueued = false;
+    });
+    if (!queued)
+    {
+        // The worker can't take it - a step here
+        cachedFs.cacheRefreshQueued = false;
+        fileSystemCacheService(cachedFs);
+    }
+}
+
+///////////
 
 void FileSystem::fileSystemCacheService(CachedFileSystem& cachedFs)
 {
