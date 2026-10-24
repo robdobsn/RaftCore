@@ -179,6 +179,8 @@ private:
     static constexpr uint16_t CRC16_CCITT_INIT_VAL = 0xFFFF;
 
     // CRC table
+    // Shortest run of plain bytes handleBuffer() copies in one go
+    static const unsigned MIN_BULK_RUN_LEN = 8;
     static const uint16_t _CRCTable[256];
 
     // Callback functions for PutCh/PutBit and FrameRx

@@ -249,9 +249,10 @@ void MiniHDLC::handleChar(uint8_t ch)
     // Check buffer size and increase if needed & possible
     if (_framePos >= _rxBuffer.size())
     {
-        if (_framePos > _rxBufferMaxLen)
+        if (_framePos >= _rxBufferMaxLen)
         {
-            // Too long - discard and start again
+            // Too long - discard and start again (checked before the buffer, which is limited to the same length,
+            // refuses to grow - otherwise this was counted as an allocation failure)
             if (_stats._frameTooLongCount < __UINT16_MAX__)
             {
                 _stats._frameTooLongCount++;
@@ -298,9 +299,44 @@ void MiniHDLC::handleChar(uint8_t ch)
 
 void MiniHDLC::handleBuffer(const uint8_t* pBuf, unsigned numBytes)
 {
-    // Iterate bytes
-    for (unsigned i = 0; i < numBytes; i++)
-        handleChar(pBuf[i]);
+    // Runs of plain bytes (not a frame boundary or an escape, and not following an escape) are copied in one go and
+    // the CRC updated over them in one call; everything else goes through handleChar(). Byte at a time, a 16 KB frame
+    // took about 20 ms to decode on an ESP32-S3
+    unsigned i = 0;
+    while (i < numBytes)
+    {
+        // Find the run of plain bytes starting here
+        unsigned runEnd = i;
+        if (!_inEscapeSeq)
+        {
+            while ((runEnd < numBytes) && (pBuf[runEnd] != _frameBoundaryOctet) && (pBuf[runEnd] != _controlEscapeOctet))
+                runEnd++;
+        }
+        unsigned runLen = runEnd - i;
+
+        // Short runs, and a run that would make the frame too long (handled byte at a time, as before), go to
+        // handleChar()
+        if ((runLen < MIN_BULK_RUN_LEN) || (_framePos + runLen > _rxBufferMaxLen) ||
+                    !_rxBuffer.resize(_framePos + runLen))
+        {
+            handleChar(pBuf[i]);
+            i++;
+            continue;
+        }
+
+        // Store the run
+        uint8_t* pFrame = _rxBuffer.data();
+        memcpy(pFrame + _framePos, pBuf + i, runLen);
+
+        // The CRC lags two bytes behind (the last two bytes of a frame are the CRC itself): bring it up to the
+        // byte two before the end of the run
+        uint32_t crcFrom = _framePos >= 2 ? _framePos - 2 : 0;
+        uint32_t crcTo = _framePos + runLen >= 2 ? _framePos + runLen - 2 : 0;
+        if (crcTo > crcFrom)
+            _frameCRC = crcUpdateCCITT(_frameCRC, pFrame + crcFrom, crcTo - crcFrom);
+        _framePos += runLen;
+        i = runEnd;
+    }
 }
 
 // Wrap given data in HDLC frame and send it out byte at a time
@@ -451,9 +487,10 @@ uint16_t MiniHDLC::crcUpdateCCITT(unsigned short fcs, unsigned char value)
 
 uint16_t MiniHDLC::crcUpdateCCITT(unsigned short fcs, const unsigned char* pBuf, unsigned bufLen)
 {
+    uint16_t crc = fcs;
     for (unsigned i = 0; i < bufLen; i++)
-        fcs = crcUpdateCCITT(fcs, pBuf[i]);
-    return fcs;
+        crc = (crc << 8) ^ _CRCTable[((crc >> 8) ^ pBuf[i]) & 0xff];
+    return crc;
 }
 
 uint16_t MiniHDLC::crcUpdateCCITT(unsigned short fcs, const SpiramAwareUint8Vector& buf)
