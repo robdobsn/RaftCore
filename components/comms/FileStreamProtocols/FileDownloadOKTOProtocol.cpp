@@ -397,9 +397,11 @@ void FileDownloadOKTOProtocol::transferService()
         return;
     _betweenBlocksMs = millis();
 
-    // Check if we're finished
+    // Check if we're finished - with the CRC at the end the session waits (a while) for dfEnd, whose reply carries it
     if (_oktoFilePos >= _fileSize)
     {
+        if (_crcAtEnd && !Raft::isTimeout(nowMillis, _lastBatchAckRxOrRetryMs, END_MSG_WAIT_MS))
+            return;
 #ifdef DEBUG_RICREST_FILEDOWNLOAD
         LOG_I(MODULE_PREFIX, "transferService finished successfully");
 #endif        
