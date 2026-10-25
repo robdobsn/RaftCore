@@ -24,6 +24,10 @@
 #include "RestAPIEndpointManager.h"
 #include "SysManagerIF.h"
 #include "FileStreamBlock.h"
+#include "FileSystem.h"
+#include "FileSystemWorker.h"
+#include "MiniHDLC.h"
+#include <unistd.h>
 
 static const uint32_t TEST_CHANNEL_ID = 7;
 static const char* TEST_STREAM_ENDPOINT = "teststream";
@@ -340,11 +344,79 @@ static void testDownloadOfMissingFileRefused()
     RaftSysMod::setSysManager(nullptr);
 }
 
+// Uploads with a CRC16 in ufStart: the session ends once the final block is written and checked, and the ufEnd
+// that follows says the file was checked (crc16), or the upload is cancelled (failCRC) if it doesn't match
+static void testUploadCRCInEndReply()
+{
+    printf("Running testUploadCRCInEndReply...\n");
+
+    TestCommsCore commsCore;
+    RestAPIEndpointManager restAPI;
+    TestSysManager sysManager(commsCore, restAPI);
+    RaftSysMod::setSysManager(&sysManager);
+    fileSystem.setup(FileSystem::LOCAL_FS_SPIFFS, false, false, -1, -1, -1, -1, false, false, false);
+    fileSystemWorker.setRunAtOnce(true);
+
+    RaftJson config("{}");
+    ProtocolExchange protocolExchange("ProtExchg", config);
+    RaftSysMod& sysMod = protocolExchange;
+    sysMod.addCommsChannels(commsCore);
+    if (!commsCore.ricSerialHandler)
+    {
+        TEST_ASSERT(false, "RICSerial message handler registered");
+        return;
+    }
+
+    char cwd[512];
+    String path = String(getcwd(cwd, sizeof(cwd))) + "/px_upload_crc.bin";
+    std::vector<uint8_t> data(300);
+    for (uint32_t i = 0; i < data.size(); i++)
+        data[i] = (uint8_t)(i * 13);
+    char crcStr[10];
+    snprintf(crcStr, sizeof(crcStr), "0x%04x", MiniHDLC::crcUpdateCCITT(MiniHDLC::crcInitCCITT(), data.data(), data.size()));
+
+    // Upload with `crc` in ufStart; returns the ufEnd reply, and the reasons of any cancels
+    auto upload = [&](const char* crc, std::vector<String>& cancels) -> RaftJson {
+        commsCore.responses.clear();
+        unlink(path.c_str());
+        sendCmdFrame(commsCore, 1, String(R"({"cmdName":"ufStart","reqStr":"fileupload","fileType":"fs","fileName":")") +
+                path + R"(","fileLen":300,"batchMsgSize":300,"batchAckSize":1,"CRC16":")" + crc + "\"}");
+        uint32_t streamID = commsCore.responses.empty() ? 0 : RaftJson(commsCore.responses[0]).getLong("streamID", 0);
+        sendFileBlock(commsCore, 0, streamID, 0, data);
+        for (int i = 0; i < 5; i++)
+            sysMod.loop();
+        for (const String& resp : commsCore.responses)
+            if (RaftJson(resp).getString("cmdName", "") == "ufCancel")
+                cancels.push_back(RaftJson(resp).getString("reason", ""));
+        commsCore.responses.clear();
+        sendCmdFrame(commsCore, 2, String(R"({"cmdName":"ufEnd","reqStr":"fileupload","fileType":"fs","fileName":")") +
+                path + R"(","fileLen":300,"streamID":)" + String(streamID) + "}");
+        return RaftJson(commsCore.responses.empty() ? String("{}") : commsCore.responses.back());
+    };
+
+    std::vector<String> cancels;
+    RaftJson endResp = upload(crcStr, cancels);
+    TEST_ASSERT(cancels.empty(), "no cancel with the right CRC");
+    TEST_ASSERT(endResp.getString("rslt", "") == "ok", "ufEnd ok");
+    TEST_ASSERT(String("0x") + endResp.getString("crc16", "") == crcStr, "ufEnd gives the CRC the file was checked against");
+
+    cancels.clear();
+    endResp = upload("0x1234", cancels);
+    TEST_ASSERT(cancels == std::vector<String>({"failCRC"}), "a wrong CRC cancels the upload (failCRC)");
+    TEST_ASSERT(endResp.getString("crc16", "none") == "none", "no CRC in the ufEnd reply after a mismatch");
+    TEST_ASSERT(access(path.c_str(), F_OK) != 0, "the file is deleted");
+
+    unlink(path.c_str());
+    fileSystemWorker.setRunAtOnce(false);
+    RaftSysMod::setSysManager(nullptr);
+}
+
 int main()
 {
     testStreamSessionAndActivityHook();
     testStreamToUnknownEndpointRefused();
     testConcurrentSessionsReportedTogether();
     testDownloadOfMissingFileRefused();
+    testUploadCRCInEndReply();
     return testSummary("test_protocol_exchange");
 }

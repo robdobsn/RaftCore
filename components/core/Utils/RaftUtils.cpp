@@ -1528,6 +1528,7 @@ const char* Raft::getRetCodeStr(RaftRetCode retc)
         case RAFT_MOTION_NO_STEPS: return "MOTION_NO_STEPS";
         case RAFT_MOTION_BUSY: return "MOTION_BUSY";
         case RAFT_MOTION_HOMING_REQUIRED: return "MOTION_HOMING_REQUIRED";
+        case RAFT_CRC_MISMATCH: return "CRC_MISMATCH";
         default: return "UNKNOWN";
     }
 };
