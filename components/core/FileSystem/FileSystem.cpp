@@ -11,6 +11,7 @@
 #include "FileSystemWorker.h"
 #include <algorithm>
 #include <strings.h>
+#include <string.h>
 #include "RaftUtils.h"
 #include "Logger.h"
 
@@ -87,12 +88,27 @@ RaftMutex& FileSystem::fsMutex(const char* nameOfFS) const
 
 RaftMutex& FileSystem::fsMutex(const String& nameOfFS, const String& filename) const
 {
-    // A file system named in the filename is the one used (see getFilePath())
-    if (filename.indexOf(SD_FILE_SYSTEM_PATH_ELEMENT) >= 0)
-        return _sdFsMutex;
-    if (filename.indexOf(LOCAL_FILE_SYSTEM_PATH_ELEMENT) >= 0)
-        return _localFsMutex;
-    return fsMutex(nameOfFS.c_str());
+    // A file system named at the start of the filename is the one used (see getFilePath())
+    const char* pNamedFS = fileSystemNamedIn(filename);
+    return fsMutex(pNamedFS ? pNamedFS : nameOfFS.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// The file system a filename names at its start (after an optional /), or nullptr
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const char* FileSystem::fileSystemNamedIn(const String& filename)
+{
+    const char* pName = filename.c_str();
+    if (*pName == '/')
+        pName++;
+    for (const char* pFS : { LOCAL_FILE_SYSTEM_NAME, SD_FILE_SYSTEM_NAME })
+    {
+        size_t len = strlen(pFS);
+        if ((strncmp(pName, pFS, len) == 0) && ((pName[len] == '/') || (pName[len] == '\0')))
+            return pFS;
+    }
+    return nullptr;
 }
 
 RaftMutex& FileSystem::pathMutex(const char* path) const
@@ -680,8 +696,8 @@ bool FileSystem::checkFileSystem(const String& fileSystemStr, String& fsName) co
 
 String FileSystem::getFilePath(const String& nameOfFS, const String& filename) const
 {
-    // Check if filename already contains file system
-    if ((filename.indexOf(LOCAL_FILE_SYSTEM_PATH_ELEMENT) >= 0) || (filename.indexOf(SD_FILE_SYSTEM_PATH_ELEMENT) >= 0))
+    // A filename that starts with a file system name is already a full path
+    if (fileSystemNamedIn(filename))
         return (filename.startsWith("/") ? filename : ("/" + filename));
     
 #ifdef __linux__
