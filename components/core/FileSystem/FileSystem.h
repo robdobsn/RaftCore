@@ -258,6 +258,12 @@ private:
     // File system partition name
     String _fsPartitionName;
 
+public:
+    // The file system a filename names at its start - "local/...", "/local/...", "sd/..." or "/sd/..." (or just the
+    // file system's name) - or nullptr if it doesn't name one. Only the start counts: "logs/sd/x.csv" is a file
+    // in a folder called sd
+    static const char* fileSystemNamedIn(const String& filename);
+
 private:
     bool checkFileSystem(const String& fileSystemStr, String& fsName) const;
     String getFilePath(const String& nameOfFS, const String& filename) const;
@@ -290,11 +296,9 @@ private:
     // File system name
     static constexpr const char* LOCAL_FILE_SYSTEM_NAME = "local";
     static constexpr const char* LOCAL_FILE_SYSTEM_BASE_PATH = "/local";
-    static constexpr const char* LOCAL_FILE_SYSTEM_PATH_ELEMENT = "local/";
     static constexpr const char* LOCAL_FILE_SYSTEM_ALT_NAME = "spiffs";
     static constexpr const char* SD_FILE_SYSTEM_NAME = "sd";
     static constexpr const char* SD_FILE_SYSTEM_BASE_PATH = "/sd";
-    static constexpr const char* SD_FILE_SYSTEM_PATH_ELEMENT = "sd/";
     static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL = "fs";
     static constexpr const char* LOCAL_FILE_SYSTEM_PARTITION_LABEL_ALT = "spiffs";
 
