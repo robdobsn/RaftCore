@@ -1,4 +1,5 @@
 {
+    "_notes": "Vishay VCNL4040 proximity and ambient light sensor at 0x60 (fixed). Commands, each a 16-bit register written and read low byte first. Detection: ID (0x0C) = 0x0186 (low byte 0x86; the high byte's top nibble checked). Init: PS_CONF3 and PS_MS (0x04) 0x10, 0x07 - smart persistence, the white channel on, the IR LED at 200 mA; PS_CONF1 and PS_CONF2 (0x03) 0x0E, 0x08 - duty 1/40, integration 8T, proximity on, 16-bit output; ALS_CONF (0x00) 0 - ambient light on, 80 ms integration, so 0.1 lux per count (up to 6553 lux). Poll (200 ms): PS_Data (0x08), ALS_Data (0x09) and WHITE_Data (0x0A). Proximity is in counts, larger nearer; the baseline (nothing near) depends on what reflects IR back, e.g. a cover. The ambient light integration time isn't an action as it changes the lux per count (0.1 at 80 ms to 0.0125 at 640 ms), which the decode's divisor can't follow. Bench (Axiom018, 2026-10-24): about 5 proximity with nothing near, 300-420 with a finger close; about 105 lux in a room, 4-6 lux covered.",
     "addresses": "0x60",
     "detectionValues": "0x0c=0b100001100000XXXX",
     "initValues": "0x041007=&0x030e08=&0x000000=",
@@ -8,12 +9,22 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-25): the lone 0x99 is ACKed and the read returns the ambient light data then 0xFF (the chip appears to use the command code's low 4 bits, so 0x99 reads as ALS_Data, 0x09); no configuration register changed and measuring carried on. INT_Flag (0x0B), the only register cleared by a read, isn't read. Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
     "devInfoJson": {
         "name": "Light Sensor (ambient & proximity)",
         "desc": "",
         "manu": "Vishay",
         "type": "VCNL4040",
-        "clas": ["PROX","LGHT"],
+        "clas": [
+            "PROX",
+            "LGHT"
+        ],
         "resp": {
             "b": 6,
             "a": [
@@ -21,7 +32,10 @@
                     "n": "prox",
                     "t": "<H",
                     "u": "",
-                    "r": [0,65535],
+                    "r": [
+                        0,
+                        65535
+                    ],
                     "f": "5d",
                     "o": "uint16"
                 },
@@ -29,7 +43,10 @@
                     "n": "als",
                     "t": "<H",
                     "u": "lux",
-                    "r": [0,65535],
+                    "r": [
+                        0,
+                        65535
+                    ],
                     "d": 10,
                     "f": "5.2f",
                     "o": "float"
@@ -38,11 +55,44 @@
                     "n": "white",
                     "t": "<H",
                     "u": "",
-                    "r": [0,65535],
+                    "r": [
+                        0,
+                        65535
+                    ],
                     "f": "5d",
                     "o": "uint16"
                 }
             ]
-        }
+        },
+        "actions": [
+            {
+                "n": "IR LED current",
+                "desc": "Proximity IR LED current (more reaches further, uses more power)",
+                "map": {
+                    "50 mA": "041000",
+                    "75 mA": "041001",
+                    "100 mA": "041002",
+                    "120 mA": "041003",
+                    "140 mA": "041004",
+                    "160 mA": "041005",
+                    "180 mA": "041006",
+                    "200 mA": "041007"
+                }
+            },
+            {
+                "n": "proximity integration",
+                "desc": "Proximity integration time (longer is more sensitive, uses more power)",
+                "map": {
+                    "1T": "030008",
+                    "1.5T": "030208",
+                    "2T": "030408",
+                    "2.5T": "030608",
+                    "3T": "030808",
+                    "3.5T": "030a08",
+                    "4T": "030c08",
+                    "8T": "030e08"
+                }
+            }
+        ]
     }
 }
