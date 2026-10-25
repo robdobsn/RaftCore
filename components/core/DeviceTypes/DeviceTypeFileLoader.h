@@ -38,10 +38,15 @@ public:
     // manifest (AssembleDeviceTypes.py SOURCE_FORMAT_VERSION), reported by devman/typefile as recordFormat
     static constexpr int RECORD_FORMAT_VERSION = 1;
 
+    // Default size limit for a type file: the whole file is read into one buffer (in PSRAM where there is any) and
+    // parsed in place, so boards with PSRAM take larger files (AssembleDeviceTypes.py has the same defaults)
+    static constexpr uint32_t MAX_FILE_BYTES_DEFAULT = 65536;
+    static constexpr uint32_t MAX_FILE_BYTES_DEFAULT_PSRAM = 262144;
+
     // Limits for records from a file (compiled and code-registered records are not limited)
     struct Limits
     {
-        uint32_t maxFileBytes = 65536;
+        uint32_t maxFileBytes = MAX_FILE_BYTES_DEFAULT;
         uint32_t maxReadBytesPerCommand = 1024;
         uint32_t maxSamples = 256;
         uint32_t maxRecordRingBytes = 65536;    // poll result size (with timestamp) x samples

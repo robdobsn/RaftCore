@@ -53,14 +53,15 @@ Usage:
         become {"disable": ...} entries. Records with no on-device decoder are listed. The compiled records are the
         builtin selection of the same files unless --compiled gives them. The file's top-level _sources (ignored by
         the device) says what it was made from: the sources that supplied a record (git ones with their commit,
-        RaftCore's with its version) and the typeFile selection
+        RaftCore's with its version) and the typeFile selection. The size limit is the device's default for the SysType
+        (more if the sdkconfig.defaults next to the --select files enable PSRAM) unless --max-bytes gives one
 
     AssembleDeviceTypes.py --raftcore <dir> --select <file>[,<file>] --fs-image <dir> --systypes <SysTypes.json>
                            --compiled <file or folder>[,...] [--compiled-out <catalogue.json>]
-                           [--cache-dir ...] [--lock ...] [--override-dir ...]
+                           [--sdkconfig <sdkconfig.defaults>] [--cache-dir ...] [--lock ...] [--override-dir ...]
         For the build: if typeFile.fsImage is true, the type file is written into <dir> at the path the device loads it
         from (DevMan typeFile, else DeviceLibrary devLibFile, else /local/devlib.json, which must be on /local/), within
-        DevMan typeFileLimits.maxFileBytes; the compiled records are the generator's input files, merged as it merges
+        DevMan typeFileLimits.maxFileBytes (default: the device's, larger if --sdkconfig enables PSRAM); the compiled records are the generator's input files, merged as it merges
         them. Prints "fsimage:<file written>" and the inputs; <dir> is emptied if fsImage isn't set. --compiled-out
         writes the compiled records as one catalogue file (build/<SysType>/raft/DeviceTypeRecords.compiled.json), which
         the raft CLI builds type files against
@@ -662,7 +663,10 @@ def write_if_changed(path, text):
 # Runtime type files (devlib.json)
 ################################################################################################################
 
+# The device's default size limit for its type file (DeviceTypeFileLoader::MAX_FILE_BYTES_DEFAULT and _PSRAM): the file
+# is read into one buffer, so boards with PSRAM take larger files. DevMan typeFileLimits.maxFileBytes sets another
 TYPE_FILE_MAX_BYTES_DEFAULT = 65536
+TYPE_FILE_MAX_BYTES_DEFAULT_PSRAM = 262144
 TYPE_FILE_PATH_DEFAULT = "/local/devlib.json"
 
 
@@ -682,9 +686,47 @@ def merge_compiled(paths):
     return merged
 
 
-def type_file_location(systypes_path):
-    """Where the device loads its type file, and the size limit, from a (merged) SysTypes.json:
-    returns (path on the device, max bytes)"""
+def _sdkconfig_psram(path):
+    """CONFIG_SPIRAM in an sdkconfig file: True, False, or None if the file doesn't set it (the last setting wins)"""
+    setting = None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("CONFIG_SPIRAM="):
+                    setting = line == "CONFIG_SPIRAM=y"
+                elif line == "# CONFIG_SPIRAM is not set":
+                    setting = False
+    except OSError:
+        pass
+    return setting
+
+
+def sdkconfig_has_psram(*paths):
+    """Whether sdkconfig files (in order - a later one's setting wins, as ESP-IDF merges sdkconfig.defaults) enable
+    PSRAM (CONFIG_SPIRAM=y; ESP-IDF's default is no PSRAM)"""
+    has_psram = False
+    for path in paths:
+        setting = _sdkconfig_psram(path)
+        if setting is not None:
+            has_psram = setting
+    return has_psram
+
+
+def type_file_max_bytes_default(psram):
+    return TYPE_FILE_MAX_BYTES_DEFAULT_PSRAM if psram else TYPE_FILE_MAX_BYTES_DEFAULT
+
+
+def selection_max_bytes_default(selection_paths):
+    """The type file size limit for the SysType of a selection: from the sdkconfig.defaults next to its
+    DeviceTypeSources.json files (Common's, then the SysType's)"""
+    return type_file_max_bytes_default(sdkconfig_has_psram(
+        *[os.path.join(os.path.dirname(os.path.abspath(p)), "sdkconfig.defaults") for p in selection_paths]))
+
+
+def type_file_location(systypes_path, psram=False):
+    """Where the device loads its type file, and the size limit, from a (merged) SysTypes.json (psram: whether the
+    board has PSRAM, for the default limit): returns (path on the device, max bytes)"""
     config = _read_json(systypes_path) if systypes_path and os.path.isfile(systypes_path) else {}
     devman = config.get("DevMan", {}) if isinstance(config, dict) else {}
     if not isinstance(devman, dict):
@@ -694,8 +736,9 @@ def type_file_location(systypes_path):
     else:
         path = config.get("DeviceLibrary", {}).get("devLibFile", TYPE_FILE_PATH_DEFAULT) \
             if isinstance(config.get("DeviceLibrary"), dict) else TYPE_FILE_PATH_DEFAULT
-    max_bytes = devman.get("typeFileLimits", {}).get("maxFileBytes", TYPE_FILE_MAX_BYTES_DEFAULT) \
-        if isinstance(devman.get("typeFileLimits"), dict) else TYPE_FILE_MAX_BYTES_DEFAULT
+    default = type_file_max_bytes_default(psram)
+    max_bytes = devman.get("typeFileLimits", {}).get("maxFileBytes", default) \
+        if isinstance(devman.get("typeFileLimits"), dict) else default
     return path, int(max_bytes)
 
 
@@ -934,7 +977,7 @@ def _build_fs_image(args):
     if args.compiled_out and compiled is not None:
         write_if_changed(args.compiled_out, catalogue_text(compiled))
     if result.fs_image:
-        device_path, max_bytes = type_file_location(args.systypes)
+        device_path, max_bytes = type_file_location(args.systypes, sdkconfig_has_psram(args.sdkconfig) if args.sdkconfig else False)
         relative = fs_image_relative_path(device_path)
         if compiled is None:
             compiled = assemble(paths, args.raftcore, "builtin", git_options).records
@@ -973,7 +1016,10 @@ def main(argv=None):
                         help="build a device type file (devlib.json) from the typeFile selection into --out")
     parser.add_argument("--compiled", help="the records compiled into the firmware, as a catalogue file (default: the "
                         "builtin selection of the same DeviceTypeSources.json)")
-    parser.add_argument("--max-bytes", type=int, default=TYPE_FILE_MAX_BYTES_DEFAULT, help="type file size limit")
+    parser.add_argument("--max-bytes", type=int, help="type file size limit (default: the device's for the SysType - "
+                        f"{TYPE_FILE_MAX_BYTES_DEFAULT_PSRAM} if its sdkconfig.defaults enables PSRAM, else {TYPE_FILE_MAX_BYTES_DEFAULT})")
+    parser.add_argument("--sdkconfig", help="with --fs-image: the SysType's (merged) sdkconfig.defaults (whether it "
+                        "has PSRAM, for the default size limit)")
     parser.add_argument("--report", help="write what the type file does with each record, as JSON")
     parser.add_argument("--fs-image", help="for the build: folder to write the type file into if typeFile.fsImage "
                         "is set (at the device's type file path)")
@@ -1021,6 +1067,8 @@ def main(argv=None):
         paths = [p for p in args.select.split(",") if p.strip()]
         git_options = GitOptions(args.cache_dir, args.lock, args.override_dir, args.update)
         if args.typefile:
+            if args.max_bytes is None:
+                args.max_bytes = selection_max_bytes_default(paths)
             result = assemble(paths, args.raftcore, "typeFile", git_options)
             if args.compiled:
                 compiled, _ = load_catalogue(args.compiled, record_file=False)
