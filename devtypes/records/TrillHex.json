@@ -1,60 +1,137 @@
 {
-    "_notes": "Bela Trill Hex - 2D hexagonal capacitive touch pad, 30 channels, up to 4 simultaneous touches. CENTROID response: 4 vertical loc + 4 vertical size + 4 horizontal loc + 4 horizontal size (uint16 BE). Address jumper-configurable 0x40-0x47.",
+    "_notes": "Bela Trill Hex - 2D hexagonal capacitive touch pad, 30 channels, up to 4 simultaneous touches. CENTROID response: 4 vertical loc + 4 vertical size + 4 horizontal loc + 4 horizontal size (uint16 BE). Address jumper-configurable 0x40-0x47. Init, as Bela's Trill library (Trill-Linux) for the Hex: CENTROID mode; prescaler 1; scan settings speed 0, 12 bits; a baseline update; noise threshold 40 (0x28 at 12 bits). Poll: up to 4 touches on each axis, vertical positions and sizes (vloc 0 to 1920, vsize) then horizontal (hloc 0 to 1664, hsize), as 4-element arrays; 65535 for no touch. Not bench tested since the init change (the Flex was: without the prescaler set, every channel read 4095 and no touch was seen).",
     "addresses": "0x40-0x47",
     "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000101",
-    "initValues": "0x000100=p15&0x0006=p30",
+    "initValues": "0x000100=p15&0x000301=p15&0x0002000c=p15&0x0006=p30&0x000428=p15",
     "pollInfo": {
         "c": "0x04=r32",
         "i": 50,
         "s": 1
     },
     "scanPriority": "high",
-    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "source", "note": "Trill firmware v2: the first byte is a buffer offset and 0x99 is beyond the 64-byte buffer, so it is NACKed and ignored; reads have no side effects (BelaPlatform/Trill 537ebd6). Firmware v3 isn't public"}},
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "source",
+            "note": "Trill firmware v2: the first byte is a buffer offset and 0x99 is beyond the 64-byte buffer, so it is NACKed and ignored; reads have no side effects (BelaPlatform/Trill 537ebd6). Firmware v3 isn't public"
+        }
+    },
     "devInfoJson": {
         "name": "Trill Hex",
         "desc": "Capacitive Touch Hex",
         "manu": "Bela",
         "type": "TrillHex",
-        "clas": ["TCH"],
+        "clas": [
+            "TCH"
+        ],
         "resp": {
             "b": 32,
             "a": [
-                { "n": "vloc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "vloc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "vloc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "vloc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "vsize0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "vsize1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "vsize2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "vsize3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hloc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hloc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hloc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hloc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hsize0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hsize1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hsize2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "hsize3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                {
+                    "n": "vloc",
+                    "t": ">H[4]",
+                    "r": [
+                        0,
+                        1920
+                    ],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "vsize",
+                    "t": ">H[4]",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "hloc",
+                    "t": ">H[4]",
+                    "r": [
+                        0,
+                        1664
+                    ],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "hsize",
+                    "t": ">H[4]",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "d",
+                    "o": "uint16"
+                }
             ]
         },
         "actions": [
-            { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+            {
+                "n": "baseline",
+                "w": "0006",
+                "desc": "Update baseline"
+            },
             {
                 "n": "_conf.mode",
                 "t": "B",
-                "r": [0, 3],
+                "r": [
+                    0,
+                    3
+                ],
                 "d": 0,
                 "desc": "Sensor mode",
                 "map": {
-                    "centroid": { "w": "000100" },
-                    "raw":      { "w": "000101" },
-                    "baseline": { "w": "000102" },
-                    "diff":     { "w": "000103" }
+                    "centroid": {
+                        "w": "000100"
+                    },
+                    "raw": {
+                        "w": "000101"
+                    },
+                    "baseline": {
+                        "w": "000102"
+                    },
+                    "diff": {
+                        "w": "000103"
+                    }
                 }
             },
-            { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
-            { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
-            { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+            {
+                "n": "_conf.noise",
+                "t": "B",
+                "w": "0004",
+                "r": [
+                    0,
+                    255
+                ],
+                "d": 40,
+                "desc": "Noise threshold (counts at 12 bits; 40 is the Trill library's default)"
+            },
+            {
+                "n": "_conf.prescaler",
+                "t": "B",
+                "w": "0003",
+                "r": [
+                    1,
+                    8
+                ],
+                "d": 1,
+                "desc": "Prescaler (higher reads lower; raise it if channels saturate at 4095)"
+            },
+            {
+                "n": "_conf.minsize",
+                "t": ">H",
+                "w": "0007",
+                "r": [
+                    0,
+                    65535
+                ],
+                "d": 0,
+                "desc": "Minimum touch size"
+            }
         ]
     }
 }

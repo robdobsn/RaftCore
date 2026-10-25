@@ -1,54 +1,125 @@
 {
-    "_notes": "Bela Trill Bar - 1D capacitive touch, 26 channels, up to 5 simultaneous touches. CENTROID mode. Identify cmd returns device_type=1 in byte 1 of 3-byte response. Address jumper-configurable 0x20-0x27.",
+    "_notes": "Bela Trill Bar - 1D capacitive touch, 26 channels, up to 5 simultaneous touches. CENTROID mode. Identify cmd returns device_type=1 in byte 1 of 3-byte response. Address jumper-configurable 0x20-0x27. Init, as Bela's Trill library (Trill-Linux) for the Bar: CENTROID mode; prescaler 2; scan settings speed 0, 12 bits; a baseline update; noise threshold 40 (0x28 at 12 bits). Poll: up to 5 touches, positions (loc, 0 to 3200 = 25 x 128 over 26 channels; 65535 for no touch) then sizes (size, 0 for no touch) as 5-element arrays; the dashboard shows them with its touch strip visualizer (vt touchstrip). Not bench tested since the init change (the Flex was: without the prescaler set, every channel read 4095 and no touch was seen).",
     "addresses": "0x20-0x27",
     "detectionValues": "0x00FF=p25&=0bXXXXXXXX00000001",
-    "initValues": "0x000100=p15&0x0006=p30",
+    "initValues": "0x000100=p15&0x000302=p15&0x0002000c=p15&0x0006=p30&0x000428=p15",
     "pollInfo": {
         "c": "0x04=r20",
         "i": 50,
         "s": 1
     },
     "scanPriority": "high",
-    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "source", "note": "Trill firmware v2: the first byte is a buffer offset and 0x99 is beyond the 64-byte buffer, so it is NACKed and ignored; reads have no side effects (BelaPlatform/Trill 537ebd6). Firmware v3 isn't public"}},
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "source",
+            "note": "Trill firmware v2: the first byte is a buffer offset and 0x99 is beyond the 64-byte buffer, so it is NACKed and ignored; reads have no side effects (BelaPlatform/Trill 537ebd6). Firmware v3 isn't public"
+        }
+    },
     "devInfoJson": {
         "name": "Trill Bar",
         "desc": "Capacitive Touch Bar",
         "manu": "Bela",
         "type": "TrillBar",
-        "clas": ["TCH"],
+        "clas": [
+            "TCH"
+        ],
         "resp": {
             "b": 20,
             "a": [
-                { "n": "loc0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "loc4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size0", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size1", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size2", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size3", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" },
-                { "n": "size4", "t": ">H", "r": [0, 65535], "f": "d", "o": "uint16" }
+                {
+                    "n": "loc",
+                    "t": ">H[5]",
+                    "r": [
+                        0,
+                        3200
+                    ],
+                    "f": "d",
+                    "o": "uint16",
+                    "vt": "touchstrip",
+                    "vo": {
+                        "sizeAttr": "size",
+                        "noValue": 65535,
+                        "posMax": 3200,
+                        "numChannels": 26,
+                        "sizeMax": 4566
+                    }
+                },
+                {
+                    "n": "size",
+                    "t": ">H[5]",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "d",
+                    "o": "uint16"
+                }
             ]
         },
         "actions": [
-            { "n": "baseline", "w": "0006", "desc": "Update baseline" },
+            {
+                "n": "baseline",
+                "w": "0006",
+                "desc": "Update baseline"
+            },
             {
                 "n": "_conf.mode",
                 "t": "B",
-                "r": [0, 3],
+                "r": [
+                    0,
+                    3
+                ],
                 "d": 0,
                 "desc": "Sensor mode",
                 "map": {
-                    "centroid": { "w": "000100" },
-                    "raw":      { "w": "000101" },
-                    "baseline": { "w": "000102" },
-                    "diff":     { "w": "000103" }
+                    "centroid": {
+                        "w": "000100"
+                    },
+                    "raw": {
+                        "w": "000101"
+                    },
+                    "baseline": {
+                        "w": "000102"
+                    },
+                    "diff": {
+                        "w": "000103"
+                    }
                 }
             },
-            { "n": "_conf.noise", "t": "B", "w": "0004", "r": [0, 255], "d": 0, "desc": "Noise threshold" },
-            { "n": "_conf.prescaler", "t": "B", "w": "0003", "r": [0, 8], "d": 2, "desc": "Prescaler" },
-            { "n": "_conf.minsize", "t": ">H", "w": "0007", "r": [0, 65535], "d": 0, "desc": "Minimum touch size" }
+            {
+                "n": "_conf.noise",
+                "t": "B",
+                "w": "0004",
+                "r": [
+                    0,
+                    255
+                ],
+                "d": 40,
+                "desc": "Noise threshold (counts at 12 bits; 40 is the Trill library's default)"
+            },
+            {
+                "n": "_conf.prescaler",
+                "t": "B",
+                "w": "0003",
+                "r": [
+                    1,
+                    8
+                ],
+                "d": 2,
+                "desc": "Prescaler (higher reads lower; raise it if channels saturate at 4095)"
+            },
+            {
+                "n": "_conf.minsize",
+                "t": ">H",
+                "w": "0007",
+                "r": [
+                    0,
+                    65535
+                ],
+                "d": 0,
+                "desc": "Minimum touch size"
+            }
         ]
     }
 }
