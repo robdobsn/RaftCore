@@ -15,6 +15,7 @@
 #include "RestAPIEndpointManager.h"
 #include "RICRESTMsg.h"
 #include "MiniHDLC.h"
+#include "FileSystem.h"
 #include "SpiramAwareAllocator.h"
 #include "FileSystemWorker.h"
 #include <algorithm>
@@ -596,6 +597,14 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
     if (!_pFileChunker)
         return RAFT_INVALID_OPERATION;
 
+    // The CRC to check the file against (given with every block; taken from the first)
+    if (fileStreamBlock.firstBlock)
+    {
+        _crcCheck = fileStreamBlock.crc16Valid;
+        _crcExpected = fileStreamBlock.crc16;
+        _crcWritten = MiniHDLC::crcInitCCITT();
+    }
+
     // Written here (not in the background)
     if (!_writeInBackground)
     {
@@ -605,7 +614,9 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
                         bytesWritten, fileStreamBlock.finalBlock);
         _totalBytes += bytesWritten;
         _totalWriteTimeUs += micros() - startUs;
-        return chunkerRslt ? RAFT_OK : RAFT_OTHER_FAILURE;
+        if (!chunkerRslt)
+            return RAFT_OTHER_FAILURE;
+        return checkWrittenCRC(fileStreamBlock.pBlock, fileStreamBlock.blockLen, fileStreamBlock.finalBlock);
     }
 
     // Add the block to the data waiting to be written
@@ -680,8 +691,10 @@ void FileStreamSession::writeJob()
         _writePendingFinal = false;
         RaftMutex_unlock(_writeMutex);
 
-        // Write it
+        // Write it (and check it against the expected CRC)
         RaftRetCode rslt = writeToFile(toWrite.data(), toWrite.size(), isFinal);
+        if (rslt == RAFT_OK)
+            rslt = checkWrittenCRC(toWrite.data(), toWrite.size(), isFinal);
         toWrite.clear();
         if (rslt != RAFT_OK)
         {
@@ -693,6 +706,25 @@ void FileStreamSession::writeJob()
             RaftMutex_unlock(_writeMutex);
         }
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Update the CRC of the data written and, after the final block, compare it with the CRC the client gave
+// (a file that doesn't match is deleted)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RaftRetCode FileStreamSession::checkWrittenCRC(const uint8_t* pBuf, uint32_t len, bool isFinal)
+{
+    if (!_crcCheck)
+        return RAFT_OK;
+    if (pBuf && (len > 0))
+        _crcWritten = MiniHDLC::crcUpdateCCITT(_crcWritten, pBuf, len);
+    if (!isFinal || (_crcWritten == _crcExpected))
+        return RAFT_OK;
+    LOG_W(MODULE_PREFIX, "upload CRC mismatch filename %s expected %04x written %04x - file deleted",
+                _fileStreamName.c_str(), _crcExpected, _crcWritten);
+    fileSystem.deleteFile("", _fileStreamName);
+    return RAFT_CRC_MISMATCH;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

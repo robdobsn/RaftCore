@@ -163,6 +163,14 @@ private:
     void writeJob();
     RaftRetCode writeToFile(const uint8_t* pBuf, uint32_t len, bool isFinal);
 
+    // Check of an uploaded file against the CRC16 (CRC16-CCITT, as filehash reports) the client gave in ufStart:
+    // updated as the data is written, in order (on the file system worker for background writes), and compared
+    // after the final block. A mismatch fails the upload (RAFT_CRC_MISMATCH) and the file is deleted
+    bool _crcCheck = false;
+    uint16_t _crcExpected = 0;
+    uint16_t _crcWritten = 0;
+    RaftRetCode checkWrittenCRC(const uint8_t* pBuf, uint32_t len, bool isFinal);
+
     // Background reads (file downloads): a block is read on the file system worker and the next one read ahead.
     // fileStreamBlockRead() returns RAFT_BUSY until the block asked for has been read. The job sets the _read...
     // results, then clears _readJobOutstanding; the main task only uses them when no job is outstanding

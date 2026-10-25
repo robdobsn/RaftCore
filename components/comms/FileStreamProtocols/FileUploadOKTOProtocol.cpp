@@ -143,6 +143,11 @@ RaftRetCode FileUploadOKTOProtocol::handleDataFrame(const RICRESTMsg& ricRESTReq
                 else
                     transferCancel("failOTAWrite");
             }
+            else if (rslt == RAFT_CRC_MISMATCH)
+            {
+                Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, R"("cmdName":"ufStatus","reason":"CRCMismatch")");
+                transferCancel("failCRC");
+            }
             else
             {
                 Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, false, R"("cmdName":"ufStatus","reason":"FileWriteFailed")");
@@ -213,7 +218,10 @@ void FileUploadOKTOProtocol::loop()
     else if (writeStatus != RAFT_OK)
     {
         LOG_W(MODULE_PREFIX, "loop background write failed %s", Raft::getRetCodeStr(writeStatus));
-        transferCancel(_fileStreamContentType == FILE_STREAM_CONTENT_TYPE_FIRMWARE ? "failOTAWrite" : "failFileWrite");
+        if (_fileStreamContentType == FILE_STREAM_CONTENT_TYPE_FIRMWARE)
+            transferCancel("failOTAWrite");
+        else
+            transferCancel(writeStatus == RAFT_CRC_MISMATCH ? "failCRC" : "failFileWrite");
         return;
     }
     else if (_ackDeferred)
@@ -404,8 +412,18 @@ RaftRetCode  FileUploadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMs
     if (_fileStreamCancelEnd)
         _fileStreamCancelEnd(true);
 
-    // Response
-    Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+    // Response - with the CRC the file was checked against, if the client gave one (a file that didn't match
+    // ended the upload with a cancel, failCRC, before this)
+    if (_isUploading && _expCRC16Valid && (_fileStreamContentType != FILE_STREAM_CONTENT_TYPE_FIRMWARE))
+    {
+        char crcJson[30];
+        snprintf(crcJson, sizeof(crcJson), R"("crc16":"%04x")", (unsigned)(_expCRC16 & 0xffff));
+        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, crcJson);
+    }
+    else
+    {
+        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+    }
 
     // Debug
 #ifdef DEBUG_RICREST_FILEUPLOAD

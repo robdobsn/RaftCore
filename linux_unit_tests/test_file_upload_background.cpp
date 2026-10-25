@@ -5,7 +5,9 @@
 // A FileStreamSession for a file upload hands the blocks to the file system worker (FileSystemWorker) and the
 // upload protocol acknowledges blocks only once they are written. The worker runs its jobs when the test calls
 // runPending(), so each step can be checked: blocks waiting, written, the acks held back and sent, the file closed
-// after the final block, the session ending only then, and a cancelled upload dropping what wasn't written. A file
+// after the final block, the session ending only then, and a cancelled upload dropping what wasn't written. An
+// upload given a CRC16 in ufStart is checked against it once written: a mismatch cancels it (failCRC) and deletes
+// the file, and a match is confirmed in the ufEnd reply. A file
 // download's blocks are read on the worker too (RAFT_BUSY until read), each one reading the next ahead.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,7 @@
 #include "FileStreamSession.h"
 #include "FileSystemWorker.h"
 #include "FileSystem.h"
+#include "MiniHDLC.h"
 
 static const uint32_t TEST_CHANNEL_ID = 3;
 static const uint32_t BLOCK = 100;
@@ -72,7 +75,8 @@ public:
     FileStreamSession* pSession = nullptr;
     String startResp;
 
-    Upload(uint32_t fileLen, const char* name)
+    // crc16Field: the CRC16 given in ufStart (e.g. "0x1234"), or nullptr for none
+    Upload(uint32_t fileLen, const char* name, const char* crc16Field = nullptr)
     {
         char cwd[512];
         path = String(getcwd(cwd, sizeof(cwd))) + "/" + name;
@@ -84,7 +88,8 @@ public:
                     1, "", nullptr, fileLen);
         String startJson = R"({"cmdName":"ufStart","reqStr":"fileupload","fileType":"fs","fileName":")" + path +
                     R"(","fileLen":)" + String(fileLen) + R"(,"batchMsgSize":)" + String(BLOCK) +
-                    R"(,"batchAckSize":)" + String(BATCH) + "}";
+                    R"(,"batchAckSize":)" + String(BATCH) +
+                    (crc16Field ? String(R"(,"CRC16":")") + crc16Field + "\"" : String("")) + "}";
         CommsChannelMsg msg(TEST_CHANNEL_ID, MSG_PROTOCOL_RICREST, 1, MSG_TYPE_COMMAND);
         RICRESTMsg::encode(startJson, msg, RICRESTMsg::RICREST_ELEM_CODE_COMMAND_FRAME);
         RICRESTMsg req;
@@ -96,6 +101,47 @@ public:
     {
         delete pSession;
         unlink(path.c_str());
+    }
+
+    // CRC16-CCITT of the contents, as filehash reports it, as "0x..."
+    String contentsCRC() const
+    {
+        char crcStr[10];
+        snprintf(crcStr, sizeof(crcStr), "0x%04x",
+                    MiniHDLC::crcUpdateCCITT(MiniHDLC::crcInitCCITT(), contents.data(), contents.size()));
+        return crcStr;
+    }
+
+    // Send ufEnd; returns the reply
+    String sendEnd()
+    {
+        String endJson = R"({"cmdName":"ufEnd","reqStr":"fileupload","fileType":"fs","fileName":")" + path +
+                    R"(","fileLen":)" + String(contents.size()) + "}";
+        CommsChannelMsg msg(TEST_CHANNEL_ID, MSG_PROTOCOL_RICREST, 2, MSG_TYPE_COMMAND);
+        RICRESTMsg::encode(endJson, msg, RICRESTMsg::RICREST_ELEM_CODE_COMMAND_FRAME);
+        RICRESTMsg req;
+        req.decode(msg.getBuf(), msg.getBufLen());
+        String resp;
+        pSession->handleCmdFrame(FileStreamBase::FILE_STREAM_MSG_TYPE_UPLOAD_END, req, resp, msg);
+        return resp;
+    }
+
+    // Upload every block, running the worker after each batch; returns the reasons of any cancels sent
+    std::vector<String> sendAll()
+    {
+        std::vector<String> cancels;
+        uint32_t numBlocks = (contents.size() + BLOCK - 1) / BLOCK;
+        for (uint32_t i = 0; i < numBlocks; i++)
+        {
+            sendBlock(i);
+            fileSystemWorker.runPending();
+            pSession->loop();
+            for (const String& msg : commsCore.sent)
+                if (RaftJson(msg).getString("cmdName", "") == "ufCancel")
+                    cancels.push_back(RaftJson(msg).getString("reason", ""));
+            commsCore.sent.clear();
+        }
+        return cancels;
     }
 
     // Send the block at `blockIdx`; returns the okto in the reply, or -1 if there is none
@@ -207,6 +253,40 @@ static void testCancelDropsUnwritten()
     TEST_ASSERT(up.fileContents().size() == BLOCK, "blocks waiting at the cancel not written");
 }
 
+static void testCRCChecked()
+{
+    printf("Running testCRCChecked...\n");
+
+    // The right CRC: the upload completes and ufEnd confirms the CRC checked
+    {
+        Upload probe(12 * BLOCK - 30, "bg_upload_crc.bin");
+        String crc = probe.contentsCRC();
+        delete probe.pSession;
+        probe.pSession = nullptr;
+        Upload up(12 * BLOCK - 30, "bg_upload_crc.bin", crc.c_str());
+        TEST_ASSERT(up.sendAll().empty(), "no cancel with the right CRC");
+        TEST_ASSERT(up.fileContents() == up.contents, "file written");
+        String endResp = up.sendEnd();
+        TEST_ASSERT(RaftJson(endResp).getString("rslt", "") == "ok", "ufEnd ok");
+        TEST_ASSERT(String("0x") + RaftJson(endResp).getString("crc16", "") == crc, "ufEnd gives the CRC checked");
+    }
+
+    // A wrong CRC: cancelled once the final block is written (failCRC), and the file deleted
+    {
+        Upload up(12 * BLOCK - 30, "bg_upload_crc.bin", "0x1234");
+        std::vector<String> cancels = up.sendAll();
+        TEST_ASSERT(cancels == std::vector<String>({"failCRC"}), "cancelled with failCRC");
+        TEST_ASSERT(up.fileContents().empty(), "file deleted");
+    }
+
+    // No CRC given: no check, and none in the ufEnd reply
+    {
+        Upload up(3 * BLOCK, "bg_upload_crc.bin");
+        TEST_ASSERT(up.sendAll().empty(), "no cancel without a CRC");
+        TEST_ASSERT(RaftJson(up.sendEnd()).getString("crc16", "none") == "none", "no CRC in ufEnd");
+    }
+}
+
 static void testWorkerRunsJobsInOrder()
 {
     printf("Running testWorkerRunsJobsInOrder...\n");
@@ -282,6 +362,7 @@ int main()
     testWorkerRunsJobsInOrder();
     testBlocksWrittenByWorkerThenAcked();
     testCancelDropsUnwritten();
+    testCRCChecked();
     testDownloadBlocksReadByWorker();
     return testSummary("test_file_upload_background");
 }
