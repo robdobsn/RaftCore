@@ -1,5 +1,5 @@
 {
-    "_notes": "x in part code sets i2c address LSB from 0x10-0x17",
+    "_notes": "MEMSIC MXC400xXC (e.g. MXC4005XC) 3-axis accelerometer; the x in the part code sets the I2C address, 0x10-0x17. Detection: register 0x0E (device ID, 0x02 in the datasheet; 0x03 also seen). Init: 0x01 = 0x10 is INT_CLR1 with SW_RST set (a soft reset), 5 ms; 0x0D (CONTROL) = 0, +/-2 g, powered on. Poll: 7 bytes from 0x03 (XOUT, YOUT, ZOUT, 12 bits left-justified, and TOUT)",
     "addresses": "0x10-0x17",
     "detectionValues": "0x0E=0x02,0x03",
     "initValues": "0x0110=p5&0x0d00=",
@@ -9,6 +9,7 @@
         "s": 3
     },
     "scanPriority": "high",
+    "hwProbeEffects": {"rsao": {"effect": "none", "basis": "datasheet", "note": "MXC400xXC datasheet Rev.B: the written byte only loads the register address counter (no data byte follows, so nothing is written); no register clears on read (INT_SRC0/1 are cleared by writing INT_CLR0/1). Not documented: what the chip ACKs or returns past its 16 registers (0x00-0x0F; 0x19 is a factory register)"}},
     "devInfoJson": {
         "name": "Accelerometer",
         "desc": "3-Axis Accel",
