@@ -1,0 +1,15 @@
+{
+    "_notes": "About 10 widely used I2C sensors - temperature/humidity/pressure, air quality, motion, distance, light and battery gauge - for apps made by raft new. Select with \"raftcore:@common\" in DeviceTypeSources.json",
+    "records": [
+        "AHT20",
+        "BME280",
+        "BME680",
+        "LSM6DS3",
+        "MAX17048",
+        "SCD40",
+        "SHT40",
+        "VEML7700",
+        "VL53L0X",
+        "VL53L1X"
+    ]
+}

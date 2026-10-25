@@ -165,6 +165,51 @@ class AssembleTests(unittest.TestCase):
         self.assertError("not found", self.selection({"sources": {"p": {"path": "missing"}}}))
         self.assertError("unknown key", self.selection({"sources": {}, "builtins": {}}))
 
+    def write_sets(self, sets):
+        folder = self.raftcore / "devtypes" / "sets"
+        folder.mkdir(parents=True, exist_ok=True)
+        for name, keys in sets.items():
+            (folder / f"{name}.json").write_text(json.dumps({"_notes": "test", "records": keys}))
+
+    def test_named_sets(self):
+        # "<bundled source>:@<set>" selects (or excludes) RaftCore's records listed in devtypes/sets/<set>.json
+        self.write_sets({"small": ["Alpha", "Charlie"], "one": ["Charlie"]})
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:@small"]}})
+        result = self.assemble(sel)
+        self.assertEqual(list(result.records), ["Alpha", "Charlie"])
+        self.assertIn(str(self.raftcore / "devtypes" / "sets"), result.inputs)
+        self.assertEqual(result.provenance["builtin"], {"include": ["raftcore:@small"]})
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}},
+                              "builtin": {"include": ["raftcore:*"], "exclude": ["raftcore:@one"]}})
+        self.assertEqual(list(self.assemble(sel).records), ["Alpha", "Bravo"])
+        # A local copy still replaces a record a set selected (a set isn't "naming" the source)
+        self.write_records(self.project / "local", {"Alpha": record("0x11", name="Alpha local")})
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../local"}},
+                              "builtin": {"include": ["raftcore:@small", "local:*"]}})
+        result = self.assemble(sel)
+        self.assertEqual(result.origin["Alpha"][0], "local")
+
+    def test_named_set_errors(self):
+        self.write_sets({"small": ["Alpha"], "stale": ["Alpha", "Zulu"]})
+        for include, text in [(["raftcore:@nope"], 'no set "nope" in RaftCore\'s records (sets: small, stale)'),
+                              (["raftcore:@stale"], 'set "stale" names Zulu, not in RaftCore\'s records'),
+                              (["@small"], "named sets (@...) are only in RaftCore's records"),
+                              (["local:@small"], "named sets (@...) are only in RaftCore's records")]:
+            self.write_records(self.project / "local", {"Echo": record("0x14")})
+            sel = self.selection({"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../local"}},
+                                  "builtin": {"include": include}})
+            self.assertError(text, sel)
+
+    def test_raftcore_sets_name_raftcore_records(self):
+        # Every key in RaftCore's own sets is a RaftCore record (a stale set would stop every build that uses it)
+        records, _ = A.load_catalogue(A.raftcore_records_path(str(RAFTCORE_DIR)))
+        sets = A.load_sets(str(RAFTCORE_DIR))
+        self.assertIn("common", sets)
+        self.assertIn("extended", sets)
+        for name, keys in sets.items():
+            self.assertEqual([k for k in keys if k not in records], [], name)
+            self.assertEqual(len(keys), len(set(keys)), name)
+
     def test_policies(self):
         sel = self.selection({"sources": {"raftcore": {"bundled": True}},
                               "builtin": {"policy": {"Alpha": "disabled", "Bravo": "disabledClaim"}}})
@@ -241,6 +286,7 @@ class AssembleTests(unittest.TestCase):
         catalogue = json.loads((folder / "catalogue.json").read_text())
         self.assertEqual([r["key"] for r in catalogue["records"]], ["Alpha", "Bravo", "Charlie"])
         self.assertEqual((catalogue["raftCore"], catalogue["count"], catalogue["recordFormat"]), ("1.70.0", 3, 1))
+        self.assertEqual(catalogue["sets"], {})
         alpha = catalogue["records"][0]
         self.assertEqual(alpha["sha256"], A._sha256_record(str(source), "Alpha"))
         self.assertEqual(alpha["summary"], {"name": "Test", "addresses": "0x11", "hasData": True, "customCode": False,

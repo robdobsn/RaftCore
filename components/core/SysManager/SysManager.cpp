@@ -31,7 +31,9 @@
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#ifndef RAFT_NO_NETWORKING
 #include "NetworkSystem.h"
+#endif
 #include "FileSystem.h"
 #endif // ESP_PLATFORM
 
@@ -492,7 +494,9 @@ void SysManager::loop()
         systemRestartNow();
     }
 
-    // Check for reboot after N mins if disconnected
+    // Check for reboot after N mins if disconnected (not in a build without networking - RAFT_NO_NETWORKING - which is
+    // never connected)
+#ifndef RAFT_NO_NETWORKING
     if (_rebootIfDiscMins != 0)
     {
 #ifdef ESP_PLATFORM
@@ -511,6 +515,7 @@ void SysManager::loop()
             }
         }
     }
+#endif
 
     // Sleep the task
     if (_loopSleepMs > 0)
@@ -1573,7 +1578,7 @@ bool SysManager::setFriendlyName(const String& friendlyName, bool forceSetHostna
 #endif
 
     // Setup network system hostname
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && !defined(RAFT_NO_NETWORKING)
     if (_mutableConfigCache.friendlyNameIsSet && (_autoSetHostname || forceSetHostname))
         networkSystem.setHostname(_mutableConfigCache.friendlyName.c_str());
 #endif
@@ -1593,7 +1598,7 @@ void SysManager::statusChangeBLEConnCB(const String& sysModName, bool changeToOn
     LOG_I(MODULE_PREFIX, "BLE connection change isConn %s", changeToOnline ? "YES" : "NO");
     if (_pauseWiFiForBLE)
     {
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && !defined(RAFT_NO_NETWORKING)
         networkSystem.pauseWiFi(changeToOnline);
 #endif
     }

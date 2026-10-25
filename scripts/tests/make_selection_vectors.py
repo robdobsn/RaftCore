@@ -57,6 +57,9 @@ def build(vec):
         for name, source in vec["sources"].items():
             folder = raftcore / "devtypes" / "records" if source["kind"] == "bundled" else tmp / "project" / name
             folder.mkdir(parents=True, exist_ok=True)
+            for set_name, keys in source.get("sets", {}).items():
+                (raftcore / "devtypes" / "sets").mkdir(parents=True, exist_ok=True)
+                (raftcore / "devtypes" / "sets" / f"{set_name}.json").write_text(json.dumps({"records": keys}))
             for key, rec in _load(source["records"])["devTypes"].items():
                 (folder / f"{key}.json").write_text(json.dumps(rec, indent=4))
         try:
@@ -154,6 +157,26 @@ def vectors():
                                                                        "typeFile": {"include": ["raftcore:Alpha"],
                                                                                     "exclude": ["local:*"]}}},
         {"raftcore": raftcore, "local": local}, "typeFile")
+    sets = dict(raftcore, sets={"small": ["Alpha", "Charlie"], "one": ["Charlie"], "stale": ["Alpha", "Zulu"]})
+    add("a named set", {common: {"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:@small"]}}},
+        {"raftcore": sets})
+    add("excluding a named set", {common: {"sources": {"raftcore": {"bundled": True}},
+                                           "builtin": {"include": ["raftcore:*"], "exclude": ["raftcore:@one"]}}},
+        {"raftcore": sets})
+    add("a named set in a type file, with a local copy replacing one record",
+        {common: {"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../local"}},
+                  "typeFile": {"include": ["raftcore:@small", "local:*"]}}},
+        {"raftcore": sets, "local": {"kind": "path", "records": cat(Alpha=record("0x11", name="Alpha local"))}}, "typeFile")
+    add("error: no such set", {common: {"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:@nope"]}}},
+        {"raftcore": sets})
+    add("error: a set naming a record the source hasn't", {common: {"sources": {"raftcore": {"bundled": True}},
+                                                                    "builtin": {"include": ["raftcore:@stale"]}}},
+        {"raftcore": sets})
+    add("error: a set without a source", {common: {"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["@small"]}}},
+        {"raftcore": sets})
+    add("error: a set from a path source", {common: {"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../local"}},
+                                                     "builtin": {"include": ["local:@small"]}}},
+        {"raftcore": sets, "local": local})
     return out
 
 
