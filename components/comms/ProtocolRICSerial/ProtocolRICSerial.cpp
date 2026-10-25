@@ -17,7 +17,6 @@
 
 // Warn
 #define WARN_ON_NO_HDLC_HANDLER
-#define WARN_ON_ENCODED_MSG_LEN_MISMATCH
 
 // Debug
 // #define DEBUG_PROTOCOL_RIC_SERIAL_DECODE_IN
@@ -150,34 +149,19 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
             protocolByte
         };
 
-        // Get the exact size of encoded payload
-        uint32_t encodedTotalLen = _pHDLC->calcEncodedPayloadLen(ricSerialRec, sizeof(ricSerialRec));
-        encodedTotalLen += _pHDLC->calcEncodedPayloadLen(msg.getBuf(), msg.getBufLen());
-        encodedTotalLen += MiniHDLC::HDLC_MAX_OVERHEAD_BYTES;
-
         // Create encoded message obtaining channel, etc from original message
         CommsChannelMsg encodedMsg(msg.getChannelID(), msg.getProtocol(), 
                         msg.getMsgNumber(), msg.getMsgTypeCode());
-        encodedMsg.setBufferSize(encodedTotalLen);
 
-        // Build the encoded message in parts
-        uint8_t* pEncBuf = encodedMsg.getCmdVector().data();
+        // Encode in one pass straight into the message (the size isn't worked out first: room is reserved for
+        // the usual number of escaped bytes, and the buffer grows in the rare case that isn't enough)
+        auto& encoded = encodedMsg.getCmdVector();
+        encoded.reserve(MiniHDLC::encodedLenEstimate(sizeof(ricSerialRec) + msg.getBufLen()));
         uint16_t fcs = 0;
-        uint32_t curPos = _pHDLC->encodeFrameStart(pEncBuf, encodedMsg.getBufLen(), fcs);
-        curPos = _pHDLC->encodeFrameAddPayload(pEncBuf, encodedMsg.getBufLen(), fcs, curPos, ricSerialRec, sizeof(ricSerialRec));
-        curPos = _pHDLC->encodeFrameAddPayload(pEncBuf, encodedMsg.getBufLen(), fcs, curPos, msg.getBuf(), msg.getBufLen());
-        curPos = _pHDLC->encodeFrameEnd(pEncBuf, encodedMsg.getBufLen(), fcs, curPos);
-
-        // Resize to the actual length (encodedTotalLen is the max length assuming both FCS bytes are escaped)
-        encodedMsg.setBufferSize(curPos);
-        
-        // Check correct length
-#ifdef WARN_ON_ENCODED_MSG_LEN_MISMATCH
-        if (curPos > encodedTotalLen)
-        {
-            LOG_W(MODULE_PREFIX, "encodeTxMsgAndSend len mismatch %d != %d", curPos, encodedTotalLen);
-        }
-#endif
+        _pHDLC->appendFrameStart(encoded, fcs);
+        _pHDLC->appendFramePayload(encoded, fcs, ricSerialRec, sizeof(ricSerialRec));
+        _pHDLC->appendFramePayload(encoded, fcs, msg.getBuf(), msg.getBufLen());
+        _pHDLC->appendFrameEnd(encoded, fcs);
 #endif
 
         // Debug

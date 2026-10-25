@@ -88,6 +88,66 @@ public:
     uint32_t encodeFrameAddPayload(uint8_t* pEncoded, uint32_t maxEncodedLen, uint16_t& fcs, uint32_t curPos, const uint8_t *pFrame, uint32_t frameLen);
     uint32_t encodeFrameEnd(uint8_t* pEncoded, uint32_t maxEncodedLen, uint16_t& fcs, uint32_t curPos);
 
+    // Encode a frame into HDLC in sections, appending to a vector - one pass over the data (no length pass first),
+    // with runs of bytes that don't need escaping copied in one go. The vector grows as needed: reserve
+    // encodedLenEstimate() first so it rarely has to
+    template<typename VecT>
+    void appendFrameStart(VecT& out, uint16_t& fcs) const
+    {
+        fcs = CRC16_CCITT_INIT_VAL;
+        out.push_back(_frameBoundaryOctet);
+    }
+    template<typename VecT>
+    void appendFramePayload(VecT& out, uint16_t& fcs, const uint8_t* pData, uint32_t dataLen) const
+    {
+        const uint8_t boundary = _frameBoundaryOctet;
+        const uint8_t escape = _controlEscapeOctet;
+        uint16_t crc = fcs;
+        const uint8_t* pRunStart = pData;
+        const uint8_t* pEnd = pData + dataLen;
+        for (const uint8_t* p = pData; p < pEnd; p++)
+        {
+            uint8_t ch = *p;
+            crc = (crc << 8) ^ _CRCTable[((crc >> 8) ^ ch) & 0xff];
+            if ((ch == boundary) || (ch == escape))
+            {
+                out.insert(out.end(), pRunStart, p);
+                out.push_back(escape);
+                out.push_back(ch ^ INVERT_OCTET);
+                pRunStart = p + 1;
+            }
+        }
+        out.insert(out.end(), pRunStart, pEnd);
+        fcs = crc;
+    }
+    template<typename VecT>
+    void appendFrameEnd(VecT& out, uint16_t fcs) const
+    {
+        uint8_t fcsBytes[2] = { (uint8_t)(fcs & 0xff), (uint8_t)(fcs >> 8) };
+        if (_bigEndianCRC)
+        {
+            fcsBytes[0] = fcs >> 8;
+            fcsBytes[1] = fcs & 0xff;
+        }
+        for (uint8_t ch : fcsBytes)
+        {
+            if ((ch == _frameBoundaryOctet) || (ch == _controlEscapeOctet))
+            {
+                out.push_back(_controlEscapeOctet);
+                ch ^= INVERT_OCTET;
+            }
+            out.push_back(ch);
+        }
+        out.push_back(_frameBoundaryOctet);
+    }
+
+    // Size to reserve for the frame of a payload: the overhead, and room for one escaped byte in 64 (random data
+    // has one in 128)
+    static uint32_t encodedLenEstimate(uint32_t payloadLen)
+    {
+        return payloadLen + payloadLen / 64 + HDLC_MAX_OVERHEAD_BYTES;
+    }
+
     // Get encoded length of frame
     uint32_t calcEncodedLen(const uint8_t *pFrame, uint32_t frameLen)
     {
@@ -178,9 +238,10 @@ private:
     // Corresponding CRC function in Qt (www.qt.io) is qChecksum()
     static constexpr uint16_t CRC16_CCITT_INIT_VAL = 0xFFFF;
 
-    // CRC table
     // Shortest run of plain bytes handleBuffer() copies in one go
     static const unsigned MIN_BULK_RUN_LEN = 8;
+
+    // CRC table
     static const uint16_t _CRCTable[256];
 
     // Callback functions for PutCh/PutBit and FrameRx
