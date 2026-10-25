@@ -2,16 +2,15 @@ name: Publish the device type catalogue (GitHub Pages)
 
 # RaftCore's GitHub Pages site: the device type catalogue at devtypes/ - a folder per release (from the first with
 # one file per record, v1.59.0) and for main, and index.json listing them - which raftjs and the Device Types app
-# read; and the Device Types app at devtypes/app/, built from raftjs (apps/devtypes) at RAFTJS_REF. See raftjs
-# devdocs/device-type-management-web-plan.md. The whole site is built again each time, so every release's records
-# stay published.
+# read; and, built from raftjs at RAFTJS_REF, the Device Types app at devtypes/app/ (apps/devtypes) and the Raft
+# Flasher at flash/ (apps/flasher). See raftjs devdocs/device-type-management-web-plan.md. The whole site is built
+# again each time, so every release's records stay published. A release runs it on main (release-assets.yml), as the
+# github-pages environment only deploys from main.
 
 on:
   push:
     branches: [main]
     paths: ["devtypes/**", "library.json", "scripts/AssembleDeviceTypes.py", "scripts/pages/**", ".github/workflows/pages.yml"]
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -59,13 +58,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Build the Device Types app
+      - name: Build the Device Types app and the Raft Flasher
         run: |
           set -e
-          if [ ! -d raftjs/apps/devtypes ]; then echo "raftjs $RAFTJS_REF has no apps/devtypes - the app isn't published"; exit 0; fi
           (cd raftjs && npm ci --no-audit --no-fund)
-          (cd raftjs/apps/devtypes && npm ci --no-audit --no-fund && npm run build)
-          cp -r raftjs/apps/devtypes/dist site/devtypes/app
+          # app folder in raftjs -> path on the site
+          for APP in devtypes:devtypes/app flasher:flash; do
+            SRC="raftjs/apps/${APP%%:*}"; DEST="site/${APP#*:}"
+            if [ ! -d "$SRC" ]; then echo "raftjs $RAFTJS_REF has no $SRC - not published"; continue; fi
+            (cd "$SRC" && npm ci --no-audit --no-fund && npm run build)
+            mkdir -p "$(dirname "$DEST")"
+            cp -r "$SRC/dist" "$DEST"
+          done
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

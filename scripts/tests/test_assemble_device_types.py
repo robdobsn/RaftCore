@@ -392,6 +392,32 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(merged["Bravo"]["devInfoJson"]["name"], "Bravo later")
         self.assertEqual(merged["Alpha"]["disable"], "claim")
 
+    def test_type_file_size_limit_follows_psram(self):
+        # The device's default limit is larger with PSRAM: read from sdkconfig.defaults (a later file's setting wins)
+        common = self.tmp / "Common.sdkconfig"
+        systype = self.tmp / "SysType.sdkconfig"
+        common.write_text("CONFIG_SPIRAM=y\n")
+        systype.write_text("CONFIG_FREERTOS_HZ=1000\n")
+        self.assertTrue(A.sdkconfig_has_psram(str(common), str(systype)))
+        systype.write_text("# CONFIG_SPIRAM is not set\n")
+        self.assertFalse(A.sdkconfig_has_psram(str(common), str(systype)))
+        self.assertFalse(A.sdkconfig_has_psram(str(self.tmp / "missing")))
+        systypes = self.tmp / "SysTypes.json"
+        systypes.write_text(json.dumps({"DevMan": {}}))
+        self.assertEqual(A.type_file_location(str(systypes), psram=True), ("/local/devlib.json", 262144))
+        systypes.write_text(json.dumps({"DevMan": {"typeFileLimits": {"maxFileBytes": 9000}}}))
+        self.assertEqual(A.type_file_location(str(systypes), psram=True)[1], 9000)
+        # --typefile: from the sdkconfig.defaults next to the selection
+        sel = self.type_file_setup()
+        out = self.tmp / "devlib.json"
+        report = self.tmp / "report.json"
+        for psram, limit in ((False, 65536), (True, 262144)):
+            (pathlib.Path(sel).parent / "sdkconfig.defaults").write_text("CONFIG_SPIRAM=y\n" if psram else "")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(A.main(["--raftcore", str(self.raftcore), "--select", sel, "--typefile", "--out", str(out),
+                                         "--report", str(report)]), 0)
+            self.assertEqual(json.loads(report.read_text())["maxBytes"], limit)
+
     def test_type_file_location(self):
         systypes = self.tmp / "SysTypes.json"
         systypes.write_text(json.dumps({"DevMan": {}}))

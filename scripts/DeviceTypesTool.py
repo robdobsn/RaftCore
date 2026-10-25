@@ -25,7 +25,8 @@ Commands:
     check                     the grammar, decode code and generator checks, without a build
     update                    resolve git refs again and update the lock file
     diff [<key>]              records replaced by a local copy, and type file overrides, against what they replace
-    typefile --out <file> [--compiled <catalogue>] [--max-bytes <n>]   build a device type file (devlib.json)
+    typefile --out <file> [--compiled <catalogue>] [--max-bytes <n>]   build a device type file (devlib.json); the
+                              default limit is the device's for the SysType (larger if its sdkconfig.defaults has PSRAM)
 """
 
 import argparse
@@ -392,6 +393,8 @@ def cmd_typefile(args):
         compiled, _ = A.load_catalogue(compiled_from, record_file=False)
     else:
         compiled = _assemble(args, "builtin").records
+    if args.max_bytes is None:
+        args.max_bytes = A.selection_max_bytes_default(_select_paths(args))
     text, entries = A.build_type_file(type_file, compiled, args.max_bytes)
     _write_lock(args, type_file)
     A.write_if_changed(args.out, text)
@@ -462,7 +465,8 @@ def main(argv=None):
     p = sub.add_parser("typefile")
     p.add_argument("--out", required=True)
     p.add_argument("--compiled", dest="typefile_compiled")
-    p.add_argument("--max-bytes", type=int, default=A.TYPE_FILE_MAX_BYTES_DEFAULT)
+    p.add_argument("--max-bytes", type=int, help="size limit (default: the device's for the SysType, from its "
+                   "sdkconfig.defaults - more with PSRAM)")
     args = parser.parse_args(argv)
     commands = {"init": cmd_init, "list": cmd_list, "add": cmd_add, "remove": cmd_remove, "new": cmd_new,
                 "check": cmd_check, "update": cmd_update, "diff": cmd_diff, "typefile": cmd_typefile}

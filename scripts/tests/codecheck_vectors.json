@@ -1,0 +1,359 @@
+{
+ "_doc": "Decode code check vectors - see make_codecheck_vectors.py",
+ "vectors": [
+  {
+   "name": "decode language",
+   "code": "int k=0;int n=(buf[1]<<8)|buf[0];while(k<n){out.v=buf[k+2];k++;next;}",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "casts, if and else",
+   "code": "out.v = buf[0] + (((uint16_t)buf[1])<<8); if(out.v>3){out.v=3;} else {out.v=0;}",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "float variable",
+   "code": "float f=1.5; out.v=f*buf[0];",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "hex, logic and return",
+   "code": "int x=0x1F&buf[0]; if(!x||x>=4&&x!=7){return;} out.v=~x^2%3;",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "function call",
+   "code": "out.v=buf[0];system(1);",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "system is not declared in the code",
+    "system(...) - function calls are not allowed"
+   ]
+  },
+  {
+   "name": "call of a variable",
+   "code": "int f=0;out.v=f(1);",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "f(...) - function calls are not allowed"
+   ]
+  },
+  {
+   "name": "undeclared name",
+   "code": "out.v=secret;",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "secret is not declared in the code"
+   ]
+  },
+  {
+   "name": "strings and other characters",
+   "code": "out.v=buf[0]; \"x\" # $",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "unexpected characters '\"' at 14",
+    "unexpected characters '\"' at 16",
+    "unexpected characters '#' at 18",
+    "unexpected characters '$' at 20",
+    "x is not declared in the code"
+   ]
+  },
+  {
+   "name": "quote characters",
+   "code": "out.v=1; 'a' \"b\" \\ ?",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "unexpected characters \"'\" at 9",
+    "unexpected characters \"'\" at 11",
+    "unexpected characters '\"' at 13",
+    "unexpected characters '\"' at 15",
+    "unexpected characters '\\\\' at 17",
+    "unexpected characters '?' at 19",
+    "a is not declared in the code",
+    "b is not declared in the code"
+   ]
+  },
+  {
+   "name": "other characters at the end",
+   "code": "out.v=1;@",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "unexpected characters '@' at 8"
+   ]
+  },
+  {
+   "name": "non-ASCII and control characters",
+   "code": "out.v=1; ° \u0001",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "unexpected characters '°' at 9",
+    "unexpected characters '\\x01' at 11"
+   ]
+  },
+  {
+   "name": "a dotted name",
+   "code": "esp.restart=1;",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "esp.restart is not allowed (only out.<attribute> has a '.')"
+   ]
+  },
+  {
+   "name": "not an attribute",
+   "code": "out.other=1;",
+   "attrs": [
+    "v"
+   ],
+   "kind": "decode",
+   "problems": [
+    "out.other is not an attribute of the record"
+   ]
+  },
+  {
+   "name": "init code",
+   "code": "init.rate = buf[0] & 3; int g = 2; init.gain = g;",
+   "attrs": [],
+   "kind": "init",
+   "problems": []
+  },
+  {
+   "name": "init code assigning out",
+   "code": "out.v = 1;",
+   "attrs": [],
+   "kind": "init",
+   "problems": [
+    "out.v - init code assigns init.<name> values, not out.<attribute>s"
+   ]
+  },
+  {
+   "name": "init code with a dotted name",
+   "code": "init.a.b = 1; x.y = 2;",
+   "attrs": [],
+   "kind": "init",
+   "problems": [
+    "init.a.b is not allowed (only init.<name> has a '.')",
+    "x.y is not allowed (only init.<name> has a '.')"
+   ]
+  },
+  {
+   "name": "init code calling",
+   "code": "init.a = read(1);",
+   "attrs": [],
+   "kind": "init",
+   "problems": [
+    "read is not declared in the code",
+    "read(...) - function calls are not allowed"
+   ]
+  },
+  {
+   "name": "empty",
+   "code": "",
+   "attrs": [],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "BME280 decode code",
+   "code": "int T1=buf[0]|(buf[1]<<8);int T2=buf[2]|(buf[3]<<8);if(T2>32767){T2=T2-65536;}int T3=buf[4]|(buf[5]<<8);if(T3>32767){T3=T3-65536;}int P1=buf[6]|(buf[7]<<8);int P2=buf[8]|(buf[9]<<8);if(P2>32767){P2=P2-65536;}int P3=buf[10]|(buf[11]<<8);if(P3>32767){P3=P3-65536;}int P4=buf[12]|(buf[13]<<8);if(P4>32767){P4=P4-65536;}int P5=buf[14]|(buf[15]<<8);if(P5>32767){P5=P5-65536;}int P6=buf[16]|(buf[17]<<8);if(P6>32767){P6=P6-65536;}int P7=buf[18]|(buf[19]<<8);if(P7>32767){P7=P7-65536;}int P8=buf[20]|(buf[21]<<8);if(P8>32767){P8=P8-65536;}int P9=buf[22]|(buf[23]<<8);if(P9>32767){P9=P9-65536;}int H1=buf[25];int H2=buf[26]|(buf[27]<<8);if(H2>32767){H2=H2-65536;}int H3=buf[28];int E4=buf[29];if(E4>127){E4=E4-256;}int H4=E4*16+(buf[30]&15);int E6=buf[31];if(E6>127){E6=E6-256;}int H5=E6*16+(buf[30]>>4);int H6=buf[32];if(H6>127){H6=H6-256;}int aP=(buf[33]<<12)|(buf[34]<<4)|(buf[35]>>4);int aT=(buf[36]<<12)|(buf[37]<<4)|(buf[38]>>4);int aH=(buf[39]<<8)|buf[40];float v1=(aT/16384.0-T1/1024.0)*T2;float d=aT/131072.0-T1/8192.0;float v2=d*d*T3;float tf=v1+v2;out.temperature=tf/5120.0;v1=tf/2.0-64000.0;v2=v1*v1*P6/32768.0+v1*P5*2.0;v2=v2/4.0+P4*65536.0;v1=(P3*v1*v1/524288.0+P2*v1)/524288.0;v1=(1.0+v1/32768.0)*P1;float p=0.0;if(v1>0.0){p=1048576.0-aP;p=(p-v2/4096.0)*6250.0/v1;float w1=P9*p*p/2147483648.0;float w2=p*P8/32768.0;p=p+(w1+w2+P7)/16.0;}out.pressure=p/100.0;float h=tf-76800.0;h=(aH-(H4*64.0+H5/16384.0*h))*(H2/65536.0*(1.0+H6/67108864.0*h*(1.0+H3/67108864.0*h)));h=h*(1.0-H1*h/524288.0);if(h>100.0){h=100.0;}if(h<0.0){h=0.0;}out.humidity=h;",
+   "attrs": [
+    "temperature",
+    "pressure",
+    "humidity"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "BME680 decode code",
+   "code": "int t1=buf[33]|(buf[34]<<8);int t2=buf[1]|(buf[2]<<8);if(t2>32767){t2=t2-65536;}int t3=buf[3];if(t3>127){t3=t3-256;}int p1=buf[5]|(buf[6]<<8);int p2=buf[7]|(buf[8]<<8);if(p2>32767){p2=p2-65536;}int p3=buf[9];if(p3>127){p3=p3-256;}int p4=buf[11]|(buf[12]<<8);if(p4>32767){p4=p4-65536;}int p5=buf[13]|(buf[14]<<8);if(p5>32767){p5=p5-65536;}int p7=buf[15];if(p7>127){p7=p7-256;}int p6=buf[16];if(p6>127){p6=p6-256;}int p8=buf[19]|(buf[20]<<8);if(p8>32767){p8=p8-65536;}int p9=buf[21]|(buf[22]<<8);if(p9>32767){p9=p9-65536;}int p10=buf[23];int h1=(buf[27]<<4)|(buf[26]&15);int h2=(buf[25]<<4)|(buf[26]>>4);int h3=buf[28];if(h3>127){h3=h3-256;}int h4=buf[29];if(h4>127){h4=h4-256;}int h5=buf[30];if(h5>127){h5=h5-256;}int h6=buf[31];int h7=buf[32];if(h7>127){h7=h7-256;}int rse=buf[45]&240;if(rse>127){rse=rse-256;}rse=rse/16;int aP=(buf[48]<<12)|(buf[49]<<4)|(buf[50]>>4);int aT=(buf[51]<<12)|(buf[52]<<4)|(buf[53]>>4);int aH=(buf[54]<<8)|buf[55];int aG=(buf[59]<<2)|(buf[60]>>6);int gr=buf[60]&15;float v1=(aT/16384.0-t1/1024.0)*t2;float d=aT/131072.0-t1/8192.0;float v2=d*d*t3*16.0;float tf=v1+v2;float tc=tf/5120.0;out.temperature=tc;v1=tf/2.0-64000.0;v2=v1*v1*p6/131072.0;v2=v2+v1*p5*2.0;v2=v2/4.0+p4*65536.0;v1=(p3*v1*v1/16384.0+p2*v1)/524288.0;v1=(1.0+v1/32768.0)*p1;float p=0.0;if(v1>0.0){p=1048576.0-aP;p=(p-v2/4096.0)*6250.0/v1;float w1=p9*p*p/2147483648.0;float w2=p*p8/32768.0;float q=p/256.0;float w3=q*q*q*p10/131072.0;p=p+(w1+w2+w3+p7*128.0)/16.0;}out.pressure=p/100.0;float e1=aH-(h1*16.0+h3/2.0*tc);float e2=e1*(h2/262144.0*(1.0+h4/16384.0*tc+h5/1048576.0*tc*tc));float hum=e2+(h6/16384.0+h7/2097152.0*tc)*e2*e2;if(hum>100.0){hum=100.0;}if(hum<0.0){hum=0.0;}out.humidity=hum;float k1=0.0;if(gr==5){k1=-1.0;}if(gr==7){k1=-0.8;}if(gr==10){k1=-0.2;}if(gr==11){k1=-0.5;}if(gr==13){k1=-1.0;}float k2=0.0;if(gr==4){k2=0.1;}if(gr==5){k2=0.7;}if(gr==7){k2=-0.8;}if(gr==8){k2=-0.1;}float g1=1340.0+5.0*rse;float g2=g1*(1.0+k1/100.0);float g3=1.0+k2/100.0;float gas=0.0;if((buf[60]&48)==48){gas=1.0/(g3*0.000000125*(1<<gr)*((aG-512.0)/g2+1.0));}out.gas=gas;",
+   "attrs": [
+    "temperature",
+    "pressure",
+    "humidity",
+    "gas"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "BME680 init code",
+   "code": "int g2=buf[0]|(buf[1]<<8);if(g2>32767){g2=g2-65536;}int g1=buf[2];if(g1>127){g1=g1-256;}int g3=buf[3];if(g3>127){g3=g3-256;}int rhv=buf[4];if(rhv>127){rhv=rhv-256;}int rhr=(buf[6]&48)>>4;float v1=g1/16.0+49.0;float v2=g2/32768.0*0.0005+0.00235;float v3=g3/1024.0;float v5=v1*(1.0+v2*320.0)+v3*25.0;init.heat=3.4*(v5*(4.0/(4.0+rhr))*(1.0/(1.0+rhv*0.002))-25.0);",
+   "attrs": [],
+   "kind": "init",
+   "problems": []
+  },
+  {
+   "name": "BME690 decode code",
+   "code": "int t1=buf[31]|(buf[32]<<8);int t2=buf[0]|(buf[1]<<8);int t3=buf[2];if(t3>127){t3=t3-256;}int p1=buf[10]|(buf[11]<<8);if(p1>32767){p1=p1-65536;}int p2=buf[12]|(buf[13]<<8);int p3=buf[14];if(p3>127){p3=p3-256;}int p4=buf[15];if(p4>127){p4=p4-256;}int p5=buf[4]|(buf[5]<<8);if(p5>32767){p5=p5-65536;}int p6=buf[6]|(buf[7]<<8);if(p6>32767){p6=p6-65536;}int p7=buf[8];if(p7>127){p7=p7-256;}int p8=buf[9];if(p8>127){p8=p8-256;}int p9=buf[18]|(buf[19]<<8);if(p9>32767){p9=p9-65536;}int p10=buf[20];if(p10>127){p10=p10-256;}int p11=buf[21];if(p11>127){p11=p11-256;}int h5=(buf[23]<<4)|(buf[24]>>4);if(h5>2047){h5=h5-4096;}int h1=(buf[25]<<4)|(buf[24]&15);if(h1>2047){h1=h1-4096;}int h2=buf[26];if(h2>127){h2=h2-256;}int h4=buf[27];if(h4>127){h4=h4-256;}int h3=buf[28];int h6=buf[29];int aP=(buf[44]<<16)|(buf[45]<<8)|buf[46];int aT=(buf[47]<<16)|(buf[48]<<8)|buf[49];int aH=(buf[50]<<8)|buf[51];int aG=(buf[57]<<2)|(buf[58]>>6);int gr=buf[58]&15;float cf=aT-t1*256.0;float T=cf*(t2/1073741824.0)+cf*cf*(t3/281474976710656.0);out.temperature=T;float o=p1*8.0;float tk10=p2/64.0;float tk20=p3/256.0;float tk30=p4/32768.0;float s=(p5-16384.0)/1048576.0;float tk1s=(p6-16384.0)/536870912.0;float tk2s=p7/4294967296.0;float tk3s=p8/137438953472.0;float nls=p9/281474976710656.0;float tknls=p10/281474976710656.0;float nls3=p11/36893488147419103232.0;float pf=aP*1.0;float P=o+tk10*T+tk20*T*T+tk30*T*T*T+pf*(s+tk1s*T+tk2s*T*T+tk3s*T*T*T)+pf*pf*(nls+tknls*T)+pf*pf*pf*nls3;out.pressure=P/100.0;float tc=T*5120.0-76800.0;float hoff=aH-(h1*64.0+h2/16384.0*tc);float k4=h4/67108864.0;float hs=hoff*(h5/65536.0)*(1.0+k4*tc+k4*(h3/67108864.0)*tc*tc);float H=hs*(1.0-h6/524288.0*hs);if(H<0.0){H=0.0;}if(H>100.0){H=100.0;}out.humidity=H;float gas=0.0;if((buf[58]&48)==48){gas=1000000.0*(262144>>gr)/(4096.0+3.0*(aG-512.0));}out.gas=gas;",
+   "attrs": [
+    "temperature",
+    "pressure",
+    "humidity",
+    "gas"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "BME690 init code",
+   "code": "int g2=buf[0]|(buf[1]<<8);if(g2>32767){g2=g2-65536;}int g1=buf[2];if(g1>127){g1=g1-256;}int g3=buf[3];if(g3>127){g3=g3-256;}int rhv=buf[4];if(rhv>127){rhv=rhv-256;}int rhr=(buf[6]&48)>>4;float v1=g1/16.0+49.0;float v2=g2/32768.0*0.0005+0.00235;float v3=g3/1024.0;float v5=v1*(1.0+v2*320.0)+v3*25.0;init.heat=3.4*(v5*(4.0/(4.0+rhr))*(1.0/(1.0+rhv*0.002))-25.0);",
+   "attrs": [],
+   "kind": "init",
+   "problems": []
+  },
+  {
+   "name": "DPS310 decode code",
+   "code": "int pr=(buf[0]<<16)|(buf[1]<<8)|buf[2];if(pr>8388607){pr=pr-16777216;}int tr=(buf[3]<<16)|(buf[4]<<8)|buf[5];if(tr>8388607){tr=tr-16777216;}int c0=(buf[6]<<4)|(buf[7]>>4);if(c0>2047){c0=c0-4096;}int c1=((buf[7]&15)<<8)|buf[8];if(c1>2047){c1=c1-4096;}int c00=(buf[9]<<12)|(buf[10]<<4)|(buf[11]>>4);if(c00>524287){c00=c00-1048576;}int c10=((buf[11]&15)<<16)|(buf[12]<<8)|buf[13];if(c10>524287){c10=c10-1048576;}int c01=(buf[14]<<8)|buf[15];if(c01>32767){c01=c01-65536;}int c11=(buf[16]<<8)|buf[17];if(c11>32767){c11=c11-65536;}int c20=(buf[18]<<8)|buf[19];if(c20>32767){c20=c20-65536;}int c21=(buf[20]<<8)|buf[21];if(c21>32767){c21=c21-65536;}int c30=(buf[22]<<8)|buf[23];if(c30>32767){c30=c30-65536;}float ts=tr/524288.0;float ps=pr/253952.0;out.temperature=c0*0.5+c1*ts;float p=c00+ps*(c10+ps*(c20+ps*c30))+ts*c01+ts*ps*(c11+ps*c21);out.pressure=p/100.0;",
+   "attrs": [
+    "temperature",
+    "pressure"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "GravityO2 decode code",
+   "code": "int k=(buf[1]<<8)|buf[0]; float key=20.9/120.0; if(k!=0){key=k/1000.0;} out.oxygen=key*(buf[2]+(buf[3]/10.0)+(buf[4]/100.0));",
+   "attrs": [
+    "oxygen"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "LSM6DS3 decode code",
+   "code": "int W=((buf[1]&0x0F)<<8)|buf[0];int P=((buf[3]&0x03)<<8)|buf[2];int skip=(6-P%6)%6;int N=(W-skip)/6;int maxN=(240-skip*2)/12;if(N>maxN){N=maxN;}if(N<1){N=0;}int k=4+skip*2;int i=0;while(i<N){out.gx=(buf[k+1]<<8)|buf[k];out.gy=(buf[k+3]<<8)|buf[k+2];out.gz=(buf[k+5]<<8)|buf[k+4];out.ax=(buf[k+7]<<8)|buf[k+6];out.ay=(buf[k+9]<<8)|buf[k+8];out.az=(buf[k+11]<<8)|buf[k+10];k+=12;i++;next;}",
+   "attrs": [
+    "gx",
+    "gy",
+    "gz",
+    "ax",
+    "ay",
+    "az"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "LSM6DS3TRC decode code",
+   "code": "int W=((buf[1]&0x0F)<<8)|buf[0];int P=((buf[3]&0x03)<<8)|buf[2];int skip=(6-P%6)%6;int N=(W-skip)/6;int maxN=(240-skip*2)/12;if(N>maxN){N=maxN;}if(N<1){N=0;}int k=4+skip*2;int i=0;while(i<N){out.gx=(buf[k+1]<<8)|buf[k];out.gy=(buf[k+3]<<8)|buf[k+2];out.gz=(buf[k+5]<<8)|buf[k+4];out.ax=(buf[k+7]<<8)|buf[k+6];out.ay=(buf[k+9]<<8)|buf[k+8];out.az=(buf[k+11]<<8)|buf[k+10];k+=12;i++;next;}",
+   "attrs": [
+    "gx",
+    "gy",
+    "gz",
+    "ax",
+    "ay",
+    "az"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "LTR-329 decode code",
+   "code": "int combined = buf[2] + (((uint16_t)buf[3])<<8); out.ir = buf[0] + (((uint16_t)buf[1])<<8); out.visible = combined - out.ir;",
+   "attrs": [
+    "ir",
+    "visible"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "MAX30101 decode code",
+   "code": "int N=(buf[75]+32-buf[2])%32;if(N>8){N=8;}int k=3;int i=0;while(i<N){out.Red=((buf[k]<<16)|(buf[k+1]<<8)|buf[k+2])&0x3FFFF;out.IR=((buf[k+3]<<16)|(buf[k+4]<<8)|buf[k+5])&0x3FFFF;out.Green=((buf[k+6]<<16)|(buf[k+7]<<8)|buf[k+8])&0x3FFFF;k+=9;i++;next;}",
+   "attrs": [
+    "Red",
+    "IR",
+    "Green"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "MICS6814Pimoroni decode code",
+   "code": "int r=(buf[0]&15)|(buf[1]<<4);float red=0.0;if(r<4095){red=r*56000.0/(4095-r);}out.reducing=red;int n=(buf[2]&15)|(buf[3]<<4);float nh3=0.0;if(n<4095){nh3=n*56000.0/(4095-n);}out.nh3=nh3;int o=(buf[4]&15)|(buf[5]<<4);float ox=0.0;if(o<4095){ox=o*56000.0/(4095-o);}out.oxidising=ox;",
+   "attrs": [
+    "reducing",
+    "nh3",
+    "oxidising"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "MICS6814Pimoroni init code",
+   "code": "init.p0m1=buf[0]|224;init.p0m2=buf[1]&31;init.p1m1=buf[2]&223;init.p1m2=buf[3]|32;init.adccon1=buf[4]|1;",
+   "attrs": [],
+   "kind": "init",
+   "problems": []
+  },
+  {
+   "name": "MS8607PT decode code",
+   "code": "int D1=(buf[0]<<16)|(buf[1]<<8)|buf[2];int D2=(buf[3]<<16)|(buf[4]<<8)|buf[5];int C1=(buf[6]<<8)|buf[7];int C2=(buf[8]<<8)|buf[9];int C3=(buf[10]<<8)|buf[11];int C4=(buf[12]<<8)|buf[13];int C5=(buf[14]<<8)|buf[15];int C6=(buf[16]<<8)|buf[17];float dT=D2-C5*256.0;float t=2000.0+dT*C6/8388608.0;float off=C2*131072.0+C4*dT/64.0;float sens=C1*65536.0+C3*dT/128.0;float t2=0.0;float off2=0.0;float sens2=0.0;if(t<2000.0){t2=3.0*dT*dT/8589934592.0;off2=61.0*(t-2000.0)*(t-2000.0)/16.0;sens2=29.0*(t-2000.0)*(t-2000.0)/16.0;if(t<-1500.0){off2=off2+17.0*(t+1500.0)*(t+1500.0);sens2=sens2+9.0*(t+1500.0)*(t+1500.0);}}if(t>=2000.0){t2=5.0*dT*dT/274877906944.0;}t=t-t2;off=off-off2;sens=sens-sens2;float p=(D1*sens/2097152.0-off)/32768.0;out.temperature=t/100.0;out.pressure=p/100.0;",
+   "attrs": [
+    "temperature",
+    "pressure"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "SCD30 decode code",
+   "code": "int ready=(buf[3]<<8)|buf[4];if(ready==1){int co2h=(buf[6]<<8)|buf[7];int co2l=(buf[9]<<8)|buf[10];int co2e=(co2h>>7)&255;float co2=0.0;if(co2e>0){if(co2e<255){co2=1.0+(((co2h&127)*65536)+co2l)/8388608.0;int co2k=co2e-127;while(co2k>0){co2=co2*2.0;co2k=co2k-1;}while(co2k<0){co2=co2/2.0;co2k=co2k+1;}}}if(co2h>32767){co2=0.0-co2;}out.CO2=co2;int tmph=(buf[12]<<8)|buf[13];int tmpl=(buf[15]<<8)|buf[16];int tmpe=(tmph>>7)&255;float tmp=0.0;if(tmpe>0){if(tmpe<255){tmp=1.0+(((tmph&127)*65536)+tmpl)/8388608.0;int tmpk=tmpe-127;while(tmpk>0){tmp=tmp*2.0;tmpk=tmpk-1;}while(tmpk<0){tmp=tmp/2.0;tmpk=tmpk+1;}}}if(tmph>32767){tmp=0.0-tmp;}out.temperature=tmp;int humh=(buf[18]<<8)|buf[19];int huml=(buf[21]<<8)|buf[22];int hume=(humh>>7)&255;float hum=0.0;if(hume>0){if(hume<255){hum=1.0+(((humh&127)*65536)+huml)/8388608.0;int humk=hume-127;while(humk>0){hum=hum*2.0;humk=humk-1;}while(humk<0){hum=hum/2.0;humk=humk+1;}}}if(humh>32767){hum=0.0-hum;}out.humidity=hum;next;}",
+   "attrs": [
+    "CO2",
+    "temperature",
+    "humidity"
+   ],
+   "kind": "decode",
+   "problems": []
+  },
+  {
+   "name": "SCD30 init code",
+   "code": "int iv=(buf[3]<<8)|buf[4];init.setInterval=0;if(iv!=2){init.setInterval=1;}",
+   "attrs": [],
+   "kind": "init",
+   "problems": []
+  }
+ ]
+}

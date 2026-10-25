@@ -413,6 +413,7 @@ if (NOT _raft_devtype_sources STREQUAL "")
         COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/AssembleDeviceTypes.py"
             --raftcore "${raftcore_SOURCE_DIR}" --select "${_raft_devtype_select_arg}"
             --fs-image "${_raft_devtype_fsimage_dir}" --systypes "${_merged_systypes_json}"
+            --sdkconfig "${_merged_sdkconfig}"
             --compiled "${_raft_devtype_compiled_arg}"
             --compiled-out "${RAFT_BUILD_ARTIFACTS_FOLDER}/DeviceTypeRecords.compiled.json"
             --cache-dir "${RAFT_BUILD_ARTIFACTS_FOLDER}/devtypes" --lock "${BUILD_CONFIG_DIR}/DeviceTypeSources.lock"

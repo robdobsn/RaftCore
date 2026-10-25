@@ -19,6 +19,7 @@
 #include "RaftDevice.h"
 #include "FileSystem.h"
 #include "SpiramAwareAllocator.h"
+#include "PlatformUtils.h"
 #include "DeviceTypeDecodeVerifier.h"
 #ifdef ESP_PLATFORM
 #include "esp_idf_version.h"
@@ -2943,7 +2944,11 @@ void DeviceManager::setupTypeFile()
     else
         _typeFilePath = _sysConfig.getString("DeviceLibrary/devLibFile", "/local/devlib.json");
     _typeFileRequired = modConfig().getBool("typeFileRequired", false);
-    _typeFileLimits.maxFileBytes = modConfig().getLong("typeFileLimits/maxFileBytes", _typeFileLimits.maxFileBytes);
+    // The default file size limit depends on whether the board has PSRAM (the file is read into one buffer)
+    uint32_t spiramSize = utilsGetSPIRAMSize();
+    bool hasPSRAM = (spiramSize != 0) && (spiramSize != UINT32_MAX);
+    _typeFileLimits.maxFileBytes = modConfig().getLong("typeFileLimits/maxFileBytes",
+                hasPSRAM ? DeviceTypeFileLoader::MAX_FILE_BYTES_DEFAULT_PSRAM : DeviceTypeFileLoader::MAX_FILE_BYTES_DEFAULT);
     _typeFileLimits.maxReadBytesPerCommand = modConfig().getLong("typeFileLimits/maxReadBytes", _typeFileLimits.maxReadBytesPerCommand);
     _typeFileLimits.maxSamples = modConfig().getLong("typeFileLimits/maxSamples", _typeFileLimits.maxSamples);
     _typeFileLimits.maxRecordRingBytes = modConfig().getLong("typeFileLimits/maxRecordRingBytes", _typeFileLimits.maxRecordRingBytes);
