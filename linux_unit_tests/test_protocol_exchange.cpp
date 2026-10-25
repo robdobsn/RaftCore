@@ -311,10 +311,40 @@ static void testConcurrentSessionsReportedTogether()
     RaftSysMod::setSysManager(nullptr);
 }
 
+static void testDownloadOfMissingFileRefused()
+{
+    printf("Running testDownloadOfMissingFileRefused...\n");
+
+    TestCommsCore commsCore;
+    RestAPIEndpointManager restAPI;
+    TestSysManager sysManager(commsCore, restAPI);
+    RaftSysMod::setSysManager(&sysManager);
+
+    RaftJson config("{}");
+    ProtocolExchange protocolExchange("ProtExchg", config);
+    RaftSysMod& sysMod = protocolExchange;
+    sysMod.addCommsChannels(commsCore);
+    if (!commsCore.ricSerialHandler)
+    {
+        TEST_ASSERT(false, "RICSerial message handler registered");
+        return;
+    }
+
+    // A download of a file that doesn't exist is refused (before, it got no reply and the client timed out)
+    sendCmdFrame(commsCore, 1, "{\"cmdName\":\"dfStart\",\"reqStr\":\"getFile\",\"fileType\":\"fs\","
+            "\"fileName\":\"/no/such/file.bin\",\"crcAt\":\"end\"}");
+    TEST_ASSERT(commsCore.responses.size() == 1, "response sent");
+    if (commsCore.responses.size() == 1)
+        TEST_ASSERT(RaftJson(commsCore.responses[0]).getString("rslt", "") == "fail", "dfStart refused");
+
+    RaftSysMod::setSysManager(nullptr);
+}
+
 int main()
 {
     testStreamSessionAndActivityHook();
     testStreamToUnknownEndpointRefused();
     testConcurrentSessionsReportedTogether();
+    testDownloadOfMissingFileRefused();
     return testSummary("test_protocol_exchange");
 }

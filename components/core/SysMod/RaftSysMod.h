@@ -334,6 +334,16 @@ public:
         return true;
     }
 
+    /// @brief Status of file stream blocks still being written in the background
+    /// @return RAFT_BUSY while blocks passed to fileStreamDataBlock() are still being written, RAFT_OK when they are
+    ///         all written, or the error that stopped them
+    /// @note A module which writes blocks in the background (e.g. a firmware update on the file system worker)
+    ///       implements this so that a file upload acknowledges blocks only once they are written
+    virtual RaftRetCode fileStreamWriteStatus() const
+    {
+        return RAFT_OK;
+    }
+
     public:
     // Non-virtual methods
     

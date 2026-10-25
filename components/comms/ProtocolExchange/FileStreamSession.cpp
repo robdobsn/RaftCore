@@ -204,6 +204,14 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
         _pFileStreamProtocolHandler->setWriteStatusFn(std::bind(&FileStreamSession::getWriteStatus, this));
     }
 
+    // A firmware update may also be written in the background (by the firmware updater)
+    if (_pFileStreamProtocolHandler && (_fileStreamContentType == FileStreamBase::FILE_STREAM_CONTENT_TYPE_FIRMWARE) &&
+                _pFirmwareUpdater && FileStreamBase::isUploadFlowType(_fileStreamFlowType))
+    {
+        _firmwareWrittenInBackground = true;
+        _pFileStreamProtocolHandler->setWriteStatusFn([this]() { return _pFirmwareUpdater->fileStreamWriteStatus(); });
+    }
+
     // Check active
     _isActive = _pFileStreamProtocolHandler != nullptr;
 
@@ -216,13 +224,14 @@ FileStreamSession::FileStreamSession(const String& filename, uint32_t channelID,
 FileStreamSession::~FileStreamSession()
 {
     // A session is only removed once its background writes are finished (isActive()) - this is a safety net
-    if (_writeJobOutstanding.load())
+    if (_writeJobOutstanding.load() || _readJobOutstanding.load())
     {
         RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
         _writeCancelled = true;
         RaftMutex_unlock(_writeMutex);
         uint32_t waitStartMs = millis();
-        while (_writeJobOutstanding.load() && !Raft::isTimeout(millis(), waitStartMs, DESTRUCT_WRITE_WAIT_MAX_MS))
+        while ((_writeJobOutstanding.load() || _readJobOutstanding.load()) &&
+                    !Raft::isTimeout(millis(), waitStartMs, DESTRUCT_WRITE_WAIT_MAX_MS))
             RaftThread_sleep(1);
     }
 
@@ -240,7 +249,8 @@ void FileStreamSession::loop()
 {
     // Background writes - checked before the protocol is serviced, so that if they are finished it has sent its
     // final acknowledgement before the session ends
-    bool writesFinished = !_writeJobOutstanding.load();
+    bool writesFinished = !_writeJobOutstanding.load() &&
+                !(_firmwareWrittenInBackground && (_pFirmwareUpdater->fileStreamWriteStatus() == RAFT_BUSY));
     if (!writesFinished)
         _sessionLastActiveMs = millis();
 
@@ -399,42 +409,64 @@ RaftRetCode FileStreamSession::fileStreamBlockRead(FileStreamBlockOwned& fileStr
     if (!_pFileChunker || !_pFileChunker->isActive())
         return RaftRetCode::RAFT_NOT_XFERING;
 
-    // Allocate buffer
-    SpiramAwareUint8Vector chunkBuf;
-    chunkBuf.resize(maxLen);
+    // The block is read on the file system worker - wait for a read in progress
+    if (_readJobOutstanding.load())
+        return RaftRetCode::RAFT_BUSY;
 
-    // Check allocation
-    if (chunkBuf.size() == 0)
-        return RaftRetCode::RAFT_INSUFFICIENT_RESOURCE;
-
-    // Current file pos
-    uint32_t curFilePos = _pFileChunker->getFilePos();
-
-    // Check if at the required position
-    if (curFilePos != filePos)
+    // Not the block read (or none read yet): read it
+    if (!_readDone || (_readFilePos != filePos) || (_readMaxLen != maxLen))
     {
-        // Seek to required position
-        if (!_pFileChunker->seek(filePos))
-            return RaftRetCode::RAFT_NOT_XFERING;
+        startReadJob(filePos, maxLen);
+        return _readJobOutstanding.load() ? RaftRetCode::RAFT_BUSY : fileStreamBlockRead(fileStreamBlock, filePos, maxLen);
     }
 
-    // Get next chunk
-    uint32_t bytesRead = 0;
-    bool finalBlockRead = false;
-    bool readOk = _pFileChunker->nextRead(chunkBuf.data(), chunkBuf.size(), bytesRead, finalBlockRead);
-
-    // Fill fileStreamBlock
+    // Give the block read
+    _readDone = false;
     uint32_t fileLen = _pFileChunker->getFileLen();
     fileStreamBlock.set(_pFileChunker->getFileName().c_str(),
             fileLen,
             filePos,
-            chunkBuf.data(),
-            bytesRead,
-            finalBlockRead,
+            _readData.data(),
+            _readData.size(),
+            _readFinal,
             0, false,
             fileLen, true,
             filePos == 0);
-    return readOk ? RaftRetCode::RAFT_OK : RaftRetCode::RAFT_NOT_XFERING;
+    if (!_readOk)
+        return RaftRetCode::RAFT_NOT_XFERING;
+
+    // Read the next block ahead
+    if (!_readFinal)
+        startReadJob(filePos + _readData.size(), maxLen);
+    return RaftRetCode::RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Read a block on the file system worker (or here if the worker can't take the job)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FileStreamSession::startReadJob(uint32_t filePos, uint32_t maxLen)
+{
+    _readDone = false;
+    _readFilePos = filePos;
+    _readMaxLen = maxLen;
+    _readJobOutstanding = true;
+    auto readJob = [this, filePos, maxLen]() {
+        _readOk = false;
+        _readFinal = false;
+        _readData.resize(maxLen);
+        bool seekOk = (_pFileChunker->getFilePos() == filePos) || _pFileChunker->seek(filePos);
+        uint32_t bytesRead = 0;
+        bool finalBlockRead = false;
+        if (seekOk && (_readData.size() == maxLen))
+            _readOk = _pFileChunker->nextRead(_readData.data(), maxLen, bytesRead, finalBlockRead);
+        _readData.resize(bytesRead);
+        _readFinal = finalBlockRead;
+        _readDone = true;
+        _readJobOutstanding = false;
+    };
+    if (!fileSystemWorker.submit(readJob))
+        readJob();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -497,7 +529,7 @@ RaftRetCode FileStreamSession::fileStreamBlockWrite(FileStreamBlock& fileStreamB
         // Check for final block (with background writes the session ends when it is written)
         if (fileStreamBlock.finalBlock)
         {
-            if (_writeInBackground)
+            if (_writeInBackground || _firmwareWrittenInBackground)
                 _finalBlockReceived = true;
             else
                 _isActive = false;
@@ -595,6 +627,9 @@ RaftRetCode FileStreamSession::writeFileBlock(FileStreamBlock& fileStreamBlock)
             newCapacity = newSize;
         if (newCapacity + WRITE_HEAP_MARGIN_BYTES > maxAllocatable)
         {
+            // The block is lost, so the upload has failed: later blocks aren't written (the file would have a gap)
+            // and the failure is reported at the end
+            _writeError = RAFT_INSUFFICIENT_RESOURCE;
             RaftMutex_unlock(_writeMutex);
 #ifdef WARN_ON_BACKGROUND_WRITE_FAILED
             LOG_W(MODULE_PREFIX, "writeFileBlock no memory for %d bytes waiting to be written (largest free block %d)",
@@ -695,6 +730,18 @@ RaftRetCode FileStreamSession::getWriteStatus()
         rslt = RAFT_BUSY;
     RaftMutex_unlock(_writeMutex);
     return rslt;
+}
+
+bool FileStreamSession::canAcceptWriteBytes(uint32_t len)
+{
+    RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
+    uint32_t newSize = _writePending.size() + len;
+    // Room in the buffer, or the memory to grow it. With nothing waiting, waiting won't free memory - accepted (and
+    // if it then can't be stored the upload fails)
+    bool canAccept = (_writeError != RAFT_OK) || _writePending.empty() || (newSize <= _writePending.capacity()) ||
+                (newSize + WRITE_HEAP_MARGIN_BYTES <= SpiramAwareAllocator<uint8_t>::max_allocatable());
+    RaftMutex_unlock(_writeMutex);
+    return canAccept;
 }
 
 uint32_t FileStreamSession::getWritePendingBytes()

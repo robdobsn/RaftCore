@@ -5,7 +5,8 @@
 // A FileStreamSession for a file upload hands the blocks to the file system worker (FileSystemWorker) and the
 // upload protocol acknowledges blocks only once they are written. The worker runs its jobs when the test calls
 // runPending(), so each step can be checked: blocks waiting, written, the acks held back and sent, the file closed
-// after the final block, the session ending only then, and a cancelled upload dropping what wasn't written.
+// after the final block, the session ending only then, and a cancelled upload dropping what wasn't written. A file
+// download's blocks are read on the worker too (RAFT_BUSY until read), each one reading the next ahead.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -224,6 +225,56 @@ static void testWorkerRunsJobsInOrder()
     fileSystemWorker.runPending();
 }
 
+static void testDownloadBlocksReadByWorker()
+{
+    printf("Running testDownloadBlocksReadByWorker...\n");
+    char cwd[512];
+    String path = String(getcwd(cwd, sizeof(cwd))) + "/bg_download.bin";
+    std::vector<uint8_t> contents;
+    for (uint32_t i = 0; i < 1000; i++)
+        contents.push_back((uint8_t)(i * 13 + i / 7));
+    FILE* pFile = fopen(path.c_str(), "wb");
+    fwrite(contents.data(), 1, contents.size(), pFile);
+    fclose(pFile);
+
+    TestCommsCore commsCore;
+    FileStreamSession* pSession = new FileStreamSession(path, TEST_CHANNEL_ID, &commsCore, nullptr,
+                FileStreamBase::FILE_STREAM_CONTENT_TYPE_FILE, FileStreamBase::FILE_STREAM_FLOW_TYPE_RICREST_DOWNLOAD,
+                1, "", nullptr, 0);
+
+    // Blocks of 400: each is BUSY until the worker reads it; the next one is read ahead
+    std::vector<uint8_t> received;
+    uint32_t busyCount = 0;
+    bool finalSeen = false;
+    for (int guard = 0; (guard < 20) && !finalSeen; guard++)
+    {
+        FileStreamBlockOwned block;
+        RaftRetCode rslt = pSession->fileStreamBlockRead(block, received.size(), 400);
+        if (rslt == RAFT_BUSY)
+        {
+            busyCount++;
+            TEST_ASSERT(pSession->isActive(), "active while a read is outstanding");
+            fileSystemWorker.runPending();
+            continue;
+        }
+        TEST_ASSERT(rslt == RAFT_OK, "block read");
+        received.insert(received.end(), block.getBlockData(), block.getBlockData() + block.getBlockLen());
+        finalSeen = block.finalBlock;
+    }
+    TEST_ASSERT(received == contents, "file read in blocks");
+    TEST_ASSERT(busyCount == 3, "each block waits for the worker once");
+
+    // A block asked for again (a resend) is read again
+    FileStreamBlockOwned block;
+    TEST_ASSERT(pSession->fileStreamBlockRead(block, 400, 400) == RAFT_BUSY, "resend read on the worker");
+    fileSystemWorker.runPending();
+    TEST_ASSERT(pSession->fileStreamBlockRead(block, 400, 400) == RAFT_OK && block.getBlockLen() == 400 &&
+                std::equal(block.getBlockData(), block.getBlockData() + 400, contents.begin() + 400), "resent block");
+    fileSystemWorker.runPending();
+    delete pSession;
+    unlink(path.c_str());
+}
+
 int main()
 {
     // A local file system (a folder on Linux) - the test's files are given by absolute path
@@ -231,5 +282,6 @@ int main()
     testWorkerRunsJobsInOrder();
     testBlocksWrittenByWorkerThenAcked();
     testCancelDropsUnwritten();
+    testDownloadBlocksReadByWorker();
     return testSummary("test_file_upload_background");
 }

@@ -397,9 +397,11 @@ void FileDownloadOKTOProtocol::transferService()
         return;
     _betweenBlocksMs = millis();
 
-    // Check if we're finished
+    // Check if we're finished - with the CRC at the end the session waits (a while) for dfEnd, whose reply carries it
     if (_oktoFilePos >= _fileSize)
     {
+        if (_crcAtEnd && !Raft::isTimeout(nowMillis, _lastBatchAckRxOrRetryMs, END_MSG_WAIT_MS))
+            return;
 #ifdef DEBUG_RICREST_FILEDOWNLOAD
         LOG_I(MODULE_PREFIX, "transferService finished successfully");
 #endif        
@@ -468,9 +470,15 @@ void FileDownloadOKTOProtocol::transferService()
     }
 #endif
 
-    // Send a block
+    // Send a block (RAFT_BUSY if it is still being read on the file system worker - it is sent on a later pass)
     FileStreamBlockOwned block;
     RaftRetCode retc = _fileStreamBlockRead(block, _lastSentUptoFilePos, _blockSize);
+    if (retc == RaftRetCode::RAFT_BUSY)
+    {
+        // Try again on the next pass (not after the time between blocks)
+        _betweenBlocksMs = nowMillis - MIN_TIME_BETWEEN_BLOCKS_MS;
+        return;
+    }
     if (retc == RaftRetCode::RAFT_OK)
     {
         // Send block
