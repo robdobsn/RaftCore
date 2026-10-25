@@ -20,7 +20,7 @@ permissions:
 
 env:
   # The raftjs the Device Types app is built from (a tag, to pin it with the catalogue)
-  RAFTJS_REF: main
+  RAFTJS_REF: v2.10.0
 
 concurrency:
   group: pages
