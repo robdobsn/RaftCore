@@ -58,3 +58,24 @@ achieved rate, and mean bus time per poll), the poll rate error, and the rate de
 busy percentage, passes per second, longest pass, scan probes and poll steps per second, and time per second in
 each part of a pass. Plus identification timing at boot, the main loop statistics, and health checks (the
 WebSocket connection stayed up, so the device didn't reboot; the device list didn't change).
+
+# Serial client
+
+`raftserial.py` is a small client for bench work over a serial port (e.g. an ESP32's USB Serial/JTAG): it sends REST
+commands as console lines and prints the JSON reply, prints the console log, and uploads files with the RICREST file
+protocol. Requires Python 3 and pyserial.
+
+```bash
+python raftserial.py COM4 cmd "devman/busstatus"
+python raftserial.py COM4 cmd @request.txt          # the command from a file, e.g. a URL with & in it
+python raftserial.py COM4 cmdlog @request.txt 10    # send a command, then print the console for 10 s
+python raftserial.py COM4 log 30                    # print the console for 30 s
+python raftserial.py COM4 put local.json types.json # upload a file
+```
+
+It doesn't toggle DTR or RTS, which can reset an ESP32 on its USB Serial/JTAG port. Under WSL, run it with the
+Windows Python (`py -3`), as WSL can't open COM ports.
+
+Useful with it: `devman/cmdraw?deviceid=<id>&hexWr=<hex>&numToRd=<n>` for raw I2C transactions (a write then a read
+with a repeated start), `devman/busstatus` for identification and poll timing, and `datalog?action=start&...` with
+`filesection/local/logs~<file>/<offset>/<len>` to log device data and read it back.
