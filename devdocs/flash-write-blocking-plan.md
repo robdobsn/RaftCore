@@ -2,7 +2,13 @@
 
 Status: **measured** (2026-10-24). Tests 1 and 2 have been run on an ESP32-S3 with an SD card (see
 [Measurements](#measurements-2026-10-24)): a write task plus code running from PSRAM keeps the main loop under 10 ms
-for both LittleFS and SD writes. Nothing is implemented yet.
+for both LittleFS and SD writes.
+
+**Implemented (2026-10-25):** the file system worker (`FileSystemWorker`) does uploads, downloads, FileManager
+reads, cache refreshes and OTA writes off the main loop (RaftCore PRs #20 and #21, RaftSysMods #8 and #9,
+RaftWebServer #8); RaftCamera and the Axiom DataLogger use it or their own task. Write pacing defaults to off when
+the app runs from PSRAM or the flash supports auto-suspend. The Axiom runs from PSRAM (XIP). User documentation:
+the wiki's [File System](https://github.com/robdobsn/RaftCore/wiki/FileSystem) page.
 
 ## The problem
 
