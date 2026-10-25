@@ -15,7 +15,8 @@ DeviceTypeSources.json:
 - sources: "bundled" (RaftCore's records; "builtin": true is an older name for it), "path" (a folder of records, one record file or a catalogue file, relative
   to the DeviceTypeSources.json that names it), "git" ({"git": <url>, "ref": <tag, branch or full commit hash>,
   "path": <folder or record file in the repo, default "records">})
-- include/exclude: "*", "<source>:*", "<source>:<key>" or "<key>" (a key only one source has). builtin's include
+- include/exclude: "*", "<source>:*", "<source>:<key>", "<key>" (a key only one source has), or "<source>:@<set>" (a
+  named set of RaftCore's records, devtypes/sets/<set>.json, for the bundled source only). builtin's include
   defaults to "*", typeFile's to nothing. A key from a path source replaces the same key from another source (the later path source wins); the same key
   from two other sources is an error unless include names the source
 - policy: "enabled", "disabled" or "disabledClaim" for a selected key
@@ -84,6 +85,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PseudocodeHandler import PseudocodeHandler  # noqa: E402
 
 RECORDS_SUBDIR = os.path.join("devtypes", "records")
+SETS_SUBDIR = os.path.join("devtypes", "sets")
 LEGACY_CATALOGUE = os.path.join("devtypes", "DeviceTypeRecords.json")
 POLICY_VALUES = {"enabled": None, "disabled": True, "disabledClaim": "claim"}
 SECTIONS = ("builtin", "typeFile")
@@ -424,6 +426,26 @@ def _load_git_source(name, spec, raftcore_dir, git_options, lock, messages, inpu
     return records, files, commit
 
 
+def raftcore_sets_path(raftcore_dir):
+    return os.path.join(raftcore_dir, SETS_SUBDIR)
+
+
+def load_sets(raftcore_dir):
+    """RaftCore's named sets of records (devtypes/sets/<name>.json, {"records": [keys]}): OrderedDict name -> keys"""
+    folder = raftcore_sets_path(raftcore_dir)
+    sets = OrderedDict()
+    if not os.path.isdir(folder):
+        return sets
+    for file_name in sorted(n for n in os.listdir(folder) if n.endswith(".json")):
+        path = os.path.join(folder, file_name)
+        content = _read_json(path)
+        keys = content.get("records") if isinstance(content, dict) else None
+        if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+            raise AssembleError(f"{path}: a set holds \"records\": a list of record keys")
+        sets[file_name[:-5]] = keys
+    return sets
+
+
 def _load_source(name, spec, base_dir, raftcore_dir):
     """(records, files, is_local, input paths)"""
     if spec.get("bundled"):
@@ -488,7 +510,27 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
         records, files, is_local, inputs = _load_source(name, spec, base_dir, raftcore_dir)
         sources[name] = (records, files, is_local)
         result.inputs.extend(inputs)
+        if spec.get("bundled") and os.path.isdir(raftcore_sets_path(raftcore_dir)):
+            result.inputs.append(raftcore_sets_path(raftcore_dir))
     names = list(sources)
+    bundled = [n for n, (spec, _, _) in selection["sources"].items() if isinstance(spec, dict) and spec.get("bundled")]
+    sets_cache = []
+
+    def set_keys(pattern, source, key, list_name):
+        """The keys of a named set ("<source>:@<set>", RaftCore's records only)"""
+        if source is None or source not in bundled:
+            raise AssembleError(f"{section}.{list_name} \"{pattern}\": named sets (@...) are only in RaftCore's records - "
+                                f"use \"<the bundled source>:{key}\"")
+        if not sets_cache:
+            sets_cache.append(load_sets(raftcore_dir))
+        keys = sets_cache[0].get(key[1:])
+        if keys is None:
+            raise AssembleError(f"{section}.{list_name} \"{pattern}\": no set \"{key[1:]}\" in RaftCore's records "
+                                f"(sets: {', '.join(sets_cache[0]) or 'none'})")
+        missing = [k for k in keys if k not in sources[source][0]]
+        if missing:
+            raise AssembleError(f"set \"{key[1:]}\" names {', '.join(missing)}, not in RaftCore's records")
+        return keys
     chosen = selection["sections"][section]
     result.fs_image = chosen["fsImage"]
     # builtin includes everything unless it says otherwise; a type file includes nothing unless it says otherwise
@@ -501,18 +543,22 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
         matched = False
         for name in ([source] if source else names):
             records = sources[name][0]
-            keys = list(records) if key == "*" else ([key] if key in records else [])
+            if key.startswith("@"):
+                keys = set_keys(pattern, source, key, "include")
+            else:
+                keys = list(records) if key == "*" else ([key] if key in records else [])
             for k in keys:
                 entry = candidates.setdefault(k, {"named": OrderedDict(), "any": OrderedDict()})
-                (entry["named"] if (source and key != "*") else entry["any"])[name] = True
+                (entry["named"] if (source and key != "*" and not key.startswith("@")) else entry["any"])[name] = True
                 matched = True
-        if not matched and key != "*":
+        if not matched and key != "*" and not key.startswith("@"):
             where = f"source \"{source}\"" if source else "any source"
             raise AssembleError(f"{section}.include \"{pattern}\": no record \"{key}\" in {where}")
     for pattern in chosen["exclude"]:
         source, key = _parse_pattern(pattern, names)
+        excluded = set(set_keys(pattern, source, key, "exclude")) if key.startswith("@") else None
         for k in list(candidates):
-            if key == "*" or k == key:
+            if key == "*" or k == key or (excluded is not None and k in excluded):
                 for group in ("named", "any"):
                     for name in list(candidates[k][group]):
                         if source is None or name == source:
@@ -866,7 +912,8 @@ def _record_summary(record):
 
 def build_pages(raftcore_dir, out_dir, label):
     """<out_dir>/<label>/: records/<Key>.json (each record file as it is, so its SHA-256 is the manifest's),
-    catalogue.json (a summary of each record) and DeviceTypeRecords.json (every record, one file)"""
+    catalogue.json (a summary of each record, and RaftCore's named sets) and DeviceTypeRecords.json (every record, one
+    file)"""
     if not re.fullmatch(r"[A-Za-z0-9._-]+", label or ""):
         raise AssembleError(f"--label \"{label}\": letters, digits, '.', '_' and '-' only")
     records, files = load_catalogue(raftcore_records_path(raftcore_dir))
@@ -888,7 +935,7 @@ def build_pages(raftcore_dir, out_dir, label):
                                     ("summary", _record_summary(records[key]))]))
     catalogue = OrderedDict([("formatVersion", PAGES_FORMAT_VERSION), ("label", label),
                              ("raftCore", raftcore_version(raftcore_dir)), ("recordFormat", SOURCE_FORMAT_VERSION),
-                             ("count", len(entries)), ("records", entries)])
+                             ("count", len(entries)), ("records", entries), ("sets", load_sets(raftcore_dir))])
     with open(os.path.join(folder, "catalogue.json"), "w", encoding="utf-8") as f:
         f.write(json.dumps(catalogue, indent=1) + "\n")
     with open(os.path.join(folder, "DeviceTypeRecords.json"), "w", encoding="utf-8") as f:

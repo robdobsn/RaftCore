@@ -585,6 +585,248 @@
    "policyOnly": {},
    "messages": [],
    "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"typeFile\":{\"include\":[\"raftcore:Alpha\"],\"exclude\":[\"local:*\"]}}"
+  },
+  {
+   "name": "a named set",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"raftcore:@small\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}",
+     "sets": {
+      "small": [
+       "Alpha",
+       "Charlie"
+      ],
+      "one": [
+       "Charlie"
+      ],
+      "stale": [
+       "Alpha",
+       "Zulu"
+      ]
+     }
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"include\":[\"raftcore:@small\"]}}"
+  },
+  {
+   "name": "excluding a named set",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"raftcore:*\"], \"exclude\": [\"raftcore:@one\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}",
+     "sets": {
+      "small": [
+       "Alpha",
+       "Charlie"
+      ],
+      "one": [
+       "Charlie"
+      ],
+      "stale": [
+       "Alpha",
+       "Zulu"
+      ]
+     }
+    }
+   },
+   "section": "builtin",
+   "records": {
+    "Alpha": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    },
+    "Bravo": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x10\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Bravo core\"}}"
+    }
+   },
+   "replaced": {},
+   "policyOnly": {},
+   "messages": [],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"}},\"builtin\":{\"include\":[\"raftcore:*\"],\"exclude\":[\"raftcore:@one\"]}}"
+  },
+  {
+   "name": "a named set in a type file, with a local copy replacing one record",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}, \"typeFile\": {\"include\": [\"raftcore:@small\", \"local:*\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}",
+     "sets": {
+      "small": [
+       "Alpha",
+       "Charlie"
+      ],
+      "one": [
+       "Charlie"
+      ],
+      "stale": [
+       "Alpha",
+       "Zulu"
+      ]
+     }
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Alpha local\"}}}}"
+    }
+   },
+   "section": "typeFile",
+   "records": {
+    "Alpha": {
+     "source": "local",
+     "record": "{\"addresses\":\"0x11\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Alpha local\"}}"
+    },
+    "Charlie": {
+     "source": "raftcore",
+     "record": "{\"addresses\":\"0x12\",\"detectionValues\":\"0x00=0x12\",\"devInfoJson\":{\"name\":\"Test\"}}"
+    }
+   },
+   "replaced": {
+    "Alpha": [
+     "raftcore"
+    ]
+   },
+   "policyOnly": {},
+   "messages": [
+    "\"Alpha\" from local replaces the record from raftcore"
+   ],
+   "provenance": "{\"formatVersion\":1,\"sources\":{\"raftcore\":{\"bundled\":true,\"raftCore\":\"1.62.0\"},\"local\":{\"path\":\"../../local\"}},\"typeFile\":{\"include\":[\"raftcore:@small\",\"local:*\"]}}"
+  },
+  {
+   "name": "error: no such set",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"raftcore:@nope\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}",
+     "sets": {
+      "small": [
+       "Alpha",
+       "Charlie"
+      ],
+      "one": [
+       "Charlie"
+      ],
+      "stale": [
+       "Alpha",
+       "Zulu"
+      ]
+     }
+    }
+   },
+   "section": "builtin",
+   "error": "builtin.include \"raftcore:@nope\": no set \"nope\" in RaftCore's records (sets: one, small, stale)"
+  },
+  {
+   "name": "error: a set naming a record the source hasn't",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"raftcore:@stale\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}",
+     "sets": {
+      "small": [
+       "Alpha",
+       "Charlie"
+      ],
+      "one": [
+       "Charlie"
+      ],
+      "stale": [
+       "Alpha",
+       "Zulu"
+      ]
+     }
+    }
+   },
+   "section": "builtin",
+   "error": "set \"stale\" names Zulu, not in RaftCore's records"
+  },
+  {
+   "name": "error: a set without a source",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}}, \"builtin\": {\"include\": [\"@small\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}",
+     "sets": {
+      "small": [
+       "Alpha",
+       "Charlie"
+      ],
+      "one": [
+       "Charlie"
+      ],
+      "stale": [
+       "Alpha",
+       "Zulu"
+      ]
+     }
+    }
+   },
+   "section": "builtin",
+   "error": "builtin.include \"@small\": named sets (@...) are only in RaftCore's records - use \"<the bundled source>:@small\""
+  },
+  {
+   "name": "error: a set from a path source",
+   "files": {
+    "systypes/Common/DeviceTypeSources.json": "{\"sources\": {\"raftcore\": {\"bundled\": true}, \"local\": {\"path\": \"../../local\"}}, \"builtin\": {\"include\": [\"local:@small\"]}}"
+   },
+   "sources": {
+    "raftcore": {
+     "kind": "bundled",
+     "records": "{\"devTypes\": {\"Alpha\": {\"addresses\": \"0x11\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Bravo\": {\"addresses\": \"0x10\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Bravo core\"}}, \"Charlie\": {\"addresses\": \"0x12\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}",
+     "sets": {
+      "small": [
+       "Alpha",
+       "Charlie"
+      ],
+      "one": [
+       "Charlie"
+      ],
+      "stale": [
+       "Alpha",
+       "Zulu"
+      ]
+     }
+    },
+    "local": {
+     "kind": "path",
+     "records": "{\"devTypes\": {\"Delta\": {\"addresses\": \"0x13\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}, \"Echo\": {\"addresses\": \"0x14\", \"detectionValues\": \"0x00=0x12\", \"devInfoJson\": {\"name\": \"Test\"}}}}"
+    }
+   },
+   "section": "builtin",
+   "error": "builtin.include \"local:@small\": named sets (@...) are only in RaftCore's records - use \"<the bundled source>:@small\""
   }
  ]
 }

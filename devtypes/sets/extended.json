@@ -1,0 +1,30 @@
+{
+    "_notes": "About 25 I2C sensors: the common set and other popular temperature, humidity, pressure, air quality, light, proximity, distance, magnetic and motion sensors, and a button. Select with \"raftcore:@extended\" in DeviceTypeSources.json",
+    "records": [
+        "AHT20",
+        "AS5600",
+        "BME280",
+        "BME680",
+        "DPS310",
+        "ENS160",
+        "LSM6DS3",
+        "LSM6DS3TRC",
+        "LTR-390",
+        "MAX17048",
+        "MCP9808",
+        "MMC5603",
+        "QwiicButton",
+        "SCD30",
+        "SCD40",
+        "SGP40",
+        "SHT31",
+        "SHT40",
+        "SHTC3",
+        "TMP117",
+        "VCNL4040",
+        "VEML7700",
+        "VL53L0X",
+        "VL53L1X",
+        "VL53L4CD"
+    ]
+}
