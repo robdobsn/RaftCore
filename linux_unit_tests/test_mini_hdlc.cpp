@@ -4,7 +4,8 @@
 //
 // Frames encoded and decoded again, including frames longer than 64 KB, and the frame length limit: with PSRAM,
 // ProtocolRICSerial allows frames of up to 200000 bytes, which a 16-bit limit truncated to 3392. handleBuffer()
-// copies runs of plain bytes in one go: it must decode exactly as handleChar() a byte at a time
+// copies runs of plain bytes in one go: it must decode exactly as handleChar() a byte at a time. The append*()
+// encoder (one pass, used by ProtocolRICSerial) must give exactly the bytes encodeFrame() and sendFrame() do
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +130,104 @@ static void testBulkMatchesByteAtATime()
     }
 }
 
+// A frame of random bytes, with the two special octets as `specialPercent` percent of them
+static std::vector<uint8_t> randomFrame(std::mt19937& rng, uint32_t len, uint32_t specialPercent)
+{
+    std::vector<uint8_t> frame(len);
+    for (auto& ch : frame)
+    {
+        uint32_t r = rng() % 100;
+        ch = (r < specialPercent) ? ((rng() & 1) ? 0xE7 : 0xD7) : (uint8_t)rng();
+    }
+    return frame;
+}
+
+// The frame encoded by append*(), in two parts split at `split`
+template<typename VecT>
+static std::vector<uint8_t> appendEncode(MiniHDLC& hdlc, const std::vector<uint8_t>& frame, uint32_t split)
+{
+    VecT out;
+    out.reserve(MiniHDLC::encodedLenEstimate(frame.size()));
+    uint16_t fcs = 0;
+    hdlc.appendFrameStart(out, fcs);
+    hdlc.appendFramePayload(out, fcs, frame.data(), split);
+    hdlc.appendFramePayload(out, fcs, frame.data() + split, frame.size() - split);
+    hdlc.appendFrameEnd(out, fcs);
+    return std::vector<uint8_t>(out.begin(), out.end());
+}
+
+static void testAppendMatchesEncodeFrame()
+{
+    printf("Running testAppendMatchesEncodeFrame...\n");
+    std::mt19937 rng(4321);
+    bool crcEscapedSeen = false;
+    for (bool bigEndianCRC : {true, false})
+    {
+        // The reference encoders: encodeFrame() into a buffer, and sendFrame() a byte at a time
+        std::vector<uint8_t> sent;
+        MiniHDLC hdlc([&](const uint8_t* pFrame, unsigned len) { sent.assign(pFrame, pFrame + len); }, nullptr,
+                    0xE7, 0xD7, 200000, 200000, bigEndianCRC);
+        bool allMatch = true;
+        for (int i = 0; i < 400; i++)
+        {
+            uint32_t len = (i < 4) ? i : (rng() % 3000);
+            uint32_t specialPercent = (i % 5 == 0) ? 50 : (i % 5 == 1) ? 100 : 1;
+            std::vector<uint8_t> frame = randomFrame(rng, len, specialPercent);
+            uint32_t split = len ? (rng() % (len + 1)) : 0;
+
+            std::vector<uint8_t> encoded(hdlc.calcEncodedLen(frame.data(), frame.size()));
+            encoded.resize(hdlc.encodeFrame(encoded.data(), encoded.size(), frame.data(), frame.size()));
+            hdlc.sendFrame(frame.data(), frame.size());
+            std::vector<uint8_t> appended = appendEncode<std::vector<uint8_t>>(hdlc, frame, split);
+            std::vector<uint8_t> appendedSpiram = appendEncode<SpiramAwareUint8Vector>(hdlc, frame, split);
+            if ((appended != encoded) || (appended != sent) || (appendedSpiram != encoded) || encoded.empty())
+                allMatch = false;
+
+            // The CRC needs escaping now and then (bytes before the final boundary longer than expected)
+            uint32_t escapesInData = hdlc.calcEncodedLen(frame.data(), frame.size()) - frame.size();
+            if (encoded.size() > frame.size() + escapesInData - MiniHDLC::HDLC_MAX_OVERHEAD_BYTES + 4)
+                crcEscapedSeen = true;
+        }
+        TEST_ASSERT(allMatch, bigEndianCRC ? "append matches encodeFrame and sendFrame (big-endian CRC)"
+                                           : "append matches encodeFrame and sendFrame (little-endian CRC)");
+    }
+    TEST_ASSERT(crcEscapedSeen, "an escaped CRC byte was covered");
+
+    // Decodes again, and grows past the reserved size when every byte needs escaping
+    std::vector<uint8_t> frame(5000, 0xE7);
+    MiniHDLC hdlc(nullptr, nullptr, 0xE7, 0xD7, 200000, 200000);
+    std::vector<uint8_t> appended = appendEncode<std::vector<uint8_t>>(hdlc, frame, 1234);
+    TEST_ASSERT(appended.size() == 2 * frame.size() + 4, "all bytes escaped");
+    std::vector<std::vector<uint8_t>> received;
+    MiniHDLC dec(nullptr, [&](const uint8_t* pFrame, unsigned len) { received.emplace_back(pFrame, pFrame + len); },
+                0xE7, 0xD7, 200000, 200000);
+    dec.handleBuffer(appended.data(), appended.size());
+    TEST_ASSERT(received.size() == 1 && received[0] == frame, "appended frame decodes");
+}
+
+static void benchEncode()
+{
+    // Not a check - how long a 16 KB frame of random bytes takes to encode each way (on this machine)
+    std::mt19937 rng(99);
+    std::vector<uint8_t> frame = randomFrame(rng, 16000, 0);
+    MiniHDLC enc(nullptr, nullptr, 0xE7, 0xD7, 200000, 200000);
+    const int REPS = 200;
+    size_t total = 0;
+    auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < REPS; i++)
+    {
+        std::vector<uint8_t> encoded(enc.calcEncodedLen(frame.data(), frame.size()));
+        total += enc.encodeFrame(encoded.data(), encoded.size(), frame.data(), frame.size());
+    }
+    auto t1 = std::chrono::steady_clock::now();
+    for (int i = 0; i < REPS; i++)
+        total += appendEncode<std::vector<uint8_t>>(enc, frame, 0).size();
+    auto t2 = std::chrono::steady_clock::now();
+    printf("16 KB frame encode: length pass + encodeFrame %.1f us, append %.1f us (%zu)\n",
+            std::chrono::duration<double, std::micro>(t1 - t0).count() / REPS,
+            std::chrono::duration<double, std::micro>(t2 - t1).count() / REPS, total);
+}
+
 static void benchDecode()
 {
     // Not a check - how long a 16 KB frame takes to decode each way (on this machine)
@@ -158,6 +257,8 @@ int main()
     testFrameSizes();
     testTooLong();
     testBulkMatchesByteAtATime();
+    testAppendMatchesEncodeFrame();
     benchDecode();
+    benchEncode();
     return testSummary("test_mini_hdlc");
 }

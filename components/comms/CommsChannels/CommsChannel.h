@@ -83,6 +83,8 @@ private:
     // Outbound queue
     void outboundQueueAdd(CommsChannelMsg& msg);
     bool outboundQueuePeek(CommsChannelMsg& msg);
+    // The type of the next outbound message, without copying it (false if none)
+    bool outboundQueuePeekType(CommsMsgTypeCode& msgType);
     bool outboundQueueGet(CommsChannelMsg& msg);
     uint32_t outboundMsgBlockMax()
     {

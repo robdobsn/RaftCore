@@ -423,16 +423,23 @@ uint32_t MiniHDLC::encodeFrameAddPayload(uint8_t* pEncoded, uint32_t maxEncodedL
     if (curPos == 0)
         return 0;
 
-    // Loop over frame
-    int bytesLeft = frameLen;
-    while (bytesLeft && (curPos + 2 < maxEncodedLen))
+    // Loop over frame (the CRC is updated inline, and the octets held locally, as this runs for every byte)
+    const uint8_t boundary = _frameBoundaryOctet;
+    const uint8_t escape = _controlEscapeOctet;
+    uint16_t crc = fcs;
+    const uint8_t* pEnd = pFrame + frameLen;
+    while ((pFrame < pEnd) && (curPos + 2 < maxEncodedLen))
     {
-        // Handle escapes
-        uint8_t data = *pFrame++;
-        fcs = crcUpdateCCITT(fcs, data);
-        curPos = putEscaped(data, pEncoded, curPos);
-        bytesLeft--;
+        uint8_t ch = *pFrame++;
+        crc = (crc << 8) ^ _CRCTable[((crc >> 8) ^ ch) & 0xff];
+        if ((ch == boundary) || (ch == escape))
+        {
+            pEncoded[curPos++] = escape;
+            ch ^= INVERT_OCTET;
+        }
+        pEncoded[curPos++] = ch;
     }
+    fcs = crc;
     return curPos;
 }
 
@@ -469,13 +476,16 @@ uint32_t MiniHDLC::encodeFrameEnd(uint8_t* pEncoded, uint32_t maxEncodedLen, uin
 // Calculate encoded length for data
 uint32_t MiniHDLC::calcEncodedPayloadLen(const uint8_t *pFrame, uint32_t frameLen)
 {
+    // Loop through data and find chars that need escaping (the octets are held locally - otherwise they are
+    // read again for every byte, as the data could alias them)
+    const uint8_t boundary = _frameBoundaryOctet;
+    const uint8_t escape = _controlEscapeOctet;
     uint32_t encLen = frameLen;
-    // Loop through data and find chars that need escaping
-    for (uint32_t i = 0; i < frameLen; i++)
+    const uint8_t* pEnd = pFrame + frameLen;
+    for (; pFrame < pEnd; pFrame++)
     {
-        if ((*pFrame == _frameBoundaryOctet) || (*pFrame == _controlEscapeOctet))
-            encLen++;
-        pFrame++;
+        uint8_t ch = *pFrame;
+        encLen += (ch == boundary) | (ch == escape);
     }
     return encLen;
 }
