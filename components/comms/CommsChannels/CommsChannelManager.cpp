@@ -89,13 +89,14 @@ void CommsChannelManager::loop()
         // (inbound messages from other tasks are just queued and don't need the codec)
         ensureProtocolCodecExists(channelID);
 
-        // Peek message from outbound queue
+        // Check for an outbound message (its type, without copying it)
         CommsChannelMsg msg;
-        if (pChannel->outboundQueuePeek(msg))
+        CommsMsgTypeCode nextMsgType = MSG_TYPE_COMMAND;
+        if (pChannel->outboundQueuePeekType(nextMsgType))
         {
             // Outbound messages - check if interface is ready
             bool noConn = false;
-            bool canAccept = pChannel->outboundCanAccept(channelID, msg.getMsgTypeCode(), noConn);
+            bool canAccept = pChannel->outboundCanAccept(channelID, nextMsgType, noConn);
 
             // When either canAccept or no-connection get any message to be sent
             // In the case of noConn this is so that the queue doesn't block

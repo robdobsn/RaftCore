@@ -12,6 +12,7 @@
 #include <queue>
 #include <deque>
 #include <atomic>
+#include <utility>
 #include "RaftThreading.h"
 #include "SpiramAwareAllocator.h"
 
@@ -20,7 +21,10 @@
 //   and return false if the mutex could not be obtained - so a false return does NOT necessarily mean
 //   full (put) or empty (get/peek) and the result must always be checked
 // - count() and canAcceptData() are lock-free and never fail (the value may be stale by the time it is used)
-// - the critical sections are short (one element copy) so the default wait is only hit if something is badly wrong
+// - the critical sections are short (one element copy or move) so the default wait is only hit if something is badly
+//   wrong
+// - large elements (e.g. messages) can be moved in (put of an rvalue) and are always moved out (get), so they are not
+//   copied on the way through
 
 template<typename ElemT>
 class ThreadSafeQueue
@@ -52,6 +56,19 @@ public:
 
     [[nodiscard]] bool put(const ElemT& elem, uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
     {
+        return putImpl(elem, maxMsToWait);
+    }
+
+    // Moves the element in if it is queued (if not, e.g. the queue is full, the element is left as it was)
+    [[nodiscard]] bool put(ElemT&& elem, uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
+    {
+        return putImpl(std::move(elem), maxMsToWait);
+    }
+
+private:
+    template<typename T>
+    bool putImpl(T&& elem, uint32_t maxMsToWait)
+    {
         // Get mutex
         if (RaftMutex_lock(_queueMutex, maxMsToWait))
         {
@@ -64,7 +81,7 @@ public:
             }
 
             // Queue up the item
-            _queue.push(elem);
+            _queue.push(std::forward<T>(elem));
             _count = _queue.size();
 
             // Return mutex
@@ -74,6 +91,7 @@ public:
         return false;
     }
 
+public:
     [[nodiscard]] bool get(ElemT& elem, uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
     {
         // Avoid taking the mutex if empty
@@ -90,8 +108,8 @@ public:
                 return false;
             }
 
-            // read the item and remove
-            elem = _queue.front();
+            // Take the item (moved, as it is removed) and remove
+            elem = std::move(_queue.front());
             _queue.pop();
             _count = _queue.size();
 
@@ -124,6 +142,29 @@ public:
             // Return mutex
             RaftMutex_unlock(_queueMutex);
             return true;
+        }
+        return false;
+    }
+
+    // Look at the front item without copying it: fn(const ElemT&) is called with it under the queue mutex, so it
+    // must be short. Returns false if the queue is empty (or the mutex could not be obtained)
+    template<typename FnT>
+    [[nodiscard]] bool peekWith(FnT fn, uint32_t maxMsToWait = DEFAULT_MAX_MS_TO_WAIT)
+    {
+        // Avoid taking the mutex if empty
+        if (_count == 0)
+            return false;
+
+        // Get Mutex
+        if (RaftMutex_lock(_queueMutex, maxMsToWait))
+        {
+            bool found = !_queue.empty();
+            if (found)
+                fn(static_cast<const ElemT&>(_queue.front()));
+
+            // Return mutex
+            RaftMutex_unlock(_queueMutex);
+            return found;
         }
         return false;
     }

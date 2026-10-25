@@ -2,8 +2,8 @@
 //
 // ThreadSafeQueue tests
 //
-// Order, limits, peek/pop/clear, many elements (spanning many deque blocks) and a producer and consumer on
-// two threads. The queue's deque uses SpiramAwareAllocator, which falls back to the standard heap on Linux.
+// Order, limits, peek/pop/clear, moving elements in and out (and peekWith) without copying their buffers, many
+// elements (spanning many deque blocks) and a producer and consumer on two threads. The queue's deque uses SpiramAwareAllocator, which falls back to the standard heap on Linux.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +79,33 @@ static void testPeekPopClear()
     TEST_ASSERT(queue.put(makeMsg(99)) && queue.get(msg) && msgValid(msg, 99), "usableAfterClear");
 }
 
+static void testMoves()
+{
+    printf("Running testMoves...\n");
+    ThreadSafeQueue<TestMsg> queue(2);
+
+    // Moved in: the buffer is the one put (not a copy), and moved out again on get
+    TestMsg msg = makeMsg(40);
+    const uint8_t* pData = msg.data.data();
+    TEST_ASSERT(queue.put(std::move(msg)), "putMoved");
+    TEST_ASSERT(msg.data.empty(), "movedFrom");
+    TestMsg got;
+    TEST_ASSERT(queue.get(got) && msgValid(got, 40) && (got.data.data() == pData), "getSameBuffer");
+
+    // A put that fails leaves the element as it was
+    TEST_ASSERT(queue.put(makeMsg(1)) && queue.put(makeMsg(2)), "fill");
+    TestMsg rejected = makeMsg(3);
+    TEST_ASSERT(!queue.put(std::move(rejected)) && msgValid(rejected, 3), "failedPutKeepsElement");
+
+    // peekWith sees the front element in place
+    uint32_t seenSeq = 0;
+    const uint8_t* pSeen = nullptr;
+    TEST_ASSERT(queue.peekWith([&](const TestMsg& m) { seenSeq = m.seq; pSeen = m.data.data(); }), "peekWith");
+    TEST_ASSERT(seenSeq == 1 && queue.count() == 2, "peekWithFrontNotRemoved");
+    TEST_ASSERT(queue.get(got) && msgValid(got, 1) && got.data.data() == pSeen, "peekWithSawStoredBuffer");
+    TEST_ASSERT(queue.get(got) && !queue.peekWith([](const TestMsg&) {}), "peekWithEmpty");
+}
+
 static void testManyElements()
 {
     printf("Running testManyElements...\n");
@@ -147,6 +174,7 @@ int main()
 {
     testOrderAndLimits();
     testPeekPopClear();
+    testMoves();
     testManyElements();
     testTwoThreads();
     return testSummary("test_thread_safe_queue");

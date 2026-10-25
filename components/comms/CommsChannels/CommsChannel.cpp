@@ -222,6 +222,11 @@ bool CommsChannel::outboundQueuePeek(CommsChannelMsg& msg)
     return _outboundQueue.peek(msg);
 }
 
+bool CommsChannel::outboundQueuePeekType(CommsMsgTypeCode& msgType)
+{
+    return _outboundQueue.peekWith([&msgType](const CommsChannelMsg& msg) { msgType = msg.getMsgTypeCode(); });
+}
+
 bool CommsChannel::outboundQueueGet(CommsChannelMsg& msg)
 {
     bool hasGot = _outboundQueue.get(msg);
