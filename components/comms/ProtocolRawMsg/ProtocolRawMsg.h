@@ -55,11 +55,11 @@ public:
     }
 
     // Access to command vector
-    const uint8_t* getBuf()
+    const uint8_t* getBuf() const
     {
         return _cmdVector.data();
     }
-    uint32_t getBufLen()
+    uint32_t getBufLen() const
     {
         return _cmdVector.size();
     }
