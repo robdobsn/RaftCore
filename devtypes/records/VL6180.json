@@ -10,6 +10,13 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-25): the lone 0x99 is taken as the high byte of the 16-bit register index, the low byte kept from the previous access, so the 9-byte read is from about 0x9915 (outside the register map; reading 0x9916 directly gives the same bytes). Nothing is written, as no data byte follows. Configuration (0x0011, 0x0014, 0x0016, 0x0018, 0x001b-0x001c, 0x0031, 0x0096-0x0097, 0x010a, 0x0207-0x0208) unchanged; ranging carried on, 27-30 mm before and 29-30 mm after with a target. Interrupts are cleared only by writing 0x0015, not by reads. Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
     "devInfoJson": {
         "name": "Distance Sensor",
         "desc": "",
