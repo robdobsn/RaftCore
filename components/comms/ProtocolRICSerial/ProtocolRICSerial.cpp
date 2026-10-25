@@ -162,6 +162,9 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
         _pHDLC->appendFramePayload(encoded, fcs, ricSerialRec, sizeof(ricSerialRec));
         _pHDLC->appendFramePayload(encoded, fcs, msg.getBuf(), msg.getBufLen());
         _pHDLC->appendFrameEnd(encoded, fcs);
+
+        // Nothing uses the encoded message after it is sent, so the channel may take its buffer
+        encodedMsg.setBufTakeable(true);
 #endif
 
         // Debug

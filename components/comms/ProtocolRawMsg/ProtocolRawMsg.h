@@ -41,6 +41,17 @@ public:
         _cmdVector.assign(pBuf, pBuf+bufLen);
     }
 
+    // Take the contents of a buffer without copying (it is left empty)
+    void takeBuffer(SpiramAwareUint8Vector& buf)
+    {
+#ifdef IMPLEMENT_NO_PSRAM_FOR_PROTOCOL_RAW_MSG
+        _cmdVector.assign(buf.begin(), buf.end());
+        buf.clear();
+#else
+        _cmdVector.swap(buf);
+#endif
+    }
+
     void setBufferSize(uint32_t bufSize)
     {
         _cmdVector.resize(bufSize);
@@ -55,11 +66,11 @@ public:
     }
 
     // Access to command vector
-    const uint8_t* getBuf()
+    const uint8_t* getBuf() const
     {
         return _cmdVector.data();
     }
-    uint32_t getBufLen()
+    uint32_t getBufLen() const
     {
         return _cmdVector.size();
     }

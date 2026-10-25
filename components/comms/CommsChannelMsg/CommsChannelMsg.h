@@ -190,11 +190,24 @@ public:
         return _cmdVector;
     }
 
+    // Whether the buffer may be taken (moved out, leaving it empty) by the channel sending the message, rather
+    // than copied. Set by a protocol codec on a message it made to send and doesn't use afterwards - a message
+    // passed on as it is may be sent again (e.g. on each channel), so its buffer mustn't be taken
+    void setBufTakeable(bool takeable)
+    {
+        _bufTakeable = takeable;
+    }
+    bool isBufTakeable() const
+    {
+        return _bufTakeable;
+    }
+
 private:
     uint32_t _channelID;
     CommsMsgProtocol _msgProtocol;
     uint32_t _msgNum;
     CommsMsgTypeCode _msgTypeCode;
+    bool _bufTakeable = false;
 #ifdef IMPLEMENT_NO_PSRAM_FOR_COMMS_CHANNEL_MSG
     std::vector<uint8_t> _cmdVector;
 #else
