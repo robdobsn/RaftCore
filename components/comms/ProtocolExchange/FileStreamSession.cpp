@@ -699,7 +699,8 @@ void FileStreamSession::writeJob()
         if (rslt != RAFT_OK)
         {
 #ifdef WARN_ON_BACKGROUND_WRITE_FAILED
-            LOG_W(MODULE_PREFIX, "writeJob write failed filename %s", _fileStreamName.c_str());
+            if (rslt != RAFT_CRC_MISMATCH)
+                LOG_W(MODULE_PREFIX, "writeJob write failed filename %s", _fileStreamName.c_str());
 #endif
             RaftMutex_lock(_writeMutex, RAFT_MUTEX_WAIT_FOREVER);
             _writeError = rslt;
@@ -719,8 +720,13 @@ RaftRetCode FileStreamSession::checkWrittenCRC(const uint8_t* pBuf, uint32_t len
         return RAFT_OK;
     if (pBuf && (len > 0))
         _crcWritten = MiniHDLC::crcUpdateCCITT(_crcWritten, pBuf, len);
-    if (!isFinal || (_crcWritten == _crcExpected))
+    if (!isFinal)
         return RAFT_OK;
+    if (_crcWritten == _crcExpected)
+    {
+        _crcMatched = true;
+        return RAFT_OK;
+    }
     LOG_W(MODULE_PREFIX, "upload CRC mismatch filename %s expected %04x written %04x - file deleted",
                 _fileStreamName.c_str(), _crcExpected, _crcWritten);
     fileSystem.deleteFile("", _fileStreamName);

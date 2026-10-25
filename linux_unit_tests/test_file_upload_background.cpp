@@ -7,7 +7,7 @@
 // runPending(), so each step can be checked: blocks waiting, written, the acks held back and sent, the file closed
 // after the final block, the session ending only then, and a cancelled upload dropping what wasn't written. An
 // upload given a CRC16 in ufStart is checked against it once written: a mismatch cancels it (failCRC) and deletes
-// the file, and a match is confirmed in the ufEnd reply. A file
+// the file, and a match is reported by getCheckedCRC() (ProtocolExchange gives it in the ufEnd reply). A file
 // download's blocks are read on the worker too (RAFT_BUSY until read), each one reading the next ahead.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -257,18 +257,22 @@ static void testCRCChecked()
 {
     printf("Running testCRCChecked...\n");
 
-    // The right CRC: the upload completes and ufEnd confirms the CRC checked
+    // The right CRC: the upload completes and the session reports the CRC checked
     {
         Upload probe(12 * BLOCK - 30, "bg_upload_crc.bin");
         String crc = probe.contentsCRC();
         delete probe.pSession;
         probe.pSession = nullptr;
         Upload up(12 * BLOCK - 30, "bg_upload_crc.bin", crc.c_str());
+        uint16_t checked = 0;
+        TEST_ASSERT(!up.pSession->getCheckedCRC(checked), "not checked before it is written");
         TEST_ASSERT(up.sendAll().empty(), "no cancel with the right CRC");
         TEST_ASSERT(up.fileContents() == up.contents, "file written");
-        String endResp = up.sendEnd();
-        TEST_ASSERT(RaftJson(endResp).getString("rslt", "") == "ok", "ufEnd ok");
-        TEST_ASSERT(String("0x") + RaftJson(endResp).getString("crc16", "") == crc, "ufEnd gives the CRC checked");
+        char checkedStr[10];
+        TEST_ASSERT(up.pSession->getCheckedCRC(checked), "checked once written");
+        snprintf(checkedStr, sizeof(checkedStr), "0x%04x", checked);
+        TEST_ASSERT(crc == checkedStr, "the CRC given");
+        TEST_ASSERT(RaftJson(up.sendEnd()).getString("rslt", "") == "ok", "ufEnd ok");
     }
 
     // A wrong CRC: cancelled once the final block is written (failCRC), and the file deleted
@@ -277,13 +281,16 @@ static void testCRCChecked()
         std::vector<String> cancels = up.sendAll();
         TEST_ASSERT(cancels == std::vector<String>({"failCRC"}), "cancelled with failCRC");
         TEST_ASSERT(up.fileContents().empty(), "file deleted");
+        uint16_t checked = 0;
+        TEST_ASSERT(!up.pSession->getCheckedCRC(checked), "no checked CRC after a mismatch");
     }
 
-    // No CRC given: no check, and none in the ufEnd reply
+    // No CRC given: no check
     {
         Upload up(3 * BLOCK, "bg_upload_crc.bin");
         TEST_ASSERT(up.sendAll().empty(), "no cancel without a CRC");
-        TEST_ASSERT(RaftJson(up.sendEnd()).getString("crc16", "none") == "none", "no CRC in ufEnd");
+        uint16_t checked = 0;
+        TEST_ASSERT(!up.pSession->getCheckedCRC(checked), "nothing checked without a CRC");
     }
 }
 

@@ -169,7 +169,21 @@ private:
     bool _crcCheck = false;
     uint16_t _crcExpected = 0;
     uint16_t _crcWritten = 0;
+    std::atomic<bool> _crcMatched{false};
     RaftRetCode checkWrittenCRC(const uint8_t* pBuf, uint32_t len, bool isFinal);
+
+public:
+    // The CRC16 the uploaded file was checked against - false unless it was given, the whole file has been written
+    // and it matched
+    bool getCheckedCRC(uint16_t& crc) const
+    {
+        if (!_crcMatched.load())
+            return false;
+        crc = _crcExpected;
+        return true;
+    }
+
+private:
 
     // Background reads (file downloads): a block is read on the file system worker and the next one read ahead.
     // fileStreamBlockRead() returns RAFT_BUSY until the block asked for has been read. The job sets the _read...

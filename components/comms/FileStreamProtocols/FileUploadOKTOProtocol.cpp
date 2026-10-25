@@ -412,18 +412,8 @@ RaftRetCode  FileUploadOKTOProtocol::handleEndMsg(const RICRESTMsg& ricRESTReqMs
     if (_fileStreamCancelEnd)
         _fileStreamCancelEnd(true);
 
-    // Response - with the CRC the file was checked against, if the client gave one (a file that didn't match
-    // ended the upload with a cancel, failCRC, before this)
-    if (_isUploading && _expCRC16Valid && (_fileStreamContentType != FILE_STREAM_CONTENT_TYPE_FIRMWARE))
-    {
-        char crcJson[30];
-        snprintf(crcJson, sizeof(crcJson), R"("crc16":"%04x")", (unsigned)(_expCRC16 & 0xffff));
-        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, crcJson);
-    }
-    else
-    {
-        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
-    }
+    // Response
+    Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
 
     // Debug
 #ifdef DEBUG_RICREST_FILEUPLOAD

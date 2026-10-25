@@ -79,6 +79,18 @@ private:
     std::list<std::pair<uint32_t, RaftRetCode>> _lastUploadWriteStatus;
     static const uint32_t LAST_UPLOAD_WRITE_STATUS_MAX = 4;
 
+    // Uploads checked against the CRC16 the client gave (by channel and file name), kept after the session ends
+    // so the ufEnd reply (which usually comes after it) can say the file was checked
+    struct CheckedUploadCRC
+    {
+        uint32_t channelID;
+        String fileName;
+        uint16_t crc;
+    };
+    std::list<CheckedUploadCRC> _checkedUploadCRCs;
+    static const uint32_t CHECKED_UPLOAD_CRCS_MAX = 4;
+    bool takeCheckedUploadCRC(uint32_t channelID, const String& fileName, uint16_t& crc);
+
     // Activity last reported through the file stream activity hook (to keep SysManager up-to-date)
     bool _activityReportedMainFWUpdate = false;
     bool _activityReportedFileSystem = false;

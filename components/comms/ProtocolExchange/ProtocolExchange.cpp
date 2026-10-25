@@ -94,6 +94,18 @@ void ProtocolExchange::loop()
                 _lastUploadWriteStatus.push_back({pSession->getChannelID(), writeStatus});
                 if (_lastUploadWriteStatus.size() > LAST_UPLOAD_WRITE_STATUS_MAX)
                     _lastUploadWriteStatus.pop_front();
+
+                // And the CRC it was checked against, for the ufEnd reply
+                uint16_t checkedCRC = 0;
+                if (pSession->getCheckedCRC(checkedCRC))
+                {
+                    _checkedUploadCRCs.remove_if([pSession](const CheckedUploadCRC& entry) {
+                        return entry.channelID == pSession->getChannelID();
+                    });
+                    _checkedUploadCRCs.push_back({pSession->getChannelID(), pSession->getFileStreamName(), checkedCRC});
+                    if (_checkedUploadCRCs.size() > CHECKED_UPLOAD_CRCS_MAX)
+                        _checkedUploadCRCs.pop_front();
+                }
             }
 
             // Tidy up inactive session
@@ -515,10 +527,21 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
         case FileStreamBase::FILE_STREAM_MSG_TYPE_UPLOAD_END:
             pSession = getFileStreamExistingSession(fileStreamName.c_str(), channelID, streamID);
             // If session already cleaned up (e.g. after final block), respond OK
-            // so the client's numbered message gets acknowledged (avoiding timeout)
+            // so the client's numbered message gets acknowledged (avoiding timeout) - with the CRC the file was
+            // checked against, if it was
             if (!pSession)
             {
-                Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+                uint16_t checkedCRC = 0;
+                if (takeCheckedUploadCRC(channelID, fileStreamName, checkedCRC))
+                {
+                    char crcJson[30];
+                    snprintf(crcJson, sizeof(crcJson), R"("crc16":"%04x")", (unsigned)checkedCRC);
+                    Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, crcJson);
+                }
+                else
+                {
+                    Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true);
+                }
                 return RAFT_OK;
             }
             break;
@@ -569,7 +592,37 @@ RaftRetCode ProtocolExchange::processRICRESTCmdFrame(RICRESTMsg& ricRESTReqMsg, 
     }
 
     // Session is valid so send message to it
-    return pSession->handleCmdFrame(fileStreamMsgType, ricRESTReqMsg, respMsg, endpointMsg);
+    RaftRetCode rslt = pSession->handleCmdFrame(fileStreamMsgType, ricRESTReqMsg, respMsg, endpointMsg);
+
+    // A ufEnd for a file already checked against its CRC (the session ends once the final block is written, so
+    // this is the rarer case) says so
+    uint16_t checkedCRC = 0;
+    if ((fileStreamMsgType == FileStreamBase::FILE_STREAM_MSG_TYPE_UPLOAD_END) && (rslt == RAFT_OK) &&
+                pSession->getCheckedCRC(checkedCRC))
+    {
+        char crcJson[30];
+        snprintf(crcJson, sizeof(crcJson), R"("crc16":"%04x")", (unsigned)checkedCRC);
+        Raft::setJsonBoolResult(ricRESTReqMsg.getReq().c_str(), respMsg, true, crcJson);
+    }
+    return rslt;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Take the CRC an upload (on this channel, of this file) was checked against, if it was
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool ProtocolExchange::takeCheckedUploadCRC(uint32_t channelID, const String& fileName, uint16_t& crc)
+{
+    for (auto it = _checkedUploadCRCs.begin(); it != _checkedUploadCRCs.end(); ++it)
+    {
+        if ((it->channelID == channelID) && (it->fileName == fileName))
+        {
+            crc = it->crc;
+            _checkedUploadCRCs.erase(it);
+            return true;
+        }
+    }
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
