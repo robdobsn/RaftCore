@@ -43,6 +43,7 @@ them, and a device type file built from them carries them too (without their not
 | Record | Taken from | Licence |
 |-|-|-|
 | VL53L0X | Init (DataInit, StaticInit with the reference SPADs and ST's default tuning settings, the timing budget, the reference calibrations) and continuous ranging, as Pololu's [vl53l0x-arduino](https://github.com/pololu/vl53l0x-arduino) does them, which is based on ST's VL53L0X API (STSW-IMG005) | Pololu: MIT. The parts from ST's API: BSD-3-Clause (ST). Both below |
+| VL53L1X | The default configuration, the init sequence (SensorInit), the timing budget values and the range status codes from ST's VL53L1X Ultra Lite Driver (STSW-IMG009, as packaged in SparkFun's [VL53L1X library](https://github.com/sparkfun/SparkFun_VL53L1X_Arduino_Library) `src/st_src`) | BSD-3-Clause (ST), below |
 | BME690 | The compensation formulas and the heater set-point calculation (`calc_res_heat`) from Bosch's [BME690_SensorAPI](https://github.com/boschsensortec/BME690_SensorAPI) (`bme69x.c` v1.1.0) | BSD-3-Clause (Bosch Sensortec), below |
 | BME680 | The compensation formulas and the heater set-point calculation (`calc_res_heat`), as in the BME680 datasheet and Bosch's [BME68x_SensorAPI](https://github.com/boschsensortec/BME68x_SensorAPI) | BSD-3-Clause (Bosch Sensortec), below |
 | VL6180 | The private register settings from ST's application note [AN4545](https://www.st.com/resource/en/application_note/an4545-vl6180x-basic-ranging-application-note-stmicroelectronics.pdf) (VL6180X basic ranging) | ST document; cited |
@@ -179,6 +180,32 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
+
+### STMicroelectronics VL53L1X Ultra Lite Driver (VL53L1X record; BSD-3-Clause)
+
+COPYRIGHT(c) 2018 STMicroelectronics
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+  1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+  3. Neither the name of STMicroelectronics nor the names of its contributors
+     may be used to endorse or promote products derived from this software
+     without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Bosch Sensortec BME690 and BME68x SensorAPI (BME690 and BME680 records; BSD-3-Clause)
 

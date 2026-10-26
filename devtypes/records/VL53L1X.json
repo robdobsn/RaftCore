@@ -1,32 +1,88 @@
 {
-    "_notes": "ToF distance sensor with extended range up to 4m",
+    "_notes": "VL53L1X time-of-flight distance sensor, up to about 4 m (long distance mode), at 0x29 (fixed at power-up). 16-bit register index\nDetection: IDENTIFICATION__MODEL_ID (0x010F) = 0xEA and MODULE_TYPE (0x0110) = 0xCC. The VL53L0X and VL6180 records are tried first at 0x29; their detection reads only set this sensor's register index\nInit: ST's VL53L1X Ultra Lite Driver (ULD) VL53L1X_SensorInit: its default configuration (0x2D-0x87, written in three blocks then 0x87) - long distance mode, about 100 ms timing budget, about 100 ms between ranges, interrupt on new sample (active high), and 0x2D (the I2C pad configuration) left at 0x00 - then one range to warm up (clear the interrupt, SYSTEM__MODE_START 0x87 = 0x40, a 150 ms pause in place of the ULD's wait for data ready), clear the interrupt, stop ranging, two VHV bounds (0x0008 = 0x09) and VHV from the previous temperature (0x000B = 0x00); then clear the interrupt and start continuous ranging (0x87 = 0x40)\nPoll: GPIO__TIO_HV_STATUS (0x0031), then 15 bytes from RESULT__RANGE_STATUS (0x0089-0x0097), then clear the interrupt (0x0086 = 0x01). fresh is 1 when a new range is ready (0x0031 bit 0 at the active-high polarity the configuration sets). rangeStatus is the raw status (0x0089 bits 4:0): 9 is a valid range (the ULD's status 0), 6 sigma, 4 signal, 5 phase out of range, 7 wrap-around. dist is the crosstalk-corrected range in mm (0x0096-0x0097)\nSample rate (_conf.rate) sets only the poll interval: the sensor ranges every 100 ms whatever the rate. The distance mode action switches between long (up to about 4 m) and short (up to about 1.3 m, better in bright light), each with the ULD's 100 ms timing budget values. The time between ranges isn't an action, as the ULD calculates it from the sensor's oscillator calibration (0x00DE)\nThe earlier record wrote 0x01 to 0x002D, the I2C pad configuration (the ULD leaves it 0x00): on Axiom018 the sensor stopped answering on I2C straight after init, until it was power cycled\nSource: the default configuration, the init sequence, the timing budget values and the status codes are from ST's VL53L1X Ultra Lite Driver (STSW-IMG009, as packaged in SparkFun's VL53L1X library, https://github.com/sparkfun/SparkFun_VL53L1X_Arduino_Library, src/st_src), BSD-3-Clause; see RaftCore's THIRD_PARTY_NOTICES.md for its notice",
     "addresses": "0x29",
     "identPriority": 1,
     "detectionValues": "0x010f=0xEACC",
-    "initValues": "0x002D01&0x0087&0x25012c00=p100&0x0060=p100",
+    "initValues": "0x002d0001010102000208000810010100000000ff000f0000000000200b000002&0x004b0a2100000500000000c8000038ff010008000001db0f01f10d0168008008&0x0069b8000000000f8900000000000000010f0d0e0e000002c7ff9b0000000100&0x008700&0x008601&0x008740=p150&0x008601&0x008700&0x000809&0x000b00&0x008601&0x008740",
     "pollInfo": {
-        "c": "0x0089=r1&0x0096=r2",
-        "i": 200,
+        "c": "0x0031=r1&0x0089=r15&0x008601",
+        "i": 100,
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26): the lone 0x99 is half of the 16-bit register index; the 9-byte read returns zeros, as a direct read of 0x9900 (outside the register map) does. Nothing is written, as no data byte follows. The configuration (0x2D-0x85), VHV (0x0008-0x000B), offsets (0x0016-0x0023) and oscillator calibration (0x00DE) unchanged; ranging carried on (0x0087 = 0x40), valid ranges before and after (447-458 mm, 456-458 mm). Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
     "devInfoJson": {
         "name": "Distance Sensor",
         "desc": "",
         "manu": "ST",
         "type": "VL53L1X",
-        "clas": ["DIST"],
+        "clas": [
+            "DIST"
+        ],
         "resp": {
-            "b": 3,
+            "b": 16,
             "a": [
                 {
                     "n": "valid",
                     "t": "B",
+                    "at": 1,
                     "u": "",
-                    "r": [0, 1],
-                    "m": "0x04",
-                    "x": "0x04",
-                    "s": 2,
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x1F",
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false,
+                    "lut": [
+                        {
+                            "r": "9",
+                            "v": 1
+                        },
+                        {
+                            "r": "",
+                            "v": 0
+                        }
+                    ]
+                },
+                {
+                    "n": "rangeStatus",
+                    "t": "B",
+                    "at": 1,
+                    "u": "",
+                    "r": [
+                        0,
+                        31
+                    ],
+                    "m": "0x1F",
+                    "f": "d",
+                    "o": "uint8",
+                    "vs": false,
+                    "vl": {
+                        "9": "OK",
+                        "6": "sigma",
+                        "4": "signal",
+                        "5": "phase",
+                        "7": "wrap"
+                    }
+                },
+                {
+                    "n": "fresh",
+                    "t": "B",
+                    "at": 0,
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x01",
                     "f": "b",
                     "o": "bool",
                     "vs": false
@@ -34,13 +90,59 @@
                 {
                     "n": "dist",
                     "t": ">H",
+                    "at": 14,
                     "u": "mm",
-                    "r": [0, 4000],
+                    "r": [
+                        0,
+                        4000
+                    ],
                     "f": "4d",
                     "o": "uint16",
                     "vft": "valid"
                 }
             ]
-        }
+        },
+        "actions": [
+            {
+                "n": "_conf.rate",
+                "t": "B",
+                "r": [
+                    1,
+                    10
+                ],
+                "d": 10,
+                "desc": "Sample rate (Hz)",
+                "map": {
+                    "1": {
+                        "i": 1000000,
+                        "s": 1
+                    },
+                    "2": {
+                        "i": 500000,
+                        "s": 1
+                    },
+                    "5": {
+                        "i": 200000,
+                        "s": 1
+                    },
+                    "10": {
+                        "i": 100000,
+                        "s": 1
+                    }
+                }
+            },
+            {
+                "n": "distance mode",
+                "desc": "Long: up to about 4 m. Short: up to about 1.3 m, better in bright light (each with a 100 ms timing budget)",
+                "map": {
+                    "long": {
+                        "w": "008700&004b0a&00600f&00630d&0069b8&00780f0d&007a0e0e&005e01cc&006101ea&008601&008740"
+                    },
+                    "short": {
+                        "w": "008700&004b14&006007&006305&006938&00780705&007a0606&005e02e1&00610388&008601&008740"
+                    }
+                }
+            }
+        ]
     }
 }

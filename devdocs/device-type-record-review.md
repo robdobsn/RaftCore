@@ -355,7 +355,7 @@ This follows Stage 12 of `device-identification-improvement-plan.md` and extends
 | VEML6040 | m | No detection: documented reserved CONF bits first | - | yes |
 | VEML7700 | S | `als` is raw counts labelled lux (×0.0672 at gain 1/100 ms) | scaling | no |
 | VL53L0X | S | Init omits ST tuning and reference calibrations; signal limit 0.5 vs 0.25 MCPS. Needs `identPriority` 3 to protect it at 0x29. **Done 2026-10-26:** Pololu's full init with the SPAD setup (computed-init-values.md §8) | - | yes |
-| VL53L1X | S | Init doesn't configure or start ranging (index-only writes): almost certainly doesn't range. No interrupt clear; `valid` test wrong | - | yes |
+| VL53L1X | S | Init doesn't configure or start ranging (index-only writes): almost certainly doesn't range. No interrupt clear; `valid` test wrong. **Done 2026-10-26:** ST's ULD init (its 0x002D = 0x01 write had made the sensor stop answering on I2C), interrupt clear, `valid` from the range status | - | yes |
 | VL53L4CD | m | No stop before reconfiguring; interrupt cleared before reading; `valid` test wrong | - | yes |
 | VL6180 | m | Init doesn't restore 0x001C (convergence) on re-init after `_conf.rate` | - | Axiom |
 | MAX30101 | S | Decode can read past its buffer (N not clamped to 8); no 18-bit mask. Init `0x11=0x21`; no wait after reset; manufacturer is Maxim, not Vishay | - | yes |
