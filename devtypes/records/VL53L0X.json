@@ -10,6 +10,13 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26, polling paused, single-shot ranges): the lone 0x99 moves the 8-bit register pointer to 0x99 and the 9-byte read returns ff ff ff ff ff ff ff 7f ff (0x99-0xA1, undocumented). Nothing is written, as no data byte follows. Registers 0x00-0x0F, 0x40-0x8F and 0xC0-0xC2 unchanged; ranges valid (status 0x5F) before and after, 127-161 mm before and 132-147 mm after, the same spread. Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
     "devInfoJson": {
         "name": "Distance Sensor",
         "desc": "",
