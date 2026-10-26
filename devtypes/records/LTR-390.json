@@ -1,18 +1,28 @@
 {
+    "_notes": "Lite-On LTR-390UV ambient light and UV sensor at 0x53 (fixed). 8-bit registers\nDetection: PART_ID (0x06) bits 7:4 = 0xB (the low bits are the revision)\nInit: MAIN_CTRL (0x00) = 0x10 - software reset, and 10 ms for it; ALS_UVS_MEAS_RATE (0x04) = 0x40 - 16-bit resolution, 25 ms; ALS_UVS_GAIN (0x05) = 0x01 - gain 3x (the reset value, written so the scaling below holds); 20 ms; MAIN_CTRL = 0x0A - UV mode, enabled\nPoll (250 ms): ALS_DATA (0x0D-0x0F) and the low two bytes of UVS_DATA (0x10-0x11) in one read; then ALS mode (MAIN_CTRL = 0x02) for 100 ms and back to UV mode (0x0A), so each poll reads the ambient light measured in ALS mode and the UV measured in UV mode since the last poll. The 100 ms pause splits the poll without holding the bus. At 16-bit resolution only the low two bytes of each are used\nambient is lux = 0.6 x ALS / (gain x integration factor) = ALS / 1.25 (gain 3, 25 ms is a factor of 0.25); UVI is the UV index = UVS / 24 (the datasheet's 2300 counts per UVI at gain 18x and 20-bit, 400 ms, scaled to gain 3x and 16-bit, 25 ms). Gain and resolution aren't actions, as they change these divisors\nSource: registers and formulas from the Lite-On LTR-390UV-01 datasheet",
     "addresses": "0x53",
     "detectionValues": "0x06=0b1011XXXX",
-    "initValues": "0x0010&0x0440&=p20&0x000A",
+    "initValues": "0x0010=p10&0x0440&0x0501&=p20&0x000A",
     "pollInfo": {
         "c": "0x0D=r5&0x0002=p100&0x000A",
         "i": 250,
         "s": 1
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26, measuring): the lone 0x99 (not a register) is NACKed. MAIN_CTRL, MEAS_RATE, GAIN, PART_ID, INT_CFG, INT_PST and the thresholds unchanged; measuring carried on. At 0x53 it is in Axiom's RSAO check range, so the probe reaches it when its record isn't compiled in"
+        }
     },
     "devInfoJson": {
         "name": "Light Sensor (UV and visible)",
         "desc": "",
         "manu": "Lite On",
         "type": "LTR-390",
-        "clas": ["LGHT"],
+        "clas": [
+            "LGHT"
+        ],
         "resp": {
             "b": 5,
             "a": [
@@ -20,7 +30,10 @@
                     "n": "ambient",
                     "t": "<H",
                     "u": "lux",
-                    "r": [0, 64000],
+                    "r": [
+                        0,
+                        64000
+                    ],
                     "d": 1.25,
                     "f": ".2f",
                     "o": "float"
@@ -30,7 +43,10 @@
                     "at": 3,
                     "t": "<H",
                     "u": "index",
-                    "r": [0, 64000],
+                    "r": [
+                        0,
+                        64000
+                    ],
                     "d": 24,
                     "f": ".3f",
                     "o": "float"

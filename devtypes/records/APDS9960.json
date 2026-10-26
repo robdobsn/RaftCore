@@ -1,0 +1,145 @@
+{
+    "_notes": "Broadcom APDS-9960 ambient light (red, green, blue, clear), proximity and gesture sensor at 0x39 (fixed). 8-bit registers\nDetection: ID (0x92) = 0xAB. The AS7341 is also at 0x39 and also has its ID at 0x92 (0x24 there), so each record's detection fails on the other\nInit (datasheet values): ENABLE (0x80) = 0x00 while configuring; ATIME (0x81) = 0xDB - 37 cycles, 103 ms ALS integration (up to 37888 counts); PPULSE (0x8E) = 0x87 - 16 us pulses, 8 of them; proximity offsets (0x9D, 0x9E) = 0; CONFIG1 (0x8D) = 0x60 (reserved bits as the datasheet gives them, no long wait); CONTROL (0x8F) = 0x09 - LED 100 mA, proximity gain 4x, ALS gain 4x; CONFIG2 (0x90) = 0x01 (no LED boost; bit 0 reserved, written 1); CONFIG3 (0x9F) = 0x00 (all photodiodes for proximity); then ENABLE = 0x07 - power on, ALS and proximity on (no wait, no interrupts, no gesture)\nPoll (200 ms): STATUS (0x93), the four colour channels CDATA, RDATA, GDATA, BDATA (0x94-0x9B) and PDATA (0x9C) in one read. Colour channels are raw counts (the datasheet gives no lux formula); prox is 0-255, larger nearer. alsValid and proxValid are STATUS AVALID (bit 0) and PVALID (bit 1). Reading the data doesn't clear the interrupts: only the clear registers 0xE5-0xE7 do, which aren't accessed\nGesture sensing (the gesture FIFO, 0xFC-0xFF) isn't used: turning gestures into directions needs processing of the FIFO's photodiode data on the host\nThe ALS gain and proximity gain actions each write CONTROL, so each sets the other gain back to 4x (and the LED to 100 mA)\nSource: registers and values from the Broadcom APDS-9960 datasheet (AV02-4191EN)",
+    "addresses": "0x39",
+    "detectionValues": "0x92=0xAB",
+    "initValues": "0x8000&0x81db&0x8e87&0x9d00&0x9e00&0x8d60&0x8f09&0x9001&0x9f00&0x8007",
+    "pollInfo": {
+        "c": "0x93=r10",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26, measuring): the lone 0x99 moves the register pointer, and the read returns 0x99-0xA1 (GDATAH, BDATA, PDATA, the proximity offsets, CONFIG3 and the gesture thresholds); reading them clears nothing (only 0xE4-0xE7 do). ENABLE, ATIME, WTIME, the configuration and control (0x8C-0x90), offsets, CONFIG3, gesture configuration (0xA0-0xAB) and ID unchanged; ALS and proximity carried on. Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
+    "devInfoJson": {
+        "name": "Light, Colour & Proximity Sensor",
+        "desc": "",
+        "manu": "Broadcom",
+        "type": "APDS9960",
+        "clas": [
+            "LGHT",
+            "PROX"
+        ],
+        "resp": {
+            "b": 10,
+            "a": [
+                {
+                    "n": "clear",
+                    "t": "<H",
+                    "at": 1,
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "red",
+                    "t": "<H",
+                    "at": 3,
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "green",
+                    "t": "<H",
+                    "at": 5,
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "blue",
+                    "t": "<H",
+                    "at": 7,
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "prox",
+                    "t": "B",
+                    "at": 9,
+                    "u": "",
+                    "r": [
+                        0,
+                        255
+                    ],
+                    "f": "3d",
+                    "o": "uint8"
+                },
+                {
+                    "n": "alsValid",
+                    "t": "B",
+                    "at": 0,
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x01",
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                },
+                {
+                    "n": "proxValid",
+                    "t": "B",
+                    "at": 0,
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x02",
+                    "s": 1,
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                }
+            ]
+        },
+        "actions": [
+            {
+                "n": "ALS gain",
+                "desc": "Colour channels gain (sets the proximity gain to 4x)",
+                "map": {
+                    "1x": "8f08",
+                    "4x": "8f09",
+                    "16x": "8f0a",
+                    "64x": "8f0b"
+                }
+            },
+            {
+                "n": "proximity gain",
+                "desc": "Proximity gain (sets the ALS gain to 4x)",
+                "map": {
+                    "1x": "8f01",
+                    "2x": "8f05",
+                    "4x": "8f09",
+                    "8x": "8f0d"
+                }
+            }
+        ]
+    }
+}

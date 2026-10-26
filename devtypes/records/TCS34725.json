@@ -1,0 +1,140 @@
+{
+    "_notes": "ams TCS34725 colour light-to-digital converter (red, green, blue and clear, with an IR filter) at 0x29 (fixed). Each register access is a command byte: 0x80 (CMD) | the register, or 0xA0 for an auto-increment read of several\nDetection: ID (0x12, command 0x92) = 0x44 (TCS34721/TCS34725) or 0x4D (TCS34723/TCS34727). identPriority 4, as the TSL2591, puts it before the VL53L0X, VL6180, VL53L1X, VL53L4CD and LTR-329 at 0x29: its detection read (and the TSL2591's, 0xB2) only sets those sensors' register index, while their detection writes would reach it as data\nInit: ATIME (0x01) = 0xD6 - 42 cycles, 101 ms integration (up to 43008 counts); CONTROL (0x0F) = 0x01 - 4x gain; ENABLE (0x00) = 0x01 (power on), 3 ms, then 0x03 (power on, ADC on; no interrupts, no wait)\nPoll (200 ms): ATIME (0x01), CONTROL (0x0F), then STATUS and the four channels CDATA, RDATA, GDATA, BDATA (0x13-0x1B) in one auto-increment read. valid is 1 when STATUS AVALID (bit 0) is set and clear is below saturation (65535, or 75% of 1024 x cycles up to 64 cycles, for ripple, as Adafruit's library takes it). The decode code calculates lux and the correlated colour temperature (cct, K) as ams's design note DN40 gives them: the IR content (R + G + B - C) / 2 taken from each channel, lux = (0.136 R' + G' - 0.444 B') / CPL with CPL = integration time (ms) x gain / 310 (open air, no glass), cct = 3810 B' / R' + 1391. It uses ATIME and the gain read back, so the gain and integration time actions need no other change\nSource: the lux and colour temperature calculation and coefficients from ams's design note DN40 (Lux and CCT calculations using ams colour sensors), as Adafruit's TCS34725 library (https://github.com/adafruit/Adafruit_TCS34725, calculateColorTemperature_dn40, BSD-3-Clause) implements the colour temperature and saturation check; see RaftCore's THIRD_PARTY_NOTICES.md. Registers from the ams TCS3472 datasheet",
+    "addresses": "0x29",
+    "identPriority": 4,
+    "detectionValues": "0x92=0x44,0x4D",
+    "initValues": "0x81d6&0x8f01&0x8001=p3&0x8003",
+    "pollInfo": {
+        "c": "0x81=r1&0x8f=r1&0xb3=r9",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26, measuring): 0x99 is a command with a reserved transaction type; the read returns 00 6D then zeros and 14 03 D6. ENABLE, ATIME, WTIME, thresholds, PERS, CONFIG, CONTROL (0x00-0x0F) and ID unchanged; measuring carried on. Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
+    "devInfoJson": {
+        "name": "Colour Sensor",
+        "desc": "",
+        "manu": "ams",
+        "type": "TCS34725",
+        "clas": [
+            "LGHT"
+        ],
+        "resp": {
+            "b": 11,
+            "a": [
+                {
+                    "n": "lux",
+                    "t": "<f",
+                    "u": "lux",
+                    "r": [
+                        0,
+                        10000
+                    ],
+                    "f": ".1f",
+                    "o": "float",
+                    "vft": "valid"
+                },
+                {
+                    "n": "cct",
+                    "t": "<H",
+                    "u": "K",
+                    "r": [
+                        0,
+                        20000
+                    ],
+                    "f": "5d",
+                    "o": "uint16",
+                    "vft": "valid"
+                },
+                {
+                    "n": "clear",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "red",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "green",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "blue",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                }
+            ],
+            "c": {
+                "n": "tcs34725_lux_cct",
+                "c": "int atime=buf[0];int g=buf[1]&3;float again=1.0;if(g==1){again=4.0;}if(g==2){again=16.0;}if(g==3){again=60.0;}int cycles=256-atime;float atms=cycles*2.4;int c=buf[3]|(buf[4]<<8);int r=buf[5]|(buf[6]<<8);int gr=buf[7]|(buf[8]<<8);int b=buf[9]|(buf[10]<<8);out.clear=c;out.red=r;out.green=gr;out.blue=b;out.valid=0;out.lux=0.0;out.cct=0;int sat=65535;if(cycles<=63){sat=1024*cycles;sat=sat-(sat/4);}if(((buf[2]&1)==1)&&(c<sat)){int ir=0;if((r+gr+b)>c){ir=(r+gr+b-c)/2;}int rp=r-ir;int gp=gr-ir;int bp=b-ir;float lux=((0.136*rp)+gp-(0.444*bp))/((atms*again)/310.0);if(lux<0.0){lux=0.0;}out.lux=lux;if(rp>0){out.cct=((3810*bp)/rp)+1391;}out.valid=1;}next;"
+            }
+        },
+        "actions": [
+            {
+                "n": "gain",
+                "desc": "Gain",
+                "map": {
+                    "1x": "8f00",
+                    "4x": "8f01",
+                    "16x": "8f02",
+                    "60x": "8f03"
+                }
+            },
+            {
+                "n": "integration time",
+                "desc": "Integration time (longer is more sensitive; up to 154 ms keeps a new reading for each 200 ms poll)",
+                "map": {
+                    "24 ms": "81f6",
+                    "50 ms": "81eb",
+                    "101 ms": "81d6",
+                    "154 ms": "81c0"
+                }
+            }
+        ]
+    }
+}
