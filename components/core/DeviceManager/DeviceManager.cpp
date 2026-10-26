@@ -7,6 +7,7 @@
 #include <functional>
 #include <algorithm>
 #include <atomic>
+#include <memory>
 #include "DeviceManager.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeRecords.h"
@@ -1495,16 +1496,73 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     if (!pBus)
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
 
-    // Data to write and number of bytes to read
+    // Data to write and number of bytes to read. hexWrs is several writes, comma separated, sent as a batch: one
+    // after the other with no poll (or anything else) on the bus between them - for a device action that must not be
+    // split by a poll of the device. The read (numToRd) follows the last write
     String hexWriteData = jsonParams.getString("hexWr", "");
     int numBytesToRead = jsonParams.getLong("numToRd", 0);
+    std::vector<std::vector<uint8_t>> batchWrites;
+    String hexWrites = jsonParams.getString("hexWrs", "");
+    if (hexWrites.length() > 0)
+    {
+        int start = 0;
+        while (start <= (int)hexWrites.length())
+        {
+            int comma = hexWrites.indexOf(',', start);
+            if (comma < 0)
+                comma = hexWrites.length();
+            String hexWrite = hexWrites.substring(start, comma);
+            start = comma + 1;
+            uint32_t numBytes = hexWrite.length() / 2;
+            if ((numBytes == 0) || (hexWrite.length() % 2 != 0) || (batchWrites.size() >= CMDRAW_MAX_BATCH_WRITES))
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBadHexWrs");
+            std::vector<uint8_t> batchWrite(numBytes);
+            if (Raft::getBytesFromHexStr(hexWrite.c_str(), batchWrite.data(), numBytes) != numBytes)
+                return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBadHexWrs");
+            batchWrites.push_back(batchWrite);
+        }
+        // The last write is sent as the request (with the read); the others go before it in the batch
+        hexWriteData = "";
+    }
+    uint32_t numWrites = batchWrites.empty() ? 1 : batchWrites.size();
 
     // Convert hex string to byte vector
-    uint32_t numBytesToWrite = hexWriteData.length() / 2;
     std::vector<uint8_t> writeVec;
-    writeVec.resize(numBytesToWrite);
-    uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeVec.data(), numBytesToWrite);
-    writeVec.resize(writeBytesLen);
+    if (!batchWrites.empty())
+    {
+        writeVec = batchWrites.back();
+        batchWrites.pop_back();
+    }
+    else
+    {
+        uint32_t numBytesToWrite = hexWriteData.length() / 2;
+        writeVec.resize(numBytesToWrite);
+        uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeVec.data(), numBytesToWrite);
+        writeVec.resize(writeBytesLen);
+    }
+
+    // The writes of a batch before the last: queued first, each marked as followed by the rest of the batch. The
+    // first of them to fail (if any) is reported in place of the last write's result
+    std::shared_ptr<RaftRetCode> pBatchResult = std::make_shared<RaftRetCode>(RAFT_OK);
+    auto queueBatchWrites = [&]() -> bool {
+        for (const std::vector<uint8_t>& batchWrite : batchWrites)
+        {
+            HWElemReq batchElemReq = {batchWrite, 0, (int)CMDID_CMDRAW_BASE, "cmdraw", 0};
+            BusRequestInfo batchReqInfo("", deviceID.getAddress());
+            batchReqInfo.set(BUS_REQ_TYPE_STD, batchElemReq, 0,
+                    [pBatchResult](void* /*pCallbackData*/, BusRequestResult& reqResult)
+                        {
+                            if ((*pBatchResult == RAFT_OK) && !reqResult.isResultOk())
+                                *pBatchResult = reqResult.getResult();
+                        },
+                    nullptr);
+            batchReqInfo.setBatchFollows(true);
+            if (!pBus->addRequest(batchReqInfo))
+                return false;
+        }
+        return true;
+    };
+    String numWritesJson = numWrites > 1 ? "\"numWr\":" + String(numWrites) : "";
 
     // Generation-stamped cmdId (used for read-back matching)
     static uint32_t cmdRawGeneration = 0;
@@ -1526,16 +1584,19 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
             HWElemReq hwElemReq = {writeVec, numBytesToRead, (int)cmdId, "cmdraw", 0};
             BusRequestInfo busReqInfo("", deviceID.getAddress());
             busReqInfo.set(BUS_REQ_TYPE_STD, hwElemReq, 0,
-                    [pRestAPIEndpointManager, deferToken, reqStrCopy](void* /*pCallbackData*/, BusRequestResult& reqResult)
+                    [pRestAPIEndpointManager, deferToken, reqStrCopy, pBatchResult, numWritesJson](void* /*pCallbackData*/, BusRequestResult& reqResult)
                         {
                             String deferredRespStr;
-                            formBusCmdResponse(reqStrCopy.c_str(), reqResult, deferredRespStr);
+                            if (*pBatchResult != RAFT_OK)
+                                Raft::setJsonErrorResult(reqStrCopy.c_str(), deferredRespStr, Raft::getRetCodeStr(*pBatchResult));
+                            else
+                                formBusCmdResponse(reqStrCopy.c_str(), reqResult, deferredRespStr, numWritesJson);
                             pRestAPIEndpointManager->completeDeferred(deferToken, deferredRespStr);
                         },
                     nullptr);
 
-            // Send request to bus - if it can't be queued then respond now
-            if (!pBus->addRequest(busReqInfo))
+            // Send the requests to the bus - if they can't be queued then respond now
+            if (!queueBatchWrites() || !pBus->addRequest(busReqInfo))
             {
                 pRestAPIEndpointManager->getDeferredResponses().cancel(deferToken);
                 return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBusQueueFull");
@@ -1577,8 +1638,8 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
                     outStr.c_str());
 #endif
 
-    // Send request to bus
-    bool rslt = pBus->addRequest(busReqInfo);
+    // Send the requests to bus
+    bool rslt = queueBatchWrites() && pBus->addRequest(busReqInfo);
     if (!rslt)
         LOG_W(MODULE_PREFIX, "apiHWDevice failed send raw command");
 
@@ -1616,10 +1677,12 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
         String hexRead;
         Raft::getHexStrFromBytes(_cmdRawReadData.data(), _cmdRawReadData.size(), hexRead);
         String otherJson = "\"rdData\":\"" + hexRead + "\"";
+        if (numWritesJson.length() > 0)
+            otherJson += "," + numWritesJson;
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, otherJson.c_str());
     }
 
-    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, rslt);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, rslt, numWritesJson.length() > 0 ? numWritesJson.c_str() : nullptr);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1627,17 +1690,21 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
 /// @param reqStr request string
 /// @param reqResult result of the bus request
 /// @param respStr (out) response - ok (with the data read as "rdData" hex if a read was requested) or the bus error
-void DeviceManager::formBusCmdResponse(const char* reqStr, BusRequestResult& reqResult, String& respStr)
+/// @param extraJson more name/value pairs for an ok response (e.g. "numWr":3), or empty
+void DeviceManager::formBusCmdResponse(const char* reqStr, BusRequestResult& reqResult, String& respStr,
+            const String& extraJson)
 {
     if (reqResult.isResultOk() && (reqResult.getReadDataLen() == 0))
     {
-        Raft::setJsonBoolResult(reqStr, respStr, true);
+        Raft::setJsonBoolResult(reqStr, respStr, true, extraJson.length() > 0 ? extraJson.c_str() : nullptr);
     }
     else if (reqResult.isResultOk())
     {
         String hexRead;
         Raft::getHexStrFromBytes(reqResult.getReadData(), reqResult.getReadDataLen(), hexRead);
         String otherJson = "\"rdData\":\"" + hexRead + "\"";
+        if (extraJson.length() > 0)
+            otherJson += "," + extraJson;
         Raft::setJsonBoolResult(reqStr, respStr, true, otherJson.c_str());
     }
     else
@@ -2004,7 +2071,9 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
             String writePrefix = devInfoJsonDoc.getString(("actions[" + idxStr + "]/w").c_str(), "");
 
             // Handle &-separated multi-write map values (e.g. "1048&114C&0a26")
-            // Each segment is a self-contained register+data hex string
+            // Each segment is a self-contained register+data hex string. They are sent as a batch (no poll of the
+            // device between them): each but the last is marked as followed by the rest
+            std::vector<BusRequestInfo> segmentReqs;
             int segStart = 0;
             while (segStart <= (int)mappedHexValue.length())
             {
@@ -2023,18 +2092,25 @@ RaftRetCode DeviceManager::apiDevManDevConfig(const String &reqStr, String &resp
                 uint32_t writeBytesLen = Raft::getBytesFromHexStr(hexWriteData.c_str(), writeVec.data(), numBytes);
                 writeVec.resize(writeBytesLen);
 
-                // Create and send bus request
+                // Create bus request
                 static const uint32_t CMDID_DEVCONFIG = 101;
                 HWElemReq hwElemReq = {writeVec, 0, CMDID_DEVCONFIG, "devconfig", 0};
                 BusRequestInfo busReqInfo("", addr);
                 busReqInfo.set(BUS_REQ_TYPE_STD, hwElemReq, 0, nullptr, nullptr);
-                if (pBus->addRequest(busReqInfo))
-                    anyWriteSent = true;
+                segmentReqs.push_back(busReqInfo);
 
 #ifdef DEBUG_DEVICE_CONFIG_API
                 LOG_I(MODULE_PREFIX, "sampleRate action %s deviceID %s hexWr %s",
                         actionName.c_str(), deviceID.toString().c_str(), hexWriteData.c_str());
 #endif
+            }
+
+            // Send the writes as a batch
+            for (uint32_t segIdx = 0; segIdx < segmentReqs.size(); segIdx++)
+            {
+                segmentReqs[segIdx].setBatchFollows(segIdx + 1 < segmentReqs.size());
+                if (pBus->addRequest(segmentReqs[segIdx]))
+                    anyWriteSent = true;
             }
         }
 

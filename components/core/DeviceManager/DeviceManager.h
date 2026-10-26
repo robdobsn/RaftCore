@@ -303,7 +303,8 @@ private:
                 const APISourceInfo& sourceInfo);
 
     /// @brief Form the response to a command sent to a bus device (read data or bus error)
-    static void formBusCmdResponse(const char* reqStr, BusRequestResult& reqResult, String& respStr);
+    static void formBusCmdResponse(const char* reqStr, BusRequestResult& reqResult, String& respStr,
+                const String& extraJson = "");
 
 #ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
     /// @brief Handle devman/demo
@@ -333,6 +334,9 @@ private:
     // worker's callback to fill the buffer. The cmdId carries a generation count
     // so a late callback from an abandoned request can't satisfy a newer one.
     static const uint32_t CMDID_CMDRAW_BASE = 0x43520000;
+
+    // Most writes in a cmdraw batch (hexWrs)
+    static const uint32_t CMDRAW_MAX_BATCH_WRITES = 32;
     uint32_t _cmdRawInFlightCmdId = 0;
     volatile bool _cmdRawResultReady = false;
     RaftRetCode _cmdRawResult = RAFT_OK;
