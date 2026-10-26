@@ -82,7 +82,7 @@ Add an optional **init code** block, written in the same decode language as `res
 - **Type files:** a record may use slots only when it overrides a compiled record of the same key whose init code computes them, and the override then **inherits the compiled function**, as it inherits the decoder. `initCode` in a type file is ignored, with a warning, in that case and rejected otherwise. `build_type_file` applies the same rule before upload.
 - **Type files with the code interpreter (2026-10-19,** `RAFT_RUNTIME_DECODE_CODE`, `runtime-decoding.md` §5**):** a type file record's own `initCode` is run by the interpreter, for a new key or an override. It must compute every slot and guard its init string uses. Without the interpreter the rule above stays.
 - **Records:** BME680 and BME690 compute `res_heat_0` (`{heat}`) from par_g1-g3 (0xEB-0xEE) and res_heat_val/res_heat_range (0x00-0x02), at 320 °C and an assumed 25 °C ambient.
-- **Not done: VL53L0X SPAD setup.** Getting the SPAD count needs read-modify-writes in the middle of the sequence (register 0x83), so values computed at more than one point. That would mean running the init code again before each slot step with everything read so far. It also needs a VL53L0X to test.
+- **VL53L0X SPAD setup:** not done at first, as it needs values computed at more than one point. Done 2026-10-26 (section 8).
 
 **Tests:**
 - Grammar vectors (8 new), and fuzzing against the legacy parser, with slots treated as intended differences.
@@ -113,3 +113,44 @@ Add an optional **init code** block, written in the same decode language as `res
 - `test_device_type_records` `testInitGuards`: the SCD30 record with the interval already 2 s (skipped), 5 s and garbage reads (written); too few bytes fails.
 - `test_device_type_file`: a guard override of SCD30 accepted with the compiled code; a guard on a new key rejected.
 - Python: generator output and errors for guards.
+
+## 8. Values computed at more than one point (2026-10-26)
+
+**Why:** the VL53L0X's recommended init (ST's API, as Pololu's vl53l0x-arduino does it) reads, changes and writes back
+registers all through the sequence: register 0x83 twice around the SPAD information read, then the reference SPAD map
+(from the SPAD count and type), the GPIO polarity, the final range timeout (from the timing budget, read from the
+sequence step timeouts after the tuning settings), and the stop variable when ranging starts. With the values computed
+once, before the first step with a slot or guard, the later reads couldn't be used.
+
+**Change:**
+- **Runtime** (`DeviceTypeRecords`): the bytes every init step reads are kept (not only those before the first slot), and
+  the values are computed again before a step with a slot or guard when more bytes have been read since they were last
+  computed. Records whose reads all come before their first slot (BME680, BME690, SCD30) compute once, as before.
+- **Reads checked at every slot:** before a step that uses values, every byte the earlier steps read must be there (the
+  bytes of steps skipped by their guard are allowed for), so a read NACKed after the first slot fails init, as one
+  before it always did, rather than compute values from the wrong bytes.
+- **Generated function bounds-checked:** code for a value that a later read gives runs, at the earlier slots, before
+  that read is done. The generator makes each `buf[i]` read `bufAt(i)`, which gives 0 past the bytes read so far, as
+  the code interpreter (type files, `RAFT_RUNTIME_DECODE_CODE`) already did, so the two agree and the compiled code
+  can't read past the end of the buffer. The function's own check (the bytes read before the first slot) is unchanged.
+- **Unchanged:** the grammar, type files (an override still inherits the compiled function), raftjs and RaftI2C
+  (`runInitSteps` already noted every read and asked for each slot step's write).
+
+**VL53L0X record:** Pololu's full init with 15 init values: 2V8 mode (0x89), the 0x83 strobe bits, the SPAD map
+(0xB0-0xB5), GPIO active low (0x84), the final range timeout (0x71-0x72, behind a guard that skips it if the budget
+can't be kept, as `setMeasurementTimingBudget` refuses) and the stop variable; ST's tuning settings; VHV and phase
+calibration; continuous back-to-back ranging. Waits for the device (the NVM strobe, the calibrations) are pauses.
+
+**Tests:**
+- `test_device_type_records` `testInitValuesMultiPoint`: the VL53L0X init run step by step with known reads gives
+  Pololu's writes (SPAD map for 5 aperture SPADs, final range timeout 0x0290 for the 33849 us budget); a NACKed SPAD map
+  read fails init at the next slot. `testInitValues`: later reads are now kept.
+- `test_runtime_decoder`: the compiled init functions and the interpreter agree on random buffers of every length,
+  including ones shorter than the VL53L0X code reads.
+- Python generator test: `bufAt` in the generated function.
+
+**Axiom018 (2026-10-26), a VL53L0X on slot 3:** identified; after init 0x89 = 0x01, 0x44 = 0x0020, 0x01 = 0xE8,
+0x0A = 0x04, 0x84 = 0x01, 0x71 = 0x0290 (Pololu's value), 0xB6 = 0xB4, ranging back to back. The SPAD information read
+directly afterwards was 0x8F (aperture, 15 SPADs) and the map was 00 F0 FF 07 00 00, 15 SPADs from SPAD 12. Ranges
+valid (status 11) and within about 3 mm (38-44 mm at about 4 cm), where the earlier record's single-shot ranges spread
+over 30 mm or more; the same after a restart without a power cycle.

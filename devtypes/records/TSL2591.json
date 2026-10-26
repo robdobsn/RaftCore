@@ -1,0 +1,96 @@
+{
+    "_notes": "ams TSL2591 high dynamic range light sensor (visible and infrared photodiodes, 600M:1 range) at 0x29 (fixed). Each register access is a command byte: 0xA0 (CMD, normal transaction) | the register\nDetection: ID (0x12, command 0xB2) = 0x50. identPriority 4 puts it before the VL53L0X, VL6180, VL53L1X, VL53L4CD and LTR-329 at 0x29: its detection read only sets those sensors' register index, while their detection writes (e.g. the VL6180's 16-bit index 0x0000, the VL53L1X's 0x010F) would reach it as data\nInit: CONFIG (0x01) = 0x10 - medium gain (25x), 100 ms integration; then ENABLE (0x00) = 0x03 - power on, ALS on (no interrupts)\nPoll (200 ms): CONFIG (0x01), then STATUS (0x13) and the two channels C0DATA (full spectrum, 0x14-0x15) and C1DATA (infrared, 0x16-0x17) in one read. valid is 1 when STATUS AVALID (bit 0) is set and neither channel is saturated (0xFFFF). The decode code calculates lux from the channels with ams's coefficients as Adafruit's library does: lux = (full - ir) x (1 - ir / full) / cpl, cpl = integration time (ms) x gain / 408, using the gain and integration time read from CONFIG, so the gain action needs no other change\nGain (action): low (1x, for bright light), medium (25x, the default), high (428x) or max (9876x, for very dim light); the integration time stays 100 ms. In bright light at a high gain the channels saturate and valid is 0\nSource: the lux calculation and its coefficients are from Adafruit's TSL2591 library (https://github.com/adafruit/Adafruit_TSL2591_Library, calculateLux), BSD-3-Clause; see RaftCore's THIRD_PARTY_NOTICES.md for its notice. Registers from the ams TSL2591 datasheet",
+    "addresses": "0x29",
+    "identPriority": 4,
+    "detectionValues": "0xB2=0x50",
+    "initValues": "0xA110&0xA003",
+    "pollInfo": {
+        "c": "0xA1=r1&0xB3=r5",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26, powered down and then measuring): 0x99 is a command with a reserved transaction type; the read returns 30 93 42 40 then zeros. ENABLE, CONFIG, the thresholds (0x00-0x07) and PERSIST (0x0C) unchanged; measuring carried on (AVALID set, the channels the same before and after). Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
+    "devInfoJson": {
+        "name": "Light Sensor (high dynamic range)",
+        "desc": "",
+        "manu": "ams",
+        "type": "TSL2591",
+        "clas": [
+            "LGHT"
+        ],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "lux",
+                    "t": "<f",
+                    "u": "lux",
+                    "r": [
+                        0,
+                        88000
+                    ],
+                    "f": ".3f",
+                    "o": "float",
+                    "vft": "valid"
+                },
+                {
+                    "n": "full",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "ir",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                }
+            ],
+            "c": {
+                "n": "tsl2591_lux",
+                "c": "int cfg=buf[0];int g=(cfg>>4)&3;int t=cfg&7;float again=1.0;if(g==1){again=25.0;}if(g==2){again=428.0;}if(g==3){again=9876.0;}float atime=100.0*(t+1);int ch0=buf[2]|(buf[3]<<8);int ch1=buf[4]|(buf[5]<<8);int valid=0;float lux=0.0;if(((buf[1]&1)==1)&&(ch0<65535)&&(ch1<65535)&&(ch0>0)){float cpl=(atime*again)/408.0;lux=((ch0-ch1)*(1.0-(ch1/(ch0*1.0))))/cpl;if(lux<0.0){lux=0.0;}valid=1;}out.lux=lux;out.full=ch0;out.ir=ch1;out.valid=valid;next;"
+            }
+        },
+        "actions": [
+            {
+                "n": "gain",
+                "desc": "Gain (integration time 100 ms): low for bright light, max for very dim light",
+                "map": {
+                    "low": "a100",
+                    "medium": "a110",
+                    "high": "a120",
+                    "max": "a130"
+                }
+            }
+        ]
+    }
+}

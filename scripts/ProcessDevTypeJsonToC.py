@@ -113,15 +113,39 @@ def init_values(dev_type, dev_type_key):
     for problem in PseudocodeHandler().check_code(code, [], code_kind="init"):
         print(f"INIT CODE WARNING: record \"{dev_type_key}\" initCode: {problem}")
     handler = PseudocodeHandler()
-    body = handler.generate_cpp_code(list(handler.lexer(code)),
+    body = handler.generate_cpp_code(bounded_buf_reads(list(handler.lexer(code))),
                                      {rf"^init\.{name}$": f"pValues[{idx}]" for idx, name in enumerate(names)})
     body = "\n".join("            " + line for line in body.strip().split("\n"))
     fn = ("[](const uint8_t* buf, uint32_t readBufLen, int32_t* pValues, uint32_t numValues) -> bool {\n"
           f"            if ((readBufLen < {read_before_slots}) || (numValues < {len(names)})) return false;\n"
+          "            auto bufAt = [buf, readBufLen](int32_t i) -> int32_t { return ((i >= 0) && ((uint32_t)i < readBufLen)) ? buf[i] : 0; };\n"
+          "            (void)bufAt;\n"
           f"{body}\n"
           "            return true;\n"
           "        }")
     return names, fn
+
+
+def bounded_buf_reads(tokens):
+    """Init code tokens with each buf[<index>] read made bufAt(<index>), which gives 0 past the bytes read so far - as
+    the code interpreter does. The values are computed again before each init step that uses them, from the bytes
+    read by then, so code for a value that a later read gives runs before that read is done"""
+    result = []
+    depth = []
+    for i, (kind, value) in enumerate(tokens):
+        if kind == "ID" and value == "buf" and (i + 1 < len(tokens)) and tokens[i + 1][0] == "LBRACK":
+            result.append(("ID", "bufAt"))
+            continue
+        if kind == "LBRACK":
+            is_buf = bool(result) and result[-1] == ("ID", "bufAt")
+            depth.append(is_buf)
+            result.append(("LPAREN", "(") if is_buf else (kind, value))
+            continue
+        if kind == "RBRACK" and depth:
+            result.append(("RPAREN", ")") if depth.pop() else (kind, value))
+            continue
+        result.append((kind, value))
+    return result
 
 
 def record_initial_policy(dev_type, dev_type_key):

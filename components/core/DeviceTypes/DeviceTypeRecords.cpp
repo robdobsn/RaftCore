@@ -503,14 +503,27 @@ bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, ui
         start = comma + 1;
     }
 
-    // Compute the values from the bytes read so far (once)
-    if (!state.computed)
+    // Every byte the earlier steps read must be there (a NACKed read leaves the values computed from the wrong bytes)
+    uint32_t readBeforeStep = 0;
+    for (uint32_t i = 0; i < stepIdx; i++)
+        readBeforeStep += pCompiled->init.steps[i].readLen;
+    if (state.readData.size() + state.skippedReadLen < readBeforeStep)
+    {
+        LOG_W(MODULE_PREFIX, "getInitStepWrite %s init values not computed (%d bytes read of %d)", pRec->deviceType,
+                    (int)state.readData.size(), (int)(readBeforeStep - state.skippedReadLen));
+        return false;
+    }
+
+    // Compute the values from the bytes read so far - again if more have been read since they were last computed
+    if (!state.computed || (state.readData.size() != state.computedReadLen))
     {
         if (!pRec->initValuesFn || names.empty())
         {
             LOG_W(MODULE_PREFIX, "getInitStepWrite %s uses init values but has no init values function", pRec->deviceType);
             return false;
         }
+        // The function is given the bytes read so far: code for a value that a later read gives reads 0 for the bytes
+        // not read yet (the generated function and the interpreter both check the buffer bounds)
         state.values.assign(names.size(), 0);
         bool computed = pRec->initValuesFn(state.readData.data(), state.readData.size(), state.values.data(), state.values.size());
 #ifdef RAFT_RUNTIME_DECODE_VERIFY
@@ -526,6 +539,7 @@ bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, ui
             return false;
         }
         state.computed = true;
+        state.computedReadLen = state.readData.size();
     }
 
     // Index of a value by name (-1 if not computed)
@@ -546,6 +560,8 @@ bool DeviceTypeRecords::getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, ui
             return false;
         }
         doStep = state.values[valueIdx] != 0;
+        if (!doStep)
+            state.skippedReadLen += step.readLen;
     }
 
     // Fill in the slots

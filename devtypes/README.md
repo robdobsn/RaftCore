@@ -13,6 +13,10 @@ format is described on the wiki page *Device Type Record Format*.
 - **Sets:** `sets/<name>.json` (`{"records": [keys]}`) are named selections - `common` (about 10 popular sensors) and
   `extended` (about 25) - chosen in `DeviceTypeSources.json` as `"raftcore:@common"`. `raft new` offers them. A set
   naming a key that isn't a record stops the build, and the tests check RaftCore's own sets.
+- **Third-party sources:** a record whose init, decode or settings come from a third-party driver, library or
+  document says so in its `_notes` (the source, with a link, and its licence). If the licence asks for its notice to
+  be kept (MIT, BSD), add the record and the notice to `THIRD_PARTY_NOTICES.md` at the top of RaftCore. Use only
+  sources whose licence allows it - not code without a licence, or under one such as the GPL.
 - **Board choices** (poll bus speed and slots, poll interval, samples kept, sample rate, scan priority) are not part
   of a record: a SysType sets them in DevMan `typeSettings` (wiki page *DeviceManager Settings*).
 - **One file:** `python3 scripts/AssembleDeviceTypes.py --raftcore . --all --out DeviceTypeRecords.json` writes every

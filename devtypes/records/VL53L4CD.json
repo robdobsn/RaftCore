@@ -1,46 +1,168 @@
 {
-    "_notes": "ToF distance sensor with range 0-1.3m",
+    "_notes": "VL53L4CD time-of-flight distance sensor, up to about 1.3 m, at 0x29 (fixed at power-up). 16-bit register index\nDetection: IDENTIFICATION__MODEL_ID (0x010F) = 0xEB and MODULE_TYPE (0x0110) = 0xAA. The VL53L4CX reads the same (ST's VL53L4CX driver identifies it by these two values too, IsL4()), so a VL53L4CX is identified as this record and runs as described here: on-chip ranging, as the VL53L4CD does, not the VL53L4CX's histogram ranging (up to about 6 m, done by ST's driver on the host - not possible in a record, see RaftCore devdocs/vl53l4cx-histogram-ranging-plan.md, parked). On Axiom018 (2026-10-26) a VL53L4CX (revision 0x10) ranged with this record\nInit: ST's VL53L4CD Ultra Lite Driver (ULD) VL53L4CD_SensorInit: its default configuration (0x2D-0x87, written in three blocks then 0x87), except bit 0 of 0x2E and 0x2F set (I2C and GPIO pull-ups at AVDD, as on breakout boards, where the ULD's default is pull-ups at 1.8 V); a warm-up range for VHV (0x87 = 0x40, a 200 ms pause in place of the ULD's wait for data ready), clear the interrupt, stop ranging (0x87 = 0x00), two VHV bounds (0x0008 = 0x09), VHV from the previous temperature (0x000B = 0x00), 0x0024 = 0x0500; then VL53L4CD_SetRangeTiming(50 ms, continuous): no inter-measurement period (0x006C = 0) and the range timeouts (0x005E, 0x0061) calculated by initCode from the sensor's oscillator frequency (0x0006) as the ULD does (skipped if it reads 0); then clear the interrupt and start continuous ranging (0x87 = 0x21)\nPoll: GPIO__TIO_HV_STATUS (0x0031), then 15 bytes from RESULT__RANGE_STATUS (0x0089-0x0097), then clear the interrupt (0x0086 = 0x01). fresh is 1 when a new range is ready (0x0031 bit 0 is 0: the configuration's interrupt is active low, 0x0030 bit 4). rangeStatus is the raw status (0x0089 bits 4:0): 9 is a valid range (the ULD's status 0), 6 sigma, 4 signal, 5 phase, 7 wrap-around. sigma is the range's standard deviation estimate in mm (0x0092, /4); dist is the range in mm (0x0096)\nSample rate (_conf.rate) sets only the poll interval: the sensor ranges back to back with a 50 ms timing budget whatever the rate. A different timing budget isn't an action, as its timeouts are calculated from each sensor's oscillator frequency\nSource: the default configuration, the init and timing sequence and the status codes are from ST's VL53L4CD Ultra Lite Driver (as packaged by ST in https://github.com/stm32duino/VL53L4CD, src/vl53l4cd_api.cpp), BSD-3-Clause; see RaftCore's THIRD_PARTY_NOTICES.md for its notice",
     "addresses": "0x29",
     "identPriority": 1,
     "detectionValues": "0x010F=0xEBAA",
-    "initValues": "0x002D0001011102000208000810010100000000FF000F0000000000200B000002142100&0x004e000500000000c8000038ff010008000001cc0701f10500a0008008380000&006c00000f89000000000000000107050606000002c7ff9b000000010000&0x008740=p200&0x008601&0x008780&0x000809&0x000b00&0x00240500&0x006c00000000&0x005e02f2&0x006103a1&008721",
+    "initValues": "0x002d1201011102000208000810010100000000ff000f0000000000200b000002&0x004b142100000500000000c8000038ff010008000001cc0701f10500a0008008&0x006938000000000f89000000000000000107050606000002c7ff9b0000000100&0x008700&0x008740=p200&0x008601&0x008700&0x000809&0x000b00&0x00240500&0x0006=r2&0x006c00000000&{?setTiming}0x005e{ah}{al}&{?setTiming}0x0061{bh}{bl}&0x008601&0x008721",
+    "initCode": {
+        "n": "vl53l4cd_timing",
+        "c": "int osc=(buf[0]<<8)|buf[1];init.setTiming=0;init.ah=0;init.al=0;init.bh=0;init.bl=0;if(osc>1200){int macro=(2304*(1073741824/osc))>>6;int tb=(50000-2500)<<12;int t=(macro*16)>>6;int ls=((tb+(t>>1))/t)-1;int ms=0;while(ls>255){ls=ls>>1;ms=ms+1;}init.ah=ms;init.al=ls&0xff;t=(macro*12)>>6;ls=((tb+(t>>1))/t)-1;ms=0;while(ls>255){ls=ls>>1;ms=ms+1;}init.bh=ms;init.bl=ls&0xff;init.setTiming=1;}"
+    },
     "pollInfo": {
-        "c": "0x008601=&0x0089=r1&0x0096=r2",
+        "c": "0x0031=r1&0x0089=r15&0x008601",
         "i": 100,
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26, a VL53L4CX - it reads the VL53L4CD's identification): the lone 0x99 is half of the 16-bit register index; the 9-byte read returns zeros. Nothing is written, as no data byte follows. The configuration (0x2D-0x85), oscillator (0x0006), VHV (0x0008-0x000B), offsets (0x0016-0x0023) and oscillator calibration (0x00DE) unchanged; ranging carried on (0x0087 = 0x21). Its address is in Axiom's excluded RSAO range anyway"
+        }
+    },
     "devInfoJson": {
         "name": "Distance Sensor",
         "desc": "",
         "manu": "ST",
         "type": "VL53L4CD",
-        "clas": ["DIST"],
+        "clas": [
+            "DIST"
+        ],
         "resp": {
-            "b": 3,
+            "b": 16,
             "a": [
                 {
                     "n": "valid",
                     "t": "B",
+                    "at": 1,
                     "u": "",
-                    "r": [0, 1],
-                    "m": "0x04",
-                    "x": "0x04",
-                    "s": 2,
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x1F",
                     "f": "b",
                     "o": "bool",
+                    "vs": false,
+                    "lut": [
+                        {
+                            "r": "9",
+                            "v": 1
+                        },
+                        {
+                            "r": "",
+                            "v": 0
+                        }
+                    ]
+                },
+                {
+                    "n": "rangeStatus",
+                    "t": "B",
+                    "at": 1,
+                    "u": "",
+                    "r": [
+                        0,
+                        31
+                    ],
+                    "m": "0x1F",
+                    "f": "d",
+                    "o": "uint8",
+                    "vs": false,
+                    "vl": {
+                        "9": "OK",
+                        "6": "sigma",
+                        "4": "signal",
+                        "5": "phase",
+                        "7": "wrap"
+                    }
+                },
+                {
+                    "n": "fresh",
+                    "t": "B",
+                    "at": 0,
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x01",
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false,
+                    "lut": [
+                        {
+                            "r": "0",
+                            "v": 1
+                        },
+                        {
+                            "r": "",
+                            "v": 0
+                        }
+                    ]
+                },
+                {
+                    "n": "sigma",
+                    "t": ">H",
+                    "at": 10,
+                    "u": "mm",
+                    "r": [
+                        0,
+                        1000
+                    ],
+                    "d": 4,
+                    "f": "4.1f",
+                    "o": "float",
                     "vs": false
                 },
                 {
                     "n": "dist",
                     "t": ">H",
+                    "at": 14,
                     "u": "mm",
-                    "r": [0, 1000],
-                    "f": "3d",
+                    "r": [
+                        0,
+                        4000
+                    ],
+                    "f": "4d",
                     "o": "uint16",
                     "vft": "valid"
                 }
             ]
-        }
+        },
+        "actions": [
+            {
+                "n": "_conf.rate",
+                "t": "B",
+                "r": [
+                    1,
+                    20
+                ],
+                "d": 10,
+                "desc": "Sample rate (Hz)",
+                "map": {
+                    "1": {
+                        "i": 1000000,
+                        "s": 1
+                    },
+                    "2": {
+                        "i": 500000,
+                        "s": 1
+                    },
+                    "5": {
+                        "i": 200000,
+                        "s": 1
+                    },
+                    "10": {
+                        "i": 100000,
+                        "s": 1
+                    },
+                    "20": {
+                        "i": 50000,
+                        "s": 1
+                    }
+                }
+            }
+        ]
     }
 }

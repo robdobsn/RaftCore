@@ -479,10 +479,108 @@ static void testInitValues()
         TEST_ASSERT(ok && doStep && (write.size() == 2) && (write[0] == 0x5a) && (write[1] == c.expected), "heater set-point written");
         printf("  %s: res_heat_0 = 0x%02x (expected 0x%02x)\n", c.key, write.size() > 1 ? write[1] : 0, c.expected);
 
-        // Bytes read after the values are computed aren't kept
+        // Bytes read after the values are computed are kept, for a later step's values
         DeviceTypeRecords::noteInitStepRead(state, {0x01, 0x02});
-        TEST_ASSERT(state.readData.size() == 7, "reads after computing aren't kept");
+        TEST_ASSERT(state.readData.size() == 9, "reads after computing are kept");
     }
+}
+
+// Init values computed at more than one point: the VL53L0X record reads, changes and writes back registers through its
+// init (computed again before each step with a slot or guard, from everything read so far). Expected values from
+// Pololu's vl53l0x-arduino (getSpadInfo, the SPAD map, getMeasurementTimingBudget/setMeasurementTimingBudget)
+static void testInitValuesMultiPoint()
+{
+    printf("Running testInitValuesMultiPoint...\n");
+    DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
+    if (!deviceTypeRecords.getRecord("VL53L0X", idx))
+    {
+        fail("VL53L0X", "record not built in");
+        return;
+    }
+    std::shared_ptr<const DeviceTypeRecords::CompiledRecord> pCompiled = deviceTypeRecords.getCompiledRecord(idx);
+
+    // What each read step reads, in order: 0x89, stop_variable (0x91), 0x60, 0x83, SPAD info (0x92: aperture, 5 SPADs),
+    // 0x83, the reference SPAD map (0xB0-0xB5), 0x84, then the sequence config and timeouts as ST's tuning leaves them
+    const std::vector<std::vector<uint8_t>> reads = {
+        {0x00}, {0x3c}, {0x00}, {0x00}, {0x85}, {0x05}, {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, {0x11},
+        {0xf8}, {0x06}, {0x25}, {0x00, 0x96}, {0x04}, {0x01, 0xfe}};
+
+    // Run the steps as RaftI2C's runInitSteps does, keeping the write of each step that uses init values
+    auto runInit = [&](uint32_t nackReadIdx, std::vector<std::vector<uint8_t>>& slotWrites) -> bool {
+        DeviceTypeRecords::InitValueState state;
+        uint32_t readIdx = 0;
+        for (uint32_t stepIdx = 0; stepIdx < pCompiled->init.steps.size(); stepIdx++)
+        {
+            if (deviceTypeRecords.initStepUsesInitValues(idx, stepIdx))
+            {
+                std::vector<uint8_t> write;
+                bool doStep = false;
+                if (!deviceTypeRecords.getInitStepWrite(idx, stepIdx, state, write, doStep))
+                    return false;
+                if (doStep)
+                    slotWrites.push_back(write);
+            }
+            if (pCompiled->init.steps[stepIdx].readLen > 0)
+            {
+                if ((readIdx < reads.size()) && (readIdx != nackReadIdx))
+                    DeviceTypeRecords::noteInitStepRead(state, reads[readIdx]);
+                readIdx++;
+            }
+        }
+        return readIdx == reads.size();
+    };
+
+    std::vector<std::vector<uint8_t>> writes;
+    TEST_ASSERT(runInit(UINT32_MAX, writes), "init values computed at each step");
+    const std::vector<std::vector<uint8_t>> expected = {
+        {0x89, 0x01},                                   // 2V8 mode
+        {0x60, 0x12},                                   // MSRC and pre-range signal checks off
+        {0x83, 0x04},                                   // 0x83 | 0x04
+        {0x83, 0x01},                                   // 0x83 & ~0x04 (read again after the SPAD info)
+        {0xb0, 0x00, 0xf0, 0x01, 0x00, 0x00, 0x00},     // 5 aperture SPADs from SPAD 12
+        {0x84, 0x01},                                   // GPIO active low
+        {0x71, 0x02, 0x90},                             // final range timeout for the 33849 us budget
+        {0x91, 0x3c}};                                  // stop_variable written back to start ranging
+    TEST_ASSERT(writes == expected, "computed writes as Pololu's driver");
+    for (uint32_t i = 0; (i < writes.size()) && (writes != expected); i++)
+        printf("  write %d: %s\n", (int)i, bytesToHex(writes[i]).c_str());
+
+    // A read NACKed part way (the SPAD map): the next step with a slot fails rather than use the wrong bytes
+    std::vector<std::vector<uint8_t>> nackWrites;
+    TEST_ASSERT(!runInit(6, nackWrites) && (nackWrites.size() == 4), "a NACKed later read fails init at the next slot");
+
+    // VL53L4CD: the range timeouts for a 50 ms timing budget from the oscillator frequency (0x0006), as ST's ULD
+    // VL53L4CD_SetRangeTiming(50, 0) gives them - 0x02F2 and 0x03A1 for an Axiom018 unit's 0xBCA3; not written if
+    // the oscillator reads 0
+    DeviceTypeIndexType l4Idx = DEVICE_TYPE_INDEX_INVALID;
+    if (!deviceTypeRecords.getRecord("VL53L4CD", l4Idx))
+    {
+        fail("VL53L4CD", "record not built in");
+        return;
+    }
+    std::shared_ptr<const DeviceTypeRecords::CompiledRecord> pL4 = deviceTypeRecords.getCompiledRecord(l4Idx);
+    auto l4Writes = [&](const std::vector<uint8_t>& osc) {
+        std::vector<std::vector<uint8_t>> slotWrites;
+        DeviceTypeRecords::InitValueState state;
+        for (uint32_t stepIdx = 0; stepIdx < pL4->init.steps.size(); stepIdx++)
+        {
+            if (deviceTypeRecords.initStepUsesInitValues(l4Idx, stepIdx))
+            {
+                std::vector<uint8_t> write;
+                bool doStep = false;
+                if (!deviceTypeRecords.getInitStepWrite(l4Idx, stepIdx, state, write, doStep))
+                    return std::vector<std::vector<uint8_t>>{{0xff}};
+                if (doStep)
+                    slotWrites.push_back(write);
+            }
+            if (pL4->init.steps[stepIdx].readLen > 0)
+                DeviceTypeRecords::noteInitStepRead(state, osc);
+        }
+        return slotWrites;
+    };
+    TEST_ASSERT(l4Writes({0xbc, 0xa3}) == (std::vector<std::vector<uint8_t>>{{0x00, 0x5e, 0x02, 0xf2}, {0x00, 0x61, 0x03, 0xa1}}),
+                "VL53L4CD range timeouts as the ULD's");
+    TEST_ASSERT(l4Writes({0x00, 0x00}).empty(), "VL53L4CD timeouts not written for an oscillator reading of 0");
 }
 
 // Init guards: a {?name} step is only done if initCode's value isn't 0. The SCD30 record reads its measurement interval
@@ -630,6 +728,7 @@ int main(int argc, char** argv)
     testPollInfoDefaults();
     testBuiltInRecords();
     testInitValues();
+    testInitValuesMultiPoint();
     testInitGuards();
     testScd30Decode();
     for (int i = 1; i < argc; i++)

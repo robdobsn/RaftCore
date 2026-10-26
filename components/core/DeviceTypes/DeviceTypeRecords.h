@@ -194,34 +194,38 @@ public:
     /// @brief Get initialisation bus requests for a device type index (from the compiled record)
     void getInitBusRequests(BusElemAddrType addr, DeviceTypeIndexType deviceTypeIndex, std::vector<BusRequestInfo>& initRequests);
 
-    // Init values for one device's init (kept across the init's resumable pauses): the bytes the init steps read before
-    // the first step with a value slot or guard, and the values computed from them (devdocs/computed-init-values.md)
+    // Init values for one device's init (kept across the init's resumable pauses): the bytes the init steps have read,
+    // and the values computed from them - computed again before a step with a value slot or guard when more bytes have
+    // been read since, so a later step can use values from later reads (devdocs/computed-init-values.md)
     struct InitValueState
     {
         std::vector<uint8_t> readData;
         std::vector<int32_t> values;
         bool computed = false;
+        uint32_t computedReadLen = 0;   // bytes read when the values were last computed
+        uint32_t skippedReadLen = 0;    // bytes not read by steps skipped by their guard
     };
 
-    /// @brief Note the bytes an init step read (kept for the init values until they are computed)
+    /// @brief Note the bytes an init step read (kept for the init values)
     static void noteInitStepRead(InitValueState& state, const std::vector<uint8_t>& readData)
     {
-        if (!state.computed)
-            state.readData.insert(state.readData.end(), readData.begin(), readData.end());
+        state.readData.insert(state.readData.end(), readData.begin(), readData.end());
     }
 
     /// @brief Check whether an init step uses init values: value slots ({name} placeholders) or a guard ({?name})
     bool initStepUsesInitValues(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx) const;
 
     /// @brief Get an init step's write data with its value slots filled in, and whether its guard lets it run: the
-    ///        values are computed (once) by the record's init values function from the bytes read so far; each slot is
-    ///        written as one byte (0 to 255), and a guarded step is only done if its value isn't 0
+    ///        values are computed by the record's init values function from the bytes read so far (again if more have
+    ///        been read since they were last computed); each slot is written as one byte (0 to 255), and a guarded
+    ///        step is only done if its value isn't 0
     /// @param deviceTypeIndex device type index
     /// @param stepIdx init step index
     /// @param state init value state (values computed into it on first use)
     /// @param writeData (out) the step's write data
     /// @param doStep (out) false if the step's guard is 0 (the step is skipped: nothing written or read, no pause)
-    /// @return false if the values can't be computed (no function, an unknown name, or too few bytes read)
+    /// @return false if the values can't be computed (no function, an unknown name, or too few bytes read - including
+    ///         an earlier read step that was NACKed)
     bool getInitStepWrite(DeviceTypeIndexType deviceTypeIndex, uint32_t stepIdx, InitValueState& state,
                 std::vector<uint8_t>& writeData, bool& doStep) const;
 

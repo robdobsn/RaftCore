@@ -199,6 +199,20 @@ public:
     {
         return _barAccessForMsAfterSend;
     }
+
+    /// @brief Set whether the next queued request is part of the same batch - the bus sends the requests of a batch
+    ///        one after the other, with nothing else (no device poll, scan or other request) between them. Used for a
+    ///        device action of several writes that must not have a poll of the device in the middle (e.g. one which
+    ///        selects a register bank, writes, and selects the normal bank again)
+    void setBatchFollows(bool batchFollows)
+    {
+        _batchFollows = batchFollows;
+    }
+
+    bool isBatchFollows() const
+    {
+        return _batchFollows;
+    }
     
     void clear()
     {
@@ -209,6 +223,7 @@ public:
         _cmdId = 0;
         _readReqLen = 0;
         _barAccessForMsAfterSend = 0;
+        _batchFollows = false;
     }
 
 private:
@@ -244,4 +259,7 @@ private:
 
     // Bar access to element after request for a period
     uint16_t _barAccessForMsAfterSend = 0;
+
+    // The next queued request is part of the same batch (sent straight after this one)
+    bool _batchFollows = false;
 };
