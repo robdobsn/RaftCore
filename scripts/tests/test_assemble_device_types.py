@@ -549,7 +549,8 @@ class AssembleTests(unittest.TestCase):
         header = (self.tmp / "t.h").read_text()
         self.assertIn("int32_t* pValues", header)
         self.assertIn("if ((readBufLen < 1) || (numValues < 1)) return false;", header)
-        self.assertIn("pValues[0]=buf[0]+1;", header)
+        self.assertIn("pValues[0]=bufAt(0)+1;", header)
+        self.assertIn("return ((i >= 0) && ((uint32_t)i < readBufLen)) ? buf[i] : 0;", header)
         self.assertIn('R"JSON(heat)JSON"', header)
         # Value slots with no initCode, or a slot initCode doesn't compute: errors
         run = self.run_generator({"Heater": self.init_code_record(code=None)})

@@ -144,14 +144,14 @@ static void testPlanLifetimeAndLazyPlan()
     TEST_ASSERT(table.getRecord("VL53L0X", vlIdx), "VL53L0X record");
     table.getPollInfo(0x29, vlIdx, status.deviceIdentPolling);
     status.deviceIdentPolling.pollIntervalUs = INTERVAL_US;
-    TEST_ASSERT(status.getNumPollRequests() == 3, "new requests visible before the next poll");
+    TEST_ASSERT(status.getNumPollRequests() == 2, "new requests visible before the next poll");
     // (filling in the polling info starts its schedule again)
     DevicePollJob job2;
     uint64_t t = dueUs + INTERVAL_US;
     status.getNextPollDueUs(t, t);
     bool due = status.getPendingPollJob(t, job2);
     TEST_ASSERT(due && job2.pPlan && (job2.pPlan != pHeld), "a new plan");
-    TEST_ASSERT(job2.pPlan && (job2.pPlan->pollReqs.size() == 3) && (job2.pPlan->pollReqs[0].getAddress() == 0x29), "the new requests");
+    TEST_ASSERT(job2.pPlan && (job2.pPlan->pollReqs.size() == 2) && (job2.pPlan->pollReqs[0].getAddress() == 0x29), "the new requests");
     TEST_ASSERT((pHeld->pollReqs.size() == 2) && (pHeld->pollReqs[0].getAddress() == 0x6a), "the held plan is unchanged");
 
     // clear() drops the plan

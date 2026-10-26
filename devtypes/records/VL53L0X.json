@@ -1,11 +1,15 @@
 {
-    "_notes": "ToF distance sensor with range up to 2m. Initialization sequence adapted from the Pololu library.",
+    "_notes": "VL53L0X time-of-flight distance sensor, up to about 2 m, at 0x29 (fixed at power-up). 8-bit register index; some settings are on other register pages (0xFF selects the page)\nDetection: IDENTIFICATION_MODEL_ID (0xC0) = 0xEE and 0xC1 = 0xAA. identPriority 3 puts it first of the records at 0x29, as other records' detection writes (e.g. the VL6180's 16-bit index 0x0000) are register writes on a VL53L0X\nInit: Pololu's vl53l0x-arduino init (ST's VL53L0X_DataInit, StaticInit and PerformRefCalibration) then continuous back-to-back ranging, using computed init values (initCode) where it reads, changes and writes back a register: first SYSRANGE_START (0x00) = 0x01 and a 50 ms pause, which stops continuous ranging left running by a previous init (the sensor may not have been power cycled) or otherwise does one harmless single-shot range, then clear the interrupt; I/O in 2V8 mode (0x89 bit 0 set); stop_variable read from 0x91 (written back to 0x91 to start ranging); MSRC and pre-range signal rate checks off (0x60 |= 0x12); final range signal rate limit 0.25 MCPS (0x44 = 0x0020); reference SPADs: the count and type (aperture or not) read from NVM (0x92, after the 0x83/0x94 strobe sequence, 0x83 read and changed twice), the reference SPAD map read from 0xB0-0xB5, and the map written back with only the first <count> good SPADs enabled, from SPAD 12 for aperture SPADs; ST's default tuning settings (vl53l0x_tuning.h); interrupt on new sample ready, GPIO active low (0x84 bit 4 cleared); the timing budget read from the sequence step timeouts (0x01, 0x46, 0x50-0x52, 0x70-0x72; about 33 ms), MSRC and TCC steps off (0x01 = 0xE8), and the final range timeout (0x71-0x72) recalculated so the budget stays the same; VHV and phase reference calibrations (a 50 ms pause each instead of waiting for the interrupt); start continuous back-to-back ranging (0x00 = 0x02)\nPoll: RESULT_INTERRUPT_STATUS (0x13) and the 12 result bytes from RESULT_RANGE_STATUS (0x14-0x1F) in one read, then clear the interrupt (0x0B = 0x01). The range in mm is 0x1E-0x1F. rangeStatus is 0x14 bits 6:3: 11 is a valid range; with no target in range it is usually 4 (phase) or 6 and the range reads 8190 or 8191. fresh is 1 when a new range completed since the previous poll (0x13 bits 2:0 not 0); back-to-back ranging gives a new range about every 33 ms\nSample rate (_conf.rate) sets only the poll interval: the sensor ranges back to back whatever the rate. A longer timing budget (more accurate, slower) or a shorter one isn't an action, as the final range timeout for it is calculated from the sensor's timeouts",
     "addresses": "0x29",
     "identPriority": 3,
     "detectionValues": "0xC0=0xEE&0xC1=0xAA",
-    "initValues": "0x8800&0x440040&0x8001&0xff01&0x0000&0x91=r1&0x0001&0xff00&0x8000&0x0001",
+    "initValues": "0x0001=p50&0x0b01&0x89=r1&0x89{vhv}&0x8800&0x8001&0xff01&0x0000&0x91=r1&0x0001&0xff00&0x8000&0x60=r1&0x60{msrc}&0x440020&0x01ff&0x8001&0xff01&0x0000&0xff06&0x83=r1&0x83{p83a}&0xff07&0x8101&0x8001&0x946b&0x8300=p10&0x8301&0x92=r1&0x8100&0xff06&0x83=r1&0x83{p83b}&0xff01&0x0001&0xff00&0x8000&0xb0=r6&0xff01&0x4f00&0x4e2c&0xff00&0xb6b4&0xb0{s0}{s1}{s2}{s3}{s4}{s5}&0xff01&0x0000&0xff00&0x0900&0x1000&0x1100&0x2401&0x25ff&0x7500&0xff01&0x4e2c&0x4800&0x3020&0xff00&0x3009&0x5400&0x3104&0x3203&0x4083&0x4625&0x6000&0x2700&0x5006&0x5100&0x5296&0x5608&0x5730&0x6100&0x6200&0x6400&0x6500&0x66a0&0xff01&0x2232&0x4714&0x49ff&0x4a00&0xff00&0x7a0a&0x7b00&0x7821&0xff01&0x2334&0x4200&0x44ff&0x4526&0x4605&0x4040&0x0e06&0x201a&0x4340&0xff00&0x3403&0x3544&0xff01&0x3104&0x4b09&0x4c05&0x4d04&0xff00&0x4400&0x4520&0x4708&0x4828&0x6700&0x7004&0x7101&0x72fe&0x7600&0x7700&0xff01&0x0d01&0xff00&0x8001&0x01f8&0xff01&0x8e01&0x0001&0xff00&0x8000&0x0a04&0x84=r1&0x84{gpio}&0x0b01&0x01=r1&0x50=r1&0x46=r1&0x51=r2&0x70=r1&0x71=r2&0x01e8&{?setFin}0x71{fh}{fl}&0x0101&0x0041=p50&0x0b01&0x0000&0x0102&0x0001=p50&0x0b01&0x0000&0x01e8&0x8001&0xff01&0x0000&0x91{stop}&0x0001&0xff00&0x8000&0x0002",
+    "initCode": {
+        "n": "vl53l0x_init",
+        "c": "init.vhv=buf[0]|1;init.stop=buf[1];init.msrc=buf[2]|0x12;init.p83a=buf[3]|4;init.p83b=buf[5]&0xfb;int cnt=buf[4]&0x7f;int first=0;if(((buf[4]>>7)&1)==1){first=12;}int o0=0;int o1=0;int o2=0;int o3=0;int o4=0;int o5=0;int en=0;int i=0;int bi=0;int byi=0;int m=0;while(i<48){bi=i%8;byi=i/8;if((((buf[6+byi]>>bi)&1)==1)&&(i>=first)&&(en<cnt)){en=en+1;m=1<<bi;if(byi==0){o0=o0|m;}if(byi==1){o1=o1|m;}if(byi==2){o2=o2|m;}if(byi==3){o3=o3|m;}if(byi==4){o4=o4|m;}if(byi==5){o5=o5|m;}}i=i+1;}init.s0=o0;init.s1=o1;init.s2=o2;init.s3=o3;init.s4=o4;init.s5=o5;init.gpio=buf[12]&0xef;int seq=buf[13];int tcc=(seq>>4)&1;int dss=(seq>>3)&1;int msrcEn=(seq>>2)&1;int pre=(seq>>6)&1;int fin=(seq>>7)&1;int preMacro=((2304*((buf[14]+1)<<1)*1655)+500)/1000;int mdtUs=(((buf[15]+1)*preMacro)+500)/1000;int preM=((((buf[17])<<(buf[16]))&0xffff)+1)&0xffff;int preUs=((preM*preMacro)+500)/1000;int finMacro=((2304*((buf[18]+1)<<1)*1655)+500)/1000;int finM=((((buf[20])<<(buf[19]))&0xffff)+1)&0xffff;if(pre==1){finM=(finM-preM)&0xffff;}int finUs=((finM*finMacro)+500)/1000;int budget=1910+960;if(tcc==1){budget=budget+mdtUs+590;}if(dss==1){budget=budget+2*(mdtUs+690);}else{if(msrcEn==1){budget=budget+mdtUs+660;}}if(pre==1){budget=budget+preUs+660;}if(fin==1){budget=budget+finUs+550;}int used=1910+960+2*(mdtUs+690)+preUs+660+550;init.setFin=0;init.fh=0;init.fl=0;if(used<=budget){int mcl=((((budget-used)*1000)+(finMacro/2))/finMacro)+preM;int ls=0;int ms=0;if(mcl>0){ls=mcl-1;while(ls>255){ls=ls>>1;ms=ms+1;}}init.setFin=1;init.fh=ms;init.fl=ls&0xff;}"
+    },
     "pollInfo": {
-        "c": "0x14=r12&0x0b01&0x0001",
+        "c": "0x13=r13&0x0b01",
         "i": 50,
         "s": 1
     },
@@ -22,15 +26,21 @@
         "desc": "",
         "manu": "ST",
         "type": "VL53L0X",
-        "clas": ["DIST"],
+        "clas": [
+            "DIST"
+        ],
         "resp": {
-            "b": 12,
+            "b": 13,
             "a": [
                 {
                     "n": "valid",
                     "t": "B",
+                    "at": 1,
                     "u": "",
-                    "r": [0, 1],
+                    "r": [
+                        0,
+                        1
+                    ],
                     "f": "b",
                     "o": "bool",
                     "m": "0x78",
@@ -50,35 +60,118 @@
                 {
                     "n": "status",
                     "t": "B",
-                    "at": 0,
-                    "r": [0, 255],
+                    "at": 1,
+                    "r": [
+                        0,
+                        255
+                    ],
                     "f": "02x",
                     "vs": false
                 },
                 {
                     "n": "rangeStatus",
                     "t": "B",
-                    "at": 0,
+                    "at": 1,
                     "u": "",
-                    "r": [0, 15],
+                    "r": [
+                        0,
+                        15
+                    ],
                     "m": "0x78",
                     "s": 3,
                     "f": "d",
                     "o": "uint8",
                     "vs": false,
-                    "vl": {"0": "OK", "1": "VCSEL cont", "2": "VCSEL wdog", "3": "no VHV", "4": "no target", "5": "SNR", "6": "phase", "7": "sigma", "8": "TCC", "9": "phase cons", "10": "min clip", "11": "complete", "12": "underflow", "13": "overflow", "14": "ignore"}
+                    "vl": {
+                        "0": "OK",
+                        "1": "VCSEL cont",
+                        "2": "VCSEL wdog",
+                        "3": "no VHV",
+                        "4": "no target",
+                        "5": "SNR",
+                        "6": "phase",
+                        "7": "sigma",
+                        "8": "TCC",
+                        "9": "phase cons",
+                        "10": "min clip",
+                        "11": "complete",
+                        "12": "underflow",
+                        "13": "overflow",
+                        "14": "ignore"
+                    }
+                },
+                {
+                    "n": "fresh",
+                    "t": "B",
+                    "at": 0,
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x07",
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false,
+                    "lut": [
+                        {
+                            "r": "0",
+                            "v": 0
+                        },
+                        {
+                            "r": "",
+                            "v": 1
+                        }
+                    ]
                 },
                 {
                     "n": "dist",
-                    "at": 10,
+                    "at": 11,
                     "t": ">H",
                     "u": "mm",
-                    "r": [0, 2000],
+                    "r": [
+                        0,
+                        2000
+                    ],
                     "f": "4d",
                     "o": "uint16",
                     "vft": "valid"
                 }
             ]
-        }
+        },
+        "actions": [
+            {
+                "n": "_conf.rate",
+                "t": "B",
+                "r": [
+                    1,
+                    20
+                ],
+                "d": 20,
+                "desc": "Sample rate (Hz)",
+                "map": {
+                    "1": {
+                        "i": 1000000,
+                        "s": 1
+                    },
+                    "2": {
+                        "i": 500000,
+                        "s": 1
+                    },
+                    "5": {
+                        "i": 200000,
+                        "s": 1
+                    },
+                    "10": {
+                        "i": 100000,
+                        "s": 1
+                    },
+                    "20": {
+                        "i": 50000,
+                        "s": 1
+                    }
+                }
+            }
+        ]
     }
 }
