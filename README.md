@@ -9,3 +9,5 @@ Raft is an async-first, opinionated app framework for the development of embedde
 Currently Raft supports the Espressif ESP32 family.
 
 [Please see the Raft documentation](https://github.com/robdobsn/RaftCore/wiki)
+
+RaftCore is MIT licensed ([LICENSE](LICENSE)). Some device type records use settings from third-party drivers: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
