@@ -548,6 +548,39 @@ static void testInitValuesMultiPoint()
     // A read NACKed part way (the SPAD map): the next step with a slot fails rather than use the wrong bytes
     std::vector<std::vector<uint8_t>> nackWrites;
     TEST_ASSERT(!runInit(6, nackWrites) && (nackWrites.size() == 4), "a NACKed later read fails init at the next slot");
+
+    // VL53L4CD: the range timeouts for a 50 ms timing budget from the oscillator frequency (0x0006), as ST's ULD
+    // VL53L4CD_SetRangeTiming(50, 0) gives them - 0x02F2 and 0x03A1 for an Axiom018 unit's 0xBCA3; not written if
+    // the oscillator reads 0
+    DeviceTypeIndexType l4Idx = DEVICE_TYPE_INDEX_INVALID;
+    if (!deviceTypeRecords.getRecord("VL53L4CD", l4Idx))
+    {
+        fail("VL53L4CD", "record not built in");
+        return;
+    }
+    std::shared_ptr<const DeviceTypeRecords::CompiledRecord> pL4 = deviceTypeRecords.getCompiledRecord(l4Idx);
+    auto l4Writes = [&](const std::vector<uint8_t>& osc) {
+        std::vector<std::vector<uint8_t>> slotWrites;
+        DeviceTypeRecords::InitValueState state;
+        for (uint32_t stepIdx = 0; stepIdx < pL4->init.steps.size(); stepIdx++)
+        {
+            if (deviceTypeRecords.initStepUsesInitValues(l4Idx, stepIdx))
+            {
+                std::vector<uint8_t> write;
+                bool doStep = false;
+                if (!deviceTypeRecords.getInitStepWrite(l4Idx, stepIdx, state, write, doStep))
+                    return std::vector<std::vector<uint8_t>>{{0xff}};
+                if (doStep)
+                    slotWrites.push_back(write);
+            }
+            if (pL4->init.steps[stepIdx].readLen > 0)
+                DeviceTypeRecords::noteInitStepRead(state, osc);
+        }
+        return slotWrites;
+    };
+    TEST_ASSERT(l4Writes({0xbc, 0xa3}) == (std::vector<std::vector<uint8_t>>{{0x00, 0x5e, 0x02, 0xf2}, {0x00, 0x61, 0x03, 0xa1}}),
+                "VL53L4CD range timeouts as the ULD's");
+    TEST_ASSERT(l4Writes({0x00, 0x00}).empty(), "VL53L4CD timeouts not written for an oscillator reading of 0");
 }
 
 // Init guards: a {?name} step is only done if initCode's value isn't 0. The SCD30 record reads its measurement interval
