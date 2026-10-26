@@ -1,5 +1,5 @@
 {
-    "_notes": "ALS sensor with range 0-120 klx. I2C address fixed at 0x10. Device ID register at 0x07. Returns 0x81c4 or 0x81d4 (0xc481/0xd481 as 16-bit LE). Config: gain x1, 100ms integration time, power on.",
+    "_notes": "Vishay VEML7700 ambient light sensor at 0x10 (fixed). Commands are 16-bit registers, written and read low byte first\nDetection: ID (0x07) = 0xC481 or 0xD481 (read as 81 C4 or 81 D4: device ID 0x81, then the address option code)\nInit: ALS_CONF (0x00) = 0x0000 - gain x1, 100 ms integration, persistence 1, interrupt off, power on (the sensor starts shut down, ALS_CONF = 0x0001); power saving (0x03) left off\nPoll (200 ms): ALS (0x04) and WHITE (0x05). als is lux at 0.0672 lux per count (gain x1, 100 ms), from the datasheet's maximum resolution 0.0042 lux per count at gain x2 and 800 ms (Rev. 1.8, 2024; Vishay's 2019 application note gives 0.0036, and some libraries use that), so up to about 4400 lux; brighter light saturates the count. white is the raw white channel. Gain and integration time aren't actions, as they change the lux per count, which the decode's divisor can't follow\nSource: registers and resolution from the Vishay VEML7700 datasheet (Rev. 1.8)",
     "addresses": "0x10",
     "detectionValues": "0x07=0x81c4,0x81d4",
     "initValues": "0x000000=",
@@ -9,12 +9,21 @@
         "s": 1
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-26, shut down and then measuring): the lone 0x99 is ACKed and the read returns 00 00 then 0xFF, as a read of 0x19 or 0x09 (not in the register map) does. ALS_CONF, the thresholds, power saving (0x00-0x03) and ID unchanged; the ALS count the same before and after. The interrupt status (0x06, cleared by a read) isn't read. At 0x10 it is in Axiom's RSAO check range: the RSAO hook was offered it, while its record wasn't compiled in, and declined it"
+        }
+    },
     "devInfoJson": {
         "name": "Light Sensor (ambient)",
         "desc": "",
         "manu": "Vishay",
         "type": "VEML7700",
-        "clas": ["LGHT"],
+        "clas": [
+            "LGHT"
+        ],
         "resp": {
             "b": 4,
             "a": [
@@ -22,7 +31,10 @@
                     "n": "als",
                     "t": "<H",
                     "u": "lux",
-                    "r": [0,4404],
+                    "r": [
+                        0,
+                        4404
+                    ],
                     "d": 14.881,
                     "f": ".2f",
                     "o": "float"
@@ -31,7 +43,10 @@
                     "n": "white",
                     "t": "<H",
                     "u": "",
-                    "r": [0,65535],
+                    "r": [
+                        0,
+                        65535
+                    ],
                     "f": "5d",
                     "o": "uint16"
                 }
