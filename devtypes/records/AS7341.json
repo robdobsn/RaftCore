@@ -1,5 +1,5 @@
 {
-    "_notes": "ams AS7341 11-channel spectral sensor (eight visible bands F1-F8 - 415, 445, 480, 515, 555, 590, 630 and 680 nm - clear, near IR and flicker) at 0x39 (fixed). 8-bit registers. Its six ADCs are connected to the photodiodes through a switch matrix (SMUX), so the ten channels are measured in two halves\nDetection: ID (0x92) bits 7:2 = 001001 (0x24), as Adafruit's library checks it. The APDS-9960 is also at 0x39 with its ID at 0x92 (0xAB), so each record's detection fails on the other\nInit: ENABLE (0x80) = 0x01 - power on; ATIME (0x81) = 29 and ASTEP (0xCA-0xCB) = 599 - (29 + 1) x (599 + 1) x 2.78 us = 50 ms integration, up to 18000 counts; CFG1 (0xAA) = 0x07 - gain 64x\nPoll (500 ms), each half: spectral measurement off (ENABLE = 0x01), SMUX command write (CFG6 0xAF = 0x10), the 20 SMUX configuration bytes (0x00-0x13), SMUX enable (ENABLE = 0x11) and 5 ms for it to finish, measurement on (ENABLE = 0x03) and 120 ms for the 50 ms integration (the first measurement after measurement is turned on also includes the auto-zero, AZ_CONFIG 0xD6: with 60 ms the channels read 0), then ASTATUS and the six channels CH0-CH5 (0x94-0xA0; reading ASTATUS first latches the channels). The first half connects F1, F2, F3, F4, clear and NIR; the second F5, F6, F7, F8, clear and NIR; then measurement is turned off. The pauses split the poll without holding the bus. Channels are raw counts (basic counts are count / (gain x integration time); converting to irradiance needs ams's calibration). saturated is 1 if ASTATUS ASAT (bit 7) is set in either half - lower the gain\nNot used: flicker detection, the LED driver, the GPIO and interrupts\nSource: the SMUX configurations, the measurement sequence and the ID check are from Adafruit's AS7341 library (https://github.com/adafruit/Adafruit_AS7341, setup_F1F4_Clear_NIR, setup_F5F8_Clear_NIR, readAllChannels), BSD-3-Clause; see RaftCore's THIRD_PARTY_NOTICES.md for its notice. Registers from the ams AS7341 datasheet",
+    "_notes": "ams AS7341 11-channel spectral sensor (eight visible bands F1-F8 - 415, 445, 480, 515, 555, 590, 630 and 680 nm - clear, near IR and flicker) at 0x39 (fixed). 8-bit registers. Its six ADCs are connected to the photodiodes through a switch matrix (SMUX), so the ten channels are measured in two halves\nDetection: ID (0x92) bits 7:2 = 001001 (0x24), as Adafruit's library checks it. The APDS-9960 is also at 0x39 with its ID at 0x92 (0xAB), so each record's detection fails on the other\nInit: ENABLE (0x80) = 0x01 - power on; ATIME (0x81) = 29 and ASTEP (0xCA-0xCB) = 599 - (29 + 1) x (599 + 1) x 2.78 us = 50 ms integration, up to 18000 counts; CFG1 (0xAA) = 0x07 - gain 64x\nPoll (500 ms), each half: spectral measurement off (ENABLE = 0x01), SMUX command write (CFG6 0xAF = 0x10), the 20 SMUX configuration bytes (0x00-0x13), SMUX enable (ENABLE = 0x11) and 5 ms for it to finish, measurement on (ENABLE = 0x03) and 120 ms for the 50 ms integration (the first measurement after measurement is turned on also includes the auto-zero, AZ_CONFIG 0xD6: with 60 ms the channels read 0), then ASTATUS and the six channels CH0-CH5 (0x94-0xA0; reading ASTATUS first latches the channels). The first half connects F1, F2, F3, F4, clear and NIR; the second F5, F6, F7, F8, clear and NIR; then measurement is turned off. The pauses split the poll without holding the bus. f is the eight visible bands as an array (f[0] = F1, 415 nm, to f[7] = F8, 680 nm, the element labels giving each band's centre wavelength); clear and nir are the clear and near IR channels (from the first half). Channels are raw counts (basic counts are count / (gain x integration time); converting to irradiance needs ams's calibration). saturated is 1 if ASTATUS ASAT (bit 7) is set in either half - lower the gain\nNot used: flicker detection, the LED driver, the GPIO and interrupts\nSource: the SMUX configurations, the measurement sequence and the ID check are from Adafruit's AS7341 library (https://github.com/adafruit/Adafruit_AS7341, setup_F1F4_Clear_NIR, setup_F5F8_Clear_NIR, readAllChannels), BSD-3-Clause; see RaftCore's THIRD_PARTY_NOTICES.md for its notice. Registers from the ams AS7341 datasheet",
     "addresses": "0x39",
     "detectionValues": "0x92=0b001001XX",
     "initValues": "0x8001&0x811d&0xca5702&0xaa07",
@@ -28,92 +28,33 @@
             "b": 26,
             "a": [
                 {
-                    "n": "f1",
-                    "t": "<H",
+                    "n": "f",
+                    "t": "<H[8]",
                     "u": "",
                     "r": [
                         0,
                         65535
                     ],
                     "f": "5d",
-                    "o": "uint16"
-                },
-                {
-                    "n": "f2",
-                    "t": "<H",
-                    "u": "",
-                    "r": [
-                        0,
-                        65535
+                    "o": "uint16",
+                    "el": [
+                        "415",
+                        "445",
+                        "480",
+                        "515",
+                        "555",
+                        "590",
+                        "630",
+                        "680"
                     ],
-                    "f": "5d",
-                    "o": "uint16"
-                },
-                {
-                    "n": "f3",
-                    "t": "<H",
-                    "u": "",
-                    "r": [
-                        0,
-                        65535
-                    ],
-                    "f": "5d",
-                    "o": "uint16"
-                },
-                {
-                    "n": "f4",
-                    "t": "<H",
-                    "u": "",
-                    "r": [
-                        0,
-                        65535
-                    ],
-                    "f": "5d",
-                    "o": "uint16"
-                },
-                {
-                    "n": "f5",
-                    "t": "<H",
-                    "u": "",
-                    "r": [
-                        0,
-                        65535
-                    ],
-                    "f": "5d",
-                    "o": "uint16"
-                },
-                {
-                    "n": "f6",
-                    "t": "<H",
-                    "u": "",
-                    "r": [
-                        0,
-                        65535
-                    ],
-                    "f": "5d",
-                    "o": "uint16"
-                },
-                {
-                    "n": "f7",
-                    "t": "<H",
-                    "u": "",
-                    "r": [
-                        0,
-                        65535
-                    ],
-                    "f": "5d",
-                    "o": "uint16"
-                },
-                {
-                    "n": "f8",
-                    "t": "<H",
-                    "u": "",
-                    "r": [
-                        0,
-                        65535
-                    ],
-                    "f": "5d",
-                    "o": "uint16"
+                    "eu": "nm",
+                    "vt": "lightspectrum",
+                    "vo": {
+                        "extraAttrs": [
+                            "clear",
+                            "nir"
+                        ]
+                    }
                 },
                 {
                     "n": "clear",
@@ -152,7 +93,7 @@
             ],
             "c": {
                 "n": "as7341_channels",
-                "c": "out.f1=buf[1]|(buf[2]<<8);out.f2=buf[3]|(buf[4]<<8);out.f3=buf[5]|(buf[6]<<8);out.f4=buf[7]|(buf[8]<<8);out.clear=buf[9]|(buf[10]<<8);out.nir=buf[11]|(buf[12]<<8);out.f5=buf[14]|(buf[15]<<8);out.f6=buf[16]|(buf[17]<<8);out.f7=buf[18]|(buf[19]<<8);out.f8=buf[20]|(buf[21]<<8);out.saturated=0;if(((buf[0]|buf[13])&0x80)!=0){out.saturated=1;}next;"
+                "c": "out.f[0]=buf[1]|(buf[2]<<8);out.f[1]=buf[3]|(buf[4]<<8);out.f[2]=buf[5]|(buf[6]<<8);out.f[3]=buf[7]|(buf[8]<<8);out.f[4]=buf[14]|(buf[15]<<8);out.f[5]=buf[16]|(buf[17]<<8);out.f[6]=buf[18]|(buf[19]<<8);out.f[7]=buf[20]|(buf[21]<<8);out.clear=buf[9]|(buf[10]<<8);out.nir=buf[11]|(buf[12]<<8);int sat=0;if(((buf[0]|buf[13])&0x80)!=0){sat=1;}out.saturated=sat;next;"
             }
         },
         "actions": [

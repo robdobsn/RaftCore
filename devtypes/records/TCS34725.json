@@ -72,7 +72,15 @@
                         65535
                     ],
                     "f": "5d",
-                    "o": "uint16"
+                    "o": "uint16",
+                    "vt": "colour",
+                    "vo": {
+                        "green": "green",
+                        "blue": "blue",
+                        "clear": "clear",
+                        "lux": "lux",
+                        "cct": "cct"
+                    }
                 },
                 {
                     "n": "green",
@@ -111,7 +119,7 @@
             ],
             "c": {
                 "n": "tcs34725_lux_cct",
-                "c": "int atime=buf[0];int g=buf[1]&3;float again=1.0;if(g==1){again=4.0;}if(g==2){again=16.0;}if(g==3){again=60.0;}int cycles=256-atime;float atms=cycles*2.4;int c=buf[3]|(buf[4]<<8);int r=buf[5]|(buf[6]<<8);int gr=buf[7]|(buf[8]<<8);int b=buf[9]|(buf[10]<<8);out.clear=c;out.red=r;out.green=gr;out.blue=b;out.valid=0;out.lux=0.0;out.cct=0;int sat=65535;if(cycles<=63){sat=1024*cycles;sat=sat-(sat/4);}if(((buf[2]&1)==1)&&(c<sat)){int ir=0;if((r+gr+b)>c){ir=(r+gr+b-c)/2;}int rp=r-ir;int gp=gr-ir;int bp=b-ir;float lux=((0.136*rp)+gp-(0.444*bp))/((atms*again)/310.0);if(lux<0.0){lux=0.0;}out.lux=lux;if(rp>0){out.cct=((3810*bp)/rp)+1391;}out.valid=1;}next;"
+                "c": "int atime=buf[0];int g=buf[1]&3;float again=1.0;if(g==1){again=4.0;}if(g==2){again=16.0;}if(g==3){again=60.0;}int cycles=256-atime;float atms=cycles*2.4;int c=buf[3]|(buf[4]<<8);int r=buf[5]|(buf[6]<<8);int gr=buf[7]|(buf[8]<<8);int b=buf[9]|(buf[10]<<8);int sat=65535;if(cycles<=63){sat=1024*cycles;sat=sat-(sat/4);}int valid=0;float lux=0.0;int cct=0;if(((buf[2]&1)==1)&&(c<sat)){int ir=0;if((r+gr+b)>c){ir=(r+gr+b-c)/2;}int rp=r-ir;int gp=gr-ir;int bp=b-ir;lux=((0.136*rp)+gp-(0.444*bp))/((atms*again)/310.0);if(lux<0.0){lux=0.0;}if(rp>0){cct=((3810*bp)/rp)+1391;}valid=1;}out.lux=lux;out.cct=cct;out.clear=c;out.red=r;out.green=gr;out.blue=b;out.valid=valid;next;"
             }
         },
         "actions": [

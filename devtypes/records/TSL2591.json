@@ -77,7 +77,7 @@
             ],
             "c": {
                 "n": "tsl2591_lux",
-                "c": "int cfg=buf[0];int g=(cfg>>4)&3;int t=cfg&7;float again=1.0;if(g==1){again=25.0;}if(g==2){again=428.0;}if(g==3){again=9876.0;}float atime=100.0*(t+1);int ch0=buf[2]|(buf[3]<<8);int ch1=buf[4]|(buf[5]<<8);out.full=ch0;out.ir=ch1;out.valid=0;out.lux=0.0;if(((buf[1]&1)==1)&&(ch0<65535)&&(ch1<65535)&&(ch0>0)){float cpl=(atime*again)/408.0;float lux=((ch0-ch1)*(1.0-(ch1/(ch0*1.0))))/cpl;if(lux<0.0){lux=0.0;}out.lux=lux;out.valid=1;}next;"
+                "c": "int cfg=buf[0];int g=(cfg>>4)&3;int t=cfg&7;float again=1.0;if(g==1){again=25.0;}if(g==2){again=428.0;}if(g==3){again=9876.0;}float atime=100.0*(t+1);int ch0=buf[2]|(buf[3]<<8);int ch1=buf[4]|(buf[5]<<8);int valid=0;float lux=0.0;if(((buf[1]&1)==1)&&(ch0<65535)&&(ch1<65535)&&(ch0>0)){float cpl=(atime*again)/408.0;lux=((ch0-ch1)*(1.0-(ch1/(ch0*1.0))))/cpl;if(lux<0.0){lux=0.0;}valid=1;}out.lux=lux;out.full=ch0;out.ir=ch1;out.valid=valid;next;"
             }
         },
         "actions": [

@@ -50,7 +50,13 @@
                         65535
                     ],
                     "f": "5d",
-                    "o": "uint16"
+                    "o": "uint16",
+                    "vt": "colour",
+                    "vo": {
+                        "green": "green",
+                        "blue": "blue",
+                        "clear": "clear"
+                    }
                 },
                 {
                     "n": "green",
