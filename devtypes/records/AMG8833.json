@@ -40,7 +40,11 @@
                     "d": 4,
                     "f": ".2f",
                     "o": "float",
-                    "at": 2
+                    "at": 2,
+                    "vt": "thermal",
+                    "vo": {
+                        "ambientAttr": "ambient"
+                    }
                 },
                 {
                     "n": "ambient",
