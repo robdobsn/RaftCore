@@ -10,4 +10,6 @@ Currently Raft supports the Espressif ESP32 family.
 
 [Please see the Raft documentation](https://github.com/robdobsn/RaftCore/wiki)
 
-RaftCore is MIT licensed ([LICENSE](LICENSE)). Some device type records use settings from third-party drivers: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Licence
+
+RaftCore is MIT licensed ([LICENSE](LICENSE)). It also contains some third-party code (under the Apache-2.0, LGPL-2.1, zlib, ISC and MIT licences) and device type records with settings from third-party drivers. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them all, with their licences and the notices a product built with RaftCore should include in its documentation.
