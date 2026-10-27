@@ -541,9 +541,18 @@ bool NetworkSystem::startWifi()
     if (_pWifiStaNetIf && !_hostname.isEmpty())
         esp_netif_set_hostname(_pWifiStaNetIf, _hostname.c_str());
 
-    // Static IP (no DHCP) if configured
-    if (_pWifiStaNetIf && !_networkSettings.wifiStaticIP.isEmpty())
-        applyStaStaticIP();
+    // Static IP (no DHCP) if configured - and DHCP again if a static IP was used at an earlier start but is now
+    // cleared (setWifiStaticIP) or can't be applied
+    if (_pWifiStaNetIf)
+    {
+        bool staticApplied = !_networkSettings.wifiStaticIP.isEmpty() && applyStaStaticIP();
+        if (!staticApplied && _wifiStaticIPInUse)
+        {
+            esp_netif_dhcpc_start(_pWifiStaNetIf);
+            _wifiStaticIPInUse = false;
+            LOG_I(MODULE_PREFIX, "startWifi static IP no longer used - DHCP");
+        }
+    }
 
     // esp_wifi_init fails with ESP_ERR_NVS_NOT_INITIALIZED unless NVS is up.
     // It always is when a RaftJsonNVS (e.g. RaftCoreApp's system config) has
@@ -890,6 +899,15 @@ void NetworkSystem::clearStaFastReconnectHint()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // WiFi STA static IP (see NetworkSettings::wifiStaticIP) - the got IP event is still raised on connection
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::setWifiStaticIP(const String& ip, const String& gateway, const String& netmask, const String& dns)
+{
+    _networkSettings.wifiStaticIP = ip;
+    _networkSettings.wifiStaticGateway = gateway;
+    _networkSettings.wifiStaticNetmask = netmask.isEmpty() ? "255.255.255.0" : netmask;
+    _networkSettings.wifiStaticDNS = dns;
+}
+
 
 bool NetworkSystem::applyStaStaticIP()
 {
