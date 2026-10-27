@@ -12,6 +12,10 @@
 - typeFile.fsImage: the build's --fs-image mode writes the type file at the device's path (from SysTypes.json) against
   the compiled files merged as the generator merges them, within the device's size limit, and writes the compiled
   records for the raft CLI; nothing is written (and an old file is removed) without fsImage.
+- _warning: a wildcard doesn't select a record with one unless it's acknowledged; a record selected by name and
+  enabled is reported unless its key is in "acknowledge"; it must be a non-empty
+  string; it's left out of type files and in the pages catalogue's summary. RaftCore's records: a record with a
+  generalCall has a _warning, and no named set holds a record with a _warning.
 - Splitting a catalogue keeps each record as written; RaftCore's records assembled with "raftcore:*" generate the
   same headers as the records folder.
 """
@@ -614,7 +618,11 @@ class AssembleTests(unittest.TestCase):
         self.assertTrue(any(p.startswith("initCode:") for p in problems), problems)
 
     def test_raftcore_records_assembled_generate_the_same_headers(self):
-        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:*"]}})
+        # (records with a _warning acknowledged, so the wildcard selects them all)
+        records, _ = A.load_catalogue(str(RAFTCORE_DIR / "devtypes" / "records"))
+        warned = [k for k, r in records.items() if A.record_warning(k, r) is not None]
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:*"]},
+                              "acknowledge": warned})
         result = A.assemble([sel], str(RAFTCORE_DIR), "builtin")
         assembled = self.tmp / "assembled.json"
         assembled.write_text(A.catalogue_text(result.records))
@@ -627,6 +635,64 @@ class AssembleTests(unittest.TestCase):
             self.assertEqual(run.returncode, 0, run.stderr)
             headers.append(((out / "t.h").read_text(), (out / "p.h").read_text()))
         self.assertEqual(headers[0], headers[1])
+
+    # Warnings
+
+    def test_warnings_reported_unless_acknowledged(self):
+        self.write_records(self.raftcore / "devtypes" / "records",
+                           {"Wake": record("0x0c", _warning="Sends a general call", generalCall="0x04")})
+        # A wildcard doesn't select it (a message says so); naming it does, with the warning
+        result = self.assemble(self.selection({"sources": {"raftcore": {"bundled": True}}}))
+        self.assertNotIn("Wake", result.records)
+        self.assertEqual(result.warnings, [])
+        self.assertTrue(any(m.startswith('"Wake" (in raftcore) has a warning, so "*" doesn\'t select it') for m in result.messages))
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["*", "raftcore:Wake"]}})
+        result = self.assemble(sel)
+        self.assertIn("Wake", result.records)
+        self.assertEqual(len(result.warnings), 1)
+        self.assertTrue(result.warnings[0].startswith("Wake: Sends a general call"))
+        err = io.StringIO()
+        with redirect_stderr(err):
+            A.print_messages(result)
+        self.assertIn("DEVICE TYPE WARNING: Wake: Sends a general call", err.getvalue())
+        # Acknowledged (in Common's or the SysType's file): selected by the wildcard, no warning. Disabled: no warning
+        result = self.assemble(self.selection({"sources": {"raftcore": {"bundled": True}}, "acknowledge": ["Wake"]}))
+        self.assertIn("Wake", result.records)
+        self.assertEqual(result.warnings, [])
+        common = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:Wake"]}})
+        self.assertEqual(self.assemble(common, self.selection({"acknowledge": "Wake"}, "Main")).warnings, [])
+        self.assertEqual(self.assemble(self.selection({"sources": {"raftcore": {"bundled": True}},
+                                                       "builtin": {"include": ["raftcore:Wake"],
+                                                                   "policy": {"Wake": "disabled"}}})).warnings, [])
+        # A type file selection is checked too, and the file leaves the warning out
+        sel = self.selection({"sources": {"raftcore": {"bundled": True}}, "builtin": {"exclude": ["Wake"]},
+                              "typeFile": {"include": ["Wake"]}})
+        result = self.assemble(sel, section="typeFile")
+        self.assertEqual(len(result.warnings), 1)
+        text, _ = A.build_type_file(result, self.assemble(sel).records)
+        self.assertNotIn("_warning", text)
+        self.assertIn("generalCall", text)
+
+    def test_warning_errors(self):
+        for bad in ["", "  ", 3, ["text"]]:
+            self.write_records(self.raftcore / "devtypes" / "records", {"Wake": record("0x0c", _warning=bad)})
+            self.assertError("\"Wake\": _warning must be a non-empty string",
+                             self.selection({"sources": {"raftcore": {"bundled": True}}}))
+        self.assertError("acknowledge must be a list of record keys",
+                         self.selection({"sources": {"raftcore": {"bundled": True}}, "acknowledge": [1]}))
+
+    def test_warning_in_pages_summary(self):
+        self.assertEqual(A._record_summary(record(_warning=" Careful ")).get("warning"), "Careful")
+        self.assertNotIn("warning", A._record_summary(record()))
+
+    def test_raftcore_records_warnings(self):
+        records, _ = A.load_catalogue(str(RAFTCORE_DIR / "devtypes" / "records"))
+        with_warning = {k for k, r in records.items() if A.record_warning(k, r) is not None}
+        for key, rec in records.items():
+            if "generalCall" in rec:
+                self.assertIn(key, with_warning, f"{key} has a generalCall but no _warning")
+        for name, keys in A.load_sets(str(RAFTCORE_DIR)).items():
+            self.assertEqual(sorted(set(keys) & with_warning), [], f"set {name} holds records with a _warning")
 
 
 if __name__ == "__main__":

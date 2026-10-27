@@ -4,7 +4,7 @@
 Each vector gives the selection files (Common's first, then the SysType's), the records each source holds (as
 catalogue JSON text) and the section to resolve, and what AssembleDeviceTypes.assemble makes of them: the records
 chosen (with the source each came from, and policies applied), the records local copies replaced, the policies for
-compiled types (a type file's), the messages and the provenance (a type file's _sources) - or the error. Sources are
+compiled types (a type file's), the messages, the warnings (records with a _warning) and the provenance (a type file's _sources) - or the error. Sources are
 RaftCore's ("bundled") and folders ("path"); git sources choose as bundled ones do.
 
 Usage: make_selection_vectors.py [--check]   (writes selection_vectors.json next to this script; --check: exit 1 if
@@ -70,6 +70,7 @@ def build(vec):
             vec["replaced"] = OrderedDict((k, [n for n, _ in v]) for k, v in result.replaced.items())
             vec["policyOnly"] = OrderedDict(result.policy_only)
             vec["messages"] = [m.replace(str(tmp / "project") + "/", "") for m in result.messages]
+            vec["warnings"] = list(result.warnings)
             vec["provenance"] = json.dumps(result.provenance, separators=(",", ":"))
         except A.AssembleError as err:
             vec["error"] = str(err).replace(str(tmp / "project") + "/", "")
@@ -177,6 +178,25 @@ def vectors():
     add("error: a set from a path source", {common: {"sources": {"raftcore": {"bundled": True}, "local": {"path": "../../local"}},
                                                      "builtin": {"include": ["local:@small"]}}},
         {"raftcore": sets, "local": local})
+    # Records with a _warning: a wildcard leaves them out unless acknowledged; named, they're reported unless
+    # acknowledged or disabled
+    warned = {"kind": "bundled", "records": cat(Alpha=record("0x11"),
+                                                Wake=OrderedDict(list(record("0x0c").items()) + [("_warning", "Sends a general call")]))}
+    add("warning: a wildcard leaves the record out", {common: {"sources": {"raftcore": {"bundled": True}}}}, {"raftcore": warned})
+    add("warning: named, the record is selected and reported", {common: {"sources": {"raftcore": {"bundled": True}},
+                                                                         "builtin": {"include": ["*", "raftcore:Wake"]}}},
+        {"raftcore": warned})
+    add("warning: acknowledged, the wildcard selects it", {common: {"sources": {"raftcore": {"bundled": True}}},
+                                                           main: {"acknowledge": ["Wake"]}}, {"raftcore": warned})
+    add("warning: disabled, not reported", {common: {"sources": {"raftcore": {"bundled": True}},
+                                                     "builtin": {"include": ["Wake"], "policy": {"Wake": "disabled"}}}},
+        {"raftcore": warned})
+    add("warning: in a type file", {common: {"sources": {"raftcore": {"bundled": True}}, "typeFile": {"include": ["Wake"]}}},
+        {"raftcore": warned}, "typeFile")
+    add("error: a warning that isn't a string", {common: {"sources": {"raftcore": {"bundled": True}}}},
+        {"raftcore": {"kind": "bundled", "records": cat(Wake=OrderedDict(list(record().items()) + [("_warning", "")]))}})
+    add("error: acknowledge not a list of keys", {common: {"sources": {"raftcore": {"bundled": True}}, "acknowledge": [3]}},
+        {"raftcore": raftcore})
     return out
 
 

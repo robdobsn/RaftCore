@@ -21,6 +21,8 @@ Commands:
     list                      the records selected for the firmware and for the type file, with their sources
     add <pattern>... [--typefile]     add to the selection (e.g. raftcore:LSM6DS3, local:*)
     remove <pattern>... [--typefile]  remove from the selection (a record selected by a wildcard is excluded)
+    acknowledge <key>...      accept the _warning of records (what selecting them entails): a wildcard then selects
+                              them, and the build doesn't report them
     new <key> [--source <name>] [--address 0xHH]   a new record file in a path source, ready to fill in
     check                     the grammar, decode code and generator checks, without a build
     update                    resolve git refs again and update the lock file
@@ -147,13 +149,15 @@ def cmd_list(args):
     for key, record in builtin.records.items():
         source = builtin.origin[key][0]
         rows.append(OrderedDict([("key", key), ("section", "builtin"), ("source", source),
-                                 ("commit", _short_commit(builtin, source)), ("policy", _policy_of(record))]))
+                                 ("commit", _short_commit(builtin, source)), ("policy", _policy_of(record)),
+                                 ("warning", A.record_warning(key, record))]))
     for key, record in type_file.records.items():
         source = type_file.origin[key][0]
         entry = kinds.get(key, {})
         rows.append(OrderedDict([("key", key), ("section", "typeFile"), ("source", source),
                                  ("commit", _short_commit(type_file, source)), ("policy", _policy_of(record)),
-                                 ("kind", entry.get("kind", "")), ("noDecoder", bool(entry.get("noDecoder")))]))
+                                 ("kind", entry.get("kind", "")), ("noDecoder", bool(entry.get("noDecoder"))),
+                                 ("warning", A.record_warning(key, record))]))
     for key, policy in type_file.policy_only.items():
         rows.append(OrderedDict([("key", key), ("section", "typeFile"), ("source", ""), ("commit", ""),
                                  ("policy", policy), ("kind", "policy"), ("noDecoder", False)]))
@@ -165,7 +169,8 @@ def cmd_list(args):
         extra = ""
         if row["section"] == "typeFile":
             extra = row["kind"] + (" (no on-device decoder)" if row["noDecoder"] else "")
-        print(f"{row['key']:28} {row['section']:9} {row['source']:12} {row['commit']:11} {row['policy']:14} {extra}")
+        key = ("! " if row.get("warning") else "") + row["key"]
+        print(f"{key:28} {row['section']:9} {row['source']:12} {row['commit']:11} {row['policy']:14} {extra}")
     print(f"{len(builtin.records)} records selected for the firmware, "
           f"{len(type_file.records) + len(type_file.policy_only)} entries for the type file" +
           (f" (compared with the compiled records in {args.compiled})" if args.compiled else ""))
@@ -173,7 +178,14 @@ def cmd_list(args):
         print("The build puts the type file in the file system image (typeFile.fsImage)")
     for message in builtin.messages + type_file.messages:
         print(f"  {message}")
+    _print_warnings(builtin, type_file)
     return 0
+
+
+def _print_warnings(*results):
+    """The warnings of the selected records not acknowledged (! in the list)"""
+    for warning in dict.fromkeys(w for r in results for w in r.warnings):
+        print(f"WARNING {warning}")
 
 
 def _patterns_ok(args, section):
@@ -211,6 +223,24 @@ def cmd_add(args):
         raise ToolError(f"not added: {err}")
     for pattern in added:
         print(f"Added {pattern} to {section}.include in {path}")
+    _print_warnings(_assemble(args, section))
+    return 0
+
+
+def cmd_acknowledge(args):
+    path = _edit_path(args)
+    content = _read_edit_file(path)
+    acknowledge = content.get("acknowledge", [])
+    if isinstance(acknowledge, str):
+        acknowledge = [acknowledge]
+    for key in args.keys:
+        if key in acknowledge:
+            print(f"{key} is already acknowledged")
+            continue
+        acknowledge.append(key)
+        print(f"Acknowledged the warning of {key} in {path}")
+    content["acknowledge"] = acknowledge
+    _write_json(path, content)
     return 0
 
 
@@ -315,6 +345,7 @@ def cmd_check(args):
             A.build_type_file(type_file, _compiled_records(args, builtin))
         except A.AssembleError as err:
             problems.append(f"type file: {err}")
+    warnings.extend(f"device type warning: {w}" for w in builtin.warnings + type_file.warnings)
     warnings = list(dict.fromkeys(warnings))
     problems = list(dict.fromkeys(problems))
     if args.json:
@@ -401,7 +432,7 @@ def cmd_typefile(args):
     crc = "%04x" % crc16(text.encode("utf-8"))
     report = OrderedDict([("file", os.path.abspath(args.out)), ("bytes", len(text)), ("maxBytes", args.max_bytes),
                           ("crc", crc), ("compiled", os.path.abspath(compiled_from) if compiled_from else "builtin"),
-                          ("entries", entries)])
+                          ("entries", entries), ("warnings", type_file.warnings)])
     if args.json:
         _print_json(report)
         return 0
@@ -418,6 +449,7 @@ def cmd_typefile(args):
     if no_decoder:
         print("No on-device decoder (DataLogger, RaftROS and named values won't decode them; raftjs and the WebUI "
               "will): " + ", ".join(no_decoder))
+    _print_warnings(type_file)
     return 0
 
 
@@ -454,6 +486,8 @@ def main(argv=None):
     p = sub.add_parser("remove")
     p.add_argument("patterns", nargs="+")
     p.add_argument("--typefile", action="store_true")
+    p = sub.add_parser("acknowledge")
+    p.add_argument("keys", nargs="+")
     p = sub.add_parser("new")
     p.add_argument("key")
     p.add_argument("--source")
@@ -468,7 +502,8 @@ def main(argv=None):
     p.add_argument("--max-bytes", type=int, help="size limit (default: the device's for the SysType, from its "
                    "sdkconfig.defaults - more with PSRAM)")
     args = parser.parse_args(argv)
-    commands = {"init": cmd_init, "list": cmd_list, "add": cmd_add, "remove": cmd_remove, "new": cmd_new,
+    commands = {"init": cmd_init, "list": cmd_list, "add": cmd_add, "remove": cmd_remove,
+                "acknowledge": cmd_acknowledge, "new": cmd_new,
                 "check": cmd_check, "update": cmd_update, "diff": cmd_diff, "typefile": cmd_typefile}
     try:
         return commands[args.command](args)

@@ -21,6 +21,10 @@ DeviceTypeSources.json:
   from two other sources is an error unless include names the source
 - policy: "enabled", "disabled" or "disabledClaim" for a selected key
 - typeFile.fsImage: true puts the type file in the SysType's file system image (see --fs-image)
+- acknowledge: keys of records whose "_warning" has been read and accepted. A record's _warning says what selecting
+  it entails (e.g. the CaliPile's general call reaches every device on the bus): a wildcard ("*", "<source>:*")
+  doesn't select it unless it's acknowledged (a message says so), and one selected by name and enabled but not
+  acknowledged is reported ("DEVICE TYPE WARNING: <key>: <text>", on stderr)
 - A SysType's file adds to Common's: sources are added (or replaced by name), include and exclude lists are joined,
   policies merged (the SysType's win)
 
@@ -167,7 +171,7 @@ def raftcore_records_path(raftcore_dir):
 
 def read_selection(paths):
     """Merge DeviceTypeSources.json files (Common first, then the SysType's)"""
-    merged = {"sources": OrderedDict(), "messages": [], "sections": {s: {"include": [], "exclude": [], "policy": OrderedDict(),
+    merged = {"sources": OrderedDict(), "messages": [], "acknowledge": [], "sections": {s: {"include": [], "exclude": [], "policy": OrderedDict(),
                                                            "hasInclude": False, "fsImage": False} for s in SECTIONS}}
     for path in paths:
         content = _read_json(path)
@@ -175,8 +179,14 @@ def read_selection(paths):
             raise AssembleError(f"{path}: expected a JSON object")
         base_dir = os.path.dirname(os.path.abspath(path))
         for key in content:
-            if key not in ("sources", "_notes") + SECTIONS:
+            if key not in ("sources", "_notes", "acknowledge") + SECTIONS:
                 raise AssembleError(f"{path}: unknown key \"{key}\"")
+        acknowledge = content.get("acknowledge", [])
+        if isinstance(acknowledge, str):
+            acknowledge = [acknowledge]
+        if not isinstance(acknowledge, list) or not all(isinstance(k, str) for k in acknowledge):
+            raise AssembleError(f"{path}: acknowledge must be a list of record keys")
+        merged["acknowledge"].extend(acknowledge)
         for name, spec in content.get("sources", {}).items():
             if not isinstance(spec, dict):
                 raise AssembleError(f"{path}: source \"{name}\" must be an object")
@@ -482,6 +492,7 @@ class Assembly:
         self.policy_only = OrderedDict() # typeFile: policies for types not in the file (key -> policy name)
         self.replaced = OrderedDict()    # key -> [(source name, record)] replaced by a path source's record
         self.messages = []
+        self.warnings = []               # "<key>: <text>" for selected records with a _warning not acknowledged
         self.inputs = []                 # files and folders read
         self.fs_image = False
         self.provenance = None           # what the records were selected from (build_type_file writes it as _sources)
@@ -538,6 +549,8 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
 
     # Candidates for each key: the sources it was selected from, and whether a source was named for it
     candidates = OrderedDict()
+    acknowledged = selection["acknowledge"]
+    skipped = OrderedDict()
     for pattern in includes:
         source, key = _parse_pattern(pattern, names)
         matched = False
@@ -547,6 +560,12 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
                 keys = set_keys(pattern, source, key, "include")
             else:
                 keys = list(records) if key == "*" else ([key] if key in records else [])
+                if key == "*":
+                    # A wildcard doesn't select a record with a _warning (what selecting it entails): it's selected by
+                    # naming it, or by acknowledging its warning
+                    for k in [k for k in keys if record_warning(k, records[k]) is not None and k not in acknowledged]:
+                        keys.remove(k)
+                        skipped.setdefault(k, name)
             for k in keys:
                 entry = candidates.setdefault(k, {"named": OrderedDict(), "any": OrderedDict()})
                 (entry["named"] if (source and key != "*" and not key.startswith("@")) else entry["any"])[name] = True
@@ -565,6 +584,11 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
                             del candidates[k][group][name]
                 if not candidates[k]["named"] and not candidates[k]["any"]:
                     del candidates[k]
+
+    for key, name in skipped.items():
+        if key not in candidates:
+            result.messages.append(f"\"{key}\" (in {name}) has a warning, so \"*\" doesn't select it - include it by "
+                                   f"name, or add it to \"acknowledge\", to select it")
 
     # One source for each key
     for key in sorted(candidates, key=lambda k: k.encode("utf-8")):
@@ -625,8 +649,37 @@ def assemble(selection_paths, raftcore_dir, section="builtin", git_options=None)
             result.records[key].pop("disable", None)
         else:
             result.records[key]["disable"] = value
+    check_warnings(result, selection["acknowledge"])
     result.provenance = _provenance(selection, section, chosen, result, raftcore_dir)
     return result
+
+
+def record_warning(key, record):
+    """A record's "_warning" (what selecting it entails), or None. Not a non-empty string: an error"""
+    if "_warning" not in record:
+        return None
+    value = record["_warning"]
+    if not isinstance(value, str) or not value.strip():
+        raise AssembleError(f"\"{key}\": _warning must be a non-empty string")
+    return value.strip()
+
+
+def check_warnings(result, acknowledged):
+    """The warnings of the selected, enabled records that aren't acknowledged (result.warnings)"""
+    for key, record in result.records.items():
+        text = record_warning(key, record)
+        if text is None or record.get("disable", False) is not False or key in acknowledged:
+            continue
+        result.warnings.append(f"{key}: {text} (to accept it, add \"{key}\" to \"acknowledge\" in "
+                               f"DeviceTypeSources.json)")
+
+
+def print_messages(result):
+    """The assembly's messages and warnings, on stderr"""
+    for message in result.messages:
+        print(f"DeviceTypeSources: {message}", file=sys.stderr)
+    for warning in result.warnings:
+        print(f"DEVICE TYPE WARNING: {warning}", file=sys.stderr)
 
 
 def _provenance(selection, section, chosen, result, raftcore_dir):
@@ -724,7 +777,7 @@ def merge_compiled(paths):
     for path in paths:
         records, _ = load_catalogue(path, record_file=False)
         for key, entry in records.items():
-            if isinstance(entry, dict) and "disable" in entry and set(entry) <= {"disable", "deviceType", "_notes"}:
+            if isinstance(entry, dict) and "disable" in entry and set(entry) <= {"disable", "deviceType", "_notes", "_warning"}:
                 if key in merged:
                     merged[key]["disable"] = entry["disable"]
                 continue
@@ -802,6 +855,7 @@ def fs_image_relative_path(device_path):
 def _without_notes(record):
     record = json.loads(json.dumps(record), object_pairs_hook=OrderedDict)
     record.pop("_notes", None)
+    record.pop("_warning", None)
     return record
 
 
@@ -907,6 +961,8 @@ def _record_summary(record):
     summary["hasData"] = isinstance(resp.get("b"), (int, float)) and resp.get("b", 0) > 0
     summary["customCode"] = "c" in resp
     summary["initCode"] = bool(record.get("initCode"))
+    if isinstance(record.get("_warning"), str) and record["_warning"].strip():
+        summary["warning"] = record["_warning"].strip()
     return summary
 
 
@@ -1031,8 +1087,7 @@ def _build_fs_image(args):
         text, entries = build_type_file(result, compiled, max_bytes)
         out = os.path.join(args.fs_image, relative)
         write_if_changed(out, text)
-        for message in result.messages:
-            print(f"DeviceTypeSources: {message}", file=sys.stderr)
+        print_messages(result)
         counts = ", ".join(f"{sum(1 for e in entries if e['kind'] == k)} {k}" for k in ("new", "override", "policy"))
         print(f"DeviceTypeSources: type file {device_path} in the file system image: {len(text)} bytes; {counts}",
               file=sys.stderr)
@@ -1122,8 +1177,7 @@ def main(argv=None):
             else:
                 compiled = assemble(paths, args.raftcore, "builtin", git_options).records
             text, entries = build_type_file(result, compiled, args.max_bytes)
-            for message in result.messages:
-                print(f"DeviceTypeSources: {message}", file=sys.stderr)
+            print_messages(result)
             write_if_changed(args.out, text)
             if result.lock_text is not None:
                 write_if_changed(args.lock, result.lock_text)
@@ -1152,8 +1206,7 @@ def main(argv=None):
                                  ("bytes", len(text)), ("maxBytes", args.max_bytes), ("entries", entries)]), indent=1) + "\n")
             return 0
         result = assemble(paths, args.raftcore, args.section, git_options)
-        for message in result.messages:
-            print(f"DeviceTypeSources: {message}", file=sys.stderr)
+        print_messages(result)
         write_if_changed(args.out, catalogue_text(result.records))
         if result.lock_text is not None:
             write_if_changed(args.lock, result.lock_text)
