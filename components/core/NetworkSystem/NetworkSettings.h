@@ -39,12 +39,27 @@ public:
         enableWifiSTAMode = configPrefixed.getBool("wifiSTAEn", false) || 
                             configPrefixed.getBool("WiFiEnabled", false);
         enableWifiAPMode = configPrefixed.getBool("wifiAPEn", false);
-        enableEthernet = configPrefixed.getBool("ethEn", false) || 
+        enableEthernet = configPrefixed.getBool("ethEn", false) ||
                          configPrefixed.getBool("EthEnabled", false);
+
+        // WiFi start mode - "auto" (started at setup) or "onDemand" (started when requested)
+        wifiStartOnDemand = configPrefixed.getString("startMode", "auto").equalsIgnoreCase("onDemand");
 
         // Wifi STA
         wifiSTAScanThreshold = getAuthModeFromStr(configPrefixed.getString("wifiSTAScanThreshold", "WPA2_PSK").c_str());
         wifiSTAConnectBySignal = configPrefixed.getBool("wifiSTAConnectBySignal", true);
+        wifiSTAFastReconnect = configPrefixed.getBool("wifiSTAFastReconnect", false);
+        wifiSTAFastReconnectMinRSSI = configPrefixed.getLong("wifiSTAFastReconnectMinRSSI", -80);
+        wifiSTAFastReconnectMaxUses = configPrefixed.getLong("wifiSTAFastReconnectMaxUses", 0);
+
+        // WiFi band (on chips with 5 GHz)
+        wifiBand = configPrefixed.getString("wifiBand", "auto");
+
+        // WiFi STA static IP (blank for DHCP)
+        wifiStaticIP = configPrefixed.getString("wifiStaticIP", "");
+        wifiStaticGateway = configPrefixed.getString("wifiStaticGateway", "");
+        wifiStaticNetmask = configPrefixed.getString("wifiStaticNetmask", "255.255.255.0");
+        wifiStaticDNS = configPrefixed.getString("wifiStaticDNS", "");
 
         // Maximum WiFi TX power (0 = ESP-IDF default)
         wifiTxPowerDbm = configPrefixed.getLong("wifiTxPowerDbm", 0);
@@ -92,6 +107,10 @@ public:
     bool enableWifiSTAMode = false;
     bool enableWifiAPMode = false;
 
+    // WiFi started on demand (NetworkSystem::wifiStart()) rather than at setup - e.g. a battery device which
+    // only uses the network on some wakes from deep sleep
+    bool wifiStartOnDemand = false;
+
     // Hostname
     String defaultHostname;
 
@@ -102,6 +121,28 @@ public:
     // with the configured SSID; false uses ESP-IDF's fast scan, which joins the
     // first matching AP found (possibly a weak one on a multi-AP network)
     bool wifiSTAConnectBySignal = true;
+
+    // Wifi STA fast reconnect: the AP connected to (channel and BSSID) is remembered in RTC memory - so it
+    // survives deep sleep and software restarts but not power on - and the next connection goes straight to it
+    // without scanning. If that connection fails the remembered AP is forgotten and a normal scan is made.
+    // So that a better AP (e.g. on a mesh network) is found the AP isn't remembered when the signal is weaker
+    // than wifiSTAFastReconnectMinRSSI dBm (0 for no minimum) and a scan is made after it has been used
+    // wifiSTAFastReconnectMaxUses times (0 for no limit).
+    // Not for networks which rely on 802.11v/k roaming (BTM/MBO) as the AP is chosen by the device
+    bool wifiSTAFastReconnect = false;
+    int wifiSTAFastReconnectMinRSSI = -80;
+    uint32_t wifiSTAFastReconnectMaxUses = 0;
+
+    // WiFi band on chips with 5 GHz: "2g" or "5g" - restricting to one band shortens scans. Unset (or "auto")
+    // leaves the driver's band setting alone
+    String wifiBand = "auto";
+
+    // WiFi STA static IP - when set DHCP isn't used, which saves the time it takes on each connection. The
+    // gateway is required; the DNS server defaults to the gateway
+    String wifiStaticIP;
+    String wifiStaticGateway;
+    String wifiStaticNetmask = "255.255.255.0";
+    String wifiStaticDNS;
 
     // Maximum WiFi TX power in dBm (2..20, 0 = ESP-IDF default). Some boards need this limited as their transmit
     // signal is poor at full power (e.g. an AP can't decode the frames - seen as connections which fail or which

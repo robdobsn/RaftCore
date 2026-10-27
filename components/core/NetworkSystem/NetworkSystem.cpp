@@ -8,6 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <time.h>
+#include <string.h>
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -17,6 +18,8 @@
 #include "esp_wifi.h"
 #include "esp_idf_version.h"
 #include "nvs_flash.h"
+#include "esp_attr.h"
+#include "soc/soc_caps.h"
 // Not present when the esp_wifi API is provided by esp_wifi_remote (e.g. ESP32-P4)
 #if __has_include("esp_private/wifi.h")
 #include "esp_private/wifi.h"
@@ -64,6 +67,27 @@
 
 // Global object
 NetworkSystem networkSystem;
+
+// WiFi STA fast reconnect - the AP last connected to (see NetworkSettings::wifiSTAFastReconnect). In RTC memory
+// (where there is some) so that it survives deep sleep; cleared on power on as the magic is then wrong
+namespace
+{
+    struct WiFiFastReconnectHint
+    {
+        uint32_t magic;
+        uint8_t bssid[6];
+        uint8_t channel;
+        uint8_t ssidLen;
+        uint8_t ssid[32];
+        uint32_t uses;
+    };
+    constexpr uint32_t WIFI_FAST_RECONNECT_HINT_MAGIC = 0x4e434653;
+#if SOC_RTC_MEM_SUPPORTED
+    RTC_DATA_ATTR WiFiFastReconnectHint s_wifiFastReconnectHint;
+#else
+    WiFiFastReconnectHint s_wifiFastReconnectHint;
+#endif
+}
 
 // Static flag posted by SNTP sync_cb (tcpip thread) and consumed by
 // NetworkSystem::loop() to safely fire RaftSystemTime::notifyChanged("sntp").
@@ -179,27 +203,16 @@ bool NetworkSystem::setup(const NetworkSettings& networkSettings)
         return false;
     }
 
-    // Start WiFi if required
+    // Start WiFi if required (unless it is started on demand)
     if (_networkSettings.enableWifiSTAMode || _networkSettings.enableWifiAPMode)
     {
-        // Start Wifi
-        startWifi();
-
-        // Maximum TX power (applied before the first connection)
-        if (_networkSettings.wifiTxPowerDbm > 0)
+        if (_networkSettings.wifiStartOnDemand)
         {
-            String errStr;
-            String txPwrJSON = "{\"txPwr\":" + String(_networkSettings.wifiTxPowerDbm) + "}";
-            if (!_wifiDiagnostics.setOptions(RaftJson(txPwrJSON), errStr))
-                LOG_W(MODULE_PREFIX, "setup wifiTxPowerDbm %d invalid %s", _networkSettings.wifiTxPowerDbm, errStr.c_str());
+            LOG_I(MODULE_PREFIX, "setup WiFi will start on demand");
         }
-
-        // WiFi diagnostics and link options from config (these override the settings above)
-        if (_networkSettings.wifiDiagJSON.length() > 0)
+        else
         {
-            String errStr;
-            if (!_wifiDiagnostics.setOptions(RaftJson(_networkSettings.wifiDiagJSON), errStr))
-                LOG_W(MODULE_PREFIX, "setup wifiDiag options invalid %s", errStr.c_str());
+            wifiStart();
         }
     }
 
@@ -507,6 +520,9 @@ void NetworkSystem::networkEventHandler(void *arg, esp_event_base_t event_base,
 
 bool NetworkSystem::startWifi()
 {
+    // Statistics for this start
+    _fastReconnectUsedThisStart = false;
+
     // Create the default WiFi elements
     bool enWifiSTAMode = _networkSettings.enableWifiSTAMode;
 #if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
@@ -524,6 +540,10 @@ bool NetworkSystem::startWifi()
     // Set hostname
     if (_pWifiStaNetIf && !_hostname.isEmpty())
         esp_netif_set_hostname(_pWifiStaNetIf, _hostname.c_str());
+
+    // Static IP (no DHCP) if configured
+    if (_pWifiStaNetIf && !_networkSettings.wifiStaticIP.isEmpty())
+        applyStaStaticIP();
 
     // esp_wifi_init fails with ESP_ERR_NVS_NOT_INITIALIZED unless NVS is up.
     // It always is when a RaftJsonNVS (e.g. RaftCoreApp's system config) has
@@ -618,9 +638,21 @@ bool NetworkSystem::startWifi()
             // Debug
             LOG_I(MODULE_PREFIX, "setup connecting to ssid %s", ssid.c_str());
         }
+
+        // Full scan if requested for this start, otherwise fast reconnect (go straight to the AP last
+        // connected to) if enabled
+        if (err == ESP_OK)
+        {
+            if (_fullScanThisStart)
+                applyStaFullScan(currentWifiConfig);
+            else if (_networkSettings.wifiSTAFastReconnect)
+                applyStaFastReconnectHint(currentWifiConfig);
+        }
     }
 
     // Start WiFi
+    _wifiConnectMs = 0;
+    _wifiStartMs = millis();
     err = esp_wifi_start();
     if (err != ESP_OK)
     {
@@ -673,10 +705,266 @@ void NetworkSystem::stopWifi()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Start WiFi (at setup or on demand)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool NetworkSystem::wifiStart(bool fullScan)
+{
+    // WiFi control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "wifiStart");
+
+    // Check enabled
+    if (!_isSetup || !(_networkSettings.enableWifiSTAMode || _networkSettings.enableWifiAPMode))
+        return false;
+    if (_wifiRequested)
+        return true;
+    _wifiRequested = true;
+    _fullScanThisStart = fullScan;
+
+    // When paused WiFi is started on resume
+    if (_isPaused)
+        return true;
+
+    // Start
+    _numWifiConnectRetries = 0;
+    if (!startWifi())
+        return false;
+    applyWifiStartOptions();
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Stop WiFi (started on demand or at setup)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::wifiStop()
+{
+    // WiFi control operations are not thread safe and must be called from the main task
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "wifiStop");
+
+    // Clear requested BEFORE stopping WiFi since stopping raises a STA_DISCONNECTED event (handled on the
+    // sys_evt task) which must not attempt to reconnect
+    if (!_wifiRequested)
+        return;
+    _wifiRequested = false;
+    _wifiScanner.scanAbandon();
+    if (!_isPaused)
+        stopWifi();
+    setConnInfoStr(_wifiIPV4Addr, "");
+    setConnInfoStr(_wifiStaSSID, "");
+    xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_CONNECTED_BIT);
+    xEventGroupClearBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Apply options once WiFi is started (TX power and link options from config)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::applyWifiStartOptions()
+{
+    // Maximum TX power (applied before the first connection)
+    if (_networkSettings.wifiTxPowerDbm > 0)
+    {
+        String errStr;
+        String txPwrJSON = "{\"txPwr\":" + String(_networkSettings.wifiTxPowerDbm) + "}";
+        if (!_wifiDiagnostics.setOptions(RaftJson(txPwrJSON), errStr))
+            LOG_W(MODULE_PREFIX, "wifiStart wifiTxPowerDbm %d invalid %s", _networkSettings.wifiTxPowerDbm, errStr.c_str());
+    }
+
+    // WiFi diagnostics and link options from config (these override the settings above)
+    if (_networkSettings.wifiDiagJSON.length() > 0)
+    {
+        String errStr;
+        if (!_wifiDiagnostics.setOptions(RaftJson(_networkSettings.wifiDiagJSON), errStr))
+            LOG_W(MODULE_PREFIX, "wifiStart wifiDiag options invalid %s", errStr.c_str());
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// WiFi STA fast reconnect (see NetworkSettings::wifiSTAFastReconnect)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::applyStaFastReconnectHint(const wifi_config_t& staConfig)
+{
+    // Check there is a remembered AP for the configured SSID
+    WiFiFastReconnectHint& hint = s_wifiFastReconnectHint;
+    size_t ssidLen = strnlen((const char*)staConfig.sta.ssid, sizeof(staConfig.sta.ssid));
+    if ((hint.magic != WIFI_FAST_RECONNECT_HINT_MAGIC) || (hint.channel == 0) || (ssidLen == 0) ||
+                (hint.ssidLen != ssidLen) || (memcmp(hint.ssid, staConfig.sta.ssid, ssidLen) != 0))
+        return;
+
+    // Scan again (forgetting the AP) after it has been used the maximum number of times
+    if ((_networkSettings.wifiSTAFastReconnectMaxUses > 0) && (hint.uses >= _networkSettings.wifiSTAFastReconnectMaxUses))
+    {
+        LOG_I(MODULE_PREFIX, "startWifi fast reconnect AP used %d times - scanning", (int)hint.uses);
+        hint.magic = 0;
+        return;
+    }
+    hint.uses++;
+
+    // Connect to it without scanning other channels - set in RAM only so that the stored config (used again if
+    // this fails) is unchanged and nothing is written to flash on each start
+    wifi_config_t hintConfig = staConfig;
+    hintConfig.sta.channel = hint.channel;
+    memcpy(hintConfig.sta.bssid, hint.bssid, sizeof(hintConfig.sta.bssid));
+    hintConfig.sta.bssid_set = true;
+    hintConfig.sta.scan_method = WIFI_FAST_SCAN;
+    esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    esp_err_t err = esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &hintConfig);
+    esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    _fastReconnectHintInUse = (err == ESP_OK);
+    _fastReconnectUsedThisStart = _fastReconnectHintInUse.load();
+    LOG_I(MODULE_PREFIX, "startWifi fast reconnect to %s channel %d %s",
+                Raft::formatMACAddr(hint.bssid, ":").c_str(), hint.channel, esp_err_to_name(err));
+}
+
+void NetworkSystem::storeStaFastReconnectHint(const wifi_event_sta_connected_t* pEvent)
+{
+    // Called on the WiFi event task when connected
+    if (!pEvent)
+        return;
+
+    // Don't remember an AP with a weak signal (so that a better one is looked for next time)
+    WiFiFastReconnectHint& hint = s_wifiFastReconnectHint;
+    if (_networkSettings.wifiSTAFastReconnectMinRSSI != 0)
+    {
+        wifi_ap_record_t apInfo;
+        if ((esp_wifi_sta_get_ap_info(&apInfo) == ESP_OK) && (apInfo.rssi < _networkSettings.wifiSTAFastReconnectMinRSSI))
+        {
+            hint.magic = 0;
+            LOG_I(MODULE_PREFIX, "fast reconnect AP not remembered RSSI %d < %d",
+                        apInfo.rssi, _networkSettings.wifiSTAFastReconnectMinRSSI);
+            return;
+        }
+    }
+
+    // Keep the count of uses if it's the same AP
+    bool sameAP = (hint.magic == WIFI_FAST_RECONNECT_HINT_MAGIC) && (hint.channel == pEvent->channel) &&
+                (memcmp(hint.bssid, pEvent->bssid, sizeof(hint.bssid)) == 0);
+    hint.magic = 0;
+    memcpy(hint.bssid, pEvent->bssid, sizeof(hint.bssid));
+    hint.channel = pEvent->channel;
+    hint.ssidLen = pEvent->ssid_len > sizeof(hint.ssid) ? sizeof(hint.ssid) : pEvent->ssid_len;
+    memcpy(hint.ssid, pEvent->ssid, hint.ssidLen);
+    if (!sameAP)
+        hint.uses = 0;
+    hint.magic = WIFI_FAST_RECONNECT_HINT_MAGIC;
+}
+
+void NetworkSystem::applyStaFullScan(const wifi_config_t& staConfig)
+{
+    // Scan all channels for the strongest AP - set in RAM only (as for fast reconnect) - and forget the
+    // remembered AP
+    s_wifiFastReconnectHint.magic = 0;
+    wifi_config_t scanConfig = staConfig;
+    scanConfig.sta.channel = 0;
+    scanConfig.sta.bssid_set = false;
+    scanConfig.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    scanConfig.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+    esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    esp_err_t err = esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &scanConfig);
+    esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    LOG_I(MODULE_PREFIX, "startWifi full scan %s", esp_err_to_name(err));
+}
+
+void NetworkSystem::clearStaFastReconnectHint()
+{
+    // Called on the WiFi event task when a connection to the remembered AP has been lost or failed - forget it
+    // and go back to the stored config (which scans)
+    s_wifiFastReconnectHint.magic = 0;
+    _fastReconnectHintInUse = false;
+    _fastReconnectFallbacks++;
+    wifi_config_t staConfig;
+    memset(&staConfig, 0, sizeof(staConfig));
+    if (esp_wifi_get_config(ESP_IDF_WIFI_STA_MODE_FLAG, &staConfig) != ESP_OK)
+        return;
+    staConfig.sta.channel = 0;
+    staConfig.sta.bssid_set = false;
+    staConfig.sta.scan_method = getWifiSTAScanMethod();
+    esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    esp_wifi_set_config(ESP_IDF_WIFI_STA_MODE_FLAG, &staConfig);
+    esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    LOG_W(MODULE_PREFIX, "fast reconnect AP lost or failed (reason %d) - scanning", _lastWiFiDisconnectReason.load());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// WiFi STA static IP (see NetworkSettings::wifiStaticIP) - the got IP event is still raised on connection
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool NetworkSystem::applyStaStaticIP()
+{
+    // Parse addresses
+    esp_netif_ip_info_t ipInfo;
+    memset(&ipInfo, 0, sizeof(ipInfo));
+    const String& dnsStr = _networkSettings.wifiStaticDNS.isEmpty() ?
+                _networkSettings.wifiStaticGateway : _networkSettings.wifiStaticDNS;
+    esp_netif_dns_info_t dnsInfo;
+    memset(&dnsInfo, 0, sizeof(dnsInfo));
+    dnsInfo.ip.type = ESP_IPADDR_TYPE_V4;
+    if ((esp_netif_str_to_ip4(_networkSettings.wifiStaticIP.c_str(), &ipInfo.ip) != ESP_OK) ||
+        (esp_netif_str_to_ip4(_networkSettings.wifiStaticGateway.c_str(), &ipInfo.gw) != ESP_OK) ||
+        (esp_netif_str_to_ip4(_networkSettings.wifiStaticNetmask.c_str(), &ipInfo.netmask) != ESP_OK) ||
+        (esp_netif_str_to_ip4(dnsStr.c_str(), &dnsInfo.ip.u_addr.ip4) != ESP_OK))
+    {
+        LOG_W(MODULE_PREFIX, "applyStaStaticIP invalid ip %s gateway %s netmask %s dns %s - using DHCP",
+                    _networkSettings.wifiStaticIP.c_str(), _networkSettings.wifiStaticGateway.c_str(),
+                    _networkSettings.wifiStaticNetmask.c_str(), dnsStr.c_str());
+        return false;
+    }
+
+    // Stop DHCP and set the address
+    esp_err_t err = esp_netif_dhcpc_stop(_pWifiStaNetIf);
+    if ((err != ESP_OK) && (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED))
+    {
+        LOG_W(MODULE_PREFIX, "applyStaStaticIP failed to stop DHCP %s - using DHCP", esp_err_to_name(err));
+        return false;
+    }
+    err = esp_netif_set_ip_info(_pWifiStaNetIf, &ipInfo);
+    if (err != ESP_OK)
+    {
+        LOG_W(MODULE_PREFIX, "applyStaStaticIP failed to set IP %s - using DHCP", esp_err_to_name(err));
+        esp_netif_dhcpc_start(_pWifiStaNetIf);
+        return false;
+    }
+    esp_netif_set_dns_info(_pWifiStaNetIf, ESP_NETIF_DNS_MAIN, &dnsInfo);
+    _wifiStaticIPInUse = true;
+    LOG_I(MODULE_PREFIX, "applyStaStaticIP ip %s gateway %s netmask %s dns %s",
+                _networkSettings.wifiStaticIP.c_str(), _networkSettings.wifiStaticGateway.c_str(),
+                _networkSettings.wifiStaticNetmask.c_str(), dnsStr.c_str());
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// WiFi band (see NetworkSettings::wifiBand) - called on the WiFi event task when the station starts
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void NetworkSystem::applyWifiBandMode()
+{
+#if SOC_WIFI_SUPPORT_5G && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0))
+    // Only when a band is configured - otherwise the driver's setting (which the app may have made) is left alone
+    wifi_band_mode_t bandMode = WIFI_BAND_MODE_AUTO;
+    if (_networkSettings.wifiBand.equalsIgnoreCase("2g"))
+        bandMode = WIFI_BAND_MODE_2G_ONLY;
+    else if (_networkSettings.wifiBand.equalsIgnoreCase("5g"))
+        bandMode = WIFI_BAND_MODE_5G_ONLY;
+    else
+        return;
+
+    // Only change it if different (changing the band affects a connection already being made)
+    wifi_band_mode_t curBandMode = WIFI_BAND_MODE_AUTO;
+    if ((esp_wifi_get_band_mode(&curBandMode) == ESP_OK) && (curBandMode == bandMode))
+        return;
+    esp_err_t err = esp_wifi_set_band_mode(bandMode);
+    if (err != ESP_OK)
+        LOG_W(MODULE_PREFIX, "applyWifiBandMode %s failed %s", _networkSettings.wifiBand.c_str(), esp_err_to_name(err));
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Configure Wifi STA mode
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
+bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn, bool skipIfUnchanged)
 {
     // WiFi control operations are not thread safe and must be called from the main task
     RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "configWifiSTA");
@@ -715,12 +1003,30 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
         return false;
     }
 
+    // Nothing to do if the stored config already has these credentials (when the caller allows it) - the
+    // disconnect and reconnect below would otherwise happen on every start which applies credentials from
+    // config, and would forget the fast reconnect AP
+    if (skipIfUnchanged &&
+        (strncmp((const char*)currentWifiConfig.sta.ssid, ssidUnescaped.c_str(), sizeof(currentWifiConfig.sta.ssid)) == 0) &&
+        (strncmp((const char*)currentWifiConfig.sta.password, pwUnescaped.c_str(), sizeof(currentWifiConfig.sta.password)) == 0))
+    {
+        _wifiStaSSIDConnectingTo = ssidUnescaped;
+        LOG_I(MODULE_PREFIX, "configWifiSTA unchanged SSID %s", ssidUnescaped.c_str());
+        return true;
+    }
+
     // Setup config
     strlcpy((char *)currentWifiConfig.sta.ssid, ssidUnescaped.c_str(), 32);
     strlcpy((char *)currentWifiConfig.sta.password, pwUnescaped.c_str(), 64);
     currentWifiConfig.sta.threshold.authmode = _networkSettings.wifiSTAScanThreshold;
     currentWifiConfig.sta.scan_method = getWifiSTAScanMethod();
     currentWifiConfig.sta.sort_method = getWifiSTASortMethod();
+
+    // Not the fast reconnect AP (that's only ever set in RAM - this config is stored) - a new SSID means a scan
+    currentWifiConfig.sta.channel = 0;
+    currentWifiConfig.sta.bssid_set = false;
+    _fastReconnectHintInUse = false;
+    s_wifiFastReconnectHint.magic = 0;
 
     // esp_wifi_set_config is rejected with ESP_ERR_WIFI_STATE if a connect attempt
     // is currently in progress. Suppress auto-reconnect, issue a disconnect, and
@@ -861,8 +1167,9 @@ void NetworkSystem::pauseWiFi(bool pause)
         // A scan cannot complete while paused
         _wifiScanner.scanAbandon();
 
-        // Stop WiFi
-        stopWifi();
+        // Stop WiFi (if it is running - it may be stopped as it is started on demand)
+        if (_wifiRequested)
+            stopWifi();
 
         // Debug
         LOG_I(MODULE_PREFIX, "pauseWiFi - WiFi disconnected");
@@ -876,8 +1183,8 @@ void NetworkSystem::pauseWiFi(bool pause)
         // Clear paused BEFORE starting WiFi so that events raised during start are handled normally
         _isPaused = false;
 
-        // Start WiFi if enabled
-        if (_networkSettings.enableWifiSTAMode || _networkSettings.enableWifiAPMode)
+        // Start WiFi if enabled and wanted (it may be stopped as it is started on demand)
+        if ((_networkSettings.enableWifiSTAMode || _networkSettings.enableWifiAPMode) && _wifiRequested)
         {
             _numWifiConnectRetries = 0;
             startWifi();
@@ -962,9 +1269,12 @@ void NetworkSystem::setHostname(const char* hostname)
         if (_pWifiStaNetIf)
         {
             esp_netif_set_hostname(_pWifiStaNetIf, _hostname.c_str());
-            // Restart DHCP client to send new hostname to router
-            esp_netif_dhcpc_stop(_pWifiStaNetIf);
-            esp_netif_dhcpc_start(_pWifiStaNetIf);
+            // Restart DHCP client to send new hostname to router (not with a static IP - DHCP isn't used)
+            if (!_wifiStaticIPInUse)
+            {
+                esp_netif_dhcpc_stop(_pWifiStaNetIf);
+                esp_netif_dhcpc_start(_pWifiStaNetIf);
+            }
         }
 #ifdef ETHERNET_IS_ENABLED
         // Also apply to ethernet interface if available
@@ -1343,6 +1653,8 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
         break;
     case WIFI_EVENT_STA_START:
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station start");
+        // The band can only be set once WiFi has started, so set it here before connecting
+        applyWifiBandMode();
         esp_wifi_connect();
         break;
     case WIFI_EVENT_STA_STOP:
@@ -1357,6 +1669,8 @@ void NetworkSystem::wifiEventHandler(void *pArg, int32_t eventId, void *pEventDa
                     sizeof(wifi_event_sta_connected_t::ssid) : pEvent->ssid_len);
         Raft::trimString(wifiStaSSID);
         setConnInfoStr(_wifiStaSSID, wifiStaSSID);
+        if (_networkSettings.wifiSTAFastReconnect)
+            storeStaFastReconnectHint(pEvent);
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station connected");
         break;
@@ -1506,6 +1820,15 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
         sprintf(ipAddrStr, IPSTR, IP2STR(&pEvent->ip_info.ip));
         setConnInfoStr(_wifiIPV4Addr, ipAddrStr);
         _numWifiConnectRetries = 0;
+        // Connection statistics - time from start and RSSI now (rather than waiting for the periodic
+        // update in loop() which a short-lived connection may not reach)
+        if (_wifiConnectMs == 0)
+            _wifiConnectMs = Raft::timeElapsed(millis(), _wifiStartMs);
+        {
+            wifi_ap_record_t apInfo;
+            if (esp_wifi_sta_get_ap_info(&apInfo) == ESP_OK)
+                _wifiRSSI = apInfo.rssi;
+        }
         // Set event group bit
         xEventGroupSetBits(_networkRTOSEventGroup, WIFI_STA_IP_CONNECTED_BIT);
         LOG_NETWORK_EVENT_INFO(MODULE_PREFIX, "WiFi station got IP %s", ipAddrStr);
@@ -1574,12 +1897,15 @@ void NetworkSystem::ipEventHandler(void *arg, int32_t event_id, void *pEventData
 
 void NetworkSystem::handleWiFiStaDisconnectEvent()
 {
-    // Handle pause / suppression while config is being applied
-    if (!_isPaused && !_suppressWifiAutoReconnect)
+    // Handle pause / suppression while config is being applied / stopped
+    if (!_isPaused && !_suppressWifiAutoReconnect && _wifiRequested)
     {
         if ((WIFI_CONNECT_MAX_RETRY < 0) || (_numWifiConnectRetries < WIFI_CONNECT_MAX_RETRY))
         {
             warnOnWiFiDisconnectIfEthNotConnected();
+            // If the connection was to a remembered AP then forget it and scan (the AP may have moved)
+            if (_fastReconnectHintInUse)
+                clearStaFastReconnectHint();
             esp_wifi_connect();
             _numWifiConnectRetries++;
         }

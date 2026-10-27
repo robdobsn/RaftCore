@@ -500,7 +500,8 @@ void SysManager::loop()
     if (_rebootIfDiscMins != 0)
     {
 #ifdef ESP_PLATFORM
-        if (networkSystem.isIPConnected())
+        // (not while no network is wanted - e.g. WiFi started on demand and stopped)
+        if (networkSystem.isIPConnected() || !networkSystem.isNetworkWanted())
         {
             _rebootLastNetConnMs = millis();
         }
