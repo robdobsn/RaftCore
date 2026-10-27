@@ -100,8 +100,11 @@ private:
     // Protocol handler
     MQTTProtocol _mqttProtocol;
 
-    // Timeouts
+    // Timeouts - a connection attempt which fails at once because there is no network yet (e.g. no IP address
+    // or DNS lookup still in progress) is retried soon so that the connection is made as soon as the network is up
     static const uint32_t MQTT_RETRY_CONNECT_TIME_MS = 5000;
+    static const uint32_t MQTT_RETRY_CONNECT_NO_NETWORK_MS = 250;
+    bool _retryConnectSoon = true;
     static const uint32_t MQTT_CONNACK_TIMEOUT_MS = 5000;
     static const uint32_t MQTT_PINGRESP_TIMEOUT_MS = 10000;
     static const uint32_t MQTT_PUBACK_TIMEOUT_MS = 10000;

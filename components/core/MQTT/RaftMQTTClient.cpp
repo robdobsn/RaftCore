@@ -124,7 +124,8 @@ void RaftMQTTClient::loop()
         case MQTT_STATE_DISCONNECTED:
         {
             // See if it's time to try to connect
-            if (Raft::isTimeout(millis(), _lastConnStateChangeMs, MQTT_RETRY_CONNECT_TIME_MS))
+            if (Raft::isTimeout(millis(), _lastConnStateChangeMs,
+                        _retryConnectSoon ? MQTT_RETRY_CONNECT_NO_NETWORK_MS : MQTT_RETRY_CONNECT_TIME_MS))
             {
                 // Don't try again immediately
                 _lastConnStateChangeMs = millis();
@@ -360,10 +361,12 @@ void RaftMQTTClient::socketConnect()
     LOG_I(MODULE_PREFIX, "sockConn attempting to connect to %s port %d", _dnsResolver.getHostname(), (int)_brokerPort);
 #endif
 
-    // Get IP address
+    // Get IP address (no address yet means no network or the lookup is in progress - retry soon)
     ip_addr_t ipAddr;
+    _retryConnectSoon = true;
     if (!_dnsResolver.getIPAddr(ipAddr))
         return;
+    _retryConnectSoon = false;
 
     // Get address info for broker
     uint64_t microsStart = micros();
@@ -421,12 +424,14 @@ void RaftMQTTClient::socketConnect()
     {
         if (errno != EINPROGRESS)
         {
+            // Failing at once (e.g. no route as there is no IP address yet) means no network - retry soon
             if (Raft::isTimeout(millis(), _internalSocketConnErrorLastTime, INTERNAL_ERROR_LOG_MIN_GAP_MS))
             {
                 _internalSocketConnErrorLastTime = millis();
                 LOG_W(MODULE_PREFIX, "sockConn connect error %d", errno);
             }
             closeConnection();
+            _retryConnectSoon = true;
             return;
         }
     }
