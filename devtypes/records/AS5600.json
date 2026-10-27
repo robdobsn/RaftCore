@@ -26,6 +26,8 @@
             "a": [
                 {
                     "n": "angle",
+                    "vt": "angle",
+                    "vo": {"magnet": "magnet", "tooWeak": "tooWeak", "tooStrong": "tooStrong"},
                     "t": ">H",
                     "u": "degrees",
                     "r": [0, 360],
