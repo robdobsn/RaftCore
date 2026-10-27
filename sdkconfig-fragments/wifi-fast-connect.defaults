@@ -1,0 +1,9 @@
+# WiFi fast connect - shortens getting an IP address on each WiFi connection, e.g. a battery device that wakes
+# from deep sleep to report. Use with NetMan "wifiSTAFastReconnect" (and "wifiBand" on chips with 5 GHz).
+# Selected in features.cmake with: set(RAFT_SDKCONFIG_FRAGMENTS wifi-fast-connect)
+
+# DHCP: ask for the last address again (kept in NVS) rather than starting a new lease
+CONFIG_LWIP_DHCP_RESTORE_LAST_IP=y
+
+# DHCP: accept the address without first checking (by ARP) that no other device is using it
+CONFIG_LWIP_DHCP_DOES_NOT_CHECK_OFFERED_IP=y

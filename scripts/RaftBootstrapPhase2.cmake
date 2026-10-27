@@ -141,12 +141,32 @@ set(_common_sdkconfig "${_common_config_dir}/sdkconfig.defaults")
 set(_systype_sdkconfig "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
 set(_merged_sdkconfig "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig.defaults.merged")
 
-# Build the SDKCONFIG_DEFAULTS list for ESP-IDF (Common first, systype second)
+# sdkconfig fragments selected in features.cmake, e.g. set(RAFT_SDKCONFIG_FRAGMENTS wifi-fast-connect) - each is
+# the name of a fragment in RaftCore's sdkconfig-fragments folder or a path (relative to the project) to the
+# project's own fragment - see sdkconfig-fragments/README.md. They are applied after Common and before the SysType
+set(_sdkconfig_fragments "")
+foreach(_raft_fragment ${RAFT_SDKCONFIG_FRAGMENTS})
+    if(EXISTS "${raftcore_SOURCE_DIR}/sdkconfig-fragments/${_raft_fragment}.defaults")
+        set(_raft_fragment_path "${raftcore_SOURCE_DIR}/sdkconfig-fragments/${_raft_fragment}.defaults")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/${_raft_fragment}")
+        set(_raft_fragment_path "${CMAKE_SOURCE_DIR}/${_raft_fragment}")
+    else()
+        message(FATAL_ERROR "sdkconfig fragment ${_raft_fragment} (RAFT_SDKCONFIG_FRAGMENTS) not found in "
+                "${raftcore_SOURCE_DIR}/sdkconfig-fragments or the project")
+    endif()
+    list(APPEND _sdkconfig_fragments "${_raft_fragment_path}")
+endforeach()
+
+# Build the SDKCONFIG_DEFAULTS list for ESP-IDF (Common first, then fragments, then systype)
 set(SDKCONFIG_DEFAULTS "")
 if(EXISTS "${_common_sdkconfig}")
     list(APPEND SDKCONFIG_DEFAULTS "${_common_sdkconfig}")
     message(STATUS "SDKConfig: Using Common base from ${_common_sdkconfig}")
 endif()
+foreach(_raft_fragment_path ${_sdkconfig_fragments})
+    list(APPEND SDKCONFIG_DEFAULTS "${_raft_fragment_path}")
+    message(STATUS "SDKConfig: Applying fragment ${_raft_fragment_path}")
+endforeach()
 if(EXISTS "${_systype_sdkconfig}")
     list(APPEND SDKCONFIG_DEFAULTS "${_systype_sdkconfig}")
     message(STATUS "SDKConfig: Applying SysType overrides from ${_systype_sdkconfig}")
@@ -161,11 +181,16 @@ set(_merge_sdkconfig_systype_arg "")
 if(EXISTS "${_systype_sdkconfig}")
     set(_merge_sdkconfig_systype_arg "--systype" "${_systype_sdkconfig}")
 endif()
+set(_merge_sdkconfig_fragment_args "")
+foreach(_raft_fragment_path ${_sdkconfig_fragments})
+    list(APPEND _merge_sdkconfig_fragment_args "--fragment" "${_raft_fragment_path}")
+endforeach()
 
 # Generate merged sdkconfig.defaults at configure time
 execute_process(
     COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
-            --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_systype_arg}
+            --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_fragment_args}
+            ${_merge_sdkconfig_systype_arg}
             --output "${_merged_sdkconfig}"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
@@ -180,16 +205,18 @@ endif()
 if(EXISTS "${_systype_sdkconfig}")
     list(APPEND _sdkconfig_depends "${_systype_sdkconfig}")
 endif()
+list(APPEND _sdkconfig_depends ${_sdkconfig_fragments})
 
 # Custom command to regenerate merged sdkconfig when sources change
 add_custom_command(
     OUTPUT ${SDKCONFIG}
     COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
-            --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_systype_arg}
+            --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_fragment_args}
+            ${_merge_sdkconfig_systype_arg}
             --output "${_merged_sdkconfig}"
     COMMAND ${CMAKE_COMMAND} -E copy "${_merged_sdkconfig}" ${SDKCONFIG}
     DEPENDS ${_sdkconfig_depends}
-    COMMENT "Merging sdkconfig.defaults (Common + SysType) -> sdkconfig"
+    COMMENT "Merging sdkconfig.defaults (Common + fragments + SysType) -> sdkconfig"
 )
 
 # Custom target to ensure the sdkconfig file is generated before the main project is built

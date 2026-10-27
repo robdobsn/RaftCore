@@ -1,0 +1,9 @@
+# Deep sleep fast wake - shortens the boot after each wake from deep sleep, e.g. a battery device that wakes often.
+# Selected in features.cmake with: set(RAFT_SDKCONFIG_FRAGMENTS deep-sleep-fast-wake)
+
+# Skip checking the app image on a wake from deep sleep (it is still checked on a reset or power on). Not used
+# when secure boot is enabled
+CONFIG_BOOTLOADER_SKIP_VALIDATE_IN_DEEP_SLEEP=y
+
+# Bootloader logs warnings only
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
