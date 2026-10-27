@@ -1,5 +1,5 @@
 {
-    "_notes": "Panasonic AMG8833 (Grid-EYE) 8x8 infrared array sensor at 0x69 (AD_SELECT high, the usual board setting; 0x68 with it low isn't claimed, as MCP342x ADCs there take any byte written as their configuration). 8-bit registers\nDetection: it has no ID register, so registers whose unused bits are 0 are checked: PCTL (0x00) one of its four modes (0x00 normal, 0x10 sleep, 0x20 and 0x21 stand-by), FPSC (0x02) only bit 0, INTC (0x03) only bits 1:0, and the thermistor's high byte (0x0F) only bits 3:0. Other chips at 0x68-0x69 (e.g. the MPU-6050 and DS3231 families) are tried first where they have a record with a stronger detection\nInit: none - it starts in normal mode at 10 frames a second, with no interrupt and no moving average\nPoll (100 ms): the thermistor (0x0E-0x0F) and the 64 pixels (0x80-0xFF). temperature is the 8x8 grid in degrees C: each pixel 12-bit two's complement, 0.25 C a count (the mask's top bit sign-extends it). ambient is the thermistor, 12-bit sign and magnitude (bit 11 the sign), 0.0625 C a count\nSample rate (_conf.rate): 10 or 1 frames a second (FPSC 0x02), with the poll interval\nSource: registers and scaling from the Panasonic Grid-EYE (AMG88xx) datasheet",
+    "_notes": "Panasonic AMG8833 (Grid-EYE) 8x8 infrared array sensor at 0x69 (AD_SELECT high, the usual board setting; 0x68 with it low isn't claimed, as MCP342x ADCs there take any byte written as their configuration). 8-bit registers\nDetection: it has no ID register, so registers whose unused bits are 0 are checked: PCTL (0x00) one of its four modes (0x00 normal, 0x10 sleep, 0x20 and 0x21 stand-by), FPSC (0x02) only bit 0, INTC (0x03) only bits 1:0, and the thermistor's high byte (0x0F) only bits 3:0. Other chips at 0x68-0x69 (e.g. the MPU-6050 and DS3231 families) are tried first where they have a record with a stronger detection\nInit: none - it starts in normal mode at 10 frames a second, with no interrupt and no moving average\nPoll (100 ms): the thermistor (0x0E-0x0F) and the 64 pixels (0x80-0xFF). temperature is the 8x8 grid in degrees C: each pixel 12-bit two's complement, 0.25 C a count (the mask's top bit sign-extends it). ambient is the thermistor, 12-bit sign and magnitude (bit 11 the sign), 0.0625 C a count\nSample rate (_conf.rate): 1, 2, 5 or 10 frames a second. The sensor itself runs at 10 or 1 (FPSC 0x02): 1 sets it to 1 a second; 2 and 5 leave it at 10 and poll it less often\nSource: registers and scaling from the Panasonic Grid-EYE (AMG88xx) datasheet",
     "addresses": "0x69",
     "detectionValues": "0x00=0x00,0x10,0x20,0x21&0x02=0b0000000X&0x03=0b000000XX&0x0F=0b0000XXXX",
     "initValues": "",
@@ -78,6 +78,16 @@
                     "1": {
                         "w": "0201",
                         "i": 1000000,
+                        "s": 1
+                    },
+                    "2": {
+                        "w": "0200",
+                        "i": 500000,
+                        "s": 1
+                    },
+                    "5": {
+                        "w": "0200",
+                        "i": 200000,
                         "s": 1
                     },
                     "10": {
