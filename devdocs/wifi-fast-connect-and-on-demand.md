@@ -23,7 +23,7 @@ network coming up).
 | `wifiSTAFastReconnect` | 0 | Remember the AP connected to (channel and BSSID) in RTC memory and connect straight to it next time without scanning. Survives deep sleep and software restarts, not power on |
 | `wifiSTAFastReconnectMinRSSI` | -80 | Don't remember an AP weaker than this (dBm, 0 for no minimum) so that a better one is looked for |
 | `wifiSTAFastReconnectMaxUses` | 0 | Scan again after the remembered AP has been used this many times (0 for no limit) - finds a better AP on a mesh network |
-| `wifiBand` | `auto` | `2g` or `5g` on chips with 5 GHz. A scan of one band is much shorter, especially avoiding 5 GHz DFS channels (passive scans) |
+| `wifiBand` | unset | `2g` or `5g` on chips with 5 GHz. A scan of one band is much shorter, especially avoiding 5 GHz DFS channels (passive scans). Unset (or `auto`): the driver's band setting is left alone |
 | `wifiStaticIP`, `wifiStaticGateway`, `wifiStaticNetmask`, `wifiStaticDNS` | blank (DHCP) | Static IP. Usually set per device with the `wifiip` API rather than in the SysType |
 
 ## Behaviour
@@ -42,7 +42,24 @@ network coming up).
   unchanged and nothing is written to flash on each start.
 - Not for networks that rely on 802.11v/k roaming (BTM/MBO): the device chooses the AP.
 - `startMode` `onDemand`: `w`, `wap` and `wc` start WiFi if it isn't started. SysManager's reboot-if-disconnected
-  only counts time while a network is wanted (WiFi started or Ethernet enabled).
+  doesn't count time while WiFi is stopped (in any other case it is as before).
+- **Credentials in config** (`wifiSSID` / `wifiPW`): NetMan applies them on every WiFi start, but now only when
+  they differ from the stored ones (`configWifiSTA(..., skipIfUnchanged)`) - reconfiguring the same credentials
+  meant a disconnect and reconnect on every start, and forgot the remembered AP. The `w` API still always
+  reconnects.
+
+## What changes for an app that selects none of this
+
+Nothing in the connection sequence: WiFi starts at setup as before, the band isn't touched, DHCP runs, the
+remembered-AP code never runs and reboot-if-disconnected counts as it did. The differences are:
+
+- credentials from config no longer cause a disconnect and reconnect at setup when they are already stored
+- `configWifiSTA()` (the `w` API) clears any BSSID or channel pin in the stored config - Raft never set one, so
+  this only affects an app that pinned them itself with `esp_wifi_set_config()`
+- the `wifistart`, `wifistop` and `wifiip` APIs exist on every command channel (`wifiip` persists in NVS, as
+  `w` does)
+- RSSI is read when the IP address is obtained (about 2 ms on the event task), and 48 bytes of RTC memory
+  hold the remembered AP
 
 ## Per-device static IP (`wifiip` API, kept in NVS namespace `netman`)
 

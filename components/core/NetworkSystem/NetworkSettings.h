@@ -133,7 +133,8 @@ public:
     int wifiSTAFastReconnectMinRSSI = -80;
     uint32_t wifiSTAFastReconnectMaxUses = 0;
 
-    // WiFi band on chips with 5 GHz: "2g", "5g" or "auto" (both). Restricting to one band shortens scans
+    // WiFi band on chips with 5 GHz: "2g" or "5g" - restricting to one band shortens scans. Unset (or "auto")
+    // leaves the driver's band setting alone
     String wifiBand = "auto";
 
     // WiFi STA static IP - when set DHCP isn't used, which saves the time it takes on each connection. The

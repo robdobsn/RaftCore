@@ -8,6 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <time.h>
+#include <string.h>
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -940,11 +941,14 @@ bool NetworkSystem::applyStaStaticIP()
 void NetworkSystem::applyWifiBandMode()
 {
 #if SOC_WIFI_SUPPORT_5G && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0))
+    // Only when a band is configured - otherwise the driver's setting (which the app may have made) is left alone
     wifi_band_mode_t bandMode = WIFI_BAND_MODE_AUTO;
     if (_networkSettings.wifiBand.equalsIgnoreCase("2g"))
         bandMode = WIFI_BAND_MODE_2G_ONLY;
     else if (_networkSettings.wifiBand.equalsIgnoreCase("5g"))
         bandMode = WIFI_BAND_MODE_5G_ONLY;
+    else
+        return;
 
     // Only change it if different (changing the band affects a connection already being made)
     wifi_band_mode_t curBandMode = WIFI_BAND_MODE_AUTO;
@@ -960,7 +964,7 @@ void NetworkSystem::applyWifiBandMode()
 // Configure Wifi STA mode
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
+bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn, bool skipIfUnchanged)
 {
     // WiFi control operations are not thread safe and must be called from the main task
     RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "configWifiSTA");
@@ -997,6 +1001,18 @@ bool NetworkSystem::configWifiSTA(const String& ssidIn, const String& pwIn)
     {
         LOG_E(MODULE_PREFIX, "configWifiSTA failed to get config err %s (%d)", esp_err_to_name(err), err);
         return false;
+    }
+
+    // Nothing to do if the stored config already has these credentials (when the caller allows it) - the
+    // disconnect and reconnect below would otherwise happen on every start which applies credentials from
+    // config, and would forget the fast reconnect AP
+    if (skipIfUnchanged &&
+        (strncmp((const char*)currentWifiConfig.sta.ssid, ssidUnescaped.c_str(), sizeof(currentWifiConfig.sta.ssid)) == 0) &&
+        (strncmp((const char*)currentWifiConfig.sta.password, pwUnescaped.c_str(), sizeof(currentWifiConfig.sta.password)) == 0))
+    {
+        _wifiStaSSIDConnectingTo = ssidUnescaped;
+        LOG_I(MODULE_PREFIX, "configWifiSTA unchanged SSID %s", ssidUnescaped.c_str());
+        return true;
     }
 
     // Setup config

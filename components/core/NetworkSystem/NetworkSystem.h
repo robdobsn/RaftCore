@@ -108,7 +108,9 @@ public:
     }
 
     // Configuration
-    bool configWifiSTA(const String& ssid, const String& pw);
+    // skipIfUnchanged: nothing is done (no disconnect and reconnect) if the stored config already has these
+    // credentials - for credentials applied from config on each WiFi start
+    bool configWifiSTA(const String& ssid, const String& pw, bool skipIfUnchanged = false);
     #if CONFIG_ESP_WIFI_SOFTAP_SUPPORT
     bool configWifiAP(const String& apSsid, const String& apPassword);
     #endif
@@ -126,10 +128,15 @@ public:
         return _wifiRequested;
     }
 
-    // A network connection is wanted (WiFi started or Ethernet enabled)
+    // A network connection is expected, so its absence means something is wrong (e.g. for SysManager's
+    // reboot if disconnected) - always, as before, except while WiFi is started on demand and is stopped
     bool isNetworkWanted() const
     {
-        return _wifiRequested || _networkSettings.enableEthernet;
+        if (_networkSettings.enableEthernet)
+            return true;
+        if (_networkSettings.wifiStartOnDemand)
+            return _wifiRequested;
+        return true;
     }
 
     // Connection statistics for the latest WiFi start: time from start to IP address (ms, 0 if no IP yet),
