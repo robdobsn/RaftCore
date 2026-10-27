@@ -616,16 +616,17 @@ static void testRecordToFileEntry()
     printf("Running testRecordToFileEntry...\n");
     DeviceTypeRecords source;
     uint32_t numBase = DeviceTypeRecords::getNumBaseRecords();
-    String file = "{\"devTypes\":{";
+    // (std::string - the whole catalogue is over String's 64 KB limit)
+    std::string file = "{\"devTypes\":{";
     for (uint32_t i = 0; i < numBase; i++)
     {
         const DeviceTypeRecord* pRec = source.getRecord(i);
-        file += String(i > 0 ? "," : "") + DeviceTypeFileLoader::recordToFileEntry(*pRec, source.getPolicy(i));
+        file += std::string(i > 0 ? "," : "") + DeviceTypeFileLoader::recordToFileEntry(*pRec, source.getPolicy(i)).c_str();
     }
     file += "}}";
     DeviceTypeRecords table;
     table.setExtendedRecordLimits(1000, 4 * 1024 * 1024);
-    DeviceTypeFileLoader::Result result = applyFile(table, file.c_str());
+    DeviceTypeFileLoader::Result result = applyFile(table, file);
     TEST_ASSERT(result.fileValid && (result.rejected == 0) && (result.replaced == numBase),
                 ("exported records load: " + std::string(result.firstError.c_str())).c_str());
     uint32_t numDiffer = 0;
