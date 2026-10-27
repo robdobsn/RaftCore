@@ -9,6 +9,13 @@
         "s": 20
     },
     "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-27, an LSM6DS33 at 0x6A, FIFO streaming): 0x99 is past the register map (bit 7 isn't ignored - 0x19 reads 0x38) and the read returns zeros; FIFO_CTRL1-5, CTRL1_XL-CTRL10_C, MASTER_CONFIG and the interrupt configuration (0x58-0x5E) unchanged, and the FIFO carried on at the 104 Hz rate. Its addresses are in Axiom's excluded RSAO range anyway"
+        }
+    },
     "devInfoJson": {
         "name": "Accelerometer & Gyroscope",
         "desc": "6-Axis IMU",
@@ -20,6 +27,8 @@
             "a": [
                 {
                     "n": "gx",
+                    "vt": "imu",
+                    "vo": {"gyro": ["gx", "gy", "gz"], "accel": ["ax", "ay", "az"]},
                     "t": "<h",
                     "u": "&deg;/s",
                     "r": [-2000, 2000],

@@ -229,6 +229,48 @@ static void testRecordFields()
                 "\"scanWhilePolled\":false") > 0), "exported");
 }
 
+// generalCall: parsed (hex, 1-4 bytes, not starting 0x00 or 0x06), exported, and collected for the bus from the
+// enabled records, each general call once
+static void testGeneralCall()
+{
+    printf("Running testGeneralCall...\n");
+    uint8_t bytes[DeviceTypeRecord::MAX_GENERAL_CALL_BYTES] = {};
+    uint32_t numBytes = 0;
+    TEST_ASSERT(DeviceTypeRecord::parseGeneralCall("0x04", bytes, numBytes) && (numBytes == 1) && (bytes[0] == 0x04), "parse 0x04");
+    TEST_ASSERT(DeviceTypeRecord::parseGeneralCall("0X04aBc0Ff", bytes, numBytes) && (numBytes == 4) && (bytes[1] == 0xab) &&
+                (bytes[3] == 0xff), "parse 4 bytes");
+    for (const char* pBad : {"", "04", "0x", "0x4", "0x0404040404", "0x0g", "0x00", "0x06", "0x0604"})
+        TEST_ASSERT(!DeviceTypeRecord::parseGeneralCall(pBad, nullptr, numBytes) && (numBytes == 0), pBad);
+
+    // The compiled records' general calls (e.g. CaliPile's 0x04), then the file's added (0x05 once, though two
+    // records have it; 0x0507 only when its record is enabled)
+    DeviceTypeRecords table;
+    std::vector<std::vector<uint8_t>> compiledCalls;
+    table.getGeneralCalls(compiledCalls);
+    DeviceTypeFileLoader::Result result = applyFile(table, R"({"devTypes":{)"
+                R"("WakeA":{"addresses":"0x0c","generalCall":"0x05"},"WakeB":{"addresses":"0x0d","generalCall":"0x05"},)"
+                R"("WakeC":{"addresses":"0x0e","generalCall":"0x0507","disable":true},)"
+                R"("Bad":{"addresses":"0x0f","generalCall":"0x06"},"BadType":{"addresses":"0x0f","generalCall":4}}})");
+    TEST_ASSERT((result.added == 3) && (result.rejected == 2) && result.firstError.startsWith("Bad: generalCall must be"),
+                ("general call records: " + std::string(result.firstError.c_str())).c_str());
+    DeviceTypeIndexType idx;
+    const DeviceTypeRecord* pA = table.getRecord("WakeA", idx);
+    TEST_ASSERT(pA && pA->hasGeneralCall() && (strcmp(pA->generalCall, "0x05") == 0), "generalCall kept");
+    TEST_ASSERT(pA && (DeviceTypeFileLoader::recordToFileEntry(*pA, DeviceTypeRecord::POLICY_ENABLED).indexOf(
+                "\"generalCall\":\"0x05\"") > 0), "generalCall exported");
+    std::vector<std::vector<uint8_t>> generalCalls;
+    table.getGeneralCalls(generalCalls);
+    std::vector<std::vector<uint8_t>> expected = compiledCalls;
+    expected.push_back({0x05});
+    TEST_ASSERT(generalCalls == expected, "the file's general call added once (WakeC disabled)");
+    uint32_t generation = table.getGeneration();
+    table.setPolicy("WakeC", DeviceTypeRecord::POLICY_ENABLED);
+    table.getGeneralCalls(generalCalls);
+    expected.push_back({0x05, 0x07});
+    TEST_ASSERT((generalCalls == expected) && (table.getGeneration() != generation),
+                "enabling a record adds its general call (and the generation changes)");
+}
+
 // A hardware type ID names one record: a file record with an ID already used by a record with another key is
 // rejected (it would take over that record's devices), and a code-registered one is added (trusted) - N2
 static void testDuplicateHwTypeId()
@@ -574,7 +616,8 @@ static void testCatalogueRoundTrip(const char* pCataloguePath)
                     same(pB->pollInfo, pF->pollInfo) && sameJson(pB->devInfoJson, pF->devInfoJson) &&
                     (pB->pollDataSizeBytes == pF->pollDataSizeBytes) && (pB->scanPriority == pF->scanPriority) &&
                     (pB->flags == pF->flags) && (pB->identPriority == pF->identPriority) &&
-                    same(pB->hwTypeId, pF->hwTypeId) && (pB->initialPolicy == pF->initialPolicy);
+                    same(pB->hwTypeId, pF->hwTypeId) && (pB->initialPolicy == pF->initialPolicy) &&
+                    same(pB->generalCall, pF->generalCall);
         if (!equal)
         {
             numDiffer++;
@@ -616,16 +659,17 @@ static void testRecordToFileEntry()
     printf("Running testRecordToFileEntry...\n");
     DeviceTypeRecords source;
     uint32_t numBase = DeviceTypeRecords::getNumBaseRecords();
-    String file = "{\"devTypes\":{";
+    // (std::string - the whole catalogue is over String's 64 KB limit)
+    std::string file = "{\"devTypes\":{";
     for (uint32_t i = 0; i < numBase; i++)
     {
         const DeviceTypeRecord* pRec = source.getRecord(i);
-        file += String(i > 0 ? "," : "") + DeviceTypeFileLoader::recordToFileEntry(*pRec, source.getPolicy(i));
+        file += std::string(i > 0 ? "," : "") + DeviceTypeFileLoader::recordToFileEntry(*pRec, source.getPolicy(i)).c_str();
     }
     file += "}}";
     DeviceTypeRecords table;
     table.setExtendedRecordLimits(1000, 4 * 1024 * 1024);
-    DeviceTypeFileLoader::Result result = applyFile(table, file.c_str());
+    DeviceTypeFileLoader::Result result = applyFile(table, file);
     TEST_ASSERT(result.fileValid && (result.rejected == 0) && (result.replaced == numBase),
                 ("exported records load: " + std::string(result.firstError.c_str())).c_str());
     uint32_t numDiffer = 0;
@@ -638,7 +682,8 @@ static void testRecordToFileEntry()
                     !same(pB->initValues, pF->initValues) || !same(pB->pollInfo, pF->pollInfo) ||
                     !same(pB->devInfoJson, pF->devInfoJson) || (pB->pollDataSizeBytes != pF->pollDataSizeBytes) ||
                     (pB->scanPriority != pF->scanPriority) || (pB->flags != pF->flags) ||
-                    (pB->identPriority != pF->identPriority) || !same(pB->hwTypeId, pF->hwTypeId))
+                    (pB->identPriority != pF->identPriority) || !same(pB->hwTypeId, pF->hwTypeId) ||
+                    !same(pB->generalCall, pF->generalCall))
         {
             numDiffer++;
             printf("  %s differs after export\n", pB->deviceType);
@@ -845,6 +890,7 @@ int main(int argc, char** argv)
     testRecordChecks();
     testRecordFields();
     testDuplicateHwTypeId();
+    testGeneralCall();
     testExtDataSource();
     testRecordBusSpeedWarning();
     testCheckJson();

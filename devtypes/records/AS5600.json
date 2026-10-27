@@ -1,9 +1,17 @@
 {
+    "_notes": "ams AS5600 12-bit magnetic rotary position sensor at 0x36 (fixed; the AS5600L is a separate part at 0x40). It has no ID register, so detection checks bits the datasheet defines as 0: ZMCO (0x00) bits 7:2, CONF (0x07) bits 7:6, STATUS (0x0B) bits 7:6, and the top nibble of the 12-bit RAW ANGLE (0x0C), ANGLE (0x0E) and MAGNITUDE (0x1B). The MAX17048 at 0x36 fails it (its 0x0C CONFIG reads 0x971C)\nNo init: the defaults (ZPOS, MPOS and MANG 0 - the full 360 degrees - and CONF 0) are used; the programming registers and BURN (0xFF) are never written\nPoll (100 ms): ANGLE (0x0E-0x0F), STATUS (0x0B) and AGC with MAGNITUDE (0x1A-0x1C). magnet is STATUS MD (a magnet detected), tooWeak and tooStrong are ML and MH (too far or too close: the AGC at its limit). The angle is only valid with magnet set and tooWeak and tooStrong clear. AGC runs 0-255 at 5 V and 0-128 at 3.3 V; it is mid-range with the magnet at the right distance\nSource: registers from the ams AS5600 datasheet",
     "addresses": "0x36",
-    "detectionValues": "0x00=0b000000xx",
+    "detectionValues": "0x00=0b000000XX&0x07=0b00XXXXXX&0x0B=0b00XXXXXX&0x0C=0b0000XXXXXXXXXXXX&0x0E=0b0000XXXXXXXXXXXX&0x1B=0b0000XXXXXXXXXXXX",
     "initValues": "",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-27): 0x99 is past the register map (0x00-0x1C, BURN 0xFF) and the read returns zeros. ZMCO, ZPOS, MPOS, MANG and CONF (0x00-0x08) and STATUS unchanged, and it stayed identified. A lone byte writes nothing, so it can't reach BURN, which needs a data byte. 0x36 is in Axiom's RSAO check range (not excluded) and isn't a tier address"
+        }
+    },
     "pollInfo": {
-        "c": "0x0e=r2",
+        "c": "0x0e=r2&0x0b=r1&0x1a=r3",
         "i": 100,
         "s": 1
     },
@@ -14,16 +22,66 @@
         "type": "AS5600",
         "clas": ["ANG"],
         "resp": {
-            "b": 2,
+            "b": 6,
             "a": [
                 {
                     "n": "angle",
+                    "vt": "angle",
+                    "vo": {"magnet": "magnet", "tooWeak": "tooWeak", "tooStrong": "tooStrong"},
                     "t": ">H",
                     "u": "degrees",
                     "r": [0, 360],
+                    "m": "0x0fff",
                     "f": "3.1f",
                     "o": "float",
                     "d": 11.377777777777778
+                },
+                {
+                    "n": "magnet",
+                    "at": 2,
+                    "t": "B",
+                    "r": [0, 1],
+                    "m": "0x20",
+                    "s": 5,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "tooWeak",
+                    "at": 2,
+                    "t": "B",
+                    "r": [0, 1],
+                    "m": "0x10",
+                    "s": 4,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "tooStrong",
+                    "at": 2,
+                    "t": "B",
+                    "r": [0, 1],
+                    "m": "0x08",
+                    "s": 3,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "agc",
+                    "at": 3,
+                    "t": "B",
+                    "r": [0, 255],
+                    "f": "d",
+                    "o": "uint8"
+                },
+                {
+                    "n": "magnitude",
+                    "at": 4,
+                    "t": ">H",
+                    "r": [0, 4095],
+                    "m": "0x0fff",
+                    "f": "d",
+                    "o": "uint16"
                 }
             ]
         }

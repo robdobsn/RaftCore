@@ -9,6 +9,8 @@
   compiled type.
 - diff shows a local copy against the record it replaces, and a type file override against the compiled record.
 - typefile writes the file the assembler builds, with the CRC the firmware reports.
+- Warnings: add, list, check and typefile report a selected record's _warning (list marks it with !);
+  acknowledge accepts it (the wildcard then selects the record and nothing is reported).
 - --compiled (the build's DeviceTypeRecords.compiled.json) is what type files are built against when given.
 """
 
@@ -197,6 +199,25 @@ class DeviceTypesToolTests(unittest.TestCase):
         self.assertEqual(json.loads(out)["compiled"], str(compiled.resolve()))
         code, out, _ = self.run_tool("--compiled", str(compiled), "list", json_out=True)
         self.assertEqual([r["kind"] for r in json.loads(out) if r["section"] == "typeFile"], ["unchanged"])
+
+    def test_warnings_and_acknowledge(self):
+        self.write_records(self.raftcore / "devtypes" / "records", {"Wake": record("0x0c", _warning="Sends a general call")})
+        self.write_sources({"sources": {"raftcore": {"bundled": True}}, "builtin": {"include": ["raftcore:Alpha"]}})
+        code, out, _ = self.run_tool("add", "raftcore:Wake")
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING Wake: Sends a general call", out)
+        code, out, _ = self.run_tool("list")
+        self.assertIn("! Wake", out)
+        self.assertIn("WARNING Wake: Sends a general call", out)
+        _, out, _ = self.run_tool("list", json_out=True)
+        self.assertEqual({r["key"]: r["warning"] for r in json.loads(out)}["Wake"], "Sends a general call")
+        _, out, _ = self.run_tool("check", json_out=True)
+        self.assertTrue(any("Wake: Sends a general call" in w for w in json.loads(out)["warnings"]))
+        code, out, _ = self.run_tool("acknowledge", "Wake")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read_sources()["acknowledge"], ["Wake"])
+        _, out, _ = self.run_tool("list")
+        self.assertNotIn("WARNING", out)
 
     def test_crc16(self):
         # CRC16-CCITT (init 0xffff, poly 0x1021): the standard check value

@@ -128,6 +128,10 @@ public:
         return _wifiRequested;
     }
 
+    // WiFi STA static IP, used from the next WiFi start (see NetworkSettings::wifiStaticIP): an empty ip uses DHCP,
+    // an empty netmask 255.255.255.0 and an empty dns the gateway
+    void setWifiStaticIP(const String& ip, const String& gateway, const String& netmask, const String& dns);
+
     // A network connection is expected, so its absence means something is wrong (e.g. for SysManager's
     // reboot if disconnected) - always, as before, except while WiFi is started on demand and is stopped
     bool isNetworkWanted() const

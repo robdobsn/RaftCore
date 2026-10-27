@@ -1,0 +1,98 @@
+{
+    "_notes": "ams (TAOS) TSL2561 light-to-digital converter (broadband and infrared photodiodes) at 0x39 (ADDR floating, the usual board setting), 0x29 (ADDR low) or 0x49 (ADDR high). Each register access is a command byte: 0x80 (CMD) | the register, with 0x20 (WORD) to read a 16-bit channel\nDetection: ID (0x0A, command 0x8A) part number (bits 7:4) 5 (TSL2561 T, FN and CL packages) or 1 (CS package). identPriority 4, as the TSL2591 and TCS34725, puts it before the VL53 records at 0x29; at 0x39 the APDS-9960 and AS7341 records check their ID at 0x92 instead\nInit: CONTROL (0x00) = 0x03 - power on; TIMING (0x01) = 0x01 - 101 ms integration, gain 1x\nPoll (200 ms): ID, TIMING, DATA0 (broadband, 0x0C-0x0D) and DATA1 (infrared, 0x0E-0x0F), the channels as word reads. The decode code calculates lux as the datasheet's lux calculation does, with its coefficients for the package (from the part number) and the scaling for the integration time and gain read back from TIMING: channels scaled to 402 ms and 16x, the ratio ir/full picking the segment, lux = full x B - ir x M. It is done in floating point rather than the datasheet's 32-bit unsigned integers (the decode language's int is signed). valid is 0 when a channel is over the datasheet's clipping level for the integration time (4900, 37000, 65000) or the timing is manual\nSensitivity (action): 13, 101 or 402 ms integration, at gain 1x or 16x (longer and 16x for dim light)\nSource: the lux calculation and its coefficients from the ams (TAOS) TSL2561 datasheet, as Adafruit's TSL2561 library (https://github.com/adafruit/Adafruit_TSL2561, calculateLux) also uses them; registers from the datasheet",
+    "addresses": "0x29,0x39,0x49",
+    "identPriority": 4,
+    "detectionValues": "0x8A=0b0101XXXX,0b0001XXXX",
+    "initValues": "0x8003&0x8101",
+    "pollInfo": {
+        "c": "0x8A=r1&0x81=r1&0xAC=r2&0xAE=r2",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-27, TSL2561 T, powered and measuring): 0x99 is a command - CMD with BLOCK, register 0x09 (reserved) - so it only sets the register pointer; the read returns 19 50 04 04 00 01 00 33 01. CONTROL, TIMING, the thresholds and INTERRUPT (0x00-0x06) and ID unchanged, and it stayed identified and measuring. Its addresses (0x29, 0x39, 0x49) are all in Axiom's excluded RSAO ranges anyway"
+        }
+    },
+    "devInfoJson": {
+        "name": "Light Sensor (broadband and IR)",
+        "desc": "",
+        "manu": "ams",
+        "type": "TSL2561",
+        "clas": [
+            "LGHT"
+        ],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "lux",
+                    "t": "<f",
+                    "u": "lux",
+                    "r": [
+                        0,
+                        40000
+                    ],
+                    "f": ".2f",
+                    "o": "float",
+                    "vft": "valid"
+                },
+                {
+                    "n": "full",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "ir",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        65535
+                    ],
+                    "f": "5d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                }
+            ],
+            "c": {
+                "n": "tsl2561_lux",
+                "c": "int part=(buf[0]>>4)&15;int integ=buf[1]&3;int gain16=(buf[1]>>4)&1;int ch0=buf[2]|(buf[3]<<8);int ch1=buf[4]|(buf[5]<<8);int clip=65000;if(integ==0){clip=4900;}if(integ==1){clip=37000;}int valid=0;float lux=0.0;if((integ!=3)&&(ch0<=clip)&&(ch1<=clip)){float scale=1.0;if(integ==0){scale=29975.0/1024.0;}if(integ==1){scale=4071.0/1024.0;}if(gain16==0){scale=scale*16.0;}float c0=ch0*scale;float c1=ch1*scale;float rf=0.0;if(c0>0.0){rf=(c1*512.0)/c0;}int r=rf+0.5;int b=0;int m=0;if(part<=1){if(r<=67){b=516;m=429;}else{if(r<=133){b=552;m=705;}else{if(r<=200){b=595;m=867;}else{if(r<=266){b=642;m=991;}else{if(r<=333){b=375;m=477;}else{if(r<=410){b=257;m=295;}else{if(r<=666){b=55;m=43;}else{b=0;m=0;}}}}}}}}else{if(r<=64){b=498;m=446;}else{if(r<=128){b=532;m=721;}else{if(r<=192){b=575;m=891;}else{if(r<=256){b=624;m=1022;}else{if(r<=312){b=367;m=508;}else{if(r<=410){b=210;m=251;}else{if(r<=666){b=24;m=18;}else{b=0;m=0;}}}}}}}}lux=((c0*b)-(c1*m))/16384.0;if(lux<0.0){lux=0.0;}valid=1;}out.lux=lux;out.full=ch0;out.ir=ch1;out.valid=valid;next;"
+            }
+        },
+        "actions": [
+            {
+                "n": "sensitivity",
+                "desc": "Integration time and gain (longer and 16x for dim light)",
+                "map": {
+                    "13 ms, 1x": "8100",
+                    "101 ms, 1x": "8101",
+                    "402 ms, 1x": "8102",
+                    "13 ms, 16x": "8110",
+                    "101 ms, 16x": "8111",
+                    "402 ms, 16x": "8112"
+                }
+            }
+        ]
+    }
+}

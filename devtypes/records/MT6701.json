@@ -18,6 +18,7 @@
             "a": [
                 {
                     "n": "angle",
+                    "vt": "angle",
                     "t": ">H",
                     "u": "degrees",
                     "r": [0, 360],

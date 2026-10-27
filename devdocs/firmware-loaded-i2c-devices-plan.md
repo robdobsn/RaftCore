@@ -8,6 +8,9 @@ Date: 2026-10-25.
 > is **not on any schedule**: it is parked, and listed under "Parked" in RaftCore's `TODO.md`. No code has been
 > changed, and decisions F1-F9 (§10) are open.
 >
+> **A second case, the MLX90640 thermal camera, was added on 2026-10-26** (§12): the Axiom drives it with an
+> `MLX90640` SysMod in the same way, and it shows what a generic version needs besides assets.
+>
 > Meanwhile the Axiom keeps its `VL53LxCX` SysMod, which works (Axiom
 > `devdocs/vl53l5cx-vl53l8cx-multizone-tof-plan.md`, §9 Phase 2). Before resuming, see §11.
 
@@ -427,7 +430,32 @@ taken up on its own.
 
 ---
 
-## 12. References
+## 12. A second case: the MLX90640 (2026-10-26)
+
+The Melexis MLX90640 32x24 thermal camera (0x33) has no firmware to load, but it can't be an ordinary record
+either, so the Axiom drives it with a SysMod like the VL53L5CX's: Axiom `components/MLX90640`, the Melexis library
+(Apache-2.0) in its own task, reading through chunked `busReqSync()` calls. The record (Axiom `devtypes/MLX90640.json`)
+only identifies it (the EEPROM's I2C address word, 0x240F, ends 0x33) and takes the frames (`pollInfo.ext`).
+
+**On Axiom018:** calibration read in 175 ms; 4 subpages a second (2 full frames); a subpage read in 44-58 ms
+(832 words, eight transactions at 400 kHz) and its temperatures worked out in 7-20 ms; frames of 768 temperatures
+(0.01 C) published through the device data pipeline (1540-byte samples, devbin's long-sample form), logged by
+DataLogger and drawn by the dashboard's thermal visualizer.
+
+**What a record would need** - mostly not covered by §4-§5:
+
+| Need | What the MLX90640 does | Generic addition |
+|-|-|-|
+| Per-unit calibration kept for decoding | Every pixel's temperature uses the unit's EEPROM (832 words: gains, offsets, alphas, Kta, Kv, bad pixels), read once | Init steps that read blocks into a per-device store which the decode code is given beside the poll data (`computed-init-values.md` only feeds init writes) |
+| A heavy decode | `MLX90640_CalculateTo`: about 50 floating-point operations per pixel, with `pow` and `sqrt`, for 768 pixels | Maths functions in the decode language, or a compiled decode handler named by the record (the decode-side twin of §6's init handler) |
+| Decode state across samples | In the chess pattern each subpage updates half the pixels, alternately, so a frame is the latest two subpages | Per-device decode state kept between samples |
+| Long reads, conditional polls | A frame is 832 words (1664 bytes) read only when the status register's data-ready bit is set | §5's reads over 240 bytes and conditional polls - the same as the VL53L5CX |
+
+**Recommendation:** as for the VL53L5CX, keep the SysMod until a record can do it. Of the routes, a compiled decode
+handler (with the calibration store) is the smallest step that covers the MLX90640: the calculation stays Melexis's
+code, and the device data pipeline, type files and clients work as for any record.
+
+## 13. References
 
 - Axiom `devdocs/vl53l5cx-vl53l8cx-multizone-tof-plan.md`: sensor facts, bus budget, bench results, hardware
   questions.

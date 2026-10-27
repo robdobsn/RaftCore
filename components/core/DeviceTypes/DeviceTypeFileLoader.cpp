@@ -434,6 +434,20 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
             return;
         }
     }
+    if (rec.contains("generalCall"))
+    {
+        String generalCall = rec.getString("generalCall", "");
+        uint32_t numBytes = 0;
+        if ((rec.getType("generalCall", arrayLen) != RaftJsonIF::RAFT_JSON_STRING) ||
+                    !DeviceTypeRecord::parseGeneralCall(generalCall.c_str(), nullptr, numBytes))
+        {
+            reject(result, key, "generalCall must be a hex string of 1 to " +
+                        String((int)DeviceTypeRecord::MAX_GENERAL_CALL_BYTES) +
+                        " bytes, e.g. \"0x04\", not starting with 0x00 or 0x06 (reset)");
+            return;
+        }
+        devTypeRec.generalCall = generalCall;
+    }
     // What other protocols' identification probes do to the device (keyed by scheme): checked, not kept - only
     // tooling reads it
     if (rec.contains("hwProbeEffects"))
@@ -821,6 +835,8 @@ String DeviceTypeFileLoader::recordToFileEntry(const DeviceTypeRecord& rec, uint
         json += ",\"identPriority\":" + String((int)rec.identPriority);
     if (rec.hasHwTypeId())
         appendStr("hwTypeId", rec.hwTypeId);
+    if (rec.hasGeneralCall())
+        appendStr("generalCall", rec.generalCall);
     if (rec.isProbeOnly())
         json += ",\"excludeFromAddrMap\":true";
     if (!rec.isScannedWhilePolled())
@@ -1002,6 +1018,7 @@ void DeviceTypeFileLoader::checkJson(const DeviceTypeRecords& live, const std::v
         dyn.identPriority = pRec->identPriority;
         dyn.hwTypeId = pRec->hasHwTypeId() ? pRec->hwTypeId : "";
         dyn.initialPolicy = pRec->initialPolicy;
+        dyn.generalCall = pRec->hasGeneralCall() ? pRec->generalCall : "";
         DeviceTypeIndexType idx = DEVICE_TYPE_INDEX_INVALID;
         scratch.addRecord(dyn, idx);
     }

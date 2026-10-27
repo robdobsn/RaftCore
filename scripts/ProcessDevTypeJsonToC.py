@@ -161,6 +161,24 @@ def record_initial_policy(dev_type, dev_type_key):
     print(f"ERROR: record \"{dev_type_key}\" disable must be true, false or \"claim\"", file=sys.stderr)
     sys.exit(1)
 
+MAX_GENERAL_CALL_BYTES = 4
+
+def general_call(dev_type, dev_type_key):
+    """A record's "generalCall" (bytes the bus sends to the I2C general call address while scanning, as DeviceTypeRecord
+    generalCall): the string, or None. Errors (exit) unless it is "0x" and 1 to MAX_GENERAL_CALL_BYTES bytes in hex,
+    not starting with 0x00 or 0x06 (the general call reset) - as DeviceTypeRecord::parseGeneralCall"""
+    if "generalCall" not in dev_type:
+        return None
+    value = dev_type["generalCall"]
+    digits = value[2:] if isinstance(value, str) and value[:2] in ("0x", "0X") else ""
+    valid = (len(digits) > 0 and len(digits) % 2 == 0 and len(digits) <= 2 * MAX_GENERAL_CALL_BYTES and
+             all(c in "0123456789abcdefABCDEF" for c in digits) and int(digits[:2], 16) not in (0x00, 0x06))
+    if not valid:
+        print(f"ERROR: record \"{dev_type_key}\" generalCall {value!r} must be a hex string of 1 to "
+              f"{MAX_GENERAL_CALL_BYTES} bytes, e.g. \"0x04\", not starting with 0x00 or 0x06 (reset)", file=sys.stderr)
+        sys.exit(1)
+    return value
+
 def record_ident_fields(dev_type, dev_type_key):
     """Identification and scanning fields of a record, as emitted in its DeviceTypeRecord:
     (scanPriority, flags, identPriority, hwTypeId)
@@ -511,14 +529,23 @@ def process_dev_types(json_paths, dev_type_header_path, dev_poll_header_path, ge
 
             # Init values (initCode): the function and the value names
             init_names, init_fn = init_values(dev_type, dev_type_key)
+            init_written = False
             if init_fn:
                 if gen_options.get("gen_decode", False):
                     header_file.write(f',\n        {init_fn},\n        R"JSON({",".join(init_names)})JSON"')
+                    init_written = True
                     init_code = dev_type.get("initCode")
                     init_code_texts.append((dev_record_index, (init_code.get("c", "") if isinstance(init_code, dict) else init_code).strip()))
                 else:
                     print(f"WARNING: record \"{dev_type_key}\" has initCode, which isn't generated without decode "
                           f"generation - its init will fail")
+
+            # General call (after the init fields, which are written as nullptr if the record has none)
+            general_call_str = general_call(dev_type, dev_type_key)
+            if general_call_str is not None:
+                if not init_written:
+                    header_file.write(',\n        nullptr, nullptr')
+                header_file.write(f',\n        {c_string_literal(general_call_str)}')
 
             header_file.write('\n    },\n')
             dev_record_index += 1

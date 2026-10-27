@@ -798,6 +798,27 @@ void DeviceTypeRecords::getScanPriorityLists(std::vector<std::vector<BusElemAddr
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the general calls the bus sends while scanning (each once)
+void DeviceTypeRecords::getGeneralCalls(std::vector<std::vector<uint8_t>>& generalCalls) const
+{
+    generalCalls.clear();
+    uint32_t numExt = _extCount.load(std::memory_order_acquire);
+    for (uint32_t idx = 0; idx < BASE_DEV_TYPE_ARRAY_SIZE + numExt; idx++)
+    {
+        const DeviceTypeRecord* pRec = getRecord((DeviceTypeIndexType)idx);
+        if (!pRec || !pRec->hasGeneralCall() || (getPolicy((DeviceTypeIndexType)idx) != DeviceTypeRecord::POLICY_ENABLED))
+            continue;
+        uint8_t bytes[DeviceTypeRecord::MAX_GENERAL_CALL_BYTES];
+        uint32_t numBytes = 0;
+        if (!DeviceTypeRecord::parseGeneralCall(pRec->generalCall, bytes, numBytes))
+            continue;
+        std::vector<uint8_t> generalCall(bytes, bytes + numBytes);
+        if (std::find(generalCalls.begin(), generalCalls.end(), generalCall) == generalCalls.end())
+            generalCalls.push_back(generalCall);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Register a source of records that must supply its records before devices are identified
 uint32_t DeviceTypeRecords::registerRecordSource(const char* pName, uint32_t timeoutMs)
 {
