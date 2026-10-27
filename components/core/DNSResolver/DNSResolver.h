@@ -43,6 +43,7 @@ private:
     std::atomic<bool> _addrValid{false};
     ip_addr_t _ipAddr;
     uint64_t _addrLastLookupMs = 0;
+    bool _lookupMade = false;
     static const uint32_t ADDR_REPEAT_FAILED_LOOKUP_MS = 5000;
     std::atomic<bool> _lookupInProgress{false};
 

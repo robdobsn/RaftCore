@@ -34,8 +34,8 @@ bool DNSResolver::getIPAddr(ip_addr_t &ipAddr)
         return true;
     }
 
-    // Check minimum time between lookups
-    if (!Raft::isTimeout(millis(), _addrLastLookupMs, ADDR_REPEAT_FAILED_LOOKUP_MS))
+    // Check minimum time between lookups (the address isn't valid so any earlier lookup failed)
+    if (_lookupMade && !Raft::isTimeout(millis(), _addrLastLookupMs, ADDR_REPEAT_FAILED_LOOKUP_MS))
         return false;
 
     // Check IP is connected (not a failed lookup - so it doesn't delay a lookup when the network comes up)
@@ -49,6 +49,7 @@ bool DNSResolver::getIPAddr(ip_addr_t &ipAddr)
 
     // Set time of last lookup
     _addrLastLookupMs = millis();
+    _lookupMade = true;
 
     // Lookup address (use base ESP_LOGX functions to avoid recursion in logging modules like LogPapertrail)
 #ifdef DEBUG_DNS_LOOKUP
