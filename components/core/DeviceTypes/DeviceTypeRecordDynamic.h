@@ -79,6 +79,7 @@ public:
         devTypeRec.identPriority = identPriority;
         devTypeRec.hwTypeId = hwTypeId.length() > 0 ? hwTypeId.c_str() : nullptr;
         devTypeRec.initialPolicy = initialPolicy;
+        devTypeRec.generalCall = generalCall.length() > 0 ? generalCall.c_str() : nullptr;
 
         return true;
     }
@@ -110,6 +111,7 @@ public:
     int8_t identPriority = 0;
     String hwTypeId;
     uint8_t initialPolicy = DeviceTypeRecord::POLICY_ENABLED;
+    String generalCall;
 
     /// @brief Set the hardware type ID, "<scheme>:<value>" (see DeviceTypeRecord::hwTypeId)
     void setHwTypeId(const String& id)

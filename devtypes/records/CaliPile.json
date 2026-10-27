@@ -1,0 +1,173 @@
+{
+    "_notes": "Excelitas CaliPile thermopile presence, motion and temperature sensor - the TPiS 1S 1385 (EEPROM LOOKUP# 1, e.g. MikroE Presence Click, MIKROE-3575) or a CaliPile with LOOKUP# 2 (e.g. TPiS 1T 1086) - at 0x0C-0x0F (EEPROM slave address 0x8C: 0x0C with the A1 and A0 pins giving the low two bits)\ngeneralCall 0x04: after power-up the CaliPile answers only the general call address (0x00) and takes its slave address from EEPROM when it gets the reload command 0x04, so the bus sends it while scanning (DeviceTypeRecord generalCall). Bench (Axiom018): before then nothing answers a write at 0x0C; and before and after it, the chip ACKs a read-only transfer at any address 0x08-0x3F (returning 0xFF), which a scan by reads would see as many devices - Raft scans with writes\nDetection: the EEPROM area (0x20-0x27) reads 0 while EEPROM access is off, then with access on (EEPROM control 0x1F = 0x80) the EEPROM protocol number (0x20) is 3 and LOOKUP# (0x29) 1 or 2; access is then turned off again. The write only happens at an address where the zeros matched\nInit: the control registers are undefined after power-up. LP1 1 s and LP2 8 s (0x14 = 0x8B), LP3 1 s (0x15 = 0x0B), presence threshold 0x80, motion threshold 0x60, the over-temperature threshold 0x8300 and source select LP1 - LP2 with the 30 ms motion cycle and TPOT direction set (0x1A = 0x14) as MikroE's Presence Click library (mikrosdk_click_v2 presence_default_cfg) sets them; ambient shock threshold 0x40 (bench: TPambient - TPambLP3 sat at about -35 to -40 with the ambient steady, so a lower threshold flags all the time), the interrupt mask 0 (the INT pin isn't used) and the timer 0 chosen here; EEPROM access off\nPoll (200 ms): EEPROM access on, the calibration (LOOKUP#, PTAT25, M, U0, UOUT1, TOBJ1 - 0x29-0x32) read, access off, a poll pause (so the poll goes out in two parts rather than holding the bus for about 6 ms: on Axiom018 the whole poll in one go made a quarter of another device's polls 8 ms early or late), then registers 0x01-0x13 (TPobject, TPambient, the filtered values, TPpresence, TPmotion, TPamb shock, interrupt status and chip status). Reading interrupt status clears it, which doesn't matter as the INT pin isn't used (the interrupt mask is 0)\nDecode: presence, motion and ambShock are the chip's 8-bit differences with their signs from chip status, and the three Detected flags its comparisons with the thresholds. ambient = 25 C + (TPambient - PTAT25) / (M / 100). object = F((TPobject - U0) / k + f(Tamb)) with k = (UOUT1 - U0) / (f(TOBJ1) - f(25 C)), temperatures in K, f(x) = x^3.8 for LOOKUP# 1 or x^4.2 for LOOKUP# 2 and F its inverse - worked out with ln and exp series in the decode code (it has no functions), with f scaled by 298.15 K so the numbers stay near 1 (and only for 1e-6 to 1e6, so the loops end on any data). Emissivity 1 and the full field of view are assumed (the datasheet's calibration conditions: the bare sensor, no window). valid is 0 if the calibration is unusable\nPresence sensitivity (action): the presence threshold - 0x80 (MikroE's) needs a large change; at a desk, a person moving nearby gave presence values of about -25 to +45 at 0x80 (not detected)\nSource: registers, EEPROM layout and the temperature formulas from the Excelitas TPiS 1S 1385 and TPiS 1T 1086 datasheets; the init settings named above from MikroE's Presence Click library (mikrosdk_click_v2, MIT)",
+    "addresses": "0x0C-0x0F",
+    "generalCall": "0x04",
+    "detectionValues": "0x20=0x0000000000000000&0x1F80=p1&0x20=0x03&0x29=0x01,0x02&0x1F00=p1",
+    "initValues": "0x148B&0x150B&0x1680&0x1760&0x1840&0x1900&0x1A14&0x1B00&0x1C83&0x1D00&0x1F00",
+    "pollInfo": {
+        "c": "0x1F80&0x29=r10&0x1F00=p1&0x01=r19",
+        "i": 200,
+        "s": 1
+    },
+    "scanPriority": "high",
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-10-27, a TPiS 1S 1385 at 0x0C, initialised and measuring): the chip uses the low 6 bits of the register address, so 0x99 points at 0x19 and the read returns 0x19-0x21 (interrupt mask to EEPROM control, then the EEPROM area, 0 with access off) - none of them clear on read (interrupt status, 0x12, isn't reached). Configuration (0x14-0x1F) unchanged and EEPROM access still off; still identified. Of its addresses only 0x0F is in Axiom's RSAO check range (0x0C-0x0E are below it)"
+        }
+    },
+    "devInfoJson": {
+        "name": "Presence and motion sensor (thermopile)",
+        "desc": "",
+        "manu": "Excelitas",
+        "type": "CaliPile",
+        "clas": [
+            "TEMP"
+        ],
+        "actions": [
+            {
+                "n": "presenceSensitivity",
+                "desc": "Presence threshold (how large a change in the filtered signal counts as presence)",
+                "map": {
+                    "high (0x20)": "1620",
+                    "medium (0x50)": "1650",
+                    "low (0x80)": "1680"
+                }
+            }
+        ],
+        "resp": {
+            "b": 29,
+            "a": [
+                {
+                    "n": "object",
+                    "t": "<f",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        200
+                    ],
+                    "f": ".2f",
+                    "o": "float",
+                    "vft": "valid"
+                },
+                {
+                    "n": "ambient",
+                    "t": "<f",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        85
+                    ],
+                    "f": ".2f",
+                    "o": "float",
+                    "vft": "valid"
+                },
+                {
+                    "n": "presence",
+                    "t": "<h",
+                    "u": "",
+                    "r": [
+                        -255,
+                        255
+                    ],
+                    "f": "d",
+                    "o": "int16"
+                },
+                {
+                    "n": "motion",
+                    "t": "<h",
+                    "u": "",
+                    "r": [
+                        -255,
+                        255
+                    ],
+                    "f": "d",
+                    "o": "int16"
+                },
+                {
+                    "n": "ambShock",
+                    "t": "<h",
+                    "u": "",
+                    "r": [
+                        -255,
+                        255
+                    ],
+                    "f": "d",
+                    "o": "int16"
+                },
+                {
+                    "n": "presenceDetected",
+                    "t": "B",
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "motionDetected",
+                    "t": "B",
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "ambShockDetected",
+                    "t": "B",
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "tpObject",
+                    "t": "<I",
+                    "u": "",
+                    "r": [
+                        0,
+                        131071
+                    ],
+                    "f": "d",
+                    "o": "uint32"
+                },
+                {
+                    "n": "tpAmbient",
+                    "t": "<H",
+                    "u": "",
+                    "r": [
+                        0,
+                        32767
+                    ],
+                    "f": "d",
+                    "o": "uint16"
+                },
+                {
+                    "n": "valid",
+                    "t": "B",
+                    "u": "",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "f": "b",
+                    "o": "bool",
+                    "vs": false
+                }
+            ],
+            "c": {
+                "n": "calipile_decode",
+                "c": "int lookup=buf[0];int ptat25=((buf[1]&127)<<8)|buf[2];int mReg=(buf[3]<<8)|buf[4];int u0=((buf[5]<<8)|buf[6])+32768;int uout1=((buf[7]<<8)|buf[8])*2;int tobj1=buf[9];int tpObj=(buf[10]<<9)|(buf[11]<<1)|(buf[12]>>7);int tpAmb=((buf[12]&127)<<8)|buf[13];int status=buf[28];int pres=buf[24];if(status&128){pres=-pres;}int motn=buf[25];if(status&64){motn=-motn;}int shock=buf[26];if(status&32){shock=-shock;}int valid=0;if(((lookup==1)||(lookup==2))&&(mReg>0)&&(uout1>u0)&&(tobj1>25)){valid=1;}float n=3.8;if(lookup==2){n=4.2;}float tambK=298.15;if(mReg>0){tambK=298.15+(tpAmb-ptat25)*100.0/mReg;}float gObj1=0.0;float gAmb=0.0;float tobjK=0.0;int pass=0;while(pass<3){float x=0.0;float ex=n;if(pass==0){x=(tobj1+273.15)/298.15;}if(pass==1){x=tambK/298.15;}if(pass==2){x=0.0;ex=1.0/n;if(gObj1>1.0){x=(tpObj-u0)*(gObj1-1.0)/(uout1-u0)+gAmb;}}float r=0.0;if((x>0.000001)&&(x<1000000.0)){float m=x;int p=0;while(m>=2.0){m=m/2.0;p++;}while(m<1.0){m=m*2.0;p--;}float t=(m-1.0)/(m+1.0);float t2=t*t;float term=t;float s=0.0;int j=1;while(j<40){s=s+term/j;term=term*t2;j+=2;}float y=ex*(2.0*s+p*0.6931471805599453);int q=0;while(y>=0.6931471805599453){y=y-0.6931471805599453;q++;}while(y<0.0){y=y+0.6931471805599453;q--;}float e=1.0;float tt=1.0;int i=1;while(i<20){tt=tt*y/i;e=e+tt;i++;}while(q>0){e=e*2.0;q--;}while(q<0){e=e/2.0;q++;}r=e;}if(pass==0){gObj1=r;}if(pass==1){gAmb=r;}if(pass==2){tobjK=298.15*r;}pass++;}if(tobjK<=0.0){valid=0;}out.object=tobjK-273.15;out.ambient=tambK-273.15;out.presence=pres;out.motion=motn;out.ambShock=shock;out.presenceDetected=(status>>3)&1;out.motionDetected=(status>>2)&1;out.ambShockDetected=(status>>1)&1;out.tpObject=tpObj;out.tpAmbient=tpAmb;out.valid=valid;next;"
+            }
+        }
+    }
+}

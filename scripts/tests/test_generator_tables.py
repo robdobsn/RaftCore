@@ -7,6 +7,7 @@
 - A first record with no addresses doesn't crash the generator (C6).
 - An address above 0x77 is an error rather than silently dropped (C12).
 - A 0x... read value in poll info counts its hex digits, not the 0x prefix, towards the poll size (C11).
+- A record's generalCall is emitted after its init fields; an invalid one is an error.
 - Warnings: a key in more than one file; a record with no detection values ahead of another at its address; a
   hardware type ID used by more than one record (N2).
 """
@@ -118,6 +119,21 @@ class GeneratorTableTests(unittest.TestCase):
                     {"identPriority": "1"}, {"scanWhilePolled": "no"}, {"scanWhilePolled": 0}]:
             result, _ = self.run_with_records({"Bad": dict(make_record(), **bad)})
             self.assertNotEqual(result.returncode, 0, bad)
+
+    def test_general_call(self):
+        # Emitted after the init fields (nullptr, nullptr for a record without initCode); a record without one ends
+        # at its policy as before
+        result, header = self.run_with_records({"Plain": make_record(), "Wake": dict(make_record(), generalCall="0x04"),
+                                                "Two": dict(make_record(), generalCall="0x04aB")})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(re.findall(r', (\d+),\n        nullptr, nullptr,\n        "([^"]*)"\n    \},', header),
+                         [("0", "0x04"), ("0", "0x04aB")])
+        self.assertEqual(self.policies(header), [0])
+        # Invalid: not a string, no 0x, odd or no digits, over 4 bytes, not hex, or starting with 0x00 or 0x06 (reset)
+        for bad in [4, "04", "0x4", "0x", "0x0404040404", "0x0g", "0x00", "0x0604"]:
+            result, _ = self.run_with_records({"Bad": dict(make_record(), generalCall=bad)})
+            self.assertNotEqual(result.returncode, 0, bad)
+            self.assertIn("generalCall", result.stderr)
 
     def test_device_type_id_is_an_error_naming_hw_type_id(self):
         # The old field: its values had no scheme, so it is refused with a message naming the new field (M14)

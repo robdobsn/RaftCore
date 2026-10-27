@@ -265,6 +265,12 @@ public:
     /// @param priorityLists (out) priority lists
     void getScanPriorityLists(std::vector<std::vector<BusElemAddrType>>& priorityLists);
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get the general calls the bus sends while scanning: those of the enabled records with a generalCall
+    ///        (see DeviceTypeRecord::generalCall), each once
+    /// @param generalCalls (out) the bytes of each general call
+    void getGeneralCalls(std::vector<std::vector<uint8_t>>& generalCalls) const;
+
     // Result of adding an extended record
     enum class AddResult
     {

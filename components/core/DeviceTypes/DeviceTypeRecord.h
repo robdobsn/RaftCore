@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <string.h>
 #include "RaftArduino.h"
 #include "RaftBus.h"
 #include "RaftJson.h"
@@ -118,6 +119,13 @@ public:
     DeviceTypeRecordInitFn initValuesFn = nullptr;
     const char* initValueNames = nullptr;
 
+    // General call: bytes the bus sends to the I2C general call address (0x00) while scanning, for a device that
+    // stays off the bus until it gets one (e.g. the Excelitas CaliPile loads its address from EEPROM on 0x04). As
+    // hex, "0x04" (1 to MAX_GENERAL_CALL_BYTES bytes; see parseGeneralCall). JSON "generalCall". nullptr (or empty)
+    // if the record has none
+    const char* generalCall = nullptr;
+    static constexpr uint32_t MAX_GENERAL_CALL_BYTES = 4;
+
     static const char* getPolicyStr(uint8_t policy)
     {
         return policy == POLICY_DISABLED ? "disabled" : (policy == POLICY_DISABLED_CLAIM ? "disabledClaim" : "enabled");
@@ -174,6 +182,44 @@ public:
         }
         return true;
     }
+    /// @brief Parse a general call string: "0x" and 2 to 2 x MAX_GENERAL_CALL_BYTES hex digits. The first byte can't be
+    ///        0x00 (not a general call command) or 0x06 (the general call reset: every device that supports it would
+    ///        be reset each time the bus sends it)
+    /// @param pStr string
+    /// @param pBytes (out) bytes, MAX_GENERAL_CALL_BYTES long (may be nullptr to only check)
+    /// @param numBytes (out) number of bytes
+    /// @return true if valid
+    static bool parseGeneralCall(const char* pStr, uint8_t* pBytes, uint32_t& numBytes)
+    {
+        numBytes = 0;
+        if (!pStr || (pStr[0] != '0') || ((pStr[1] != 'x') && (pStr[1] != 'X')))
+            return false;
+        uint32_t numDigits = strlen(pStr + 2);
+        if ((numDigits == 0) || (numDigits % 2 != 0) || (numDigits > 2 * MAX_GENERAL_CALL_BYTES))
+            return false;
+        uint8_t bytes[MAX_GENERAL_CALL_BYTES] = {};
+        for (uint32_t i = 0; i < numDigits; i++)
+        {
+            char c = pStr[2 + i];
+            int nibble = ((c >= '0') && (c <= '9')) ? c - '0' : ((c >= 'a') && (c <= 'f')) ? c - 'a' + 10 :
+                        ((c >= 'A') && (c <= 'F')) ? c - 'A' + 10 : -1;
+            if (nibble < 0)
+                return false;
+            bytes[i / 2] = (bytes[i / 2] << 4) | nibble;
+        }
+        if ((bytes[0] == 0x00) || (bytes[0] == 0x06))
+            return false;
+        numBytes = numDigits / 2;
+        if (pBytes)
+            memcpy(pBytes, bytes, numBytes);
+        return true;
+    }
+
+    bool hasGeneralCall() const
+    {
+        return generalCall && generalCall[0];
+    }
+
     bool isScannedWhilePolled() const
     {
         return (flags & FLAG_NO_SCAN_WHILE_POLLED) == 0;
