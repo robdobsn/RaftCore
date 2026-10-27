@@ -116,6 +116,37 @@ public:
     // Clear credentials
     esp_err_t clearCredentials();
 
+    // Start and stop WiFi on demand (WiFi is started at setup unless NetworkSettings::wifiStartOnDemand)
+    // fullScan makes this start forget the fast reconnect AP and scan all channels (of the configured band)
+    // for the strongest AP - e.g. after a restart or when connections keep failing
+    bool wifiStart(bool fullScan = false);
+    void wifiStop();
+    bool isWifiStarted() const
+    {
+        return _wifiRequested;
+    }
+
+    // A network connection is wanted (WiFi started or Ethernet enabled)
+    bool isNetworkWanted() const
+    {
+        return _wifiRequested || _networkSettings.enableEthernet;
+    }
+
+    // Connection statistics for the latest WiFi start: time from start to IP address (ms, 0 if no IP yet),
+    // whether the fast reconnect AP was used and the number of times since boot that it failed
+    uint32_t getWifiConnectMs() const
+    {
+        return _wifiConnectMs;
+    }
+    bool wasFastReconnectUsed() const
+    {
+        return _fastReconnectUsedThisStart;
+    }
+    uint32_t getFastReconnectFallbacks() const
+    {
+        return _fastReconnectFallbacks;
+    }
+
     // Pause WiFi operation - used to help with BLE vs WiFi contention in ESP32
     // (they share the same radio)
     void pauseWiFi(bool pause);
@@ -205,6 +236,33 @@ private:
 
     // Retry max, -1 means try forever
     static const int WIFI_CONNECT_MAX_RETRY = -1;
+
+    // WiFi wanted (started at setup or by wifiStart(), stopped by wifiStop()) - WiFi may still be stopped
+    // while paused
+    std::atomic<bool> _wifiRequested{false};
+    bool _fullScanThisStart = false;
+    void applyWifiStartOptions();
+
+    // Connection statistics (written on the WiFi event task)
+    std::atomic<uint32_t> _wifiStartMs{0};
+    std::atomic<uint32_t> _wifiConnectMs{0};
+    std::atomic<bool> _fastReconnectUsedThisStart{false};
+    std::atomic<uint32_t> _fastReconnectFallbacks{0};
+
+    // Fast reconnect (see NetworkSettings::wifiSTAFastReconnect) - true while the STA config (in RAM) is set to
+    // connect to the remembered AP
+    std::atomic<bool> _fastReconnectHintInUse{false};
+    void applyStaFastReconnectHint(const wifi_config_t& staConfig);
+    void storeStaFastReconnectHint(const wifi_event_sta_connected_t* pEvent);
+    void clearStaFastReconnectHint();
+    void applyStaFullScan(const wifi_config_t& staConfig);
+
+    // WiFi band (see NetworkSettings::wifiBand)
+    void applyWifiBandMode();
+
+    // WiFi STA static IP (see NetworkSettings::wifiStaticIP)
+    bool _wifiStaticIPInUse = false;
+    bool applyStaStaticIP();
 
     // Ethernet
 #ifdef ETHERNET_IS_ENABLED
