@@ -67,6 +67,15 @@ public:
     /// @brief Request system restart
     virtual void systemRestart() = 0;
 
+    /// @brief Notify SysMods and connected clients that the system is about to shut down or restart
+    /// @param isRestart true if the system is restarting (false for a power-down)
+    /// @param reasonOrNull optional reason string
+    /// @note SysMods receive the command {"cmd":"shutdown","isRestart":0|1,"reason":"..."} through receiveCmdJSON
+    ///       and clients receive a sysevent report. Called by systemRestart() and by whatever handles power-down.
+    virtual void notifyOfShutdown(bool isRestart = true, const char* reasonOrNull = nullptr)
+    {
+    }
+
     /// @brief Get REST API endpoint manager
     /// @return Pointer to RestAPIEndpointManager
     virtual RestAPIEndpointManager* getRestAPIEndpointManager() = 0;

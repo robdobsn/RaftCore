@@ -325,6 +325,10 @@ void CommsChannelManager::inboundHandleMsg(uint32_t channelID, const uint8_t* pM
                 msgLen);
 #endif
 
+    // Record the activity
+    _lastInboundMsgMs = millis();
+    _inboundMsgCount = _inboundMsgCount + 1;
+
     // Handle the message - this only queues the message so the protocol codec is not needed here
     // (and must not be created here as this may be called from a task other than the main loop task)
     pChannel->handleRxData(pMsg, msgLen);
@@ -359,9 +363,37 @@ void CommsChannelManager::inboundHandleMsgVec(uint32_t channelID, const SpiramAw
                 msg.size());
 #endif
 
+    // Record the activity
+    _lastInboundMsgMs = millis();
+    _inboundMsgCount = _inboundMsgCount + 1;
+
     // Handle the message - this only queues the message so the protocol codec is not needed here
     // (and must not be created here as this may be called from a task other than the main loop task)
     pChannel->handleRxData(msg);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a named value
+/// @param pValueName name of the value: rxIdleSecs (seconds since the last inbound message on any channel, not
+///        valid until a message has been received), rxMsgCount (inbound messages since boot)
+/// @param isValid (out) true if the value is valid
+/// @return value
+double CommsChannelManager::getNamedValue(const char* pValueName, bool& isValid)
+{
+    if (strcasecmp(pValueName, "rxIdleSecs") == 0)
+    {
+        bool anyRx = false;
+        uint32_t lastRxMs = getLastInboundMsgMs(anyRx);
+        isValid = anyRx;
+        return anyRx ? Raft::timeElapsed(millis(), lastRxMs) / 1000.0 : 0;
+    }
+    if (strcasecmp(pValueName, "rxMsgCount") == 0)
+    {
+        isValid = true;
+        return _inboundMsgCount;
+    }
+    isValid = false;
+    return 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

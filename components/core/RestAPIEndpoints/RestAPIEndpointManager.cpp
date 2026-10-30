@@ -85,9 +85,21 @@ void RestAPIEndpointManager::addEndpoint(const char *pEndpointStr,
                     RestAPIFnIsReady callbackIsReady
                     )
 {
+    // Wrap the main callback so that every call (whichever transport makes it) is recorded as activity
+    RestAPIFunction wrappedCallback = nullptr;
+    if (callback)
+    {
+        wrappedCallback = [this, callback](const String& reqStr, String& respStr, const APISourceInfo& sourceInfo) -> RaftRetCode
+        {
+            _lastApiCallMs = millis();
+            _apiCallCount = _apiCallCount + 1;
+            return callback(reqStr, respStr, sourceInfo);
+        };
+    }
+
     // Create new command definition and add
     _endpointsList.push_back(RestAPIEndpoint(pEndpointStr, endpointType,
-                                endpointMethod, callback,
+                                endpointMethod, wrappedCallback,
                                 pDescription,
                                 pContentType, pContentEncoding,
                                 cacheControl, pExtraHeaders,
