@@ -203,7 +203,7 @@ private:
 
     // Activity: time of the last API call and a count of them. Each endpoint's main callback is wrapped (in
     // addEndpoint) to record these, so calls made directly by a transport (the web server calls the callback itself,
-    // without handleApiRequest) are counted too. The web server calls from its own task, so each is a single word.
+    // without handleApiRequest) are counted too. Each is a single word so it can be read from any task.
     volatile uint32_t _lastApiCallMs = 0;
     volatile uint32_t _apiCallCount = 0;
 
