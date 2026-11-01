@@ -93,6 +93,22 @@ public:
     // Service (call on the main task) - handles deferred response timeouts
     void loop();
 
+    /// @brief Get the time of the last API call (through any route: comms channels, HTTP, serial console, command file)
+    /// @param isValid (out) false if no API has been called since boot
+    /// @return millis() at the last call
+    uint32_t getLastApiCallMs(bool& isValid) const
+    {
+        isValid = _apiCallCount != 0;
+        return _lastApiCallMs;
+    }
+
+    /// @brief Get the number of API calls since boot
+    /// @return count
+    uint32_t getApiCallCount() const
+    {
+        return _apiCallCount;
+    }
+
     /// @brief Get matching endpoint definition for REST API request
     /// @param requestStr Request string
     /// @param endpointMethod Endpoint method
@@ -184,6 +200,12 @@ private:
 
     // Deferred responses
     RestAPIDeferredResponses _deferredResponses;
+
+    // Activity: time of the last API call and a count of them. Each endpoint's main callback is wrapped (in
+    // addEndpoint) to record these, so calls made directly by a transport (the web server calls the callback itself,
+    // without handleApiRequest) are counted too. Each is a single word so it can be read from any task.
+    volatile uint32_t _lastApiCallMs = 0;
+    volatile uint32_t _apiCallCount = 0;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "RestAPI";

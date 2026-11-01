@@ -695,8 +695,20 @@ void SysManager::notifyOfShutdown(bool isRestart, const char* reasonOrNull)
     }
     shutdownCmdAndReason += "}";
 
-    // Send report
+    // Send report to connected clients
     sendReportMessage(shutdownCmdAndReason.c_str());
+
+    // Tell the SysMods (a logger closes its file, etc)
+    String sysModCmd = "{\"cmd\":\"shutdown\",\"isRestart\":";
+    sysModCmd += isRestart ? "1" : "0";
+    if (reasonOrNull)
+    {
+        sysModCmd += ",\"reason\":\"";
+        sysModCmd += reasonOrNull;
+        sysModCmd += "\"";
+    }
+    sysModCmd += "}";
+    sendCmdJSON(nullptr, sysModCmd.c_str());
 
     // Log
     LOG_I(MODULE_PREFIX, "notifyOfShutdown isRestart %s reason %s", 
@@ -803,6 +815,27 @@ double SysManager::getNamedValue(const char* pSysModName, const char* valueName,
         {
             isValid = true;
             return _isSystemStreaming ? 1.0 : 0.0;
+        }
+        // Seconds since the last REST API call through any route (not valid until one has been made)
+        else if (strcasecmp(valueName, "ApiIdleSecs") == 0)
+        {
+            isValid = false;
+            if (!_pRestAPIEndpointManager)
+                return 0;
+            uint32_t lastCallMs = _pRestAPIEndpointManager->getLastApiCallMs(isValid);
+            return isValid ? Raft::timeElapsed(millis(), lastCallMs) / 1000.0 : 0;
+        }
+        // Seconds since the last inbound message on any comms channel (BLE, WebSocket, serial, ...), from the
+        // comms channel manager (not valid until a message has been received)
+        else if (strcasecmp(valueName, "RxIdleSecs") == 0)
+        {
+            RaftSysMod* pCommsMan = getSysMod("CommsMan");
+            if (!pCommsMan)
+            {
+                isValid = false;
+                return 0;
+            }
+            return pCommsMan->getNamedValue("rxIdleSecs", isValid);
         }
         isValid = false;
         return 0;

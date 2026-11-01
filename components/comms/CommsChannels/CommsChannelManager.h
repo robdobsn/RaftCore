@@ -64,6 +64,22 @@ public:
     // Get info
     String getInfoJSON();
 
+    /// @brief Get a named value
+    /// @param pValueName name of the value: rxIdleSecs (seconds since the last inbound message on any channel, not
+    ///        valid until a message has been received), rxMsgCount (inbound messages since boot)
+    /// @param isValid (out) true if the value is valid
+    /// @return value
+    virtual double getNamedValue(const char* pValueName, bool& isValid) override final;
+
+    /// @brief Get the time of the last inbound message on any channel
+    /// @param isValid (out) false if no message has been received since boot
+    /// @return millis() at the last inbound message
+    uint32_t getLastInboundMsgMs(bool& isValid) const
+    {
+        isValid = _inboundMsgCount != 0;
+        return _lastInboundMsgMs;
+    }
+
     // Register and unregister a bridge between two different interfaces
     virtual uint32_t bridgeRegister(const char* bridgeName, uint32_t establishmentChannelID, 
                     uint32_t otherChannelID, uint32_t idleCloseSecs) override final;
@@ -103,6 +119,11 @@ private:
     // Consts
     static const int MAX_INBOUND_MSGS_IN_LOOP = 1;
     static const uint32_t COMMS_CHANNELS_RESERVE_COUNT = 20;
+
+    // Activity: time of the last inbound message on any channel and a count of them (written from the task that
+    // delivers the message, which may not be the main task, so each is a single aligned word)
+    volatile uint32_t _lastInboundMsgMs = 0;
+    volatile uint32_t _inboundMsgCount = 0;
 
     // Throttle for warning about missing codec
     uint32_t _noCodecWarnLastMs = 0;

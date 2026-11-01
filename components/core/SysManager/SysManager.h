@@ -94,7 +94,7 @@ public:
     /// @brief Notify of system shutdown
     /// @param isRestart True if this is a restart (false if shutdown)
     /// @param reasonOrNull Reason for shutdown (may be nullptr)
-    void notifyOfShutdown(bool isRestart = true, const char* reasonOrNull = nullptr);
+    virtual void notifyOfShutdown(bool isRestart = true, const char* reasonOrNull = nullptr) override final;
 
     /// @brief Send command to one or all SysMods
     /// @param pSysModNameOrNullForAll Name of SysMod to send command to or nullptr for all SysMods

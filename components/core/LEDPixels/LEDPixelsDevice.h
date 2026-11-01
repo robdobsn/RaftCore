@@ -42,6 +42,14 @@ public:
     /// @param endpointManager Manager for REST API endpoints
     virtual void addRestAPIEndpoints(RestAPIEndpointManager& endpointManager) override;
 
+    /// @brief Access the LED pixels (for code that drives a pixel directly, outside the patterns, e.g. a low-power
+    ///        indication from the same task while the patterns are stopped)
+    /// @return LEDPixels reference
+    LEDPixels& getLEDPixels()
+    {
+        return _ledPixels;
+    }
+
 protected:
 
     // LED pixels
