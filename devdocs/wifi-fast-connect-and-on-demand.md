@@ -43,6 +43,9 @@ network coming up).
 - Not for networks that rely on 802.11v/k roaming (BTM/MBO): the device chooses the AP.
 - `startMode` `onDemand`: `w`, `wap` and `wc` start WiFi if it isn't started. SysManager's reboot-if-disconnected
   doesn't count time while WiFi is stopped (in any other case it is as before).
+- **Low power** (RaftSysMods after 1.30.0): the `lowPower` command sent to all SysMods (`enable` 1) stops WiFi if
+  it is running; `enable` 0 starts it again only if that command stopped it, so on-demand WiFi that wasn't
+  running stays off. See the wiki's NetworkManager and SysMods pages.
 - **Credentials in config** (`wifiSSID` / `wifiPW`): NetMan applies them on every WiFi start, but now only when
   they differ from the stored ones (`configWifiSTA(..., skipIfUnchanged)`) - reconfiguring the same credentials
   meant a disconnect and reconnect on every start, and forgot the remembered AP. The `w` API still always
