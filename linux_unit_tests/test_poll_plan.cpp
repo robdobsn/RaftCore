@@ -127,7 +127,7 @@ static void testPlanLifetimeAndLazyPlan()
     DeviceStatus status;
     TEST_ASSERT(makeStatus(table, "LSM6DS3", 0x6a, status, false), "status made without a plan");
     uint32_t numReqs = status.getNumPollRequests();
-    TEST_ASSERT(numReqs == 2, "LSM6DS3 has two poll requests");
+    TEST_ASSERT(numReqs == 3, "LSM6DS3 has three poll requests (temperature, FIFO status, FIFO data)");
     uint64_t dueUs = 0;
     status.getNextPollDueUs(0, dueUs);
 
@@ -136,7 +136,7 @@ static void testPlanLifetimeAndLazyPlan()
     TEST_ASSERT(status.getPendingPollJob(dueUs, job) && job.pPlan, "poll due with a plan");
     TEST_ASSERT((status.getNumPollRequests() == numReqs) && (status.deviceIdentPolling.pollReqs.size() == 0),
                 "requests moved into the plan, and still counted");
-    TEST_ASSERT(job.pPlan->pollReqs[1].hasDynamicReadLen(), "the FIFO read keeps its read length expression");
+    TEST_ASSERT(job.pPlan->pollReqs[2].hasDynamicReadLen(), "the FIFO read keeps its read length expression");
 
     // Identified again (as another type): a held plan stays valid, the next poll gets the new one
     std::shared_ptr<const PollPlan> pHeld = job.pPlan;
@@ -152,7 +152,7 @@ static void testPlanLifetimeAndLazyPlan()
     bool due = status.getPendingPollJob(t, job2);
     TEST_ASSERT(due && job2.pPlan && (job2.pPlan != pHeld), "a new plan");
     TEST_ASSERT(job2.pPlan && (job2.pPlan->pollReqs.size() == 2) && (job2.pPlan->pollReqs[0].getAddress() == 0x29), "the new requests");
-    TEST_ASSERT((pHeld->pollReqs.size() == 2) && (pHeld->pollReqs[0].getAddress() == 0x6a), "the held plan is unchanged");
+    TEST_ASSERT((pHeld->pollReqs.size() == 3) && (pHeld->pollReqs[0].getAddress() == 0x6a), "the held plan is unchanged");
 
     // clear() drops the plan
     status.clear();
