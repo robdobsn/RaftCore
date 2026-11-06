@@ -16,6 +16,9 @@
 // - otherwise (and if those can't be allocated, e.g. memory taken by another channel) the largest share of RMT
 //   memory, down to one block.
 //
+// A refilled frame (no DMA, or a frame longer than the DMA buffer) is helped by a higher interrupt priority (see
+// intrPriority()), but a critical section on the core still holds the interrupt off.
+//
 // Raft-free so it can be host-tested (linux_unit_tests/test_led_strip_rmt_plan).
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +57,9 @@ public:
             return (memSymbols == other.memSymbols) && (withDma == other.withDma);
         }
     };
+
+    // Highest interrupt priority the RMT driver accepts (levels 1-3, the ones with C handlers)
+    static constexpr uint32_t INTR_PRIORITY_MAX = 3;
 
     // Symbols after the pixel data (the encoder's reset code)
     static constexpr uint32_t RESET_SYMBOLS = 1;
@@ -134,6 +140,17 @@ public:
                     (attempt.memSymbols > DMA_MARGIN_SYMBOLS ? attempt.memSymbols - DMA_MARGIN_SYMBOLS : 0) :
                     attempt.memSymbols;
         return frameSyms > capacity;
+    }
+
+    /// @brief Interrupt priority for the channel
+    /// @param configPriority intrPriority from the strip's config (1-3), 0 for automatic
+    /// @param refilled the frame is refilled while it goes out (needsRefill())
+    /// @return priority, 0 to let the driver choose (the lowest free)
+    static uint32_t intrPriority(uint32_t configPriority, bool refilled)
+    {
+        if (configPriority > 0)
+            return configPriority > INTR_PRIORITY_MAX ? INTR_PRIORITY_MAX : configPriority;
+        return refilled ? INTR_PRIORITY_MAX : 0;
     }
 
     /// @brief Parse a DMA mode ("auto", "on"/"1"/"true", "off"/"0"/"false"; anything else is auto)

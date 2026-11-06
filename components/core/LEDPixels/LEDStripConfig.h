@@ -69,6 +69,7 @@ public:
         // RMT peripheral configuration (memory sized to the frame unless memBlockSymbols is given - LEDStripRMTPlan.h)
         memBlockSymbols = config.getLong("memBlockSymbols", 0);
         dmaMode = LEDStripRMTPlan::parseDmaMode(config.getString("dma", "auto").c_str());
+        intrPriority = config.getLong("intrPriority", 0);
         transQueueDepth = config.getLong("transQueueDepth", 1);
         minChunkSize = config.getLong("minChunkSize", 64);
 
@@ -119,6 +120,7 @@ public:
                     " bpp:" + String(bytesPerPixel) +
                     " memBlkSym:" + String(memBlockSymbols) +
                     " dma:" + String(LEDStripRMTPlan::getDmaModeStr(dmaMode)) +
+                    " intrPri:" + String(intrPriority) +
                     " transQDepth:" + String(transQueueDepth) +
                     " minChunk:" + String(minChunkSize);
         return str;
@@ -164,6 +166,7 @@ public:
     uint16_t memBlockSymbols = 0;       // RMT memory (or DMA buffer) in symbols, 0 to size it to the frame (RMT memory is
                                         // allocated in chip-specific blocks: 64 symbols on ESP32, 48 on S3/C3/C6/H2)
     LEDStripRMTPlan::DmaMode dmaMode = LEDStripRMTPlan::DMA_AUTO;   // use of DMA for the RMT channel
+    uint8_t intrPriority = 0;           // RMT interrupt priority (1-3), 0 for 3 when frames are refilled, else the lowest
     uint16_t transQueueDepth = 1;       // Transaction queue depth (only 1 to prevent buffer corruption)
     uint16_t minChunkSize = 64;         // Min chunk size for simple encoder
 

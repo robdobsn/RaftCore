@@ -5,7 +5,7 @@
 // - A frame that fits in the strip's share of TX memory gets exactly the blocks it needs (no refill).
 // - A longer frame gets DMA where the chip has it (the whole frame up to DMA_MAX_SYMBOLS), then the most RMT memory.
 // - The share of TX memory is split between strips; a configured memBlockSymbols is used as given.
-// - DMA modes; refill detection.
+// - DMA modes; refill detection; interrupt priority.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -135,6 +135,22 @@ static void testParseDmaMode()
     TEST_ASSERT(Plan::parseDmaMode(nullptr) == Plan::DMA_AUTO, "null");
 }
 
+static void testIntrPriority()
+{
+    printf("Running testIntrPriority...\n");
+    TEST_ASSERT(Plan::intrPriority(0, false) == 0, "auto, not refilled: lowest");
+    TEST_ASSERT(Plan::intrPriority(0, true) == 3, "auto, refilled: 3");
+    TEST_ASSERT(Plan::intrPriority(1, true) == 1, "configured 1");
+    TEST_ASSERT(Plan::intrPriority(2, false) == 2, "configured 2, not refilled");
+    TEST_ASSERT(Plan::intrPriority(7, false) == 3, "configured above 3: 3");
+    // C3 6 pixels: refilled, so priority 3
+    Attempts c3 = plan(6, CAPS_C3);
+    TEST_ASSERT(Plan::intrPriority(0, Plan::needsRefill(145, c3[0])) == 3, "C3 6 pixels: priority 3");
+    // S3 6 pixels: whole frame, so the lowest
+    Attempts s3 = plan(6, CAPS_S3);
+    TEST_ASSERT(Plan::intrPriority(0, Plan::needsRefill(145, s3[0])) == 0, "S3 6 pixels: lowest");
+}
+
 int main()
 {
     testFrameSymbols();
@@ -143,5 +159,6 @@ int main()
     testShares();
     testConfigured();
     testParseDmaMode();
+    testIntrPriority();
     return testSummary("test_led_strip_rmt_plan");
 }

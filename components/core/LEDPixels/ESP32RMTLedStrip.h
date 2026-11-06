@@ -86,10 +86,16 @@ private:
     // Mutex for state synchronization
     RaftMutex _stateMutex;
 
-    // Pixel working buffer - in PSRAM, which the RMT driver's encoder reads in its interrupt. Fine while
-    // CONFIG_RMT_ISR_IRAM_SAFE is off (the interrupt is held off while a flash write has the cache disabled);
-    // with it on, this buffer (and this object, which rmtTxCompleteCB writes) must be in internal RAM
+    // Pixel working buffer - may be in PSRAM. The RMT driver's encoder reads the frame when it starts and, if the
+    // frame is refilled, in its interrupt: then the frame is sent from _pTxBufInternal instead, so the interrupt
+    // doesn't wait on PSRAM and works with CONFIG_RMT_TX_ISR_CACHE_SAFE (this object, which rmtTxCompleteCB
+    // writes, must then be in internal RAM too, as it is when allocated with new while it is under the PSRAM
+    // malloc threshold)
     SpiramAwareUint8Vector _pixelBuffer;
+
+    // Copy of the frame in internal RAM, sent when the frame is refilled (nullptr otherwise)
+    uint8_t* _pTxBufInternal = nullptr;
+    uint32_t _txBufInternalSize = 0;
 
     // Last transmitted buffer (to skip redundant transmissions)
     SpiramAwareUint8Vector _lastTxBuffer;
@@ -102,6 +108,7 @@ private:
     // Helpers
     bool initRMTPeripheral();
     esp_err_t newTxChannel();
+    void freeTxBufInternal();
     void deinitRMTPeripheral();
     static bool IRAM_ATTR rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
     bool IRAM_ATTR rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);

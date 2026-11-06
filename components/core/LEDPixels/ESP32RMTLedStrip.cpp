@@ -13,6 +13,7 @@
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "soc/soc_caps.h"
+#include "esp_heap_caps.h"
 
 // #define DEBUG_ESP32RMTLEDSTRIP_SETUP
 // #define DEBUG_ESP32RMTLEDSTRIP_SEND
@@ -49,6 +50,7 @@ ESP32RMTLedStrip::ESP32RMTLedStrip()
 ESP32RMTLedStrip::~ESP32RMTLedStrip()
 {
     deinitRMTPeripheral();
+    freeTxBufInternal();
 
     // Destroy mutex
     RaftMutex_destroy(_stateMutex);
@@ -72,6 +74,7 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
     if (_isSetup)
     {
         deinitRMTPeripheral();
+        freeTxBufInternal();
         _isSetup = false;
     }
 
@@ -244,25 +247,65 @@ esp_err_t ESP32RMTLedStrip::newTxChannel()
     esp_err_t err = ESP_ERR_NOT_FOUND;
     for (const auto& attempt : attempts)
     {
+        // A refilled frame gets a higher interrupt priority (unless configured), or the lowest if that can't be had
+        bool refilled = LEDStripRMTPlan::needsRefill(frameSyms, attempt);
+        uint32_t intrPriority = LEDStripRMTPlan::intrPriority(_ledStripConfig.intrPriority, refilled);
         rmt_tx_channel_config_t channelConfig = _rmtChannelConfig;
         channelConfig.mem_block_symbols = attempt.memSymbols;
         channelConfig.flags.with_dma = attempt.withDma;
+        channelConfig.intr_priority = intrPriority;
         err = rmt_new_tx_channel(&channelConfig, &_rmtChannelHandle);
+        if ((err != ESP_OK) && (intrPriority > 0))
+        {
+            channelConfig.intr_priority = 0;
+            err = rmt_new_tx_channel(&channelConfig, &_rmtChannelHandle);
+        }
         if (err != ESP_OK)
             continue;
+
+        // A refilled frame is sent from internal RAM (the interrupt reads it); without the memory it is sent from
+        // the pixel buffer
+        uint32_t frameBytes = _ledStripConfig.numPixels * _ledStripConfig.bytesPerPixel;
+        if (refilled && (_txBufInternalSize < frameBytes))
+        {
+            freeTxBufInternal();
+            _pTxBufInternal = (uint8_t*)heap_caps_malloc(frameBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            _txBufInternalSize = _pTxBufInternal ? frameBytes : 0;
+        }
 
         // Log the channel the first time (the channel is created again after each frame with stopAfterTx)
         _rmtAlloc = attempt;
         if (!_rmtAllocLogged)
         {
             _rmtAllocLogged = true;
-            LOG_I(MODULE_PREFIX, "initRMT pin %d frame %d symbols, %s %d symbols%s",
-                    _ledStripConfig.ledDataPin, (int)frameSyms, attempt.withDma ? "DMA buffer" : "RMT memory",
-                    (int)attempt.memSymbols, LEDStripRMTPlan::needsRefill(frameSyms, attempt) ? " (refilled)" : "");
+            if (refilled)
+            {
+                LOG_W(MODULE_PREFIX, "initRMT pin %d frame %d symbols > %s %d symbols: refilled by the interrupt "
+                        "(priority %d), a late interrupt can corrupt it%s",
+                        _ledStripConfig.ledDataPin, (int)frameSyms, attempt.withDma ? "DMA buffer" : "RMT memory",
+                        (int)attempt.memSymbols, (int)channelConfig.intr_priority,
+                        _pTxBufInternal ? "" : " - no internal RAM for the frame, sent from the pixel buffer");
+            }
+            else
+            {
+                LOG_I(MODULE_PREFIX, "initRMT pin %d frame %d symbols, %s %d symbols",
+                        _ledStripConfig.ledDataPin, (int)frameSyms, attempt.withDma ? "DMA buffer" : "RMT memory",
+                        (int)attempt.memSymbols);
+            }
         }
         return ESP_OK;
     }
     return err;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Free the internal RAM copy of the frame
+void ESP32RMTLedStrip::freeTxBufInternal()
+{
+    if (_pTxBufInternal)
+        heap_caps_free(_pTxBufInternal);
+    _pTxBufInternal = nullptr;
+    _txBufInternalSize = 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -416,7 +459,14 @@ bool ESP32RMTLedStrip::showPixels(std::vector<LEDPixel>& pixels)
     };
     RaftAtomicBool_set(_txInProgress, true);
     _lastTxTimeMs = millis();
-    esp_err_t err = rmt_transmit(_rmtChannelHandle, _ledStripEncoderHandle, _pixelBuffer.data(), numBytesToCopy, &tx_config);
+    // A refilled frame is sent from internal RAM (any earlier frame has finished - see above)
+    const uint8_t* pTxData = _pixelBuffer.data();
+    if (_pTxBufInternal && (numBytesToCopy <= _txBufInternalSize))
+    {
+        memcpy(_pTxBufInternal, pTxData, numBytesToCopy);
+        pTxData = _pTxBufInternal;
+    }
+    esp_err_t err = rmt_transmit(_rmtChannelHandle, _ledStripEncoderHandle, pTxData, numBytesToCopy, &tx_config);
     if (err != ESP_OK)
     {
         LOG_E(MODULE_PREFIX, "rmt_transmit failed: %d", err);
