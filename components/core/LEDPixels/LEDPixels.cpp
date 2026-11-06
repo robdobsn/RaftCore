@@ -69,7 +69,7 @@ bool LEDPixels::setup(LEDPixelConfig& config)
     {
         ESP32RMTLedStrip* ledStrip = new ESP32RMTLedStrip();
         _ledStripDrivers.push_back(ledStrip);
-        rslt = ledStrip->setup(config.stripConfigs[ledStripIdx], pixelCount);
+        rslt = ledStrip->setup(config.stripConfigs[ledStripIdx], pixelCount, config.stripConfigs.size());
         if (!rslt)
             break;
         pixelCount += config.stripConfigs[ledStripIdx].numPixels;

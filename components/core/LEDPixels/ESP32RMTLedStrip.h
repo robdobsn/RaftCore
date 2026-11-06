@@ -15,6 +15,7 @@
 #include "LEDPixel.h"
 #include "LEDStripConfig.h"
 #include "LEDStripEncoder.h"
+#include "LEDStripRMTPlan.h"
 #include "esp_idf_version.h"
 
 #include "driver/rmt_tx.h"
@@ -29,8 +30,8 @@ public:
     ESP32RMTLedStrip(const ESP32RMTLedStrip&) = delete;
     ESP32RMTLedStrip& operator=(const ESP32RMTLedStrip&) = delete;
 
-    // Setup
-    bool setup(const LEDStripConfig& ledStripConfig, uint32_t pixelIndexStartOffset);
+    // Setup (numStrips: strips sharing the RMT peripheral, each sized to its share of the TX memory)
+    bool setup(const LEDStripConfig& ledStripConfig, uint32_t pixelIndexStartOffset, uint32_t numStrips = 1);
 
     // Loop
     void loop();
@@ -50,8 +51,15 @@ private:
     // LED strip pixel indexing start offset into the overall pixel buffer
     uint32_t _pixelIdxStartOffset = 0;
 
-    // RMT channel config
+    // RMT channel config (memory and DMA are set for each attempt from LEDStripRMTPlan)
     rmt_tx_channel_config_t _rmtChannelConfig;
+
+    // Strips sharing the RMT peripheral
+    uint32_t _numStrips = 1;
+
+    // RMT channel allocated (memory and DMA), and whether it has been logged
+    LEDStripRMTPlan::Attempt _rmtAlloc;
+    bool _rmtAllocLogged = false;
 
     // Encoder config
     led_strip_encoder_config_t _ledStripEncoderConfig;
@@ -93,6 +101,7 @@ private:
 
     // Helpers
     bool initRMTPeripheral();
+    esp_err_t newTxChannel();
     void deinitRMTPeripheral();
     static bool IRAM_ATTR rmtTxCompleteCBStatic(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx);
     bool IRAM_ATTR rmtTxCompleteCB(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata);

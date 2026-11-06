@@ -14,6 +14,7 @@
 #include "RaftJsonPrefixed.h"
 #include "RaftJson.h"
 #include "LEDPixel.h"
+#include "LEDStripRMTPlan.h"
 
 class LEDStripConfig
 {
@@ -65,8 +66,9 @@ public:
         // Delay before deinit
         delayBeforeDeinitMs = config.getLong("beforeDeinitMs", 0);
 
-        // RMT peripheral configuration
-        memBlockSymbols = config.getLong("memBlockSymbols", 64);
+        // RMT peripheral configuration (memory sized to the frame unless memBlockSymbols is given - LEDStripRMTPlan.h)
+        memBlockSymbols = config.getLong("memBlockSymbols", 0);
+        dmaMode = LEDStripRMTPlan::parseDmaMode(config.getString("dma", "auto").c_str());
         transQueueDepth = config.getLong("transQueueDepth", 1);
         minChunkSize = config.getLong("minChunkSize", 64);
 
@@ -116,6 +118,7 @@ public:
                     " colOrd:" + String(LEDPixel::getColourOrderStr(colourOrder)) +
                     " bpp:" + String(bytesPerPixel) +
                     " memBlkSym:" + String(memBlockSymbols) +
+                    " dma:" + String(LEDStripRMTPlan::getDmaModeStr(dmaMode)) +
                     " transQDepth:" + String(transQueueDepth) +
                     " minChunk:" + String(minChunkSize);
         return str;
@@ -158,7 +161,9 @@ public:
     uint16_t delayBeforeDeinitMs = 0;
 
     // RMT peripheral configuration - for simple encoder implementations
-    uint16_t memBlockSymbols = 64;      // RMT memory block size in symbols (allocated in chip-specific blocks: 64 for ESP32, 48 for S3/C3/C6/H2)
+    uint16_t memBlockSymbols = 0;       // RMT memory (or DMA buffer) in symbols, 0 to size it to the frame (RMT memory is
+                                        // allocated in chip-specific blocks: 64 symbols on ESP32, 48 on S3/C3/C6/H2)
+    LEDStripRMTPlan::DmaMode dmaMode = LEDStripRMTPlan::DMA_AUTO;   // use of DMA for the RMT channel
     uint16_t transQueueDepth = 1;       // Transaction queue depth (only 1 to prevent buffer corruption)
     uint16_t minChunkSize = 64;         // Min chunk size for simple encoder
 
