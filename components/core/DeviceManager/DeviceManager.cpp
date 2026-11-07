@@ -1501,6 +1501,12 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     // split by a poll of the device. The read (numToRd) follows the last write
     String hexWriteData = jsonParams.getString("hexWr", "");
     int numBytesToRead = jsonParams.getLong("numToRd", 0);
+
+    // barMs: bar access to the device for this long after the (last) write - for a command after which the device
+    // doesn't answer for a while (e.g. a reset or a save to NVM), so polls and scans don't find it NACKing and take it
+    // offline. Polls are skipped (not counted as failures) and queued requests are held until the bar ends
+    long barMsParam = jsonParams.getLong("barMs", 0);
+    uint32_t barMs = (barMsParam <= 0) ? 0 : (barMsParam > (long)CMDRAW_MAX_BAR_MS ? CMDRAW_MAX_BAR_MS : (uint32_t)barMsParam);
     std::vector<std::vector<uint8_t>> batchWrites;
     String hexWrites = jsonParams.getString("hexWrs", "");
     if (hexWrites.length() > 0)
@@ -1581,7 +1587,7 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
             uint32_t deferToken = sourceInfo.deferToken;
             String reqStrCopy = reqStr;
             uint32_t cmdId = CMDID_CMDRAW_BASE + (++cmdRawGeneration & 0xFFFF);
-            HWElemReq hwElemReq = {writeVec, numBytesToRead, (int)cmdId, "cmdraw", 0};
+            HWElemReq hwElemReq = {writeVec, numBytesToRead, (int)cmdId, "cmdraw", barMs};
             BusRequestInfo busReqInfo("", deviceID.getAddress());
             busReqInfo.set(BUS_REQ_TYPE_STD, hwElemReq, 0,
                     [pRestAPIEndpointManager, deferToken, reqStrCopy, pBatchResult, numWritesJson](void* /*pCallbackData*/, BusRequestResult& reqResult)
@@ -1615,7 +1621,7 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
     uint32_t cmdId = CMDID_CMDRAW_BASE + (++cmdRawGeneration & 0xFFFF);
     _cmdRawInFlightCmdId = cmdId;
     _cmdRawResultReady = false;
-    HWElemReq hwElemReq = {writeVec, numBytesToRead, (int)cmdId, "cmdraw", 0};
+    HWElemReq hwElemReq = {writeVec, numBytesToRead, (int)cmdId, "cmdraw", barMs};
 
     // Create bus request info with callback to receive response
     BusRequestInfo busReqInfo("", deviceID.getAddress());
