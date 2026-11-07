@@ -9,6 +9,9 @@
 //
 // Usage:
 //   node capture-samples.js --ip <host IP> --raftjs <path to raftjs> [--duration <s>] [--devices 1_177,1_258]
+//        [--series 1]
+//
+//   --series 1  also gives each attribute's values as [seconds from the start, value] (the time it arrived)
 //
 // Requires Node 22+ (global WebSocket and fetch) and a built raftjs (npm ci && npm run build in raftjs).
 //
@@ -19,7 +22,7 @@ const path = require('path');
 const Module = require('module');
 
 function parseArgs(argv) {
-    const args = { duration: 10, devices: '' };
+    const args = { duration: 10, devices: '', series: '' };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (!a.startsWith('--') || (i + 1 >= argv.length)) throw new Error(`bad argument ${a}`);
@@ -62,14 +65,17 @@ async function main() {
 
     // Collect each new value as it arrives (an attribute's values[] is a window that is trimmed)
     const collected = {};
+    const startMs = Date.now();
     deviceManager.addAttributeDataCallback((deviceKey, attr) => {
         if (args.deviceList.length && !args.deviceList.includes(deviceKey)) return;
         const per = attr.elemsPerSample || 1;
         const n = attr.numNewValues * per;
         if (!n) return;
         const dev = collected[deviceKey] = collected[deviceKey] || {};
-        const a = dev[attr.name] = dev[attr.name] || { units: attr.units, range: attr.range, elemsPerSample: per, values: [] };
+        const a = dev[attr.name] = dev[attr.name] || { units: attr.units, range: attr.range, elemsPerSample: per, values: [], times: [] };
         a.values.push(...attr.values.slice(-n));
+        const t = Math.round((Date.now() - startMs) / 100) / 10;
+        for (let i = 0; i < n; i++) a.times.push(t);
     });
 
     const msgHandler = connector.getRaftSystemUtils().getMsgHandler();
@@ -92,6 +98,7 @@ async function main() {
                 max: nums.length ? Math.max(...nums) : null,
                 last: a.values.slice(-a.elemsPerSample),
             };
+            if (args.series) dev.attributes[name].series = a.values.map((v, i) => [a.times[i], v]);
         }
     }
     process.stdout.write(JSON.stringify(out, null, 1) + '\n');
