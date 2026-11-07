@@ -13,8 +13,10 @@ Each name is a file `<name>.defaults` in this folder. An entry can also be a pat
 The layers are applied in order, later ones overriding earlier ones (by `CONFIG_` key):
 
 1. `systypes/Common/sdkconfig.defaults`
-2. the fragments, in the order listed
-3. the SysType's `sdkconfig.defaults`
+2. `systypes/Common/sdkconfig.<variant>.defaults` for the build variant (if it exists)
+3. the fragments, in the order listed
+4. the SysType's `sdkconfig.defaults`
+5. the SysType's `sdkconfig.<variant>.defaults` for the build variant (if it exists)
 
 So a SysType can still override any setting a fragment makes.
 

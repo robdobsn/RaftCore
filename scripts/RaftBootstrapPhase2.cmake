@@ -131,6 +131,26 @@ endif()
 set(_common_config_dir "${CMAKE_SOURCE_DIR}/systypes/Common")
 
 ################################################
+# Build variant
+################################################
+
+# A build variant (e.g. dev or release) selects extra sdkconfig layers: Common/sdkconfig.<variant>.defaults and
+# systypes/<SysType>/sdkconfig.<variant>.defaults (each optional) are applied after Common's and the SysType's own
+# sdkconfig.defaults respectively. The raft command line tool passes the variant (raft build --variant <name>, or
+# --release) in the RAFT_BUILD_VARIANT environment variable, which takes precedence over RAFT_BUILD_VARIANT set in
+# features.cmake. The default is dev. A project without variant files builds the same whatever the variant
+set(_raft_build_variant_default "dev")
+if(DEFINED ENV{RAFT_BUILD_VARIANT} AND NOT "$ENV{RAFT_BUILD_VARIANT}" STREQUAL "")
+    set(RAFT_BUILD_VARIANT "$ENV{RAFT_BUILD_VARIANT}")
+elseif(NOT DEFINED RAFT_BUILD_VARIANT OR "${RAFT_BUILD_VARIANT}" STREQUAL "")
+    set(RAFT_BUILD_VARIANT "${_raft_build_variant_default}")
+endif()
+if(NOT RAFT_BUILD_VARIANT MATCHES "^[A-Za-z0-9_-]+$")
+    message(FATAL_ERROR "Build variant \"${RAFT_BUILD_VARIANT}\" is not valid - use letters, digits, _ and - only")
+endif()
+message(STATUS "Build variant: ${RAFT_BUILD_VARIANT}")
+
+################################################
 # SDKConfig (Common + SysType-specific chaining)
 ################################################
 
@@ -139,6 +159,8 @@ set(_common_config_dir "${CMAKE_SOURCE_DIR}/systypes/Common")
 # where later files override earlier ones
 set(_common_sdkconfig "${_common_config_dir}/sdkconfig.defaults")
 set(_systype_sdkconfig "${BUILD_CONFIG_DIR}/sdkconfig.defaults")
+set(_common_variant_sdkconfig "${_common_config_dir}/sdkconfig.${RAFT_BUILD_VARIANT}.defaults")
+set(_systype_variant_sdkconfig "${BUILD_CONFIG_DIR}/sdkconfig.${RAFT_BUILD_VARIANT}.defaults")
 set(_merged_sdkconfig "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig.defaults.merged")
 
 # sdkconfig fragments selected in features.cmake, e.g. set(RAFT_SDKCONFIG_FRAGMENTS wifi-fast-connect) - each is
@@ -157,11 +179,16 @@ foreach(_raft_fragment ${RAFT_SDKCONFIG_FRAGMENTS})
     list(APPEND _sdkconfig_fragments "${_raft_fragment_path}")
 endforeach()
 
-# Build the SDKCONFIG_DEFAULTS list for ESP-IDF (Common first, then fragments, then systype)
+# Build the SDKCONFIG_DEFAULTS list for ESP-IDF (Common first, then fragments, then systype - each of Common and
+# the SysType followed by its file for the build variant)
 set(SDKCONFIG_DEFAULTS "")
 if(EXISTS "${_common_sdkconfig}")
     list(APPEND SDKCONFIG_DEFAULTS "${_common_sdkconfig}")
     message(STATUS "SDKConfig: Using Common base from ${_common_sdkconfig}")
+endif()
+if(EXISTS "${_common_variant_sdkconfig}")
+    list(APPEND SDKCONFIG_DEFAULTS "${_common_variant_sdkconfig}")
+    message(STATUS "SDKConfig: Applying Common build variant ${RAFT_BUILD_VARIANT} from ${_common_variant_sdkconfig}")
 endif()
 foreach(_raft_fragment_path ${_sdkconfig_fragments})
     list(APPEND SDKCONFIG_DEFAULTS "${_raft_fragment_path}")
@@ -170,6 +197,10 @@ endforeach()
 if(EXISTS "${_systype_sdkconfig}")
     list(APPEND SDKCONFIG_DEFAULTS "${_systype_sdkconfig}")
     message(STATUS "SDKConfig: Applying SysType overrides from ${_systype_sdkconfig}")
+endif()
+if(EXISTS "${_systype_variant_sdkconfig}")
+    list(APPEND SDKCONFIG_DEFAULTS "${_systype_variant_sdkconfig}")
+    message(STATUS "SDKConfig: Applying SysType build variant ${RAFT_BUILD_VARIANT} from ${_systype_variant_sdkconfig}")
 endif()
 
 # Also generate a merged sdkconfig.defaults for reference and for the sdkconfig seed
@@ -185,17 +216,46 @@ set(_merge_sdkconfig_fragment_args "")
 foreach(_raft_fragment_path ${_sdkconfig_fragments})
     list(APPEND _merge_sdkconfig_fragment_args "--fragment" "${_raft_fragment_path}")
 endforeach()
+set(_merge_sdkconfig_variant_args "--variant" "${RAFT_BUILD_VARIANT}")
+if(EXISTS "${_common_variant_sdkconfig}")
+    list(APPEND _merge_sdkconfig_variant_args "--common-variant" "${_common_variant_sdkconfig}")
+endif()
+if(EXISTS "${_systype_variant_sdkconfig}")
+    list(APPEND _merge_sdkconfig_variant_args "--systype-variant" "${_systype_variant_sdkconfig}")
+endif()
 
 # Generate merged sdkconfig.defaults at configure time
 execute_process(
     COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
             --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_fragment_args}
-            ${_merge_sdkconfig_systype_arg}
+            ${_merge_sdkconfig_systype_arg} ${_merge_sdkconfig_variant_args}
             --output "${_merged_sdkconfig}"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 set(SDKCONFIG "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig")
+
+# The sdkconfig is generated from the defaults (above) only when it doesn't exist, so when the build variant
+# changes the one made for the previous variant is removed (the raft command line tool deletes the build folder
+# when the variant changes, this covers a build folder reconfigured another way)
+set(_raft_variant_stamp "${RAFT_BUILD_ARTIFACTS_FOLDER}/build_variant.txt")
+set(_raft_prev_variant "")
+if(EXISTS "${_raft_variant_stamp}")
+    file(READ "${_raft_variant_stamp}" _raft_prev_variant)
+    string(STRIP "${_raft_prev_variant}" _raft_prev_variant)
+endif()
+if(NOT "${_raft_prev_variant}" STREQUAL "${RAFT_BUILD_VARIANT}")
+    # (no previous variant means a build folder from before build variants, whose sdkconfig may not match either)
+    if(EXISTS "${SDKCONFIG}")
+        if("${_raft_prev_variant}" STREQUAL "")
+            message(STATUS "Build variant ${RAFT_BUILD_VARIANT} (not recorded before) - regenerating sdkconfig")
+        else()
+            message(STATUS "Build variant changed from ${_raft_prev_variant} to ${RAFT_BUILD_VARIANT} - regenerating sdkconfig")
+        endif()
+        file(REMOVE "${SDKCONFIG}")
+    endif()
+    file(WRITE "${_raft_variant_stamp}" "${RAFT_BUILD_VARIANT}\n")
+endif()
 
 # Collect dependency files for the sdkconfig custom command
 set(_sdkconfig_depends "")
@@ -206,13 +266,18 @@ if(EXISTS "${_systype_sdkconfig}")
     list(APPEND _sdkconfig_depends "${_systype_sdkconfig}")
 endif()
 list(APPEND _sdkconfig_depends ${_sdkconfig_fragments})
+foreach(_raft_variant_file "${_common_variant_sdkconfig}" "${_systype_variant_sdkconfig}")
+    if(EXISTS "${_raft_variant_file}")
+        list(APPEND _sdkconfig_depends "${_raft_variant_file}")
+    endif()
+endforeach()
 
 # Custom command to regenerate merged sdkconfig when sources change
 add_custom_command(
     OUTPUT ${SDKCONFIG}
     COMMAND ${Python3_EXECUTABLE} "${raftcore_SOURCE_DIR}/scripts/MergeSysTypeConfigs.py"
             --mode sdkconfig ${_merge_sdkconfig_common_arg} ${_merge_sdkconfig_fragment_args}
-            ${_merge_sdkconfig_systype_arg}
+            ${_merge_sdkconfig_systype_arg} ${_merge_sdkconfig_variant_args}
             --output "${_merged_sdkconfig}"
     COMMAND ${CMAKE_COMMAND} -E copy "${_merged_sdkconfig}" ${SDKCONFIG}
     DEPENDS ${_sdkconfig_depends}
