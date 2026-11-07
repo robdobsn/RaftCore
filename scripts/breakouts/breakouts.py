@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -303,9 +304,16 @@ def cmd_check(args) -> int:
 # bench: check a breakout on a host over its REST API
 # ---------------------------------------------------------------------------------------------------------------
 
-def api_get(ip: str, path: str) -> dict:
-    with urllib.request.urlopen(f"http://{ip}/api/{path}", timeout=10) as resp:
-        return json.loads(resp.read().decode("utf-8", errors="replace"))
+def api_get(ip: str, path: str, attempts: int = 3) -> dict:
+    """A REST request to the host, retried (a host on WiFi sometimes misses one; every request here is a read)"""
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(f"http://{ip}/api/{path}", timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8", errors="replace"))
+        except OSError:
+            if attempt == attempts:
+                raise
+            time.sleep(1)
 
 
 def split_device_id(device_id: str):
