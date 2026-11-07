@@ -1,0 +1,24 @@
+date,raft_record,breakout_id,tester,host,raftcore_version,result,notes
+2026-10-23,DPS310,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-23,ENS160,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-23,SGP30,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-23,SGP40,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-23,TrillFlex,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-24,MAX30101,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-24,VCNL4040,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-25,VCNL4040,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-25,VL6180,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,AMG8833,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,APDS9960,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,AS7341,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,LTR-390,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,TCS34725,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,TSL2591,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,VEML7700,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,VL53L0X,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,VL53L1X,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-26,VL53L4CD,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-27,AS5600,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-27,CaliPile,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-27,LSM6DS3,,,Axiom018,,pass,from the record _notes bench entry
+2026-10-27,TSL2561,,,Axiom018,,pass,from the record _notes bench entry

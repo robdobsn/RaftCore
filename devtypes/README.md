@@ -22,4 +22,7 @@ format is described on the wiki page *Device Type Record Format*.
 - **One file:** `python3 scripts/AssembleDeviceTypes.py --raftcore . --all --out DeviceTypeRecords.json` writes every
   record as one catalogue file (it is also attached to each release).
 
+- **Breakouts:** `breakouts/` lists the breakout boards that carry these chips, which record supports each, and
+  the tests done on them (`breakouts/README.md`).
+
 Design: `devdocs/device-type-record-management-plan.md`.
