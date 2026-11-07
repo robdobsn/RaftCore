@@ -1449,8 +1449,13 @@ RaftRetCode DeviceManager::resolveDeviceIDAndBus(const RaftJson& jsonParams, Raf
             if (busName.length() == 0)
                 respStr = "failBusMissing";
 
-            // Get bus
-            if (respStr.length() == 0)
+            // Bus number 0 (BUS_NUM_DIRECT_CONN) is a directly-connected (static) device, addressed by its index -
+            // as clients such as raftjs address it from the device key in published data
+            if ((respStr.length() == 0) && (busName == String(RaftDeviceID::BUS_NUM_DIRECT_CONN)))
+            {
+                deviceID = RaftDeviceID(RaftDeviceID::BUS_NUM_DIRECT_CONN, RaftDeviceID::fromString(addrStr.c_str()).getAddress());
+            }
+            else if (respStr.length() == 0)
             {
                 RaftBus* pBusForName = raftBusSystem.getBusByName(busName, true);
                 if (!pBusForName)
@@ -1477,6 +1482,52 @@ RaftRetCode DeviceManager::resolveDeviceIDAndBus(const RaftJson& jsonParams, Raf
 /// @param sourceInfo source of the request (responded to when the bus transaction completes if the transport supports deferred responses)
 /// @return RaftRetCode indicating success or failure of the operation, with the response containing the result of the command if successful
 ///         or RAFT_RESP_DEFERRED if the response will be sent when the bus transaction completes
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief devman/cmdraw for a directly-connected (static) device: each write (hexWr, or each of hexWrs) is passed to
+///        the device's sendCmdBinary() (format code 0). A read (numToRd) isn't supported
+/// @param reqStr request string
+/// @param respStr (out) response
+/// @param jsonParams request parameters
+/// @param deviceID the device
+/// @return RaftRetCode
+RaftRetCode DeviceManager::cmdRawToStaticDevice(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+            RaftDeviceID deviceID)
+{
+    RaftDevice* pDevice = (deviceID.getBusNum() == RaftDeviceID::BUS_NUM_DIRECT_CONN) ? getDevice(deviceID) : nullptr;
+    if (!pDevice)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+    if (jsonParams.getLong("numToRd", 0) > 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failReadNotSupported");
+
+    // The writes: hexWrs (comma separated, in order) or hexWr
+    String hexWrites = jsonParams.getString("hexWrs", "");
+    if (hexWrites.length() == 0)
+        hexWrites = jsonParams.getString("hexWr", "");
+    uint32_t numWrites = 0;
+    int start = 0;
+    while (start < (int)hexWrites.length())
+    {
+        int comma = hexWrites.indexOf(',', start);
+        if (comma < 0)
+            comma = hexWrites.length();
+        String hexWrite = hexWrites.substring(start, comma);
+        start = comma + 1;
+        uint32_t numBytes = hexWrite.length() / 2;
+        if ((numBytes == 0) || (hexWrite.length() % 2 != 0) || (numWrites >= CMDRAW_MAX_BATCH_WRITES))
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBadHexWr");
+        std::vector<uint8_t> writeBytes(numBytes);
+        if (Raft::getBytesFromHexStr(hexWrite.c_str(), writeBytes.data(), numBytes) != numBytes)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBadHexWr");
+        RaftRetCode rslt = pDevice->sendCmdBinary(0, writeBytes.data(), writeBytes.size());
+        if (rslt != RAFT_OK)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, Raft::getRetCodeStr(rslt));
+        numWrites++;
+    }
+    if (numWrites == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failBadHexWr");
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+}
+
 RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
             const APISourceInfo& sourceInfo)
 {
@@ -1492,9 +1543,11 @@ RaftRetCode DeviceManager::apiDevManCmdRaw(const String &reqStr, String &respStr
         return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.c_str());
 
     // A valid deviceID may resolve to no bus (e.g. a directly-connected device such as
-    // power management or LEDs). There is no bus to address so report rather than deref.
+    // power management or LEDs). The write is then a binary command to the device itself
+    // (RaftDevice::sendCmdBinary), so device type record actions work the same way for
+    // static devices as for bus devices
     if (!pBus)
-        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failDeviceNotOnBus");
+        return cmdRawToStaticDevice(reqStr, respStr, jsonParams, deviceID);
 
     // Data to write and number of bytes to read. hexWrs is several writes, comma separated, sent as a batch: one
     // after the other with no poll (or anything else) on the bus between them - for a device action that must not be

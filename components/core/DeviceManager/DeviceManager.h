@@ -295,6 +295,8 @@ private:
     const DeviceTypeRecord* getRequestedType(const RaftJson& jsonParams, DeviceTypeIndexType& deviceTypeIndex, bool& given) const;
 
     /// @brief Handle devman/cmdraw
+    RaftRetCode cmdRawToStaticDevice(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+                RaftDeviceID deviceID);
     RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
                 const APISourceInfo& sourceInfo);
 
