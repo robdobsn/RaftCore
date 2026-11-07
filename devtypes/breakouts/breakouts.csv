@@ -1,77 +1,79 @@
-id,vendor,product,vendor_pid,chip,chip_manufacturer,category,raft_record,connector,vcc_min,vcc_max,addresses,status,url,datasheet,notes
-adafruit-4161,Adafruit,VCNL4040 Proximity and Lux Sensor,4161,VCNL4040,Vishay,light,VCNL4040,stemma-qt,3,5,0x60,active,https://www.adafruit.com/product/4161,,
-adafruit-3316,Adafruit,VL6180X Time of Flight Distance Sensor,3316,VL6180X,ST,distance,VL6180,stemma-qt,3,5,0x29,active,https://www.adafruit.com/product/3316,,
-pololu-2489,Pololu,VL6180X Time-of-Flight Distance Sensor Carrier,2489,VL6180X,ST,distance,VL6180,,3,,0x29,active,https://www.pololu.com/product/2489,,
-adafruit-3595,Adafruit,"APDS9960 Proximity, Light, RGB and Gesture Sensor",3595,APDS-9960,Broadcom,light,APDS9960,stemma-qt,3,5,0x39,active,https://www.adafruit.com/product/3595,,
-m5stack-color-unit-tcs34725,M5Stack,Color Unit (TCS34725),,TCS34725,ams,light,TCS34725,grove,5,5,0x29,active,,,Grove connector - needs a Grove to Qwiic cable
-adafruit-4698,Adafruit,AS7341 10-Channel Light / Color Sensor,4698,AS7341,ams,light,AS7341,stemma-qt,3,5,0x39,active,https://www.adafruit.com/product/4698,,
-sparkfun-15804,SparkFun,PIR sensor (PL-N823-01),15804,ADS1015,TI,presence,,qwiic,,,0x48,active,https://www.sparkfun.com/products/15804,,sheet listed PL-N823-01 as the name and ADS1015 as the part - check which board this is
-sparkfun-17375,SparkFun,Qwiic PIR - 1uA (EKMB1107112),17375,EKMB1107112,Panasonic,presence,,qwiic,,,"0x12,0x13",active,https://www.sparkfun.com/products/17375,,
-pimoroni-max30101-heart-rate-oximeter-smoke-sensor,Pimoroni,"MAX30101 Heart Rate, Oximeter, Smoke Sensor",,MAX30101,Maxim,biometric,MAX30101,,3,5,0x57,active,https://shop.pimoroni.com/products/max30101-breakout-heart-rate-oximeter-smoke-sensor,,
-adafruit-3779,Adafruit,AS7262 6-Channel Visible Light / Color Sensor,3779,AS7262,ams,light,,,3,5,0x49,active,https://www.adafruit.com/product/3779,,
-adafruit-4681,Adafruit,BH1750 Light Sensor,4681,BH1750,Rohm,light,,stemma-qt,3,5,0x23,active,https://www.adafruit.com/product/4681,,
-adafruit-3317,Adafruit,VL53L0X Time of Flight Distance Sensor,3317,VL53L0X,ST,distance,VL53L0X,stemma-qt,3,5,0x29,active,https://www.adafruit.com/product/3317,,sheet linked the VL53L4CX learn guide
-pesky-products-vl53l0x-time-of-flight,Pesky Products,VL53L0X Time of Flight,,VL53L0X,ST,distance,VL53L0X,,3,3,0x29,active,,,
-sparkfun-qwiic-mini-tof-imager-vl53l5cx,SparkFun,Qwiic Mini ToF Imager (VL53L5CX),,VL53L5CX,ST,distance,,qwiic,3,3,0x52,active,https://www.sparkfun.com/sparkfun-qwiic-mini-tof-imager-vl53l5cx.html,,
-pimoroni-vl53l1x-time-of-flight-sensor,Pimoroni,VL53L1X Time of Flight Sensor,,VL53L1X,ST,distance,VL53L1X,,3,5,0x29,active,https://shop.pimoroni.com/products/vl53l1x-breakout,,
-adafruit-4742,Adafruit,RCWL-1601 Ultrasonic Distance Sensor (I2C),4742,RCWL-1601,,distance,,stemma-qt,5,5,0x57,active,https://www.adafruit.com/product/4742,,"sheet described it as 'dual'; no ID register, and 0x57 is also MAX30101"
-generic-gy-us42-ultrasonic-distance-sensor,Generic,GY-US42 Ultrasonic Distance Sensor,,GY-US42,,distance,,,,,,active,,,
-m5stack-u098-b1,M5Stack,Ultrasonic Distance Unit I/O (RCWL-9620),U098-B1,RCWL-9620,,distance,,grove,5,5,0x57,active,https://shop.m5stack.com/products/ultrasonic-distance-unit-i2c-rcwl-9620,,"Grove connector; no ID register, and 0x57 is also MAX30101"
-adafruit-4162,Adafruit,VEML7700 Lux Sensor,4162,VEML7700,Vishay,light,VEML7700,stemma-qt,3,5,0x10,active,https://www.adafruit.com/product/4162,,
-adafruit-4831,Adafruit,LTR390 UV Light Sensor,4831,LTR-390UV,Lite-On,light,LTR-390,stemma-qt,3,5,0x53,active,https://www.adafruit.com/product/4831,,
-sparkfun-15586,SparkFun,Qwiic Button (red),15586,ATTINY84A,Microchip,input,QwiicButton,qwiic,,,0x6f,retired,https://www.sparkfun.com/products/retired/15586,https://cdn.sparkfun.com/assets/learn_tutorials/1/1/0/8/Qwiic_Button_I2C_Register_Map.pdf,
-sparkfun-16842,SparkFun,Qwiic LED Button,16842,ATTINY84A,Microchip,input,QwiicButton,qwiic,,,0x6f,active,https://www.sparkfun.com/products/16842,https://cdn.sparkfun.com/assets/learn_tutorials/1/1/0/8/Qwiic_Button_I2C_Register_Map.pdf,
-sparkfun-15344,SparkFun,Qwiic Capacitive Touch Slider,15344,CAP1203,Microchip,touch,CAP1203,qwiic,,,0x28,active,https://www.sparkfun.com/products/15344,https://cdn.sparkfun.com/assets/c/9/f/2/c/CAP1203_Data_Sheet.pdf,
-adafruit-1982,Adafruit,MPR121 12-Key Capacitive Touch Sensor,1982,MPR121,NXP,touch,,stemma-qt,3,5,0x5a,active,https://www.adafruit.com/product/1982,,
-adafruit-4830,Adafruit,MPR121 12-Key Capacitive Touch Sensor Gator,4830,MPR121,NXP,touch,,stemma-qt,3,5,0x5a,active,https://www.adafruit.com/product/4830,,
-bela-trill-square,Bela,Trill Square,,Trill,Bela,touch,TrillSquare,qwiic,,,0x28,active,,,
-bela-trill-bar,Bela,Trill Bar,,Trill,Bela,touch,TrillBar,qwiic,,,0x20,active,,,
-bela-trill-hex,Bela,Trill Hex,,Trill,Bela,touch,TrillHex,qwiic,,,0x40,active,,,
-adafruit-4991,Adafruit,I2C STEMMA QT Rotary Encoder with NeoPixel,4991,ATSAMD09 (seesaw),Microchip,input,,stemma-qt,3,5,0x36,active,https://www.adafruit.com/product/4991,,"seesaw at 0x36, the same as AdafruitSoilSensor, AS5600 and MAX17048"
-adafruit-5752,Adafruit,I2C Quad Rotary Encoder with NeoPixel,5752,ATtiny817 (seesaw),Microchip,input,,stemma-qt,3,5,0x49,active,https://www.adafruit.com/product/5752,,sheet had 0x36; Adafruit gives 0x49 - check
-adafruit-5743,Adafruit,Mini I2C Gamepad with seesaw,5743,ATtiny816 (seesaw),Microchip,input,AdafruitGamepad,stemma-qt,3,5,0x50,active,https://learn.adafruit.com/gamepad-qt,,
-m5stack-u135,M5Stack,Encoder Unit (rotary),U135,STM32F030,ST,input,M5Encoder,grove,3,5,0x40,active,https://docs.m5stack.com/en/unit/encoder,,Grove connector
-adafruit-5295,Adafruit,NeoSlider I2C QT Slide Potentiometer,5295,ATtiny817 (seesaw),Microchip,input,,stemma-qt,3,5,0x30,active,https://www.adafruit.com/product/5295,,
-sparkfun-qwiic-scale-nau7802,SparkFun,Qwiic Scale (NAU7802),,NAU7802,Nuvoton,adc,,qwiic,,,0x2a,active,,,
-adafruit-4701,Adafruit,ST25DV16K I2C RFID EEPROM,4701,ST25DV16K,ST,rfid,,stemma-qt,,,"0x53,0x57",active,https://www.adafruit.com/product/4701,,
-adafruit-4286,Adafruit,DS3502 I2C Digital 10K Potentiometer,4286,DS3502,Maxim,output,,stemma-qt,2.5,5.5,0x28-0x2b,active,https://learn.adafruit.com/ds3502-i2c-potentiometer,,
-sparkfun-qwiic-dynamic-nfc-rfid-tag-st25dv64kc,SparkFun,Qwiic Dynamic NFC/RFID Tag (ST25DV64KC),,ST25DV64KC,ST,rfid,,qwiic,3,5.5,"0x53,0x57,0x51,0x55",active,,,"user memory 0x53, system memory 0x57, RF switch off 0x51, on 0x55"
-adafruit-4530,Adafruit,LPS25 Pressure Sensor,4530,LPS25HB,ST,environment,LPS25,stemma-qt,3,5,0x5d,active,https://www.adafruit.com/product/4530,,
-adafruit-4258,Adafruit,LPS35HW Water Resistant Pressure Sensor,4258,LPS35HW,ST,environment,LPS3x,stemma-qt,3,5,0x5d,active,https://www.adafruit.com/product/4258,,sheet said LPS3x - LPS33HW is 4414
-adafruit-3709,Adafruit,SGP30 Air Quality Sensor (VOC and eCO2),3709,SGP30,Sensirion,gas,SGP30,stemma-qt,1.8,5,0x58,active,https://www.adafruit.com/product/3709,,sheet said obsolete; still listed by Adafruit
-adafruit-4829,Adafruit,SGP40 Air Quality Sensor (VOC Index),4829,SGP40,Sensirion,gas,SGP40,stemma-qt,1.8,5,0x59,active,https://www.adafruit.com/product/4829,https://sensirion.com/media/documents/296373BB/6203C5DF/Sensirion_Gas_Sensors_Datasheet_SGP40.pdf,
-adafruit-4566,Adafruit,AHT20 Temperature & Humidity Sensor,4566,AHT20,Aosong,environment,AHT20,stemma-qt,3,5,0x38,active,https://www.adafruit.com/product/4566,https://files.seeedstudio.com/wiki/Grove-AHT20_I2C_Industrial_Grade_Temperature_and_Humidity_Sensor/AHT20-datasheet-2020-4-16.pdf,
-adafruit-5027,Adafruit,MCP9808 High Accuracy Temperature Sensor,5027,MCP9808,Microchip,temperature,MCP9808,stemma-qt,3,5,0x18,active,https://www.adafruit.com/product/5027,,"STEMMA QT version is 5027, the original 1782"
-adafruit-5165,Adafruit,MCP9601 (MCP96L01) Thermocouple Amplifier,5165,MCP9601,Microchip,temperature,,stemma-qt,3,5,0x60,active,https://www.adafruit.com/product/5165,,address range 0x60-0x67 (Adafruit default 0x67?) - check
-adafruit-2652,Adafruit,BME280 Temperature Humidity Pressure Sensor,2652,BME280,Bosch,environment,BME280,stemma-qt,3,5,0x77,active,https://www.adafruit.com/product/2652,,
-sparkfun-14348,SparkFun,Qwiic Environmental Combo (CCS811/BME280),14348,CCS811+BME280,ScioSense/Bosch,environment,BME280,qwiic,,,"0x5b,0x77",retired,https://www.sparkfun.com/products/retired/14193,,sheet said SEN-14348 but linked 14193; CCS811 has no record
-adafruit-1083,Adafruit,ADS1015 12-Bit ADC - 4 Channel,1083,ADS1015,TI,adc,,stemma-qt,3,5,0x48,active,https://www.adafruit.com/product/1083,,
-sparkfun-qwiic-12-bit-adc-4-channel-ads1015,SparkFun,Qwiic 12 Bit ADC - 4 Channel (ADS1015),,ADS1015,TI,adc,,qwiic,,,0x48,active,,,sheet said 8 channel; SparkFun's ADS1015 board is 4 channel - check
-adafruit-5423,Adafruit,TSC2007 I2C Resistive Touch Screen Controller,5423,TSC2007,TI,touch,,stemma-qt,3,5,0x48,active,https://www.adafruit.com/product/5423,,sheet listed it as a 4 channel 12 bit ADC
-sparkfun-qwiic-gpio-tca9534,SparkFun,Qwiic GPIO (TCA9534),,TCA9534,TI,io,,qwiic,,,0x20-0x27,active,,,
-adafruit-4538,Adafruit,NAU7802 24-Bit ADC,4538,NAU7802,Nuvoton,adc,,stemma-qt,3,5,0x2a,active,https://www.adafruit.com/product/4538,,
-sparkfun-17241,SparkFun,Triple Axis Digital Accelerometer (ADXL313),17241,ADXL313,Analog Devices,motion,ADXL313,qwiic,,3.3,"0x1d,0x53",active,https://www.sparkfun.com/products/17241,,
-adafruit-1231,Adafruit,ADXL345 Triple-Axis Accelerometer,1231,ADXL345,Analog Devices,motion,,stemma-qt,3,5,"0x53,0x1d",active,https://www.adafruit.com/product/1231,,
-adafruit-4692,Adafruit,LSM6DSO32 6-DoF Accelerometer and Gyroscope,4692,LSM6DSO32,ST,motion,,stemma-qt,3,5,"0x6a,0x6b",active,https://www.adafruit.com/product/4692,,sheet had LSM6DS032 at 0x64
-adafruit-4344,Adafruit,MSA301 Triple Axis Accelerometer,4344,MSA301,MEMSensing,motion,,stemma-qt,3,5,0x26,discontinued,https://www.adafruit.com/product/4344,https://download.kamami.pl/p585252-MSA301.pdf,sheet said supported but there is no RaftCore record; 0x26 is also M5-Weight and clashes with current power management hardware
-pimoroni-msa301-3dof-motion-sensor,Pimoroni,MSA301 3DoF Motion Sensor,,MSA301,MEMSensing,motion,,,3,5,0x26,active,https://shop.pimoroni.com/products/msa301-3dof-motion-sensor-breakout,,as Adafruit MSA301
-adafruit-4754,Adafruit,BNO085 9-DOF Orientation IMU Fusion,4754,BNO085,CEVA/Bosch,motion,,stemma-qt,3,5,"0x4a,0x4b",active,https://www.adafruit.com/product/4754,https://github.com/adafruit/Adafruit_BNO08x,
-adafruit-4480,Adafruit,LSM6DS33 6-DoF Accel + Gyro IMU,4480,LSM6DS33,ST,motion,LSM6DS3,stemma-qt,3,5,"0x6a,0x6b",discontinued,https://www.adafruit.com/product/4480,,
-adafruit-4366,Adafruit,TLV493D Triple-Axis Magnetometer,4366,TLV493D,Infineon,magnetic,,stemma-qt,3,5,0x5e,active,https://www.adafruit.com/product/4366,,
-adafruit-4554,Adafruit,ICM-20948 9-DoF IMU,4554,ICM-20948,TDK InvenSense,motion,,stemma-qt,3,5,"0x69,0x68",active,https://www.adafruit.com/product/4554,,
-nexus-qwiic-sense,Nexus,QWIIC Sense,,,,,,qwiic,,,,active,,,unknown board - fill in
-seeed-101020692,Seeed,Grove 12-bit Magnetic Rotary Position Sensor (AS5600),101020692,AS5600,ams,magnetic,AS5600,grove,,,0x36,active,,https://look.ams-osram.com/m/7059eac7531a86fd/original/AS5600-DS000365.pdf,
-sparkfun-qwiic-led-stick-apa102c,SparkFun,Qwiic LED Stick (APA102C),,ATtiny85 + APA102C,,led,QwiicLEDStick,qwiic,,,"0x23,0x22",active,https://learn.sparkfun.com/tutorials/qwiic-led-stick---apa102c-hookup-guide,,sheet said supported '?'
-adafruit-5766,Adafruit,NeoDriver I2C to NeoPixel Driver,5766,ATtiny817 (seesaw),Microchip,led,,stemma-qt,3,5,0x60,active,https://www.adafruit.com/product/5766,,sheet had 0x49 - check
-sparkfun-15451,SparkFun,Qwiic Motor Driver (DRV8835),15451,DRV8835,TI,motor,,qwiic,3,,0x5d,active,https://www.sparkfun.com/products/15451,,
-pimoroni-drv8830-dc-motor-driver,Pimoroni,DRV8830 DC Motor Driver,,DRV8830,TI,motor,,,3,5,"0x60,0x61,0x63,0x64",active,https://shop.pimoroni.com/products/drv8830-dc-motor-driver-breakout,,
-zio-oled-0-91in-display,Zio,OLED 0.91in display,,SSD1306,Solomon Systech,display,,qwiic,,,0x3c,active,,,
-sparkfun-qwiic-alphanumeric-display,SparkFun,Qwiic Alphanumeric Display,,HT16K33,Holtek,display,,qwiic,,,0x70-0x73,active,,,
-pimoroni-1-12in-mono-oled-sh1107,Pimoroni,1.12in Mono OLED (SH1107),,SH1107,Sino Wealth,display,,,3,5,"0x3c,0x3d",active,,,
-adafruit-2946,Adafruit,16x9 Charlieplexed PWM LED Matrix Driver,2946,IS31FL3731,Lumissil,led,,stemma-qt,3,5,0x74-0x77,active,https://www.adafruit.com/product/2946,https://www.lumissil.com/assets/pdf/core/IS31FL3731_DS.pdf,
-adafruit-2717,Adafruit,TCA9548A I2C Multiplexer,2717,TCA9548A,TI,mux,,,3,5,0x70-0x77,active,https://www.adafruit.com/product/2717,,sheet listed IS31FL3731 as the part (it belongs to the row above)
-adafruit-5832,Adafruit,INA228 85V 20-bit Power Monitor,5832,INA228,TI,power,,,3,5,0x40-0x4f,active,https://www.adafruit.com/product/5832,,
-useful-sensors-tiny-code-reader-qr-code,Useful Sensors,Tiny Code Reader (QR code),,,,camera,,qwiic,,,0x0c,active,,,
-adafruit-5807,Adafruit,HUSB238 USB PD Sink,5807,HUSB238,Hynetek,power,,,,,0x08,active,https://www.adafruit.com/product/5807,,
-playing-with-fusion-135,Playing with Fusion,AS3935 Digital Lightning Sensor,135,AS3935,ams,environment,,,3,5,,active,https://www.playingwithfusion.com/productview.php?pdid=135,,
-playing-with-fusion-195,Playing with Fusion,Push button,195,,,input,,,3,5,,active,https://www.playingwithfusion.com/productview.php?pdid=195&catid=1001,,
+id,vendor,product,vendor_pid,chip,chip_manufacturer,category,raft_record,connector,vcc_min,vcc_max,addresses,status,priority,url,datasheet,notes
+adafruit-4161,Adafruit,VCNL4040 Proximity and Lux Sensor,4161,VCNL4040,Vishay,light,VCNL4040,stemma-qt,3,5,0x60,active,,https://www.adafruit.com/product/4161,,
+adafruit-3316,Adafruit,VL6180X Time of Flight Distance Sensor,3316,VL6180X,ST,distance,VL6180,stemma-qt,3,5,0x29,active,,https://www.adafruit.com/product/3316,,
+pololu-2489,Pololu,VL6180X Time-of-Flight Distance Sensor Carrier,2489,VL6180X,ST,distance,VL6180,,3,,0x29,active,,https://www.pololu.com/product/2489,,
+adafruit-3595,Adafruit,"APDS9960 Proximity, Light, RGB and Gesture Sensor",3595,APDS-9960,Broadcom,light,APDS9960,stemma-qt,3,5,0x39,active,,https://www.adafruit.com/product/3595,,
+m5stack-color-unit-tcs34725,M5Stack,Color Unit (TCS34725),,TCS34725,ams,light,TCS34725,grove,5,5,0x29,active,,,,Grove connector - needs a Grove to Qwiic cable
+adafruit-4698,Adafruit,AS7341 10-Channel Light / Color Sensor,4698,AS7341,ams,light,AS7341,stemma-qt,3,5,0x39,active,,https://www.adafruit.com/product/4698,,
+sparkfun-15804,SparkFun,PIR sensor (PL-N823-01),15804,ADS1015,TI,presence,,qwiic,,,0x48,active,,https://www.sparkfun.com/products/15804,,sheet listed PL-N823-01 as the name and ADS1015 as the part - check which board this is
+sparkfun-17375,SparkFun,Qwiic PIR - 1uA (EKMB1107112),17375,EKMB1107112,Panasonic,presence,,qwiic,,,"0x12,0x13",active,,https://www.sparkfun.com/products/17375,,
+pimoroni-max30101-heart-rate-oximeter-smoke-sensor,Pimoroni,"MAX30101 Heart Rate, Oximeter, Smoke Sensor",,MAX30101,Maxim,biometric,MAX30101,,3,5,0x57,active,,https://shop.pimoroni.com/products/max30101-breakout-heart-rate-oximeter-smoke-sensor,,
+adafruit-3779,Adafruit,AS7262 6-Channel Visible Light / Color Sensor,3779,AS7262,ams,light,,,3,5,0x49,active,,https://www.adafruit.com/product/3779,,
+adafruit-4681,Adafruit,BH1750 Light Sensor,4681,BH1750,Rohm,light,,stemma-qt,3,5,0x23,active,,https://www.adafruit.com/product/4681,,
+adafruit-3317,Adafruit,VL53L0X Time of Flight Distance Sensor,3317,VL53L0X,ST,distance,VL53L0X,stemma-qt,3,5,0x29,active,,https://www.adafruit.com/product/3317,,sheet linked the VL53L4CX learn guide
+pesky-products-vl53l0x-time-of-flight,Pesky Products,VL53L0X Time of Flight,,VL53L0X,ST,distance,VL53L0X,,3,3,0x29,active,,,,
+sparkfun-qwiic-mini-tof-imager-vl53l5cx,SparkFun,Qwiic Mini ToF Imager (VL53L5CX),,VL53L5CX,ST,distance,,qwiic,3,3,0x52,active,,https://www.sparkfun.com/sparkfun-qwiic-mini-tof-imager-vl53l5cx.html,,
+pimoroni-vl53l1x-time-of-flight-sensor,Pimoroni,VL53L1X Time of Flight Sensor,,VL53L1X,ST,distance,VL53L1X,,3,5,0x29,active,,https://shop.pimoroni.com/products/vl53l1x-breakout,,
+adafruit-4742,Adafruit,RCWL-1601 Ultrasonic Distance Sensor (I2C),4742,RCWL-1601,,distance,,stemma-qt,5,5,0x57,active,,https://www.adafruit.com/product/4742,,"sheet described it as 'dual'; no ID register, and 0x57 is also MAX30101"
+generic-gy-us42-ultrasonic-distance-sensor,Generic,GY-US42 Ultrasonic Distance Sensor,,GY-US42,,distance,,,,,,active,high,,,
+m5stack-u098-b1,M5Stack,Ultrasonic Distance Unit I/O (RCWL-9620),U098-B1,RCWL-9620,,distance,,grove,5,5,0x57,active,,https://shop.m5stack.com/products/ultrasonic-distance-unit-i2c-rcwl-9620,,"Grove connector; no ID register, and 0x57 is also MAX30101"
+adafruit-4162,Adafruit,VEML7700 Lux Sensor,4162,VEML7700,Vishay,light,VEML7700,stemma-qt,3,5,0x10,active,,https://www.adafruit.com/product/4162,,
+adafruit-4831,Adafruit,LTR390 UV Light Sensor,4831,LTR-390UV,Lite-On,light,LTR-390,stemma-qt,3,5,0x53,active,,https://www.adafruit.com/product/4831,,
+sparkfun-15586,SparkFun,Qwiic Button (red),15586,ATTINY84A,Microchip,input,QwiicButton,qwiic,,,0x6f,retired,,https://www.sparkfun.com/products/retired/15586,https://cdn.sparkfun.com/assets/learn_tutorials/1/1/0/8/Qwiic_Button_I2C_Register_Map.pdf,
+sparkfun-16842,SparkFun,Qwiic LED Button,16842,ATTINY84A,Microchip,input,QwiicButton,qwiic,,,0x6f,active,,https://www.sparkfun.com/products/16842,https://cdn.sparkfun.com/assets/learn_tutorials/1/1/0/8/Qwiic_Button_I2C_Register_Map.pdf,
+sparkfun-15344,SparkFun,Qwiic Capacitive Touch Slider,15344,CAP1203,Microchip,touch,CAP1203,qwiic,,,0x28,active,,https://www.sparkfun.com/products/15344,https://cdn.sparkfun.com/assets/c/9/f/2/c/CAP1203_Data_Sheet.pdf,
+adafruit-1982,Adafruit,MPR121 12-Key Capacitive Touch Sensor,1982,MPR121,NXP,touch,,stemma-qt,3,5,0x5a,active,,https://www.adafruit.com/product/1982,,
+adafruit-4830,Adafruit,MPR121 12-Key Capacitive Touch Sensor Gator,4830,MPR121,NXP,touch,,stemma-qt,3,5,0x5a,active,,https://www.adafruit.com/product/4830,,
+bela-trill-square,Bela,Trill Square,,Trill,Bela,touch,TrillSquare,qwiic,,,0x28,active,,,,
+bela-trill-bar,Bela,Trill Bar,,Trill,Bela,touch,TrillBar,qwiic,,,0x20,active,,,,
+bela-trill-hex,Bela,Trill Hex,,Trill,Bela,touch,TrillHex,qwiic,,,0x40,active,,,,
+adafruit-4991,Adafruit,I2C STEMMA QT Rotary Encoder with NeoPixel,4991,ATSAMD09 (seesaw),Microchip,input,,stemma-qt,3,5,0x36,active,,https://www.adafruit.com/product/4991,,"seesaw at 0x36, the same as AdafruitSoilSensor, AS5600 and MAX17048"
+adafruit-5752,Adafruit,I2C Quad Rotary Encoder with NeoPixel,5752,ATtiny817 (seesaw),Microchip,input,,stemma-qt,3,5,0x49,active,,https://www.adafruit.com/product/5752,,sheet had 0x36; Adafruit gives 0x49 - check
+adafruit-5743,Adafruit,Mini I2C Gamepad with seesaw,5743,ATtiny816 (seesaw),Microchip,input,AdafruitGamepad,stemma-qt,3,5,0x50,active,,https://learn.adafruit.com/gamepad-qt,,
+m5stack-u135,M5Stack,Encoder Unit (rotary),U135,STM32F030,ST,input,M5Encoder,grove,3,5,0x40,active,,https://docs.m5stack.com/en/unit/encoder,,Grove connector
+adafruit-5295,Adafruit,NeoSlider I2C QT Slide Potentiometer,5295,ATtiny817 (seesaw),Microchip,input,,stemma-qt,3,5,0x30,active,,https://www.adafruit.com/product/5295,,
+sparkfun-qwiic-scale-nau7802,SparkFun,Qwiic Scale (NAU7802),,NAU7802,Nuvoton,adc,,qwiic,,,0x2a,active,,,,
+adafruit-4701,Adafruit,ST25DV16K I2C RFID EEPROM,4701,ST25DV16K,ST,rfid,,stemma-qt,,,"0x53,0x57",active,,https://www.adafruit.com/product/4701,,
+adafruit-4286,Adafruit,DS3502 I2C Digital 10K Potentiometer,4286,DS3502,Maxim,output,,stemma-qt,2.5,5.5,0x28-0x2b,active,,https://learn.adafruit.com/ds3502-i2c-potentiometer,,
+sparkfun-qwiic-dynamic-nfc-rfid-tag-st25dv64kc,SparkFun,Qwiic Dynamic NFC/RFID Tag (ST25DV64KC),,ST25DV64KC,ST,rfid,,qwiic,3,5.5,"0x53,0x57,0x51,0x55",active,,,,"user memory 0x53, system memory 0x57, RF switch off 0x51, on 0x55"
+adafruit-4530,Adafruit,LPS25 Pressure Sensor,4530,LPS25HB,ST,environment,LPS25,stemma-qt,3,5,0x5d,active,,https://www.adafruit.com/product/4530,,
+adafruit-4258,Adafruit,LPS35HW Water Resistant Pressure Sensor,4258,LPS35HW,ST,environment,LPS3x,stemma-qt,3,5,0x5d,active,,https://www.adafruit.com/product/4258,,sheet said LPS3x - LPS33HW is 4414
+adafruit-3709,Adafruit,SGP30 Air Quality Sensor (VOC and eCO2),3709,SGP30,Sensirion,gas,SGP30,stemma-qt,1.8,5,0x58,active,,https://www.adafruit.com/product/3709,,sheet said obsolete; still listed by Adafruit
+adafruit-4829,Adafruit,SGP40 Air Quality Sensor (VOC Index),4829,SGP40,Sensirion,gas,SGP40,stemma-qt,1.8,5,0x59,active,,https://www.adafruit.com/product/4829,https://sensirion.com/media/documents/296373BB/6203C5DF/Sensirion_Gas_Sensors_Datasheet_SGP40.pdf,
+adafruit-4566,Adafruit,AHT20 Temperature & Humidity Sensor,4566,AHT20,Aosong,environment,AHT20,stemma-qt,3,5,0x38,active,,https://www.adafruit.com/product/4566,https://files.seeedstudio.com/wiki/Grove-AHT20_I2C_Industrial_Grade_Temperature_and_Humidity_Sensor/AHT20-datasheet-2020-4-16.pdf,
+adafruit-5027,Adafruit,MCP9808 High Accuracy Temperature Sensor,5027,MCP9808,Microchip,temperature,MCP9808,stemma-qt,3,5,0x18,active,,https://www.adafruit.com/product/5027,,"STEMMA QT version is 5027, the original 1782"
+adafruit-5165,Adafruit,MCP9601 (MCP96L01) Thermocouple Amplifier,5165,MCP9601,Microchip,temperature,,stemma-qt,3,5,0x60,active,,https://www.adafruit.com/product/5165,,address range 0x60-0x67 (Adafruit default 0x67?) - check
+adafruit-2652,Adafruit,BME280 Temperature Humidity Pressure Sensor,2652,BME280,Bosch,environment,BME280,stemma-qt,3,5,0x77,active,,https://www.adafruit.com/product/2652,,
+sparkfun-14348,SparkFun,Qwiic Environmental Combo (CCS811/BME280),14348,CCS811+BME280,ScioSense/Bosch,environment,BME280,qwiic,,,"0x5b,0x77",retired,,https://www.sparkfun.com/products/retired/14193,,sheet said SEN-14348 but linked 14193; CCS811 has no record
+adafruit-1083,Adafruit,ADS1015 12-Bit ADC - 4 Channel,1083,ADS1015,TI,adc,,stemma-qt,3,5,0x48,active,,https://www.adafruit.com/product/1083,,
+sparkfun-qwiic-12-bit-adc-4-channel-ads1015,SparkFun,Qwiic 12 Bit ADC - 4 Channel (ADS1015),,ADS1015,TI,adc,,qwiic,,,0x48,active,,,,sheet said 8 channel; SparkFun's ADS1015 board is 4 channel - check
+adafruit-5423,Adafruit,TSC2007 I2C Resistive Touch Screen Controller,5423,TSC2007,TI,touch,,stemma-qt,3,5,0x48,active,,https://www.adafruit.com/product/5423,,sheet listed it as a 4 channel 12 bit ADC
+sparkfun-qwiic-gpio-tca9534,SparkFun,Qwiic GPIO (TCA9534),,TCA9534,TI,io,,qwiic,,,0x20-0x27,active,,,,
+adafruit-4538,Adafruit,NAU7802 24-Bit ADC,4538,NAU7802,Nuvoton,adc,,stemma-qt,3,5,0x2a,active,,https://www.adafruit.com/product/4538,,
+sparkfun-17241,SparkFun,Triple Axis Digital Accelerometer (ADXL313),17241,ADXL313,Analog Devices,motion,ADXL313,qwiic,,3.3,"0x1d,0x53",active,,https://www.sparkfun.com/products/17241,,
+adafruit-1231,Adafruit,ADXL345 Triple-Axis Accelerometer,1231,ADXL345,Analog Devices,motion,,stemma-qt,3,5,"0x53,0x1d",active,,https://www.adafruit.com/product/1231,,
+adafruit-4692,Adafruit,LSM6DSO32 6-DoF Accelerometer and Gyroscope,4692,LSM6DSO32,ST,motion,,stemma-qt,3,5,"0x6a,0x6b",active,,https://www.adafruit.com/product/4692,,sheet had LSM6DS032 at 0x64
+adafruit-4344,Adafruit,MSA301 Triple Axis Accelerometer,4344,MSA301,MEMSensing,motion,,stemma-qt,3,5,0x26,discontinued,,https://www.adafruit.com/product/4344,https://download.kamami.pl/p585252-MSA301.pdf,sheet said supported but there is no RaftCore record; 0x26 is also M5-Weight and clashes with current power management hardware
+pimoroni-msa301-3dof-motion-sensor,Pimoroni,MSA301 3DoF Motion Sensor,,MSA301,MEMSensing,motion,,,3,5,0x26,active,,https://shop.pimoroni.com/products/msa301-3dof-motion-sensor-breakout,,as Adafruit MSA301
+adafruit-4754,Adafruit,BNO085 9-DOF Orientation IMU Fusion,4754,BNO085,CEVA/Bosch,motion,,stemma-qt,3,5,"0x4a,0x4b",active,,https://www.adafruit.com/product/4754,https://github.com/adafruit/Adafruit_BNO08x,
+adafruit-4480,Adafruit,LSM6DS33 6-DoF Accel + Gyro IMU,4480,LSM6DS33,ST,motion,LSM6DS3,stemma-qt,3,5,"0x6a,0x6b",discontinued,,https://www.adafruit.com/product/4480,,
+adafruit-4366,Adafruit,TLV493D Triple-Axis Magnetometer,4366,TLV493D,Infineon,magnetic,,stemma-qt,3,5,0x5e,active,,https://www.adafruit.com/product/4366,,
+adafruit-4554,Adafruit,ICM-20948 9-DoF IMU,4554,ICM-20948,TDK InvenSense,motion,,stemma-qt,3,5,"0x69,0x68",active,,https://www.adafruit.com/product/4554,,
+nexus-qwiic-sense,Nexus,QWIIC Sense,,,,,,qwiic,,,,active,,,,unknown board - fill in
+seeed-101020692,Seeed,Grove 12-bit Magnetic Rotary Position Sensor (AS5600),101020692,AS5600,ams,magnetic,AS5600,grove,,,0x36,active,,,https://look.ams-osram.com/m/7059eac7531a86fd/original/AS5600-DS000365.pdf,
+sparkfun-qwiic-led-stick-apa102c,SparkFun,Qwiic LED Stick (APA102C),,ATtiny85 + APA102C,,led,QwiicLEDStick,qwiic,,,"0x23,0x22",active,,https://learn.sparkfun.com/tutorials/qwiic-led-stick---apa102c-hookup-guide,,sheet said supported '?'
+adafruit-5766,Adafruit,NeoDriver I2C to NeoPixel Driver,5766,ATtiny817 (seesaw),Microchip,led,,stemma-qt,3,5,0x60,active,,https://www.adafruit.com/product/5766,,sheet had 0x49 - check
+sparkfun-15451,SparkFun,Qwiic Motor Driver (DRV8835),15451,DRV8835,TI,motor,,qwiic,3,,0x5d,active,,https://www.sparkfun.com/products/15451,,
+pimoroni-drv8830-dc-motor-driver,Pimoroni,DRV8830 DC Motor Driver,,DRV8830,TI,motor,,,3,5,"0x60,0x61,0x63,0x64",active,,https://shop.pimoroni.com/products/drv8830-dc-motor-driver-breakout,,
+zio-oled-0-91in-display,Zio,OLED 0.91in display,,SSD1306,Solomon Systech,display,,qwiic,,,0x3c,active,,,,
+sparkfun-qwiic-alphanumeric-display,SparkFun,Qwiic Alphanumeric Display,,HT16K33,Holtek,display,,qwiic,,,0x70-0x73,active,,,,
+pimoroni-1-12in-mono-oled-sh1107,Pimoroni,1.12in Mono OLED (SH1107),,SH1107,Sino Wealth,display,,,3,5,"0x3c,0x3d",active,,,,
+adafruit-2946,Adafruit,16x9 Charlieplexed PWM LED Matrix Driver,2946,IS31FL3731,Lumissil,led,,stemma-qt,3,5,0x74-0x77,active,,https://www.adafruit.com/product/2946,https://www.lumissil.com/assets/pdf/core/IS31FL3731_DS.pdf,
+adafruit-2717,Adafruit,TCA9548A I2C Multiplexer,2717,TCA9548A,TI,mux,,,3,5,0x70-0x77,active,,https://www.adafruit.com/product/2717,,sheet listed IS31FL3731 as the part (it belongs to the row above)
+adafruit-5832,Adafruit,INA228 85V 20-bit Power Monitor,5832,INA228,TI,power,,,3,5,0x40-0x4f,active,,https://www.adafruit.com/product/5832,,
+useful-sensors-tiny-code-reader-qr-code,Useful Sensors,Tiny Code Reader (QR code),,,,camera,,qwiic,,,0x0c,active,,,,
+adafruit-5807,Adafruit,HUSB238 USB PD Sink,5807,HUSB238,Hynetek,power,,,,,0x08,active,,https://www.adafruit.com/product/5807,,
+playing-with-fusion-135,Playing with Fusion,AS3935 Digital Lightning Sensor,135,AS3935,ams,environment,,,3,5,,active,,https://www.playingwithfusion.com/productview.php?pdid=135,,
+playing-with-fusion-195,Playing with Fusion,Push button,195,,,input,,,3,5,,active,,https://www.playingwithfusion.com/productview.php?pdid=195&catid=1001,,
+pimoroni-rgb-encoder-wheel-breakout,Pimoroni,RGB Encoder Wheel Breakout,PIM673,MS51 (IO expander) + IS31FL3731,"Nuvoton, Lumissil",input,,,,,"0x13,0x77",active,,https://shop.pimoroni.com/products/rgb-encoder-wheel-breakout?variant=40775645331539,,in the sheet as a link only (not marked owned); chip and addresses from Pimoroni's library - check
+bela-trill-flex,Bela,Trill Flex,,Trill,Bela,touch,TrillFlex,qwiic,,,0x48,active,,https://shop.bela.io/products/trill-flex,,"not in the sheet; the TrillFlex record was bench tested with one (Axiom018, 2026-10-23)"
