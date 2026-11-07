@@ -21,6 +21,7 @@ import datetime
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.parse
 import urllib.request
@@ -86,6 +87,12 @@ def five_v_ok(row: dict) -> str:
     return "yes" if vmax >= 5 else "no"
 
 
+def records_of(b: dict) -> list:
+    """The records a breakout uses: raft_record is one key, or several separated by spaces (a chip at two
+    addresses, such as the MS8607's pressure/temperature and humidity parts)"""
+    return b["raft_record"].split()
+
+
 def checks_of(test: dict) -> set:
     return set(test.get("checks", "").split())
 
@@ -128,8 +135,9 @@ def validate(breakouts, owned, tests, records) -> list:
         if b["id"] in by_id:
             problems.append(f"{where}: duplicate id")
         by_id[b["id"]] = b
-        if b["raft_record"] and b["raft_record"] not in records:
-            problems.append(f"{where}: raft_record '{b['raft_record']}' is not a RaftCore record")
+        for key in records_of(b):
+            if key not in records:
+                problems.append(f"{where}: raft_record '{key}' is not a RaftCore record")
         if b["connector"] not in CONNECTORS:
             problems.append(f"{where}: connector '{b['connector']}' not one of {sorted(CONNECTORS - {''})}")
         if b["status"] not in STATUSES:
@@ -144,11 +152,12 @@ def validate(breakouts, owned, tests, records) -> list:
         except ValueError as e:
             problems.append(f"{where}: bad address '{e}'")
             continue
-        rec = records.get(b["raft_record"])
-        if rec and rec["addresses"]:
-            extra = addrs - parse_addrs(rec["addresses"])
+        recs = [records[k] for k in records_of(b) if k in records]
+        if recs and all(r["addresses"] for r in recs):
+            extra = addrs - set().union(*(parse_addrs(r["addresses"]) for r in recs))
             if extra:
-                problems.append(f"WARNING {where}: address {fmt_addrs(extra)} not in {b['raft_record']}'s {rec['addresses']}")
+                problems.append(f"WARNING {where}: address {fmt_addrs(extra)} not in {b['raft_record']}'s "
+                                f"{' '.join(r['addresses'] for r in recs)}")
     for i, o in enumerate(owned, start=2):
         if o["id"] not in by_id:
             problems.append(f"owned.csv:{i}: unknown breakout id '{o['id']}'")
@@ -162,7 +171,7 @@ def validate(breakouts, owned, tests, records) -> list:
         b = by_id.get(t["breakout_id"])
         if t["breakout_id"] and not b:
             problems.append(f"{where}: unknown breakout_id '{t['breakout_id']}'")
-        elif b and b["raft_record"] != t["raft_record"]:
+        elif b and t["raft_record"] not in records_of(b):
             problems.append(f"WARNING {where}: breakout {b['id']} is listed with record '{b['raft_record']}', "
                             f"the test is of '{t['raft_record']}'")
         if t["result"] not in RESULTS:
@@ -205,7 +214,7 @@ def report(breakouts, owned, tests, records) -> str:
             addrs = parse_addrs(b["addresses"])
         except ValueError:
             addrs = set()
-        return ", ".join(sorted({k for a in addrs for k in by_addr.get(a, [])} - {b["raft_record"]}))
+        return ", ".join(sorted({k for a in addrs for k in by_addr.get(a, [])} - set(records_of(b))))
 
     def prio(b):
         return (PRIORITIES.get(b["priority"], 3), b["category"], b["chip"], b["id"])
@@ -222,7 +231,7 @@ def report(breakouts, owned, tests, records) -> str:
     rows = []
     for b in sorted((b for b in have if b["raft_record"] and b["id"] not in validated), key=prio):
         done = "; ".join(f"{t['date']} {t['checks']} {t['result']}" for t in tests_of.get(b["id"], []))
-        loose = sorted({t["date"] for t in tests_of.get("", []) if t["raft_record"] == b["raft_record"]})
+        loose = sorted({t["date"] for t in tests_of.get("", []) if t["raft_record"] in records_of(b)})
         if loose:
             done += ("; " if done else "") + "record tested, board not given: " + ", ".join(loose)
         rows.append([b["priority"], b["raft_record"], b["id"], b["product"], clashes(b), done or "none"])
@@ -247,8 +256,8 @@ def report(breakouts, owned, tests, records) -> str:
     table(["Priority", "Chip", "Vendor", "Product", "Breakout", "Category", "Record", "Status", "Notes"], rows)
 
     # records whose board isn't owned (or isn't listed)
-    owned_recs = {b["raft_record"] for b in have if b["raft_record"]}
-    listed_recs = {b["raft_record"] for b in breakouts if b["raft_record"]}
+    owned_recs = {k for b in have for k in records_of(b)}
+    listed_recs = {k for b in breakouts for k in records_of(b)}
     tested_recs = {t["raft_record"] for t in tests}
     rows = [[k, r["manufacturer"], r["name"], "listed, not owned" if k in listed_recs else "not listed",
              "yes" if k in tested_recs else ""]
@@ -261,7 +270,7 @@ def report(breakouts, owned, tests, records) -> str:
     if loose:
         rows = []
         for t in loose:
-            cands = [b["id"] for b in have if b["raft_record"] == t["raft_record"]]
+            cands = [b["id"] for b in have if t["raft_record"] in records_of(b)]
             rows.append([t["date"], t["raft_record"], t["checks"], t["host"], ", ".join(cands) or "none owned"])
         out.append(f"## Tests with no breakout_id ({len(loose)})\n")
         table(["Date", "Record", "Checks", "Host", "Owned candidates"], rows)
@@ -330,61 +339,115 @@ def bench_observe(ip: str, addrs: set) -> dict:
     return {"host": info.get("SystemName", ""), "version": info.get("SystemVersion", ""), "devices": found}
 
 
+def capture_samples(args, device_ids: list) -> dict:
+    """Decoded samples from the host for the given devices (capture-samples.js, run with Node and raftjs)"""
+    raftjs = Path(args.raftjs).expanduser()
+    if not (raftjs / "dist" / "web" / "main.js").exists():
+        raise SystemExit(f"no built raftjs at {raftjs} (--raftjs or RAFTJS)")
+    cmd = ["node", str(Path(__file__).resolve().parent / "capture-samples.js"), "--ip", args.ip,
+           "--raftjs", str(raftjs), "--duration", str(args.samples), "--devices", ",".join(device_ids)]
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=args.samples + 60)
+    if res.returncode:
+        raise SystemExit(f"capture failed: {res.stderr.strip()}")
+    return json.loads(res.stdout)["devices"]
+
+
+def fmt_num(v) -> str:
+    return "-" if v is None else f"{v:.4g}"
+
+
+def print_samples(dev: dict) -> list:
+    """Print a device's captured attributes; returns the names of those with values outside their range"""
+    out_of_range = []
+    for name, a in dev["attributes"].items():
+        rng = a.get("range") or []
+        flag = ""
+        if len(rng) == 2 and a["min"] is not None and (a["min"] < rng[0] or a["max"] > rng[1]):
+            flag = f"  OUTSIDE RANGE {rng[0]}..{rng[1]}"
+            out_of_range.append(name)
+        per = f" x{a['elemsPerSample']}" if a["elemsPerSample"] > 1 else ""
+        print(f"      {name:>10}{per}: n {a['n']:<5} min {fmt_num(a['min']):>9} mean {fmt_num(a['mean']):>9} "
+              f"max {fmt_num(a['max']):>9} {a['units'] or ''}{flag}")
+    return out_of_range
+
+
 def cmd_bench(args) -> int:
-    breakouts = read_csv(BREAKOUTS)
-    b = next((b for b in breakouts if b["id"] == args.breakout_id), None)
-    if not b:
-        print(f"no breakout '{args.breakout_id}' in {BREAKOUTS.name}", file=sys.stderr)
+    breakouts = {b["id"]: b for b in read_csv(BREAKOUTS)}
+    unknown = [i for i in args.breakout_ids if i not in breakouts]
+    if unknown:
+        print(f"not in {BREAKOUTS.name}: {' '.join(unknown)}", file=sys.stderr)
         return 1
-    record = args.raft_record or b["raft_record"]
-    if not record:
-        print(f"{b['id']} has no raft_record: give the record under test with --raft-record", file=sys.stderr)
+    if args.record and len(args.breakout_ids) > 1:
+        print("--record takes one breakout at a time", file=sys.stderr)
         return 1
-    addrs = parse_addrs(args.addr or b["addresses"])
+    plans = []
+    for bid in args.breakout_ids:
+        b = breakouts[bid]
+        recs = args.raft_record.split() if args.raft_record else records_of(b)
+        if not recs:
+            print(f"{bid} has no raft_record: give the record under test with --raft-record", file=sys.stderr)
+            return 1
+        plans.append((b, recs, parse_addrs(args.addr or b["addresses"])))
     try:
-        obs = bench_observe(args.ip, addrs)
+        obs = bench_observe(args.ip, set().union(*(p[2] for p in plans)))
     except OSError as e:
         print(f"host {args.ip}: {e}", file=sys.stderr)
         return 1
-    print(f"{b['id']} ({b['product']}), record {record}, at {fmt_addrs(addrs)} on {obs['host']} {obs['version']}")
-    ok = []
-    for d in obs["devices"]:
-        mark = "ok" if d["key"] == record and d["state"] == "identified" and d["polled"] else "--"
-        print(f"  {mark} {d['deviceid']:>7} addr 0x{d['addr']:02x} slot {d['slot']}: {d['key'] or '(none)'} "
-              f"{d['state']} {d['online']}, polled {d['polls']} times, {d['missed']} missed, {d['rateHz']} Hz")
-        if mark == "ok":
-            ok.append(d)
-    if not obs["devices"]:
-        print("  nothing found at those addresses")
-    detect = bool(ok) and any(d["polls"] > 0 for d in ok)
-    missed = sum(d["missed"] for d in ok)
-    print(f"detect: {'pass' if detect else 'FAIL'}" + (f" ({missed} polls missed)" if missed else ""))
-    if not detect and args.record == "pass" and not args.force:
+    print(f"host {obs['host']} {obs['version']}")
+    results = []
+    for b, recs, addrs in plans:
+        print(f"\n{b['id']} ({b['product']}), {' '.join(recs)} at {fmt_addrs(addrs)}")
+        ok = {}
+        here = [d for d in obs["devices"] if d["addr"] in addrs]
+        for d in here:
+            good = d["key"] in recs and d["state"] == "identified" and d["polled"] and d["polls"] > 0
+            print(f"  {'ok' if good else '--'} {d['deviceid']:>7} addr 0x{d['addr']:02x} slot {d['slot']}: "
+                  f"{d['key'] or '(none)'} {d['state']} {d['online']}, polled {d['polls']} times, "
+                  f"{d['missed']} missed, {d['rateHz']} Hz")
+            if good:
+                ok.setdefault(d["key"], []).append(d)
+        if not here:
+            print("  nothing found at those addresses")
+        missing = [k for k in recs if k not in ok]
+        print(f"  detect: {'pass' if not missing else 'FAIL (' + ' '.join(missing) + ' not found)'}")
+        results.append((b, recs, ok, missing))
+    if args.samples:
+        ids = [d["deviceid"] for _, _, ok, _ in results for ds in ok.values() for d in ds]
+        captured = capture_samples(args, ids) if ids else {}
+        print(f"\nsamples over {args.samples:g} s:")
+        for b, recs, ok, _ in results:
+            for key, ds in ok.items():
+                for d in ds:
+                    print(f"  {b['id']} {key} {d['deviceid']}:")
+                    if d["deviceid"] in captured:
+                        print_samples(captured[d["deviceid"]])
+                    else:
+                        print("      no samples received")
+    if not args.record:
+        if not args.samples:
+            print("\n(--samples <s> shows the data; --record pass|partial|fail with --checks and --notes adds "
+                  "the tests.csv row)")
+        return 0
+    b, recs, ok, missing = results[0]
+    if missing and args.record == "pass" and not args.force:
         print("not recorded: detection failed, so it can't be a pass (--force to record it anyway)", file=sys.stderr)
         return 1
-    checks = args.checks or ("detect" if detect else "")
-    if not checks:
-        print("give --checks for the row", file=sys.stderr)
-        return 1
+    checks = args.checks or ("detect" if not missing else "")
     bad = set(checks.split()) - set(CHECKS)
-    if bad:
-        print(f"unknown checks {' '.join(sorted(bad))}: use {' '.join(CHECKS)}", file=sys.stderr)
+    if not checks or bad:
+        print(f"--checks should be one or more of {' '.join(CHECKS)}", file=sys.stderr)
         return 1
-    slots = ", ".join(sorted({f"slot {d['slot']}" if d["slot"] else "main bus" for d in ok}))
-    notes = "; ".join(filter(None, [args.notes, f"{slots}" if slots else "",
-                                    f"firmware {obs['version']}" if obs["version"] else ""]))
-    row = {"date": args.date, "raft_record": record, "breakout_id": b["id"], "tester": args.tester,
-           "host": args.host or obs["host"], "raftcore_version": args.raftcore_version, "checks": checks,
-           "result": args.record or "pass", "notes": notes}
-    print("\n" + ",".join(TEST_FIELDS))
-    w = csv.DictWriter(sys.stdout, fieldnames=TEST_FIELDS, lineterminator="\n")
-    w.writerow(row)
-    if not args.record:
-        print("\n(not recorded: add --record pass|partial|fail, with --checks and --notes, once the data is checked)")
-        return 0
-    tests = read_csv(TESTS) + [row]
+    tests = read_csv(TESTS)
+    for key in recs:
+        ds = ok.get(key, [])
+        slots = ", ".join(sorted({f"slot {d['slot']}" if d["slot"] else "main bus" for d in ds}))
+        notes = "; ".join(filter(None, [args.notes, slots, f"firmware {obs['version']}" if obs["version"] else ""]))
+        row = {"date": args.date, "raft_record": key, "breakout_id": b["id"], "tester": args.tester,
+               "host": args.host or obs["host"], "raftcore_version": args.raftcore_version, "checks": checks,
+               "result": args.record, "notes": notes}
+        tests.append(row)
+        print("added: " + ",".join(row[f] for f in TEST_FIELDS))
     write_csv(TESTS, tests, TEST_FIELDS)
-    print(f"\nadded to {TESTS.relative_to(RAFTCORE)}")
     return 0
 
 
@@ -439,7 +502,7 @@ def main() -> int:
     c = sub.add_parser("check", help="validate and report")
     c.add_argument("--out", type=Path, help="write the report (markdown) here")
     bn = sub.add_parser("bench", help="check a breakout on a host and record the test")
-    bn.add_argument("breakout_id")
+    bn.add_argument("breakout_ids", nargs="+", metavar="breakout_id")
     bn.add_argument("--ip", required=True, help="the host's IP address (its REST API)")
     bn.add_argument("--raft-record", help="the record under test (default: the breakout's raft_record)")
     bn.add_argument("--addr", help="the addresses to look at (default: the breakout's), e.g. 0x29 for a jumpered one")
@@ -451,6 +514,9 @@ def main() -> int:
     bn.add_argument("--raftcore-version", default="", help="the RaftCore version in the host's firmware")
     bn.add_argument("--date", default=datetime.date.today().isoformat())
     bn.add_argument("--force", action="store_true", help="record a pass even though detection failed")
+    bn.add_argument("--samples", type=float, default=0, help="capture decoded samples for this many seconds")
+    bn.add_argument("--raftjs", default=os.environ.get("RAFTJS", str(Path.home() / "rdev" / "raft" / "raftjs")),
+                    help="built raftjs, for --samples (default: $RAFTJS or ~/rdev/raft/raftjs)")
     e = sub.add_parser("enrich", help="fill blank Adafruit fields from adafruit.com")
     e.add_argument("--write", action="store_true", help="save the changes to breakouts.csv")
     args = ap.parse_args()

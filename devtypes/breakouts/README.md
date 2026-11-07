@@ -21,7 +21,8 @@ script with `--owned` or the environment variable `RAFT_BREAKOUTS_OWNED`. A brea
 - `chip`, `chip_manufacturer`, `datasheet`
 - `category`: light, distance, motion, environment, gas, temperature, touch, input, adc, display, led, motor, power,
   rfid, io, mux, magnetic, presence, biometric, output, camera
-- `raft_record`: the key of the RaftCore record that supports it (`records/<key>.json`), blank if none
+- `raft_record`: the key of the RaftCore record that supports it (`records/<key>.json`), blank if none; several
+  keys separated by spaces for a chip at more than one address (e.g. `MS8607PT MS8607RH`)
 - `connector`: `stemma-qt`, `qwiic`, `stemma`, `grove`, `mikrobus`, `none`, or blank if not known
 - `vcc_min`, `vcc_max`: the supply range of the board, not the chip. `vcc_max` of 5 or more means 5V tolerant. Most
   SparkFun Qwiic boards are 3.3V only
@@ -51,10 +52,14 @@ A breakout counts as **validated** when it has a `pass` with at least `detect` a
 
 1. Attach the breakout to a host running a build that includes its record, with the boards that share its address
    (the report lists them) attached too where possible.
-2. Run `python3 scripts/breakouts/breakouts.py bench <breakout id> --ip <host IP>`. It checks the device is found,
-   identified as the right record and polled without misses, and prints the `tests.csv` row it would add.
-3. Check the values in the dashboard (or another client) against known conditions.
-4. Add the row: run it again with `--record pass` (or `partial`, `fail`), `--checks` and `--notes`.
+2. Run `python3 scripts/breakouts/breakouts.py bench <breakout id>... --ip <host IP> --samples 10`. For each
+   breakout it checks the device is found, identified as its record and polled, then captures the decoded values
+   for 10 seconds (with raftjs, as a dashboard decodes them: Node 22+ and a built raftjs, `--raftjs` or `RAFTJS`)
+   and shows each attribute's min, mean and max, flagging values outside the attribute's range.
+3. Check the values against known conditions, and against each other where several boards measure the same thing
+   (pressure, temperature, humidity).
+4. Add the row, one breakout at a time: `bench <breakout id> --ip <host IP> --record pass` (or `partial`, `fail`),
+   with `--checks` and `--notes` giving what was checked and the values seen.
 
 ## Adding a breakout or a record
 
