@@ -56,6 +56,15 @@ A breakout counts as **validated** when it has a `pass` with at least `detect` a
 3. Check the values in the dashboard (or another client) against known conditions.
 4. Add the row: run it again with `--record pass` (or `partial`, `fail`), `--checks` and `--notes`.
 
+## Adding a breakout or a record
+
+1. Add the product to `breakouts.csv`, owned or not, with `raft_record` blank if no record supports it.
+2. For a new record, write `../records/<Key>.json` (see `../README.md` and the wiki pages on the record format and
+   device identification). Use detection values from an ID register where the chip has one: the report lists the
+   records sharing each address. Credit any third-party driver used for init or decode in `_notes`.
+3. Set `raft_record` on the rows of the breakouts it supports.
+4. Test it as above, and run `breakouts.py check`: it must exit 0, and its warnings should be understood.
+
 ## Scripts
 
 `scripts/breakouts`:
