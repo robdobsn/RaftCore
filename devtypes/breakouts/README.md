@@ -22,7 +22,7 @@ script with `--owned` or the environment variable `RAFT_BREAKOUTS_OWNED`. A brea
 - `category`: light, distance, motion, environment, gas, temperature, touch, input, adc, display, led, motor, power,
   rfid, io, mux, magnetic, presence, biometric, output, camera
 - `raft_record`: the key of the RaftCore record that supports it (`records/<key>.json`), blank if none
-- `connector`: `stemma-qt`, `qwiic`, `stemma`, `grove`, `none`, or blank if not known
+- `connector`: `stemma-qt`, `qwiic`, `stemma`, `grove`, `mikrobus`, `none`, or blank if not known
 - `vcc_min`, `vcc_max`: the supply range of the board, not the chip. `vcc_max` of 5 or more means 5V tolerant. Most
   SparkFun Qwiic boards are 3.3V only
 - `addresses`: default first, e.g. `0x29` or `0x28-0x2b` or `0x1d,0x53`
