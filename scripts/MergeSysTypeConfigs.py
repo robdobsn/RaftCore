@@ -7,8 +7,10 @@
 
    sdkconfig.defaults merging:
      - Start with Common/sdkconfig.defaults as a base (if it exists)
+     - Apply Common/sdkconfig.<variant>.defaults for the build variant (if it exists)
      - Apply any sdkconfig fragments (RAFT_SDKCONFIG_FRAGMENTS in features.cmake) in order
      - Apply systype-specific sdkconfig.defaults overrides on top
+     - Apply systype-specific sdkconfig.<variant>.defaults for the build variant (if it exists)
      - Later entries override earlier ones (by CONFIG key)
      - Comments and blank lines from all files are preserved
 
@@ -92,19 +94,30 @@ def merge_sdkconfig_layers(layers, output_file):
             any_written = True
 
 
-def merge_sdkconfig_defaults(common_file, systype_file, output_file, fragment_files=None):
-    """Merge sdkconfig.defaults files: Common base, then fragments, then systype-specific overrides.
+def merge_sdkconfig_defaults(common_file, systype_file, output_file, fragment_files=None,
+                             variant=None, common_variant_file=None, systype_variant_file=None):
+    """Merge sdkconfig.defaults files: Common base, then fragments, then systype-specific overrides, each of
+    Common and the SysType followed by its file for the build variant.
 
     Args:
         common_file: Path to Common/sdkconfig.defaults (may not exist)
         systype_file: Path to systype-specific sdkconfig.defaults (may not exist)
         output_file: Path to write the merged result
         fragment_files: Paths of sdkconfig fragments applied between them, in order
+        variant: Name of the build variant (for headings)
+        common_variant_file: Path to Common/sdkconfig.<variant>.defaults (may not exist)
+        systype_variant_file: Path to the SysType's sdkconfig.<variant>.defaults (may not exist)
     """
     layers = [("Base configuration from Common/sdkconfig.defaults", common_file)]
+    if common_variant_file:
+        layers.append((f"Build variant {variant} from Common/{os.path.basename(common_variant_file)}",
+                       common_variant_file))
     for fragment_file in fragment_files or []:
         layers.append((f"sdkconfig fragment {os.path.basename(fragment_file)}", fragment_file))
     layers.append((None, systype_file))
+    if systype_variant_file:
+        layers.append((f"SysType build variant {variant} from {os.path.basename(systype_variant_file)}",
+                       systype_variant_file))
     merge_sdkconfig_layers(layers, output_file)
 
 
@@ -152,6 +165,14 @@ def main():
     parser.add_argument('--fragment', action='append', default=[],
                         help="Path to an sdkconfig fragment applied after Common and before the SysType "
                              "(sdkconfig mode only, may be repeated, must exist)")
+    parser.add_argument('--variant', default=None,
+                        help="Name of the build variant (sdkconfig mode only, for headings)")
+    parser.add_argument('--common-variant', default=None,
+                        help="Path to Common's sdkconfig.<variant>.defaults, applied after Common "
+                             "(sdkconfig mode only, optional, may not exist)")
+    parser.add_argument('--systype-variant', default=None,
+                        help="Path to the SysType's sdkconfig.<variant>.defaults, applied after the SysType "
+                             "(sdkconfig mode only, optional, may not exist)")
     parser.add_argument('--output', required=True,
                         help="Path to write the merged output file")
 
@@ -160,12 +181,14 @@ def main():
     # Normalize paths - treat empty strings and non-existent files consistently
     common = args.common if args.common and os.path.exists(args.common) else None
     systype = args.systype if args.systype and os.path.exists(args.systype) else None
+    common_variant = args.common_variant if args.common_variant and os.path.exists(args.common_variant) else None
+    systype_variant = args.systype_variant if args.systype_variant and os.path.exists(args.systype_variant) else None
     for fragment in args.fragment:
         if not os.path.exists(fragment):
             print(f"Error: sdkconfig fragment {fragment} not found", file=sys.stderr)
             sys.exit(1)
 
-    if not common and not systype and not args.fragment:
+    if not common and not systype and not args.fragment and not common_variant and not systype_variant:
         print(f"Warning: Neither common nor systype file exists for {args.mode} merge", file=sys.stderr)
         # Create an empty output file
         with open(args.output, 'w') as f:
@@ -174,9 +197,13 @@ def main():
         return
 
     if args.mode == 'sdkconfig':
-        merge_sdkconfig_defaults(common, systype, args.output, args.fragment)
+        merge_sdkconfig_defaults(common, systype, args.output, args.fragment,
+                                 args.variant, common_variant, systype_variant)
         for fragment in args.fragment:
             print(f"Applied sdkconfig fragment {fragment}")
+        for variant_file in (common_variant, systype_variant):
+            if variant_file:
+                print(f"Applied build variant {args.variant} from {variant_file}")
     elif args.mode == 'systypes':
         merge_systypes_json(common, systype, args.output)
 
