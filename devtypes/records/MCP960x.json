@@ -1,0 +1,75 @@
+{
+    "_notes": "Microchip MCP9600, MCP9601 and MCP96L01 thermocouple EMF to temperature converters (with cold-junction compensation) at 0x67 (the Adafruit boards' default, ADDR pin unconnected), 0x66 or 0x63. Of their eight addresses (0x60-0x67) the others aren't claimed: 0x60 (VCNL4040), 0x61 (SCD30), 0x62 (SCD40) and 0x64-0x65 (STCC4) are other records' addresses, where this record's probeByRead would change how the scanner probes those parts too\nprobeByRead: after an address-only (zero-length) transfer - the usual scan probe - the chip stops answering until power is cycled (bench, Axiom018, 2026-11-08, an MCP9601: five ID reads, one zero-length write that it ACKed, then every access NACKed), so the scanner probes these addresses with a 1-byte read\nDetection: device ID/revision (0x20), 2 bytes: ID 0x40 (MCP9600) or 0x41 (MCP9601, MCP96L01), any revision\nInit: sensor configuration (0x05) = 0x00 - type K, filter off; device configuration (0x06) = 0x00 - normal mode, 18-bit ADC, 0.0625 C cold-junction resolution (both the power-up values, written in case they were changed)\nPoll (500 ms; a conversion takes about 320 ms at 18 bits): hot junction (0x00, the thermocouple temperature, compensated), cold junction (0x02, the chip's own temperature), each big-endian signed 16-bit at 0.0625 C; status (0x04). openCircuit (bit 4) and shortCircuit (bit 5) are the MCP9601's and MCP96L01's thermocouple checks (the MCP9600's bit 4 is input out of range, bit 5 unused). With no thermocouple the hot junction value means nothing\nSource: registers from the Microchip MCP960X/L0X/RL0X datasheet (DS20005426); the status bits as Adafruit_MCP9601 names them",
+    "addresses": "0x63,0x66-0x67",
+    "probeByRead": true,
+    "detectionValues": "0x20=0b0100000XXXXXXXXX",
+    "initValues": "0x0500&0x0600",
+    "pollInfo": {
+        "c": "0x00=r2&0x02=r2&0x04=r1",
+        "i": 500,
+        "s": 1
+    },
+    "devInfoJson": {
+        "name": "Thermocouple amplifier",
+        "desc": "Thermocouple EMF to temperature converter",
+        "manu": "Microchip",
+        "type": "MCP960x",
+        "clas": [
+            "TEMP"
+        ],
+        "resp": {
+            "b": 5,
+            "a": [
+                {
+                    "n": "hot",
+                    "t": ">h",
+                    "u": "&deg;C",
+                    "r": [
+                        -200,
+                        1372
+                    ],
+                    "d": 16,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "cold",
+                    "t": ">h",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        125
+                    ],
+                    "d": 16,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "openCircuit",
+                    "t": "B",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x10",
+                    "s": 4,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "shortCircuit",
+                    "at": 4,
+                    "t": "B",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x20",
+                    "s": 5,
+                    "f": "b",
+                    "o": "bool"
+                }
+            ]
+        }
+    }
+}

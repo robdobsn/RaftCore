@@ -1,0 +1,33 @@
+{
+    "_notes": "Analog Devices ADXL345 3-axis accelerometer at 0x53 (ALT ADDRESS low, the Adafruit default) or 0x1D. 8-bit registers\nDetection: DEVID (0x00) = 0xE5 (the ADXL313 at the same addresses reads 0xAD)\nInit: DATA_FORMAT (0x31) = 0x09 - full resolution, +/-4 g; POWER_CTL (0x2D) = 0x08 - measure. BW_RATE is left at its reset value, 100 Hz\nPoll (100 ms): DATAX0-DATAZ1 (0x32-0x37), little-endian 16-bit; at full resolution 3.9 mg per count whatever the range, so 256 per g\nSource: registers from the Analog Devices ADXL345 datasheet",
+    "addresses": "0x53,0x1d",
+    "detectionValues": "0x00=0xE5",
+    "initValues": "0x3109&0x2d08",
+    "pollInfo": {
+        "c": "0x32=r6",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08, measuring): the lone 0x99 write and 1-byte read returns 0x00; registers 0x00-0x39 other than the data unchanged (reserved 0x17 moves between 0x17 and 0x18 without the probe too) and measuring carried on"
+        }
+    },
+    "devInfoJson": {
+        "name": "Accelerometer",
+        "desc": "3-Axis Accel",
+        "manu": "Analog Devices",
+        "type": "ADXL345",
+        "clas": ["ACC"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {"n": "ax", "vt": "imu", "t": "<h", "u": "g", "r": [-4.0, 4.0], "d": 256, "f": ".2f", "o": "float"},
+                {"n": "ay", "t": "<h", "u": "g", "r": [-4.0, 4.0], "d": 256, "f": ".2f", "o": "float"},
+                {"n": "az", "t": "<h", "u": "g", "r": [-4.0, 4.0], "d": 256, "f": ".2f", "o": "float"}
+            ]
+        }
+    }
+}

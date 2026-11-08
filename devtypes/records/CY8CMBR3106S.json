@@ -1,0 +1,133 @@
+{
+    "_notes": "Infineon (Cypress) CY8CMBR3106S CapSense Express touch controller at 0x37, its default (the address is part of its stored configuration), as on MikroE's Cap Touch 5 click. 8-bit registers; the configuration (0x00-0x7E, with a CRC at 0x7E) is held in the chip's flash and applied with a command, so this record doesn't write it: which sensors are buttons and which make up a slider is the board's stored setting. In deep sleep (within 0.6 s of the last transfer, on the bench) it NACKs the transfer that wakes it, then answers: \"wakeNack\" has the bus try a NACKed access to it once more, without which the scanner, probing each address seconds apart, never finds it\nDetection: FAMILY_ID (0x8F) = 0x9A and DEVICE_ID (0x90-0x91, little-endian) = 0x0A06\nInit: none\nPoll (100 ms): 10 bytes from BUTTON_STAT (0xAA): BUTTON_STAT (0xAA-0xAB, one bit per sensor CS0-CS5, 1 touched), LATCHED_BUTTON_STAT (0xAC-0xAD), 0xAE-0xAF, SLIDER1_POSITION (0xB0), LIFTOFF_SLIDER1_POSITION (0xB1), SLIDER2_POSITION (0xB2), LIFTOFF_SLIDER2_POSITION (0xB3). A slider position is 0xFF when it isn't touched (or there is no slider). MikroE's library names CS3, CS0, CS2 and CS1 the click's buttons 1-4\nSource: registers from the Infineon CY8CMBR3xxx register TRM",
+    "addresses": "0x37",
+    "wakeNack": true,
+    "detectionValues": "0x8f=0x9a&0x90=0x060a",
+    "initValues": "",
+    "pollInfo": {
+        "c": "0xaa=r10",
+        "i": 100,
+        "s": 5
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08): the lone 0x99 returns 0x00; the configuration (0x00-0x7F) unchanged and touch reads after it normal"
+        }
+    },
+    "devInfoJson": {
+        "name": "Capacitive Touch",
+        "desc": "CapSense buttons and slider",
+        "manu": "Infineon",
+        "type": "CY8CMBR3106S",
+        "clas": [
+            "TCH"
+        ],
+        "resp": {
+            "b": 10,
+            "a": [
+                {
+                    "n": "cs0",
+                    "t": "<H",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x0001",
+                    "s": 0,
+                    "f": "b",
+                    "o": "bool",
+                    "at": 0
+                },
+                {
+                    "n": "cs1",
+                    "t": "<H",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x0002",
+                    "s": 1,
+                    "f": "b",
+                    "o": "bool",
+                    "at": 0
+                },
+                {
+                    "n": "cs2",
+                    "t": "<H",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x0004",
+                    "s": 2,
+                    "f": "b",
+                    "o": "bool",
+                    "at": 0
+                },
+                {
+                    "n": "cs3",
+                    "t": "<H",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x0008",
+                    "s": 3,
+                    "f": "b",
+                    "o": "bool",
+                    "at": 0
+                },
+                {
+                    "n": "cs4",
+                    "t": "<H",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x0010",
+                    "s": 4,
+                    "f": "b",
+                    "o": "bool",
+                    "at": 0
+                },
+                {
+                    "n": "cs5",
+                    "t": "<H",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "m": "0x0020",
+                    "s": 5,
+                    "f": "b",
+                    "o": "bool",
+                    "at": 0
+                },
+                {
+                    "n": "slider1",
+                    "at": 6,
+                    "t": "B",
+                    "r": [
+                        0,
+                        255
+                    ],
+                    "f": "d",
+                    "o": "uint8"
+                },
+                {
+                    "n": "slider2",
+                    "at": 8,
+                    "t": "B",
+                    "r": [
+                        0,
+                        255
+                    ],
+                    "f": "d",
+                    "o": "uint8"
+                }
+            ]
+        }
+    }
+}

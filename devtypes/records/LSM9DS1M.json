@@ -1,0 +1,79 @@
+{
+    "_notes": "ST LSM9DS1 9-axis IMU, the magnetometer part at 0x1E (SDO_M high, the Adafruit default) or 0x1C; the accelerometer and gyroscope are a separate I2C device (LSM9DS1AG). 8-bit registers\nDetection: WHO_AM_I_M (0x0F) = 0x3D\nInit: CTRL_REG2_M (0x21) = 0x04 - software reset, 10 ms; CTRL_REG1_M (0x20) = 0x7C - X and Y ultra-high performance, 80 Hz; CTRL_REG2_M = 0x00 - +/-4 gauss; CTRL_REG4_M (0x23) = 0x0C - Z ultra-high performance; CTRL_REG5_M (0x24) = 0x40 - block data update; CTRL_REG3_M (0x22) = 0x00 - continuous conversion\nPoll (100 ms): OUT_X_L_M to OUT_Z_H_M (0x28-0x2D), little-endian 16-bit, 0.14 mgauss per count at +/-4 gauss (71.43 per uT). Multi-byte reads auto-increment with or without the address's top bit set (checked on the bench)\nSource: registers from the ST LSM9DS1 datasheet",
+    "addresses": "0x1c,0x1e",
+    "detectionValues": "0x0f=0x3d",
+    "initValues": "0x2104=p10&0x207c&0x2100&0x230c&0x2440&0x2200",
+    "pollInfo": {
+        "c": "0x28=r6",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08, measuring): the lone 0x99 write and 1-byte read returns 0x2E; the offset, control and interrupt registers unchanged and measuring carried on"
+        }
+    },
+    "devInfoJson": {
+        "name": "Magnetometer",
+        "desc": "9-DoF IMU (magnetometer)",
+        "manu": "ST",
+        "type": "LSM9DS1M",
+        "clas": [
+            "MAG"
+        ],
+        "resp": {
+            "b": 6,
+            "a": [
+                {
+                    "n": "x",
+                    "at": 0,
+                    "t": "<h",
+                    "u": "&micro;T",
+                    "r": [
+                        -400,
+                        400
+                    ],
+                    "d": 71.428571,
+                    "f": ".1f",
+                    "o": "float",
+                    "vt": "imu",
+                    "vo": {
+                        "mag": [
+                            "x",
+                            "y",
+                            "z"
+                        ]
+                    }
+                },
+                {
+                    "n": "y",
+                    "at": 2,
+                    "t": "<h",
+                    "u": "&micro;T",
+                    "r": [
+                        -400,
+                        400
+                    ],
+                    "d": 71.428571,
+                    "f": ".1f",
+                    "o": "float"
+                },
+                {
+                    "n": "z",
+                    "at": 4,
+                    "t": "<h",
+                    "u": "&micro;T",
+                    "r": [
+                        -400,
+                        400
+                    ],
+                    "d": 71.428571,
+                    "f": ".1f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

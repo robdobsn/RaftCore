@@ -1,0 +1,50 @@
+{
+    "_notes": "Adafruit I2C STEMMA QT Rotary Encoder (product 4991): seesaw firmware on an ATSAMD09 (hardware ID 0x55) at 0x36, the default (A0-A2 jumpers give 0x37-0x3D, not claimed: a seesaw detection writes two bytes, which other chips there would take as a register and data). Seesaw registers are a module base and a function\nDetection: STATUS_VERSION (0x00 0x02), 5 ms, 4 bytes: the top 16 bits are the Adafruit product number, 4991 (0x137F), the rest a date code. identPriority 1 puts it before AdafruitSoilSensor, whose detection (hardware ID 0x55) matches any SAMD09 seesaw, and AS5600 at 0x36\nInit: STATUS_SWRST (0x00 0x7F = 0xFF), 20 ms; the push switch (pin 24) as an input with pull-up: GPIO DIRCLR_BULK (0x01 0x03), PULLENSET (0x01 0x0B) and BULK_SET (0x01 0x05), each with the mask 0x01000000\nPoll (100 ms): ENCODER_POSITION (0x11 0x30), 5 ms, 4 bytes big-endian signed (the count since reset, one per detent); GPIO_BULK (0x01 0x04), 5 ms, 4 bytes big-endian - pin 24 is bit 0 of the first byte, low when pressed. The NeoPixel (pin 6) isn't driven\nSource: pins and registers from Adafruit's seesaw library and the rotary encoder examples; the version and timings checked on the bench",
+    "addresses": "0x36",
+    "identPriority": 1,
+    "detectionValues": "0x0002=p5&=0b0001001101111111XXXXXXXXXXXXXXXX",
+    "initValues": "0x007fff=p20&0x010301000000=p1&0x010b01000000=p1&0x010501000000=p1",
+    "pollInfo": {
+        "c": "0x1130=p5&=r4&0x0104=p5&=r4",
+        "i": 100,
+        "s": 5
+    },
+    "devInfoJson": {
+        "name": "Adafruit Rotary Encoder",
+        "desc": "Rotary encoder with push switch",
+        "manu": "Adafruit",
+        "type": "AdafruitRotaryEncoder",
+        "clas": [
+            "ROT"
+        ],
+        "resp": {
+            "b": 8,
+            "a": [
+                {
+                    "n": "position",
+                    "t": ">i",
+                    "u": "steps",
+                    "r": [
+                        -2147483648,
+                        2147483647
+                    ],
+                    "f": "d",
+                    "o": "int32"
+                },
+                {
+                    "n": "press",
+                    "at": 4,
+                    "t": "B",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "x": "0x01",
+                    "m": "0x01",
+                    "f": "b",
+                    "o": "bool"
+                }
+            ]
+        }
+    }
+}
