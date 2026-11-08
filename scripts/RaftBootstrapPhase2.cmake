@@ -272,6 +272,25 @@ foreach(_raft_variant_file "${_common_variant_sdkconfig}" "${_systype_variant_sd
     endif()
 endforeach()
 
+# The files that make up the sdkconfig come and go, e.g. a SysType's sdkconfig.<variant>.defaults when switching git
+# branch, so:
+# - they're also CMake configure dependencies, along with the folders they're in: CMake writes a phony rule for each,
+#   so when one is deleted Ninja reruns CMake rather than stopping with "missing and no known rule to make it", and a
+#   file added to (or removed from) either folder changes the folder's time, which reruns CMake too
+# - the list of them is written to a file (rewritten only when it changes) that the sdkconfig depends on, so a file
+#   being dropped from (or added to) the list regenerates the sdkconfig even though no remaining file has changed
+set(_sdkconfig_configure_depends ${_sdkconfig_depends})
+foreach(_raft_config_dir "${_common_config_dir}" "${BUILD_CONFIG_DIR}")
+    if(IS_DIRECTORY "${_raft_config_dir}")
+        list(APPEND _sdkconfig_configure_depends "${_raft_config_dir}")
+    endif()
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_sdkconfig_configure_depends})
+set(_sdkconfig_inputs_list "${RAFT_BUILD_ARTIFACTS_FOLDER}/sdkconfig_inputs.txt")
+string(REPLACE ";" "\n" _sdkconfig_inputs_content "variant ${RAFT_BUILD_VARIANT};${_sdkconfig_depends}")
+file(CONFIGURE OUTPUT "${_sdkconfig_inputs_list}" CONTENT "${_sdkconfig_inputs_content}\n")
+list(APPEND _sdkconfig_depends "${_sdkconfig_inputs_list}")
+
 # Custom command to regenerate merged sdkconfig when sources change
 add_custom_command(
     OUTPUT ${SDKCONFIG}
