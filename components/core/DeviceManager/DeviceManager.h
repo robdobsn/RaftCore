@@ -295,6 +295,8 @@ private:
     const DeviceTypeRecord* getRequestedType(const RaftJson& jsonParams, DeviceTypeIndexType& deviceTypeIndex, bool& given) const;
 
     /// @brief Handle devman/cmdraw
+    RaftRetCode cmdRawToStaticDevice(const String &reqStr, String &respStr, const RaftJson& jsonParams,
+                RaftDeviceID deviceID);
     RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
                 const APISourceInfo& sourceInfo);
 
@@ -337,6 +339,8 @@ private:
 
     // Most writes in a cmdraw batch (hexWrs)
     static const uint32_t CMDRAW_MAX_BATCH_WRITES = 32;
+    // Longest barMs for cmdraw (the bar is a uint16_t in the bus element record)
+    static const uint32_t CMDRAW_MAX_BAR_MS = 60000;
     uint32_t _cmdRawInFlightCmdId = 0;
     volatile bool _cmdRawResultReady = false;
     RaftRetCode _cmdRawResult = RAFT_OK;
