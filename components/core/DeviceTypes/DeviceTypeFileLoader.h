@@ -128,7 +128,7 @@ public:
 
     /// @brief A record as a type file entry - "<key>":{...} with the fields a type file uses (addresses, detection,
     ///        init and poll strings, devInfoJson, scanPriority, identPriority, hwTypeId, generalCall,
-    ///        excludeFromAddrMap, scanWhilePolled and disable for a policy that isn't enabled) - so it can be copied into a type file and
+    ///        excludeFromAddrMap, scanWhilePolled, wakeNack and disable for a policy that isn't enabled) - so it can be copied into a type file and
     ///        loads as the same record
     /// @param rec record
     /// @param policy the record's policy

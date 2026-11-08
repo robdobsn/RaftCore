@@ -271,6 +271,11 @@ public:
     /// @param generalCalls (out) the bytes of each general call
     void getGeneralCalls(std::vector<std::vector<uint8_t>>& generalCalls) const;
 
+    /// @brief Get the addresses of the enabled records with "wakeNack" (see DeviceTypeRecord::FLAG_WAKE_NACK): the
+    ///        bus tries a NACKed access to one of these once more, as the device NACKs the transfer that wakes it
+    /// @param addrs (out) the addresses, ascending, each once
+    void getWakeNackAddrs(std::vector<uint8_t>& addrs) const;
+
     // Result of adding an extended record
     enum class AddResult
     {

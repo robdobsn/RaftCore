@@ -819,6 +819,27 @@ void DeviceTypeRecords::getGeneralCalls(std::vector<std::vector<uint8_t>>& gener
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the addresses of the enabled records with "wakeNack" (ascending, each once)
+void DeviceTypeRecords::getWakeNackAddrs(std::vector<uint8_t>& addrs) const
+{
+    addrs.clear();
+    std::vector<int> recAddrs;
+    uint32_t numExt = _extCount.load(std::memory_order_acquire);
+    for (uint32_t idx = 0; idx < BASE_DEV_TYPE_ARRAY_SIZE + numExt; idx++)
+    {
+        const DeviceTypeRecord* pRec = getRecord((DeviceTypeIndexType)idx);
+        if (!pRec || !pRec->isWakeNack() || !pRec->addresses ||
+                    (getPolicy((DeviceTypeIndexType)idx) != DeviceTypeRecord::POLICY_ENABLED))
+            continue;
+        CatalogueIndex::parseAddresses(pRec->addresses, recAddrs);
+        for (int addr : recAddrs)
+            addrs.push_back((uint8_t)addr);
+    }
+    std::sort(addrs.begin(), addrs.end());
+    addrs.erase(std::unique(addrs.begin(), addrs.end()), addrs.end());
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Register a source of records that must supply its records before devices are identified
 uint32_t DeviceTypeRecords::registerRecordSource(const char* pName, uint32_t timeoutMs)
 {
