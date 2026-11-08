@@ -61,6 +61,7 @@ NUM_SCAN_PRIORITY_LEVELS = 3
 FLAG_PROBE_ONLY = 0x01
 # 0x02 was FLAG_HAS_HW_TYPE_ID (retired: a record has a hardware type ID if hwTypeId is set)
 FLAG_NO_SCAN_WHILE_POLLED = 0x04
+FLAG_WAKE_NACK = 0x08
 
 # Hardware type ID "<scheme>:<value>" (DeviceTypeRecord::isValidHwTypeId): the scheme names the identification hook's
 # numbering, the value is printable ASCII without spaces, 64 characters at most in all
@@ -185,7 +186,7 @@ def record_ident_fields(dev_type, dev_type_key):
 
     scanPriority: "high"/"medium"/"low" or 1-3 gives 0-2 (clamped); absent gives SCAN_PRIORITY_NONE
     flags: FLAG_PROBE_ONLY for "excludeFromAddrMap" or "probeOnly"; FLAG_NO_SCAN_WHILE_POLLED for
-           "scanWhilePolled": false
+           "scanWhilePolled": false; FLAG_WAKE_NACK for "wakeNack": true
     identPriority: -128 to 127, default 0
     hwTypeId: the "hwTypeId" string "<scheme>:<value>" (e.g. "rsao:0x0084"), or None; "deviceTypeId" (its old name)
               is an error
@@ -211,6 +212,12 @@ def record_ident_fields(dev_type, dev_type_key):
         sys.exit(1)
     if not scan_while_polled:
         flags |= FLAG_NO_SCAN_WHILE_POLLED
+    wake_nack = dev_type.get("wakeNack", False)
+    if not isinstance(wake_nack, bool):
+        print(f"ERROR: record \"{dev_type_key}\" wakeNack must be true or false", file=sys.stderr)
+        sys.exit(1)
+    if wake_nack:
+        flags |= FLAG_WAKE_NACK
     if "deviceTypeId" in dev_type:
         print(f"ERROR: record \"{dev_type_key}\" has deviceTypeId - it is now hwTypeId, a string \"<scheme>:<value>\", "
               f"e.g. \"rsao:0x0084\"", file=sys.stderr)

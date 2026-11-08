@@ -90,6 +90,10 @@ public:
                                                             // scanner, however slowly it's polled: its presence comes
                                                             // from its polls (JSON "scanWhilePolled": false) - for a
                                                             // device that a scan probe disturbs, e.g. the SCD30
+    static constexpr uint8_t FLAG_WAKE_NACK = 0x08;         // the device NACKs the transfer that wakes it from sleep
+                                                            // (then answers): the bus tries a NACKed access to its
+                                                            // addresses once more (JSON "wakeNack": true) - e.g. the
+                                                            // CY8CMBR3xxx CapSense controllers
     uint8_t flags = 0;
 
     // Candidates for an address are tried in descending identPriority, then in record order (JSON "identPriority")
@@ -223,6 +227,11 @@ public:
     bool isScannedWhilePolled() const
     {
         return (flags & FLAG_NO_SCAN_WHILE_POLLED) == 0;
+    }
+
+    bool isWakeNack() const
+    {
+        return (flags & FLAG_WAKE_NACK) != 0;
     }
 
     String getJson(bool includePlugAndPlayInfo) const

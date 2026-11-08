@@ -271,6 +271,43 @@ static void testGeneralCall()
                 "enabling a record adds its general call (and the generation changes)");
 }
 
+// wakeNack: parsed (a boolean), exported, and its addresses collected for the bus from the enabled records, each once
+static void testWakeNack()
+{
+    printf("Running testWakeNack...\n");
+    DeviceTypeRecords table;
+    std::vector<uint8_t> compiledAddrs;
+    table.getWakeNackAddrs(compiledAddrs);
+    DeviceTypeFileLoader::Result result = applyFile(table, R"({"devTypes":{)"
+                R"("WakeA":{"addresses":"0x37","wakeNack":true},"WakeB":{"addresses":"0x36-0x37","wakeNack":true},)"
+                R"("WakeOff":{"addresses":"0x41","wakeNack":true,"disable":true},"NoWake":{"addresses":"0x42","wakeNack":false},)"
+                R"("Bad":{"addresses":"0x43","wakeNack":"yes"}}})");
+    TEST_ASSERT((result.added == 4) && (result.rejected == 1) && result.firstError.startsWith("Bad: wakeNack must be"),
+                ("wakeNack records: " + std::string(result.firstError.c_str())).c_str());
+    DeviceTypeIndexType idx;
+    const DeviceTypeRecord* pA = table.getRecord("WakeA", idx);
+    TEST_ASSERT(pA && pA->isWakeNack() && (pA->flags & DeviceTypeRecord::FLAG_WAKE_NACK), "wakeNack true");
+    const DeviceTypeRecord* pNo = table.getRecord("NoWake", idx);
+    TEST_ASSERT(pNo && !pNo->isWakeNack(), "wakeNack false");
+    TEST_ASSERT(pA && (DeviceTypeFileLoader::recordToFileEntry(*pA, DeviceTypeRecord::POLICY_ENABLED).indexOf(
+                "\"wakeNack\":true") > 0), "wakeNack exported");
+    TEST_ASSERT(pNo && (DeviceTypeFileLoader::recordToFileEntry(*pNo, DeviceTypeRecord::POLICY_ENABLED).indexOf(
+                "wakeNack") < 0), "not exported when false");
+    std::vector<uint8_t> addrs;
+    table.getWakeNackAddrs(addrs);
+    std::vector<uint8_t> expected = compiledAddrs;
+    expected.push_back(0x36);
+    expected.push_back(0x37);
+    std::sort(expected.begin(), expected.end());
+    expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
+    TEST_ASSERT(addrs == expected, "the enabled records' addresses, each once (WakeOff disabled)");
+    uint32_t generation = table.getGeneration();
+    table.setPolicy("WakeOff", DeviceTypeRecord::POLICY_ENABLED);
+    table.getWakeNackAddrs(addrs);
+    TEST_ASSERT((std::find(addrs.begin(), addrs.end(), 0x41) != addrs.end()) && (table.getGeneration() != generation),
+                "enabling a record adds its addresses (and the generation changes)");
+}
+
 // A hardware type ID names one record: a file record with an ID already used by a record with another key is
 // rejected (it would take over that record's devices), and a code-registered one is added (trusted) - N2
 static void testDuplicateHwTypeId()
@@ -891,6 +928,7 @@ int main(int argc, char** argv)
     testRecordFields();
     testDuplicateHwTypeId();
     testGeneralCall();
+    testWakeNack();
     testExtDataSource();
     testRecordBusSpeedWarning();
     testCheckJson();
