@@ -822,13 +822,27 @@ void DeviceTypeRecords::getGeneralCalls(std::vector<std::vector<uint8_t>>& gener
 /// @brief Get the addresses of the enabled records with "wakeNack" (ascending, each once)
 void DeviceTypeRecords::getWakeNackAddrs(std::vector<uint8_t>& addrs) const
 {
+    getFlaggedAddrs(DeviceTypeRecord::FLAG_WAKE_NACK, addrs);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the addresses of the enabled records with "probeByRead" (ascending, each once)
+void DeviceTypeRecords::getProbeByReadAddrs(std::vector<uint8_t>& addrs) const
+{
+    getFlaggedAddrs(DeviceTypeRecord::FLAG_PROBE_BY_READ, addrs);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the addresses of the enabled records with any of the given flags (ascending, each once)
+void DeviceTypeRecords::getFlaggedAddrs(uint8_t flagMask, std::vector<uint8_t>& addrs) const
+{
     addrs.clear();
     std::vector<int> recAddrs;
     uint32_t numExt = _extCount.load(std::memory_order_acquire);
     for (uint32_t idx = 0; idx < BASE_DEV_TYPE_ARRAY_SIZE + numExt; idx++)
     {
         const DeviceTypeRecord* pRec = getRecord((DeviceTypeIndexType)idx);
-        if (!pRec || !pRec->isWakeNack() || !pRec->addresses ||
+        if (!pRec || ((pRec->flags & flagMask) == 0) || !pRec->addresses ||
                     (getPolicy((DeviceTypeIndexType)idx) != DeviceTypeRecord::POLICY_ENABLED))
             continue;
         CatalogueIndex::parseAddresses(pRec->addresses, recAddrs);

@@ -94,6 +94,11 @@ public:
                                                             // (then answers): the bus tries a NACKed access to its
                                                             // addresses once more (JSON "wakeNack": true) - e.g. the
                                                             // CY8CMBR3xxx CapSense controllers
+    static constexpr uint8_t FLAG_PROBE_BY_READ = 0x10;     // the scanner probes its addresses with a 1-byte read
+                                                            // rather than an address-only (zero-length) write, which
+                                                            // the device mishandles (JSON "probeByRead": true) - e.g.
+                                                            // the MCP9600/MCP9601, which stops answering until power
+                                                            // is cycled
     uint8_t flags = 0;
 
     // Candidates for an address are tried in descending identPriority, then in record order (JSON "identPriority")
@@ -232,6 +237,11 @@ public:
     bool isWakeNack() const
     {
         return (flags & FLAG_WAKE_NACK) != 0;
+    }
+
+    bool isProbeByRead() const
+    {
+        return (flags & FLAG_PROBE_BY_READ) != 0;
     }
 
     String getJson(bool includePlugAndPlayInfo) const

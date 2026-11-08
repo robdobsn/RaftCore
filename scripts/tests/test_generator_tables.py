@@ -108,18 +108,22 @@ class GeneratorTableTests(unittest.TestCase):
             "Scan": dict(make_record(), scanWhilePolled=True),
             "Wake": dict(make_record(), wakeNack=True),
             "NoWake": dict(make_record(), wakeNack=False),
+            "ByRead": dict(make_record(), probeByRead=True),
+            "NotByRead": dict(make_record(), probeByRead=False),
+            "WakeByRead": dict(make_record(), wakeNack=True, probeByRead=True),
         }
         result, header = self.run_with_records(records)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.ident_fields(header), [
             (255, 0, 0, None), (0, 0, 0, None), (2, 0, 0, None), (0, 1, 0, "rsao:0x0084"), (255, 1, 0, None),
-            (255, 0, -5, 'other:"x"\\y'), (255, 4, 0, None), (255, 0, 0, None), (255, 8, 0, None), (255, 0, 0, None)])
+            (255, 0, -5, 'other:"x"\\y'), (255, 4, 0, None), (255, 0, 0, None), (255, 8, 0, None), (255, 0, 0, None),
+            (255, 16, 0, None), (255, 0, 0, None), (255, 24, 0, None)])
 
     def test_bad_ident_fields_are_errors(self):
         for bad in [{"hwTypeId": 132}, {"hwTypeId": "0x0084"}, {"hwTypeId": "rsao:"}, {"hwTypeId": "RSAO:0x0084"},
                     {"hwTypeId": "rsao:0x 84"}, {"hwTypeId": "rsao:" + "x" * 60}, {"identPriority": 200},
                     {"identPriority": "1"}, {"scanWhilePolled": "no"}, {"scanWhilePolled": 0},
-                    {"wakeNack": "yes"}, {"wakeNack": 1}]:
+                    {"wakeNack": "yes"}, {"wakeNack": 1}, {"probeByRead": "yes"}, {"probeByRead": 1}]:
             result, _ = self.run_with_records({"Bad": dict(make_record(), **bad)})
             self.assertNotEqual(result.returncode, 0, bad)
 

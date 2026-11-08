@@ -418,6 +418,16 @@ void DeviceTypeFileLoader::applyRecord(DeviceTypeRecords& table, const String& k
         if (rec.getBool("wakeNack", false))
             devTypeRec.flags |= DeviceTypeRecord::FLAG_WAKE_NACK;
     }
+    if (rec.contains("probeByRead"))
+    {
+        if (rec.getType("probeByRead", arrayLen) != RaftJsonIF::RAFT_JSON_BOOLEAN)
+        {
+            reject(result, key, "probeByRead must be true or false");
+            return;
+        }
+        if (rec.getBool("probeByRead", false))
+            devTypeRec.flags |= DeviceTypeRecord::FLAG_PROBE_BY_READ;
+    }
     if (rec.contains("deviceTypeId"))
     {
         reject(result, key, "deviceTypeId is now hwTypeId, a string \"<scheme>:<value>\", e.g. \"rsao:0x0084\"");
@@ -853,6 +863,8 @@ String DeviceTypeFileLoader::recordToFileEntry(const DeviceTypeRecord& rec, uint
         json += ",\"scanWhilePolled\":false";
     if (rec.isWakeNack())
         json += ",\"wakeNack\":true";
+    if (rec.isProbeByRead())
+        json += ",\"probeByRead\":true";
     if (policy == DeviceTypeRecord::POLICY_DISABLED)
         json += ",\"disable\":true";
     else if (policy == DeviceTypeRecord::POLICY_DISABLED_CLAIM)
