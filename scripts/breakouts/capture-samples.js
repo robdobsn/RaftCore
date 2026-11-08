@@ -69,11 +69,11 @@ async function main() {
     deviceManager.addAttributeDataCallback((deviceKey, attr) => {
         if (args.deviceList.length && !args.deviceList.includes(deviceKey)) return;
         const per = attr.elemsPerSample || 1;
-        const n = attr.numNewValues * per;
+        const n = attr.numNewValues;  // values (elements), not samples
         if (!n) return;
         const dev = collected[deviceKey] = collected[deviceKey] || {};
         const a = dev[attr.name] = dev[attr.name] || { units: attr.units, range: attr.range, elemsPerSample: per, values: [], times: [] };
-        a.values.push(...attr.values.slice(-n));
+        for (const v of attr.values.slice(-n)) a.values.push(v);
         const t = Math.round((Date.now() - startMs) / 100) / 10;
         for (let i = 0; i < n; i++) a.times.push(t);
     });
@@ -93,9 +93,9 @@ async function main() {
             const sum = nums.reduce((x, y) => x + y, 0);
             dev.attributes[name] = {
                 units: a.units, range: a.range, elemsPerSample: a.elemsPerSample, n: a.values.length / a.elemsPerSample,
-                min: nums.length ? Math.min(...nums) : null,
+                min: nums.length ? nums.reduce((x, y) => Math.min(x, y)) : null,
                 mean: nums.length ? Math.round(sum / nums.length * 1000) / 1000 : null,
-                max: nums.length ? Math.max(...nums) : null,
+                max: nums.length ? nums.reduce((x, y) => Math.max(x, y)) : null,
                 last: a.values.slice(-a.elemsPerSample),
             };
             if (args.series) dev.attributes[name].series = a.values.map((v, i) => [a.times[i], v]);

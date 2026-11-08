@@ -1,0 +1,42 @@
+{
+    "_notes": "Adafruit NeoSlider (product 5295): seesaw firmware on an ATtiny817 (hardware ID 0x87) at 0x30, the default (A0-A3 jumpers give 0x31-0x3F, not claimed: a seesaw detection writes two bytes, which other chips there would take as a register and data). Seesaw registers are a module base and a function\nDetection: STATUS_VERSION (0x00 0x02), 5 ms, 4 bytes: the top 16 bits are the Adafruit product number, 5295 (0x14AF), the rest a date code\nInit: STATUS_SWRST (0x00 0x7F = 0xFF), 20 ms (turns its NeoPixels off)\nPoll (100 ms): ADC channel for pin 18, the slider (0x09 0x07+18 = 0x19), 5 ms, 2 bytes big-endian, 0-1023. The 4 NeoPixels (pin 14) aren't driven\nSource: pins and registers from Adafruit's seesaw library and NeoSlider examples; the version and timings checked on the bench",
+    "addresses": "0x30",
+    "detectionValues": "0x0002=p5&=0b0001010010101111XXXXXXXXXXXXXXXX",
+    "initValues": "0x007fff=p20",
+    "pollInfo": {
+        "c": "0x0919=p5&=r2",
+        "i": 100,
+        "s": 5
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08): the lone 0x99 returns 0xFF and the next ADC reads are normal"
+        }
+    },
+    "devInfoJson": {
+        "name": "Adafruit NeoSlider",
+        "desc": "Slide potentiometer",
+        "manu": "Adafruit",
+        "type": "AdafruitNeoSlider",
+        "clas": [
+            "POT"
+        ],
+        "resp": {
+            "b": 2,
+            "a": [
+                {
+                    "n": "slider",
+                    "t": ">H",
+                    "r": [
+                        0,
+                        1023
+                    ],
+                    "f": "d",
+                    "o": "uint16"
+                }
+            ]
+        }
+    }
+}

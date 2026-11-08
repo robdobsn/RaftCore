@@ -1,0 +1,33 @@
+{
+    "_notes": "MEMSensing MSA301 3-axis accelerometer at 0x26 (fixed). 8-bit registers\nDetection: PART_ID (0x01) = 0x13\nInit: RES_RANGE (0x0F) = 0x01 - 14-bit, +/-4 g; ODR (0x10) = 0x07 - 125 Hz, all axes on; POWER_MODE_BANDWIDTH (0x11) = 0x0C - normal mode (it powers up suspended, 0x9E), 31.25 Hz bandwidth\nPoll (100 ms): ACC_X, ACC_Y, ACC_Z (0x02-0x07), each 14 bits left-justified in a little-endian 16-bit value, so read as 16 bits it is 8192 per g at +/-4 g\nSource: registers from the MEMSensing MSA301 datasheet; the codes for data rate, bandwidth and power mode checked against Adafruit_MSA301's enums",
+    "addresses": "0x26",
+    "detectionValues": "0x01=0x13",
+    "initValues": "0x0f01&0x1007&0x110c=p10",
+    "pollInfo": {
+        "c": "0x02=r6",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08, measuring): the lone 0x99 write and 1-byte read returns 0x00; registers 0x00-0x3F other than the data unchanged and measuring carried on"
+        }
+    },
+    "devInfoJson": {
+        "name": "Accelerometer",
+        "desc": "3-Axis Accel",
+        "manu": "MEMSensing",
+        "type": "MSA301",
+        "clas": ["ACC"],
+        "resp": {
+            "b": 6,
+            "a": [
+                {"n": "ax", "vt": "imu", "t": "<h", "u": "g", "r": [-4.0, 4.0], "d": 8192, "f": ".2f", "o": "float"},
+                {"n": "ay", "t": "<h", "u": "g", "r": [-4.0, 4.0], "d": 8192, "f": ".2f", "o": "float"},
+                {"n": "az", "t": "<h", "u": "g", "r": [-4.0, 4.0], "d": 8192, "f": ".2f", "o": "float"}
+            ]
+        }
+    }
+}

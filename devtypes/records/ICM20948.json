@@ -1,0 +1,138 @@
+{
+    "_notes": "TDK InvenSense ICM-20948 9-axis IMU at 0x69 (AD0 high, the Adafruit and SparkFun default); 0x68 with AD0 low isn't claimed, as MCP342x ADCs there take any byte written as their configuration (as the AMG8833 record). The record covers the accelerometer, gyroscope and temperature; the AK09916 magnetometer inside is reached through the chip's own I2C master, which isn't set up. 8-bit registers in four banks, chosen by REG_BANK_SEL (0x7F)\nDetection: WHO_AM_I (bank 0, 0x00) = 0xEA\nInit: bank 0; PWR_MGMT_1 (0x06) = 0x80 - reset, 100 ms; PWR_MGMT_1 = 0x01 - awake, best clock, 50 ms; bank 2: GYRO_CONFIG_1 (0x01) = 0x03 - +/-500 dps, low-pass filter on; ACCEL_CONFIG (0x14) = 0x03 - +/-4 g, low-pass filter on; back to bank 0\nPoll (100 ms): ACCEL_XOUT_H to TEMP_OUT_L (0x2D-0x3A), big-endian 16-bit: accelerometer 8192 per g, gyro 65.5 per dps, temperature = count / 333.87 + 21 degC\nSource: registers from the TDK ICM-20948 datasheet",
+    "addresses": "0x69",
+    "detectionValues": "0x00=0xea",
+    "initValues": "0x7f00&0x0680=p100&0x0601=p50&0x7f20&0x0103&0x1403&0x7f00",
+    "pollInfo": {
+        "c": "0x2d=r14",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08, measuring, bank 0): the lone 0x99 write and 1-byte read returns 0x00; bank 0 registers 0x00-0x2C unchanged apart from INT_STATUS_1 (data ready) and measuring carried on"
+        }
+    },
+    "devInfoJson": {
+        "name": "Accelerometer & Gyroscope",
+        "desc": "9-DoF IMU (accel & gyro)",
+        "manu": "TDK InvenSense",
+        "type": "ICM20948",
+        "clas": [
+            "ACC",
+            "GYRO"
+        ],
+        "resp": {
+            "b": 14,
+            "a": [
+                {
+                    "n": "ax",
+                    "at": 0,
+                    "t": ">h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float",
+                    "vt": "imu",
+                    "vo": {
+                        "gyro": [
+                            "gx",
+                            "gy",
+                            "gz"
+                        ],
+                        "accel": [
+                            "ax",
+                            "ay",
+                            "az"
+                        ]
+                    }
+                },
+                {
+                    "n": "ay",
+                    "at": 2,
+                    "t": ">h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "az",
+                    "at": 4,
+                    "t": ">h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "gx",
+                    "at": 6,
+                    "t": ">h",
+                    "u": "&deg;/s",
+                    "r": [
+                        -500,
+                        500
+                    ],
+                    "d": 65.5,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "gy",
+                    "at": 8,
+                    "t": ">h",
+                    "u": "&deg;/s",
+                    "r": [
+                        -500,
+                        500
+                    ],
+                    "d": 65.5,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "gz",
+                    "at": 10,
+                    "t": ">h",
+                    "u": "&deg;/s",
+                    "r": [
+                        -500,
+                        500
+                    ],
+                    "d": 65.5,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "temp",
+                    "at": 12,
+                    "t": ">h",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        85
+                    ],
+                    "d": 333.87,
+                    "f": ".1f",
+                    "o": "float",
+                    "a": 21
+                }
+            ]
+        }
+    }
+}

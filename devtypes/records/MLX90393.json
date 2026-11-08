@@ -1,0 +1,94 @@
+{
+    "_notes": "Melexis MLX90393 3-axis magnetometer, a command-driven device (each command is followed by a status byte), at 0x18-0x1B (the -011 variant, as on the Adafruit board: 0x18 with A0, A1 low) or 0x0C-0x0F (the -012 variant, as on the SparkFun board)\nDetection: it has no ID register, so register 0x00 is read (RR command 0x50 with the address times 4): after the status byte, its unused top bits are 0 and HALLCONF (bits 3-0) is 0xC, its reset value, which this record keeps. identPriority 1 puts it before the MCP9808 at 0x18-0x1B: the MCP9808's detection reads reach it as unknown commands, after which it sometimes NACKs the next transfer (seen on the bench), so its own detection failed and MPRLS, which has no detection values, claimed it\nInit: EX (0x80) and RT (0xF0, reset), 10 ms; register 0x02 = 0x0009 (WR command 0x60) - DIG_FILT 2, OSR 1, 16-bit results. Its reset value (DIG_FILT 0, OSR 0) isn't allowed with HALLCONF 0xC and read about 500 uT in the Earth's field\nPoll (100 ms): SM (0x3F, a single measurement of Z, Y, X and temperature), 10 ms (it takes about 3 ms), RM (0x4F): status, then T, X, Y, Z, big-endian 16-bit. At gain 1x (GAIN_SEL 7, the reset value) X and Y are 0.150 uT per count and Z 0.242. Temperature is (T - 46244) / 45.2 + 25 degC, using the datasheet's typical 46244 at 25 degC (each chip's own figure is in register 0x24)\nSource: commands and registers from the Melexis MLX90393 datasheet; the sensitivity and conversion time figures checked against Adafruit_MLX90393's tables",
+    "addresses": "0x0c-0x0f,0x18-0x1b",
+    "identPriority": 1,
+    "detectionValues": "0x5000=0bXXXXXXXX00000000XXXX1100",
+    "initValues": "0x80=r1&0xf0=r1&=p10&0x60000908=r1",
+    "pollInfo": {
+        "c": "0x3f=r1&=p10&0x4f=r9",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08, between measurements): the lone 0x99 (not a command) returns status 0x13, its error bit set; registers 0x00-0x02 unchanged and the next single measurement normal"
+        }
+    },
+    "devInfoJson": {
+        "name": "Magnetometer",
+        "desc": "3-Axis Magnetometer",
+        "manu": "Melexis",
+        "type": "MLX90393",
+        "clas": [
+            "MAG"
+        ],
+        "resp": {
+            "b": 10,
+            "a": [
+                {
+                    "n": "x",
+                    "at": 4,
+                    "t": ">h",
+                    "u": "&micro;T",
+                    "r": [
+                        -5000,
+                        5000
+                    ],
+                    "d": 6.6666667,
+                    "f": ".1f",
+                    "o": "float",
+                    "vt": "imu",
+                    "vo": {
+                        "mag": [
+                            "x",
+                            "y",
+                            "z"
+                        ]
+                    }
+                },
+                {
+                    "n": "y",
+                    "at": 6,
+                    "t": ">h",
+                    "u": "&micro;T",
+                    "r": [
+                        -5000,
+                        5000
+                    ],
+                    "d": 6.6666667,
+                    "f": ".1f",
+                    "o": "float"
+                },
+                {
+                    "n": "z",
+                    "at": 8,
+                    "t": ">h",
+                    "u": "&micro;T",
+                    "r": [
+                        -8000,
+                        8000
+                    ],
+                    "d": 4.1322314,
+                    "f": ".1f",
+                    "o": "float"
+                },
+                {
+                    "n": "temp",
+                    "at": 2,
+                    "t": ">H",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        125
+                    ],
+                    "d": 45.2,
+                    "f": ".1f",
+                    "o": "float",
+                    "a": -998.097
+                }
+            ]
+        }
+    }
+}

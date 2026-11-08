@@ -1,0 +1,93 @@
+{
+    "_notes": "Infineon TLV493D-A1B6 3D magnetic sensor at 0x5E (SDA high at power-up, as on the Adafruit board; 0x1F with SDA low isn't claimed, as the MCP9808 covers it). It has no register address: every read starts at read register 0 and every write at write register 0. Read registers: 0-2 Bx, By, Bz bits 11-4; 3 temperature bits 11-8 (bits 7-4), frame counter, channel; 4 Bx and By bits 3-0; 5 flags (bit 7 reserved, 0) and Bz bits 3-0; 6 temperature bits 7-0; 7-9 factory settings that the write registers must repeat\nDetection: there is no ID, so a 6-byte read with the reserved bit (register 5 bit 7) 0 - weak, so identPriority -1 and only 0x5E\nInit: read all 10 registers, then write 4: register 0 = 0 (any other value stops measuring, seen on the bench), MOD1 = register 7 bits 4-3 | 0x01 (low-power mode, interrupt off - with it on the sensor pulls SCL low to signal, which a shared bus can't have - address bits 00 kept), register 2 = register 8, MOD2 = register 9 bits 4-0 | 0x40 (12 ms period, so about 83 Hz; temperature on; parity test off, so the parity bit needn't be set). The initCode makes these from the read\nPoll (100 ms): 7 bytes; the decode code joins each 12-bit two's complement value: x, y, z at 98 uT per count (+/-130 mT), temperature (count - 340) x 1.1 + 25 degC. Earth's field is under one count; a magnet is needed to see it work\nSource: registers and conversions from Infineon's TLV493D-A1B6 datasheet and user manual",
+    "addresses": "0x5e",
+    "identPriority": -1,
+    "detectionValues": "=0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXX",
+    "initValues": "=r10&0x00{m1}{r8}{m2}=p20",
+    "initCode": {
+        "n": "tlv493d_config",
+        "c": "init.m1=(buf[7]&24)|1;init.r8=buf[8];init.m2=(buf[9]&31)|64;"
+    },
+    "pollInfo": {
+        "c": "=r7",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "changes",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08, measuring): a write always starts at write register 0, so the lone 0x99 sets that reserved register to 0x99 and the sensor stops measuring (frame counter and data frozen) until the configuration is written again with register 0 = 0 (this record's init). 0x5E isn't in Axiom's addrExclude, so the RSAO check reaches it when this record isn't compiled in"
+        }
+    },
+    "devInfoJson": {
+        "name": "Magnetometer",
+        "desc": "3D Magnetic Sensor",
+        "manu": "Infineon",
+        "type": "TLV493D",
+        "clas": [
+            "MAG"
+        ],
+        "resp": {
+            "b": 7,
+            "c": {
+                "n": "tlv493d_decode",
+                "c": "int bx=(buf[0]<<4)|(buf[4]>>4);int by=(buf[1]<<4)|(buf[4]&15);int bz=(buf[2]<<4)|(buf[5]&15);int t=((buf[3]&240)<<4)|buf[6];if(bx>2047){bx=bx-4096;}if(by>2047){by=by-4096;}if(bz>2047){bz=bz-4096;}if(t>2047){t=t-4096;}out.x=bx*98.0;out.y=by*98.0;out.z=bz*98.0;out.temp=((t-340)*1.1)+25.0;next;"
+            },
+            "a": [
+                {
+                    "n": "x",
+                    "vt": "imu",
+                    "vo": {
+                        "mag": [
+                            "x",
+                            "y",
+                            "z"
+                        ]
+                    },
+                    "t": "<f",
+                    "u": "&micro;T",
+                    "r": [
+                        -130000,
+                        130000
+                    ],
+                    "f": ".0f",
+                    "o": "float"
+                },
+                {
+                    "n": "y",
+                    "t": "<f",
+                    "u": "&micro;T",
+                    "r": [
+                        -130000,
+                        130000
+                    ],
+                    "f": ".0f",
+                    "o": "float"
+                },
+                {
+                    "n": "z",
+                    "t": "<f",
+                    "u": "&micro;T",
+                    "r": [
+                        -130000,
+                        130000
+                    ],
+                    "f": ".0f",
+                    "o": "float"
+                },
+                {
+                    "n": "temp",
+                    "t": "<f",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        125
+                    ],
+                    "f": ".1f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,88 @@
+{
+    "_notes": "Adafruit NeoKey 1x4 (product 4980): seesaw firmware on a SAMD09 (hardware ID 0x55) at 0x30, the default (A0, A1 jumpers give 0x31-0x33, not claimed: a seesaw detection writes two bytes, which other chips there would take as a register and data). Seesaw registers are a module base and a function. A read straight after the request returns 0xFF, so each read follows a 5 ms pause\nDetection: STATUS_VERSION (0x00 0x02), 5 ms, 4 bytes: the top 16 bits are the Adafruit product number, 4980 (0x1374), the rest a date code\nInit: STATUS_SWRST (0x00 0x7F = 0xFF), 20 ms; the four key pins 4-7 (mask 0x000000F0) inputs with pull-ups: GPIO DIRCLR_BULK (0x01 0x03), PULLENSET (0x01 0x0B), BULK_SET (0x01 0x05)\nPoll (100 ms): GPIO BULK (0x01 0x04), 5 ms, 4 bytes big-endian; a key is pressed when its pin reads 0, so key1-key4 are bits 4-7 of the last byte, inverted. The 4 NeoPixels (pin 3) aren't driven\nSource: pins and registers from Adafruit's seesaw library (Adafruit_NeoKey_1x4); the version and timings checked on the bench",
+    "addresses": "0x30",
+    "detectionValues": "0x0002=p5&=0b0001001101110100XXXXXXXXXXXXXXXX",
+    "initValues": "0x007fff=p20&0x0103000000f0=p1&0x010b000000f0=p1&0x0105000000f0=p1",
+    "pollInfo": {
+        "c": "0x0104=p5&=r4",
+        "i": 100,
+        "s": 5
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08): the lone 0x99 returns 0xFF; the key pins' pull-ups and the GPIO reads after it unchanged"
+        }
+    },
+    "devInfoJson": {
+        "name": "Adafruit NeoKey 1x4",
+        "desc": "4 mechanical keys",
+        "manu": "Adafruit",
+        "type": "AdafruitNeoKey1x4",
+        "clas": [
+            "BTN"
+        ],
+        "resp": {
+            "b": 4,
+            "a": [
+                {
+                    "n": "key1",
+                    "at": 3,
+                    "t": "B",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "x": "0x10",
+                    "m": "0x10",
+                    "s": 4,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "key2",
+                    "at": 3,
+                    "t": "B",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "x": "0x20",
+                    "m": "0x20",
+                    "s": 5,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "key3",
+                    "at": 3,
+                    "t": "B",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "x": "0x40",
+                    "m": "0x40",
+                    "s": 6,
+                    "f": "b",
+                    "o": "bool"
+                },
+                {
+                    "n": "key4",
+                    "at": 3,
+                    "t": "B",
+                    "r": [
+                        0,
+                        1
+                    ],
+                    "x": "0x80",
+                    "m": "0x80",
+                    "s": 7,
+                    "f": "b",
+                    "o": "bool"
+                }
+            ]
+        }
+    }
+}

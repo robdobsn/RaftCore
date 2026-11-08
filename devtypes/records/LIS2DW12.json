@@ -1,0 +1,82 @@
+{
+    "_notes": "ST LIS2DW12 3-axis accelerometer at 0x18 (SA0 low) or 0x19 (SA0 high). 8-bit registers; IF_ADD_INC (CTRL2 bit 2, on at power-up) makes multi-byte reads step through them\nDetection: WHO_AM_I (0x0F) = 0x44. At 0x18 it is tried before MPRLS (no detection values) and with MCP9808 (two-register pattern) and MLX90393 (identPriority 1); at 0x19 with MICS6814Pimoroni (ID 0x6AE2 at 0xFA)\nInit: CTRL2 (0x21) = 0x40 - soft reset, 5 ms; CTRL2 = 0x0C - block data update, IF_ADD_INC; CTRL6 (0x25) = 0x14 - +/-4 g, low noise, bandwidth ODR/2; CTRL1 (0x20) = 0x54 - 100 Hz, high-performance mode (14-bit), 10 ms. It powers up in power-down (CTRL1 0)\nPoll (100 ms): OUT_T (0x0D-0x0E), then OUT_X, OUT_Y, OUT_Z (0x28-0x2D). The axes are 14 bits left-justified in little-endian 16-bit values, so read as 16 bits they are 8192 per g at +/-4 g. Temperature is 12 bits left-justified, 16 per degC with 0 at 25 degC: 16-bit / 256 + 25\nSource: registers and sensitivities from the ST LIS2DW12 datasheet (DS11920)",
+    "addresses": "0x18-0x19",
+    "detectionValues": "0x0F=0x44",
+    "initValues": "0x2140=p5&0x210C&0x2514&0x2054=p10",
+    "pollInfo": {
+        "c": "0x0D=r2&0x28=r6",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-08, measuring at 0x18): the lone 0x99 write and 1-byte read returns 0x7F; CTRL1-CTRL6 (0x20-0x25) unchanged and measuring carried on"
+        }
+    },
+    "devInfoJson": {
+        "name": "Accelerometer",
+        "desc": "3-Axis Accel",
+        "manu": "ST",
+        "type": "LIS2DW12",
+        "clas": [
+            "ACC"
+        ],
+        "resp": {
+            "b": 8,
+            "a": [
+                {
+                    "n": "temp",
+                    "t": "<h",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        85
+                    ],
+                    "d": 256,
+                    "a": 25,
+                    "f": ".1f",
+                    "o": "float"
+                },
+                {
+                    "n": "ax",
+                    "vt": "imu",
+                    "t": "<h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "ay",
+                    "t": "<h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "az",
+                    "t": "<h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float"
+                }
+            ]
+        }
+    }
+}
