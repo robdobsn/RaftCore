@@ -23,7 +23,7 @@ public:
 
     static const uint32_t BLOCK_MSGS_TIMEOUT_MS = 1000;
     static const uint32_t MAX_BATCH_BLOCK_ACK_RETRIES = 5;
-    static const uint32_t FILE_BLOCK_SIZE_MIN = 20;
+    static constexpr uint32_t FILE_BLOCK_SIZE_MIN = 20;
     static const uint32_t FILE_BLOCK_SIZE_DEFAULT = 5000;
     static const uint32_t BATCH_ACK_SIZE_DEFAULT = 40;
     static const uint32_t MAX_TOTAL_BYTES_IN_BATCH = 50000;

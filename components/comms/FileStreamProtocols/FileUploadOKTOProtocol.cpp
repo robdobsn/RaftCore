@@ -12,6 +12,7 @@
 #include "CommsChannelMsg.h"
 #include "CommsCoreIF.h"
 #include "SpiramAwareAllocator.h"
+#include <algorithm>
 
 // #define DEBUG_SHOW_FILE_UPLOAD_PROGRESS
 // #define DEBUG_RICREST_FILEUPLOAD
@@ -292,7 +293,8 @@ bool FileUploadOKTOProtocol::fitInMemory(uint32_t largestFreeBlock, uint32_t& bl
     else
     {
         batchAckSize = 1;
-        blockSize = Raft::clamp(memAvailable / (1 + BLOCK_COPIES_ON_RX), FILE_BLOCK_SIZE_MIN, blockSize);
+        // (min of max, not std::clamp: blockSize can be below FILE_BLOCK_SIZE_MIN, and then wins)
+        blockSize = std::min(std::max(memAvailable / (1 + BLOCK_COPIES_ON_RX), FILE_BLOCK_SIZE_MIN), blockSize);
     }
     return false;
 }
@@ -343,7 +345,8 @@ RaftRetCode FileUploadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTReqM
         if (_pCommsCore)
         {
             chanBlockMax = _pCommsCore->inboundMsgBlockMax(channelID, FILE_BLOCK_SIZE_DEFAULT);
-            _blockSize = Raft::clamp(_blockSize, FILE_BLOCK_SIZE_MIN, chanBlockMax > 0 ? chanBlockMax * 2 / 3 : _blockSize);
+            // (min of max, not std::clamp: the channel's limit can be below FILE_BLOCK_SIZE_MIN, and then wins)
+            _blockSize = std::min(std::max(_blockSize, FILE_BLOCK_SIZE_MIN), chanBlockMax > 0 ? chanBlockMax * 2 / 3 : _blockSize);
         }
 
         // Check maximum total bytes in batch

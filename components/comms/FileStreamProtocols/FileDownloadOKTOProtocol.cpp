@@ -16,6 +16,7 @@
 #include "CommsCoreIF.h"
 #include "FileStreamBlockOwned.h"
 #include "MiniHDLC.h"
+#include <algorithm>
 
 #define WARN_ON_TRANSFER_CANCEL
 
@@ -164,7 +165,8 @@ RaftRetCode FileDownloadOKTOProtocol::handleStartMsg(const RICRESTMsg& ricRESTRe
         if (_pCommsCore)
         {
             chanBlockMax = _pCommsCore->outboundMsgBlockMax(channelID, FILE_BLOCK_SIZE_DEFAULT);
-            _blockSize = Raft::clamp(_blockSize, FILE_BLOCK_SIZE_MIN, chanBlockMax > 0 ? chanBlockMax : _blockSize);
+            // (min of max, not std::clamp: the channel's limit can be below FILE_BLOCK_SIZE_MIN, and then wins)
+            _blockSize = std::min(std::max(_blockSize, FILE_BLOCK_SIZE_MIN), chanBlockMax > 0 ? chanBlockMax : _blockSize);
             LOG_I(MODULE_PREFIX, "handleStartMsg chanBlockMax %d blockSize %d", chanBlockMax, _blockSize);
         }
 
