@@ -341,6 +341,10 @@ namespace Raft
     /// @param lo lower limit (inclusive)
     /// @param hi upper limit (inclusive)
     /// @return clamped value
+    /// @deprecated Only for uint32_t: signed and floating point arguments are converted, so e.g. a negative value or
+    ///             limit, or a fractional one, gives a wrong result. Use std::clamp (<algorithm>), or
+    ///             std::min(std::max(val, lo), hi) where lo can be greater than hi (this function then returns hi)
+    [[deprecated("Raft::clamp is uint32_t only - use std::clamp, or std::min(std::max(val, lo), hi) if lo can exceed hi")]]
     uint32_t clamp(uint32_t val, uint32_t lo, uint32_t hi);
 
     /// @brief RGB value
