@@ -124,6 +124,7 @@ idf_component_register(
     "components/core/DeviceTypes/DeviceTypeRuntimeDecoder.cpp"
     "components/core/DeviceTypes/DeviceTypeCodeInterpreter.cpp"
     "components/core/DeviceTypes/DeviceTypeDecodeVerifier.cpp"
+    "components/core/DeviceTypes/DeviceActionEncoder.cpp"
     "components/core/DNSResolver/DNSResolver.cpp"
     "components/core/ExpressionEval/ExpressionContext.cpp"
     "components/core/ExpressionEval/ExpressionEval.cpp"

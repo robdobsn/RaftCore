@@ -53,6 +53,20 @@ public:
     /// @return pointer to device if found, nullptr otherwise
     RaftDevice* getDevice(const String& deviceStr, bool tryConfigName = true) const;
 
+    /// @brief Send an action of a device's type record by name - the same action and encoding as raftjs uses, so
+    ///        firmware-side callers (scripts, other SysMods) and remote clients (devman/action) drive devices alike.
+    ///        A bus device gets the writes as a batch on its bus (nothing else on the bus in between); a directly-
+    ///        connected (static) device gets each write through sendCmdBinary(). Call on the main task
+    /// @param deviceIdOrName device ID (e.g. "1_37", "0_0"), static device name, or name from the device name map
+    /// @param actionName action name (n)
+    /// @param values a map key for a map action, otherwise numbers (as text)
+    /// @param barMs bar access to a bus device for this long after the last write (0 for none)
+    /// @param pErrorMsg (out, optional) error name, e.g. failNoSuchAction
+    /// @param pNumWrites (out, optional) number of writes sent
+    /// @return RAFT_OK if sent (bus devices: queued), otherwise the error
+    RaftRetCode sendDeviceAction(const String& deviceIdOrName, const char* actionName, const std::vector<String>& values,
+                uint32_t barMs = 0, String* pErrorMsg = nullptr, uint32_t* pNumWrites = nullptr);
+
     /// @brief Assign a friendly name to a bus device (identified by RaftDeviceID)
     /// @param deviceID Device identifier
     /// @param name Friendly name
@@ -295,6 +309,8 @@ private:
     const DeviceTypeRecord* getRequestedType(const RaftJson& jsonParams, DeviceTypeIndexType& deviceTypeIndex, bool& given) const;
 
     /// @brief Handle devman/cmdraw
+    RaftRetCode apiDevManAction(const String &reqStr, String &respStr, const RaftJson& jsonParams);
+    bool resolveDeviceIDOrName(const String& deviceIdOrName, RaftDeviceID& deviceID) const;
     RaftRetCode cmdRawToStaticDevice(const String &reqStr, String &respStr, const RaftJson& jsonParams,
                 RaftDeviceID deviceID);
     RaftRetCode apiDevManCmdRaw(const String &reqStr, String &respStr, const RaftJson& jsonParams,
@@ -336,6 +352,7 @@ private:
     // worker's callback to fill the buffer. The cmdId carries a generation count
     // so a late callback from an abandoned request can't satisfy a newer one.
     static const uint32_t CMDID_CMDRAW_BASE = 0x43520000;
+    static const uint32_t CMDID_ACTION = 0x41430000;
 
     // Most writes in a cmdraw batch (hexWrs)
     static const uint32_t CMDRAW_MAX_BATCH_WRITES = 32;
