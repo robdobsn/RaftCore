@@ -1,0 +1,375 @@
+{
+  "_notes": "Device type record action encoding: each case's action and values, and the writes (hex) they encode to. Used by RaftCore's DeviceActionEncoder test (linux_unit_tests/test_device_action_encoder.cpp) and raftjs's (src/RaftActionEncodeVectors.test.ts, which keeps a copy of this file) so the firmware and raftjs encode actions the same way. The writes were made by raftjs's encodeActionWrite / map handling. errors: inputs that must not encode (raftjs: no map entry, not numbers, structPack throws, or null).",
+  "cases": [
+    {
+      "desc": "single unsigned byte (synth noteOn)",
+      "action": {
+        "n": "noteOn",
+        "t": "B",
+        "w": "01"
+      },
+      "values": [
+        60
+      ],
+      "writes": [
+        "013c"
+      ]
+    },
+    {
+      "desc": "signed 16-bit little-endian, negative (synth bend)",
+      "action": {
+        "n": "bend",
+        "t": "<h",
+        "w": "08"
+      },
+      "values": [
+        -200
+      ],
+      "writes": [
+        "0838ff"
+      ]
+    },
+    {
+      "desc": "unsigned 16-bit little-endian",
+      "action": {
+        "n": "glideMs",
+        "t": "<H",
+        "w": "07"
+      },
+      "values": [
+        150
+      ],
+      "writes": [
+        "079600"
+      ]
+    },
+    {
+      "desc": "big-endian by default",
+      "action": {
+        "n": "x",
+        "t": "H",
+        "w": "0a"
+      },
+      "values": [
+        1000
+      ],
+      "writes": [
+        "0a03e8"
+      ]
+    },
+    {
+      "desc": "explicit big-endian",
+      "action": {
+        "n": "x",
+        "t": ">H",
+        "w": "0a"
+      },
+      "values": [
+        1000
+      ],
+      "writes": [
+        "0a03e8"
+      ]
+    },
+    {
+      "desc": "mul with an integer type (rounded): 0.29 x 100",
+      "action": {
+        "n": "x",
+        "t": ">h",
+        "w": "1d",
+        "mul": 100
+      },
+      "values": [
+        0.29
+      ],
+      "writes": [
+        "1d001d"
+      ]
+    },
+    {
+      "desc": "sub then mul",
+      "action": {
+        "n": "x",
+        "t": "B",
+        "w": "20",
+        "sub": 10,
+        "mul": 2
+      },
+      "values": [
+        15
+      ],
+      "writes": [
+        "200a"
+      ]
+    },
+    {
+      "desc": "rounding half up",
+      "action": {
+        "n": "x",
+        "t": "B",
+        "w": "21",
+        "mul": 2.55
+      },
+      "values": [
+        50
+      ],
+      "writes": [
+        "217f"
+      ]
+    },
+    {
+      "desc": "rounding half up for a negative (as Math.round)",
+      "action": {
+        "n": "x",
+        "t": "<h",
+        "w": "22"
+      },
+      "values": [
+        -1.5
+      ],
+      "writes": [
+        "22ffff"
+      ]
+    },
+    {
+      "desc": "negative into an unsigned byte wraps",
+      "action": {
+        "n": "x",
+        "t": "b",
+        "w": "23"
+      },
+      "values": [
+        -1
+      ],
+      "writes": [
+        "23ff"
+      ]
+    },
+    {
+      "desc": "several values packed as given (no sub/mul)",
+      "action": {
+        "n": "x",
+        "t": "<HH",
+        "w": "",
+        "mul": 10
+      },
+      "values": [
+        1,
+        2
+      ],
+      "writes": [
+        "01000200"
+      ]
+    },
+    {
+      "desc": "several bytes",
+      "action": {
+        "n": "rgb",
+        "t": "BBB",
+        "w": "30"
+      },
+      "values": [
+        1,
+        2,
+        3
+      ],
+      "writes": [
+        "30010203"
+      ]
+    },
+    {
+      "desc": "prefix count",
+      "action": {
+        "n": "x",
+        "t": "3B",
+        "w": "31"
+      },
+      "values": [
+        4,
+        5,
+        6
+      ],
+      "writes": [
+        "31040506"
+      ]
+    },
+    {
+      "desc": "bracket count",
+      "action": {
+        "n": "x",
+        "t": "<H[2]",
+        "w": "32"
+      },
+      "values": [
+        256,
+        513
+      ],
+      "writes": [
+        "3200010102"
+      ]
+    },
+    {
+      "desc": "write suffix wz",
+      "action": {
+        "n": "x",
+        "t": "B",
+        "w": "10",
+        "wz": "ff"
+      },
+      "values": [
+        5
+      ],
+      "writes": [
+        "1005ff"
+      ]
+    },
+    {
+      "desc": "no type: write only (synth allOff)",
+      "action": {
+        "n": "allOff",
+        "w": "03"
+      },
+      "values": [],
+      "writes": [
+        "03"
+      ]
+    },
+    {
+      "desc": "float32 little-endian",
+      "action": {
+        "n": "x",
+        "t": "<f",
+        "w": "40"
+      },
+      "values": [
+        1.5
+      ],
+      "writes": [
+        "400000c03f"
+      ]
+    },
+    {
+      "desc": "uint32 big-endian",
+      "action": {
+        "n": "x",
+        "t": ">I",
+        "w": "41"
+      },
+      "values": [
+        305419896
+      ],
+      "writes": [
+        "4112345678"
+      ]
+    },
+    {
+      "desc": "Sensirion CRC-8 after each word (SCD30 interval 2 s)",
+      "action": {
+        "n": "x",
+        "t": ">H",
+        "w": "4600",
+        "crc": "crc8w"
+      },
+      "values": [
+        2
+      ],
+      "writes": [
+        "46000002e3"
+      ]
+    },
+    {
+      "desc": "map: string entry (synth instrument)",
+      "action": {
+        "n": "instrument",
+        "t": "B",
+        "w": "10",
+        "map": {
+          "piano": "1000",
+          "flute": "1004"
+        }
+      },
+      "values": [
+        "flute"
+      ],
+      "writes": [
+        "1004"
+      ]
+    },
+    {
+      "desc": "map: object entry with several writes",
+      "action": {
+        "n": "_conf.rate",
+        "t": "B",
+        "map": {
+          "104": {
+            "w": "0a00&1048&114C",
+            "i": 50000,
+            "s": 20
+          }
+        }
+      },
+      "values": [
+        "104"
+      ],
+      "writes": [
+        "0a00",
+        "1048",
+        "114c"
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "desc": "map: not a key",
+      "action": {
+        "n": "instrument",
+        "t": "B",
+        "w": "10",
+        "map": {
+          "piano": "1000"
+        }
+      },
+      "values": [
+        "banjo"
+      ],
+      "error": "NoMapEntry"
+    },
+    {
+      "desc": "not a number",
+      "action": {
+        "n": "noteOn",
+        "t": "B",
+        "w": "01"
+      },
+      "values": [
+        "abc"
+      ],
+      "error": "BadValue"
+    },
+    {
+      "desc": "too few values for the type",
+      "action": {
+        "n": "x",
+        "t": "BB",
+        "w": "01"
+      },
+      "values": [
+        1
+      ],
+      "error": "BadType"
+    },
+    {
+      "desc": "crc8w with an odd number of bytes",
+      "action": {
+        "n": "x",
+        "t": "B",
+        "w": "01",
+        "crc": "crc8w"
+      },
+      "values": [
+        1
+      ],
+      "error": "BadCrc"
+    }
+  ]
+}

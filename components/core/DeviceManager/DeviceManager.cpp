@@ -9,6 +9,7 @@
 #include <atomic>
 #include <memory>
 #include "DeviceManager.h"
+#include "DeviceActionEncoder.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeRecords.h"
 #include "RaftBusSystem.h"
@@ -1086,6 +1087,7 @@ void DeviceManager::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
                             " devman/typeinfo?deviceTypeKey=<key>|deviceTypeIndex=<n>|type=<typeKeyOrIndex> - Get type info,"
                             " devman/typeinfo?deviceid=<deviceId> - Get type info for a specific device (includes name/role sidecar fields when set),"
                             " devman/cmdraw?deviceid=<deviceId>&hexWr=<hexWriteData>&numToRd=<numBytesToRead>&msgKey=<msgKey> - Send raw command to device,"
+                            " devman/action?deviceid=<deviceId>|device=<name>&action=<actionName>&v=<value>[,<value>...]&barMs=<ms> - Send an action of the device's type record (encoded on the device),"
                             " devman/cmdjson?body=<jsonCommand> - Send JSON command to device (requires 'device' field in JSON),"
                             " devman/devconfig?deviceid=<deviceId>&intervalUs=<microseconds>&numSamples=<count>&sampleRateHz=<hz>&busHz=<hz>&busHzSlots=<csv> - device configuration,"
                             " devman/busname?busnum=<busNumber> - Get bus name from bus number,"
@@ -1141,6 +1143,8 @@ RaftRetCode DeviceManager::apiDevMan(const String &reqStr, String &respStr, cons
         return apiDevManTypeInfo(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("cmdraw"))
         return apiDevManCmdRaw(reqStr, respStr, jsonParams, sourceInfo);
+    if (cmdName.equalsIgnoreCase("action"))
+        return apiDevManAction(reqStr, respStr, jsonParams);
     if (cmdName.equalsIgnoreCase("cmdjson"))
         return apiDevManCmdJson(reqStr, respStr, jsonParams, sourceInfo);
 #ifdef DEVICE_MANAGER_ENABLE_DEMO_DEVICE
@@ -1482,6 +1486,147 @@ RaftRetCode DeviceManager::resolveDeviceIDAndBus(const RaftJson& jsonParams, Raf
 /// @param sourceInfo source of the request (responded to when the bus transaction completes if the transport supports deferred responses)
 /// @return RaftRetCode indicating success or failure of the operation, with the response containing the result of the command if successful
 ///         or RAFT_RESP_DEFERRED if the response will be sent when the bus transaction completes
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Resolve a device ID or name: an ID ("1_37", "0_0"), a static device (by ID, config name or name map), or
+///        a bus device by its name in the name map
+bool DeviceManager::resolveDeviceIDOrName(const String& deviceIdOrName, RaftDeviceID& deviceID) const
+{
+    if (deviceIdOrName.length() == 0)
+        return false;
+    if (deviceIdOrName.indexOf('_') > 0)
+    {
+        deviceID = RaftDeviceID::fromString(deviceIdOrName);
+        if (deviceID.isValid())
+            return true;
+    }
+    RaftDevice* pDevice = getDevice(deviceIdOrName);
+    if (pDevice)
+    {
+        deviceID = pDevice->getDeviceID();
+        return true;
+    }
+    return _deviceNames.resolveName(deviceIdOrName, deviceID);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Send an action of a device's type record by name (see header)
+RaftRetCode DeviceManager::sendDeviceAction(const String& deviceIdOrName, const char* actionName,
+            const std::vector<String>& values, uint32_t barMs, String* pErrorMsg, uint32_t* pNumWrites)
+{
+    auto fail = [pErrorMsg](const char* msg, RaftRetCode code) {
+        if (pErrorMsg)
+            *pErrorMsg = msg;
+        return code;
+    };
+    if (pNumWrites)
+        *pNumWrites = 0;
+
+    // Device and its type
+    RaftDeviceID deviceID;
+    if (!resolveDeviceIDOrName(deviceIdOrName, deviceID))
+        return fail("failDeviceNotFound", RAFT_INVALID_DATA);
+    RaftDevice* pDevice = nullptr;
+    RaftBus* pBus = nullptr;
+    DeviceTypeIndexType typeIndex = DEVICE_TYPE_INDEX_INVALID;
+    if (deviceID.getBusNum() == RaftDeviceID::BUS_NUM_DIRECT_CONN)
+    {
+        pDevice = getDevice(deviceID);
+        if (!pDevice)
+            return fail("failDeviceNotFound", RAFT_INVALID_DATA);
+        typeIndex = pDevice->getDeviceTypeIndex();
+    }
+    else
+    {
+        pBus = raftBusSystem.getBusByNumber(deviceID.getBusNum());
+        if (!pBus)
+            return fail("failBusNotFound", RAFT_INVALID_DATA);
+        typeIndex = pBus->getDeviceTypeIndex(deviceID.getAddress());
+    }
+    DeviceTypeRecord devTypeRec;
+    if ((typeIndex == DEVICE_TYPE_INDEX_INVALID) || !deviceTypeRecords.getDeviceInfo(typeIndex, devTypeRec) ||
+                !devTypeRec.devInfoJson)
+        return fail("failDeviceTypeNotFound", RAFT_INVALID_DATA);
+
+    // Encode
+    std::vector<std::vector<uint8_t>> writes;
+    DeviceActionEncoder::Result encRslt = DeviceActionEncoder::encode(devTypeRec.devInfoJson, actionName, values, writes);
+    if (encRslt != DeviceActionEncoder::Result::OK)
+        return fail(DeviceActionEncoder::getResultStr(encRslt), RAFT_INVALID_DATA);
+    if (writes.empty())
+        return fail("failNothingToWrite", RAFT_INVALID_DATA);
+
+    // Static device: each write is a binary command
+    if (pDevice)
+    {
+        for (const auto& write : writes)
+        {
+            RaftRetCode rslt = pDevice->sendCmdBinary(0, write.data(), write.size());
+            if (rslt != RAFT_OK)
+                return fail(Raft::getRetCodeStr(rslt), rslt);
+            if (pNumWrites)
+                (*pNumWrites)++;
+        }
+        return RAFT_OK;
+    }
+
+    // Bus device: the writes as a batch (nothing else on the bus between them); the bar follows the last
+    for (size_t i = 0; i < writes.size(); i++)
+    {
+        bool isLast = (i + 1 == writes.size());
+        HWElemReq hwElemReq = {writes[i], 0, (int)CMDID_ACTION, "action", isLast ? barMs : 0};
+        BusRequestInfo reqInfo("", deviceID.getAddress());
+        reqInfo.set(BUS_REQ_TYPE_STD, hwElemReq, 0, nullptr, nullptr);
+        reqInfo.setBatchFollows(!isLast);
+        if (!pBus->addRequest(reqInfo))
+            return fail("failBusQueueFull", RAFT_BUSY);
+        if (pNumWrites)
+            (*pNumWrites)++;
+    }
+    return RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief devman/action?deviceid=<id>|device=<name>&action=<name>&v=<value>[,<value>...]&barMs=<ms>
+///        (or bus=<bus>&addr=<addr> in place of deviceid)
+RaftRetCode DeviceManager::apiDevManAction(const String &reqStr, String &respStr, const RaftJson& jsonParams)
+{
+    String deviceIdOrName = jsonParams.getString("deviceid", jsonParams.getString("device", "").c_str());
+    if (deviceIdOrName.length() == 0)
+    {
+        RaftDeviceID deviceID;
+        RaftBus* pBus = nullptr;
+        String errorStr;
+        if (resolveDeviceIDAndBus(jsonParams, deviceID, pBus, errorStr) != RAFT_OK)
+            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorStr.length() ? errorStr.c_str() : "failDeviceMissing");
+        deviceIdOrName = deviceID.toString();
+    }
+    String actionName = jsonParams.getString("action", "");
+    if (actionName.length() == 0)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, "failActionMissing");
+
+    // Values: comma separated (none for an action without a value)
+    std::vector<String> values;
+    String valuesStr = jsonParams.getString("v", "");
+    int start = 0;
+    while (start < (int)valuesStr.length())
+    {
+        int comma = valuesStr.indexOf(',', start);
+        if (comma < 0)
+            comma = valuesStr.length();
+        values.push_back(valuesStr.substring(start, comma));
+        start = comma + 1;
+    }
+    long barMsParam = jsonParams.getLong("barMs", 0);
+    uint32_t barMs = (barMsParam <= 0) ? 0 : std::min<uint32_t>((uint32_t)barMsParam, CMDRAW_MAX_BAR_MS);
+
+    String errorMsg;
+    uint32_t numWrites = 0;
+    RaftRetCode rslt = sendDeviceAction(deviceIdOrName, actionName.c_str(), values, barMs, &errorMsg, &numWrites);
+    if (rslt != RAFT_OK)
+        return Raft::setJsonErrorResult(reqStr.c_str(), respStr, errorMsg.length() ? errorMsg.c_str() : Raft::getRetCodeStr(rslt));
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true, ("\"numWr\":" + String(numWrites)).c_str());
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief devman/cmdraw for a directly-connected (static) device: each write (hexWr, or each of hexWrs) is passed to
 ///        the device's sendCmdBinary() (format code 0). A read (numToRd) isn't supported
