@@ -95,3 +95,4 @@ adafruit-6478,Adafruit,"STCC4 and SHT41 - CO2, Temperature & Humidity Sensor",64
 adafruit-5776,Adafruit,Sensirion SHT41 Temperature & Humidity Sensor,5776,SHT41,Sensirion,environment,SHT40,stemma-qt,3,5,0x44,active,,https://www.adafruit.com/product/5776,,the SHT40 record covers the SHT4x family
 adafruit-3660,Adafruit,"BME680 Temperature, Humidity, Pressure and Gas Sensor",3660,BME680,Bosch,environment,BME680,stemma-qt,3,5,"0x77,0x76",active,,https://www.adafruit.com/product/3660,,
 adafruit-4821,Adafruit,TMP117 High Accuracy Temperature Sensor,4821,TMP117,TI,temperature,TMP117,stemma-qt,3,5,0x48-0x4b,active,,https://www.adafruit.com/product/4821,,
+adafruit-3967,Adafruit,VL53L1X Time of Flight Distance Sensor,3967,VL53L1X,ST,distance,VL53L1X,stemma-qt,3,5,0x29,active,,https://www.adafruit.com/product/3967,,

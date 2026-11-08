@@ -304,16 +304,32 @@ def cmd_check(args) -> int:
 # bench: check a breakout on a host over its REST API
 # ---------------------------------------------------------------------------------------------------------------
 
+_last_ip = {}
+
+
 def api_get(ip: str, path: str, attempts: int = 3) -> dict:
-    """A REST request to the host, retried (a host on WiFi sometimes misses one; every request here is a read)"""
+    """A REST request to the host, retried (a host on WiFi sometimes misses one; every request here is a read).
+    ip may list several addresses, comma separated, for a host whose DHCP address moves: each attempt tries the
+    one that last answered first, then the others"""
+    addrs = [a.strip() for a in ip.split(",") if a.strip()]
     for attempt in range(1, attempts + 1):
-        try:
-            with urllib.request.urlopen(f"http://{ip}/api/{path}", timeout=10) as resp:
-                return json.loads(resp.read().decode("utf-8", errors="replace"))
-        except OSError:
-            if attempt == attempts:
-                raise
-            time.sleep(1)
+        last = _last_ip.get(ip)
+        for addr in ([last] if last else []) + [a for a in addrs if a != last]:
+            try:
+                with urllib.request.urlopen(f"http://{addr}/api/{path}", timeout=8) as resp:
+                    _last_ip[ip] = addr
+                    return json.loads(resp.read().decode("utf-8", errors="replace"))
+            except OSError as e:
+                err = e
+        if attempt == attempts:
+            raise err
+        time.sleep(1)
+
+
+def working_ip(ip: str) -> str:
+    """The address of the host that answers now (from a comma-separated list)"""
+    api_get(ip, "v")
+    return _last_ip[ip]
 
 
 def split_device_id(device_id: str):
@@ -352,7 +368,7 @@ def capture_samples(args, device_ids: list) -> dict:
     raftjs = Path(args.raftjs).expanduser()
     if not (raftjs / "dist" / "web" / "main.js").exists():
         raise SystemExit(f"no built raftjs at {raftjs} (--raftjs or RAFTJS)")
-    cmd = ["node", str(Path(__file__).resolve().parent / "capture-samples.js"), "--ip", args.ip,
+    cmd = ["node", str(Path(__file__).resolve().parent / "capture-samples.js"), "--ip", working_ip(args.ip),
            "--raftjs", str(raftjs), "--duration", str(args.samples), "--devices", ",".join(device_ids)]
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=args.samples + 60)
     if res.returncode:
@@ -511,7 +527,8 @@ def main() -> int:
     c.add_argument("--out", type=Path, help="write the report (markdown) here")
     bn = sub.add_parser("bench", help="check a breakout on a host and record the test")
     bn.add_argument("breakout_ids", nargs="+", metavar="breakout_id")
-    bn.add_argument("--ip", required=True, help="the host's IP address (its REST API)")
+    bn.add_argument("--ip", required=True, help="the host's IP address (its REST API); several, comma separated, "
+                    "for a host whose DHCP address moves (the one that answers is used)")
     bn.add_argument("--raft-record", help="the record under test (default: the breakout's raft_record)")
     bn.add_argument("--addr", help="the addresses to look at (default: the breakout's), e.g. 0x29 for a jumpered one")
     bn.add_argument("--record", choices=sorted(RESULTS), help="add the row to tests.csv with this result")
