@@ -276,6 +276,16 @@ public:
     /// @param addrs (out) the addresses, ascending, each once
     void getWakeNackAddrs(std::vector<uint8_t>& addrs) const;
 
+    /// @brief Get the addresses of the enabled records with "probeByRead" (see DeviceTypeRecord::FLAG_PROBE_BY_READ):
+    ///        the scanner probes these with a 1-byte read rather than an address-only write
+    /// @param addrs (out) the addresses, ascending, each once
+    void getProbeByReadAddrs(std::vector<uint8_t>& addrs) const;
+
+    /// @brief Get the addresses of the enabled records with any of the given DeviceTypeRecord flags
+    /// @param flagMask the flags (DeviceTypeRecord::FLAG_...)
+    /// @param addrs (out) the addresses, ascending, each once
+    void getFlaggedAddrs(uint8_t flagMask, std::vector<uint8_t>& addrs) const;
+
     // Result of adding an extended record
     enum class AddResult
     {

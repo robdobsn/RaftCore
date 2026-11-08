@@ -308,6 +308,55 @@ static void testWakeNack()
                 "enabling a record adds its addresses (and the generation changes)");
 }
 
+// probeByRead: parsed (a boolean), exported, and its addresses collected for the scanner from the enabled records,
+// each once - and kept apart from wakeNack's (the two lists come from the same collector, by flag)
+static void testProbeByRead()
+{
+    printf("Running testProbeByRead...\n");
+    DeviceTypeRecords table;
+    std::vector<uint8_t> compiledAddrs;
+    table.getProbeByReadAddrs(compiledAddrs);
+    std::vector<uint8_t> compiledWakeAddrs;
+    table.getWakeNackAddrs(compiledWakeAddrs);
+    DeviceTypeFileLoader::Result result = applyFile(table, R"({"devTypes":{)"
+                R"("ReadA":{"addresses":"0x67","probeByRead":true},"ReadB":{"addresses":"0x60-0x67","probeByRead":true},)"
+                R"("ReadOff":{"addresses":"0x51","probeByRead":true,"disable":true},"NoRead":{"addresses":"0x52","probeByRead":false},)"
+                R"("WakeOnly":{"addresses":"0x53","wakeNack":true},)"
+                R"("Bad":{"addresses":"0x54","probeByRead":1}}})");
+    TEST_ASSERT((result.added == 5) && (result.rejected == 1) && result.firstError.startsWith("Bad: probeByRead must be"),
+                ("probeByRead records: " + std::string(result.firstError.c_str())).c_str());
+    DeviceTypeIndexType idx;
+    const DeviceTypeRecord* pA = table.getRecord("ReadA", idx);
+    TEST_ASSERT(pA && pA->isProbeByRead() && !pA->isWakeNack() && (pA->flags & DeviceTypeRecord::FLAG_PROBE_BY_READ),
+                "probeByRead true");
+    const DeviceTypeRecord* pNo = table.getRecord("NoRead", idx);
+    TEST_ASSERT(pNo && !pNo->isProbeByRead(), "probeByRead false");
+    TEST_ASSERT(pA && (DeviceTypeFileLoader::recordToFileEntry(*pA, DeviceTypeRecord::POLICY_ENABLED).indexOf(
+                "\"probeByRead\":true") > 0), "probeByRead exported");
+    TEST_ASSERT(pNo && (DeviceTypeFileLoader::recordToFileEntry(*pNo, DeviceTypeRecord::POLICY_ENABLED).indexOf(
+                "probeByRead") < 0), "not exported when false");
+    std::vector<uint8_t> addrs;
+    table.getProbeByReadAddrs(addrs);
+    std::vector<uint8_t> expected = compiledAddrs;
+    for (uint8_t a = 0x60; a <= 0x67; a++)
+        expected.push_back(a);
+    std::sort(expected.begin(), expected.end());
+    expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
+    TEST_ASSERT(addrs == expected, "the enabled records' addresses, each once (ReadOff disabled, WakeOnly not flagged)");
+    std::vector<uint8_t> wakeAddrs;
+    table.getWakeNackAddrs(wakeAddrs);
+    expected = compiledWakeAddrs;
+    expected.push_back(0x53);
+    std::sort(expected.begin(), expected.end());
+    expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
+    TEST_ASSERT(wakeAddrs == expected, "wakeNack's addresses don't include probeByRead's");
+    uint32_t generation = table.getGeneration();
+    table.setPolicy("ReadOff", DeviceTypeRecord::POLICY_ENABLED);
+    table.getProbeByReadAddrs(addrs);
+    TEST_ASSERT((std::find(addrs.begin(), addrs.end(), 0x51) != addrs.end()) && (table.getGeneration() != generation),
+                "enabling a record adds its addresses (and the generation changes)");
+}
+
 // A hardware type ID names one record: a file record with an ID already used by a record with another key is
 // rejected (it would take over that record's devices), and a code-registered one is added (trusted) - N2
 static void testDuplicateHwTypeId()
@@ -929,6 +978,7 @@ int main(int argc, char** argv)
     testDuplicateHwTypeId();
     testGeneralCall();
     testWakeNack();
+    testProbeByRead();
     testExtDataSource();
     testRecordBusSpeedWarning();
     testCheckJson();
