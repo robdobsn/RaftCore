@@ -140,7 +140,8 @@ public:
                     uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) const = 0;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get the latest decoded poll response if one has arrived since the previous call
+    /// @brief Get the latest decoded poll response (its newest record, for a poll holding several) if one has
+    /// arrived since the previous call
     /// (from any caller).  Does not drain the stored results, but each value is reported once,
     /// so two readers of the same device see it only between them - use
     /// peekLatestDecodedPollResponse() for the current value regardless.
@@ -157,7 +158,7 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get the most recent decoded poll response whether or not it has been read before
+    /// @brief Get the most recent decoded poll response (its newest record) whether or not it has been read before
     /// (a true peek: it leaves what getLatestDecodedPollResponse() reports untouched)
     /// @param address address of device to get data from
     /// @param pStructOut pointer to structure to receive decoded data
