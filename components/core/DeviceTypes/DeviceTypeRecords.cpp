@@ -1495,6 +1495,92 @@ DeviceTypeRecordDecodeFn DeviceTypeRecords::getPollDecodeFn(DeviceTypeIndexType 
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Decode poll data of a device type, padding a record cut short (see the header)
+uint32_t DeviceTypeRecords::decodePollData(DeviceTypeIndexType deviceTypeIndex, const uint8_t* pData, uint32_t dataLen,
+            void* pStructOut, uint32_t structOutSize, uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState) const
+{
+    // The decode function is published after the fields it uses (release), so a record whose function is seen
+    // has its sizes set
+    DeviceTypeRecordDecodeFn decodeFn = getPollDecodeFn(deviceTypeIndex);
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    if (!decodeFn || !pRec)
+        return 0;
+    return decodePollData(decodeFn, pRec->pollDataSizeBytes, pData, dataLen, pStructOut, structOutSize,
+                maxRecCount, decodeState);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Decode poll data of a device type and keep only the newest record (see the header)
+uint32_t DeviceTypeRecords::decodeNewestPollRecord(DeviceTypeIndexType deviceTypeIndex, const uint8_t* pData,
+            uint32_t dataLen, void* pStructOut, uint32_t structOutSize, RaftBusDeviceDecodeState& decodeState) const
+{
+    DeviceTypeRecordDecodeFn decodeFn = getPollDecodeFn(deviceTypeIndex);
+    const DeviceTypeRecord* pRec = getRecord(deviceTypeIndex);
+    if (!decodeFn || !pRec)
+        return 0;
+    return decodeNewestPollRecord(decodeFn, pRec->pollDataSizeBytes, pRec->pollStructSize, pData, dataLen,
+                pStructOut, structOutSize, decodeState);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Decode poll data with a given decode function, padding a record cut short (see the header)
+uint32_t DeviceTypeRecords::decodePollData(DeviceTypeRecordDecodeFn decodeFn, uint32_t pollDataSizeBytes,
+            const uint8_t* pData, uint32_t dataLen, void* pStructOut, uint32_t structOutSize,
+            uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState)
+{
+    if (!decodeFn || !pData || !pStructOut || (dataLen == 0) || (maxRecCount == 0))
+        return 0;
+
+    // Whole records are decoded as they are
+    const uint32_t recBytes = pollDataSizeBytes + DevicePollingInfo::POLL_RESULT_TIMESTAMP_SIZE;
+    const uint32_t partBytes = dataLen % recBytes;
+    if (partBytes == 0)
+        return decodeFn(pData, dataLen, pStructOut, structOutSize, maxRecCount, decodeState);
+
+    // A last record without even its timestamp isn't a record
+    if (partBytes < DevicePollingInfo::POLL_RESULT_TIMESTAMP_SIZE)
+        return (dataLen > partBytes) ?
+                decodeFn(pData, dataLen - partBytes, pStructOut, structOutSize, maxRecCount, decodeState) : 0;
+
+    // Pad the last record with zeros to the record size, as the poll store does
+    std::vector<uint8_t> padded(pData, pData + dataLen);
+    padded.resize(dataLen - partBytes + recBytes, 0);
+    return decodeFn(padded.data(), padded.size(), pStructOut, structOutSize, maxRecCount, decodeState);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Decode poll data with a given decode function and keep only the newest record (see the header)
+uint32_t DeviceTypeRecords::decodeNewestPollRecord(DeviceTypeRecordDecodeFn decodeFn, uint32_t pollDataSizeBytes,
+            uint32_t pollStructSize, const uint8_t* pData, uint32_t dataLen, void* pStructOut,
+            uint32_t structOutSize, RaftBusDeviceDecodeState& decodeState, uint8_t* pScratch, uint32_t scratchSize)
+{
+    if (!decodeFn || (pollStructSize == 0) || !pStructOut || (structOutSize < pollStructSize))
+        return 0;
+
+    // Working space for every record the data holds
+    std::vector<uint8_t> allocated;
+    if (!pScratch)
+    {
+        uint32_t maxRecs = std::min<uint32_t>(NEWEST_DECODE_MAX_RECORDS,
+                    std::max<uint32_t>(1, NEWEST_DECODE_MAX_BYTES / pollStructSize));
+        allocated.resize(maxRecs * pollStructSize);
+        pScratch = allocated.data();
+        scratchSize = allocated.size();
+    }
+    uint32_t maxRecs = std::min<uint32_t>(scratchSize / pollStructSize, UINT16_MAX);
+    if (maxRecs == 0)
+        return 0;
+
+    // Decode, then keep the newest
+    uint32_t numRecs = decodePollData(decodeFn, pollDataSizeBytes, pData, dataLen, pScratch,
+                maxRecs * pollStructSize, (uint16_t)maxRecs, decodeState);
+    if ((numRecs == 0) || (numRecs > maxRecs))
+        return 0;
+    memcpy(pStructOut, pScratch + (numRecs - 1) * pollStructSize, pollStructSize);
+    return numRecs;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Prepare the runtime decoder of a record just added (not yet published) with no compiled decoder:
 ///        with policy OnIdentify, check that it can be decoded from its attribute list and mark it Pending (its
 ///        decoder is made by ensureDecoder); with AtLoad, or custom decode code, make it now. Assumes the mutex is
