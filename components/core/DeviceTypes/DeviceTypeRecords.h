@@ -480,6 +480,56 @@ public:
     /// @return poll decode function
     DeviceTypeRecordDecodeFn getPollDecodeFn(uint16_t deviceTypeIndex) const;
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Decoding poll data. Decoders read whole records of the record type's size (resp.b plus the timestamp), as
+    // the bus's poll store keeps them. But a data subscriber (DeviceManager::registerForDeviceData) and the bus's
+    // latest value get each poll result at its actual length, which is shorter for a poll with a variable read
+    // length (e.g. a FIFO read, r{...}): given to a decoder as it is, it decodes to nothing. These functions pad a
+    // record cut short with zeros, as the poll store does. Every on-device consumer decodes through them
+
+    /// @brief Decode poll data of a device type
+    /// @param deviceTypeIndex device type index
+    /// @param pData poll data: one or more poll results, the last of which may be short
+    /// @param dataLen length of the data
+    /// @param pStructOut (out) decoded records (the record type's poll struct)
+    /// @param structOutSize size of pStructOut in bytes
+    /// @param maxRecCount maximum number of records to decode (a poll result can hold several, e.g. a FIFO read)
+    /// @param decodeState decode state, kept between calls for the same device
+    /// @return number of records decoded (0 if the type has no decoder)
+    uint32_t decodePollData(DeviceTypeIndexType deviceTypeIndex, const uint8_t* pData, uint32_t dataLen,
+                void* pStructOut, uint32_t structOutSize, uint16_t maxRecCount,
+                RaftBusDeviceDecodeState& decodeState) const;
+
+    /// @brief Decode poll data and keep only the newest record
+    /// @param pStructOut (out) the newest record (one poll struct)
+    /// @param structOutSize size of pStructOut in bytes (at least the record type's pollStructSize)
+    /// @return number of records the data held (0 if none, or the type has no decoder); pStructOut has the newest
+    /// @note a poll result can hold up to NEWEST_DECODE_MAX_RECORDS records; beyond that the newest are dropped
+    uint32_t decodeNewestPollRecord(DeviceTypeIndexType deviceTypeIndex, const uint8_t* pData, uint32_t dataLen,
+                void* pStructOut, uint32_t structOutSize, RaftBusDeviceDecodeState& decodeState) const;
+
+    /// @brief Decode poll data with a given decode function (for a consumer that keeps a record's decoder)
+    /// @param decodeFn the record type's decode function
+    /// @param pollDataSizeBytes the record type's pollDataSizeBytes (resp.b)
+    static uint32_t decodePollData(DeviceTypeRecordDecodeFn decodeFn, uint32_t pollDataSizeBytes,
+                const uint8_t* pData, uint32_t dataLen, void* pStructOut, uint32_t structOutSize,
+                uint16_t maxRecCount, RaftBusDeviceDecodeState& decodeState);
+
+    /// @brief Decode poll data with a given decode function and keep only the newest record
+    /// @param pollStructSize the record type's pollStructSize
+    /// @param pScratch working space for the records decoded (nullptr to allocate it); a consumer on the bus task
+    ///        passes its own so that nothing is allocated there
+    /// @param scratchSize size of pScratch in bytes (records beyond what fits are dropped, the newest first)
+    static uint32_t decodeNewestPollRecord(DeviceTypeRecordDecodeFn decodeFn, uint32_t pollDataSizeBytes,
+                uint32_t pollStructSize, const uint8_t* pData, uint32_t dataLen, void* pStructOut,
+                uint32_t structOutSize, RaftBusDeviceDecodeState& decodeState,
+                uint8_t* pScratch = nullptr, uint32_t scratchSize = 0);
+
+    // The working space decodeNewestPollRecord allocates: up to NEWEST_DECODE_MAX_RECORDS records (an LSM6DS FIFO
+    // read holds up to 20), within NEWEST_DECODE_MAX_BYTES
+    static constexpr uint32_t NEWEST_DECODE_MAX_RECORDS = 32;
+    static constexpr uint32_t NEWEST_DECODE_MAX_BYTES = 4096;
+
     // Where a record's poll decoder comes from: compiled into the firmware (generated, or inherited by an override
     // with the same response layout), made at runtime from its attribute list (RAFT_RUNTIME_DECODE), or none
     enum class DecoderKind : uint8_t

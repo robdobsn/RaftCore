@@ -2900,7 +2900,7 @@ bool DeviceManager::resolveDeviceNameToID(const String& name, RaftDeviceID& devi
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get a named value from a bus-discovered device using its cached poll data
 /// @param deviceID Device identifier on the bus
-/// @param paramName Attribute name (e.g. "ax", "temperature")
+/// @param paramName Attribute name (e.g. "ax", "temperature"), or an array attribute's element ("diffs[3]")
 /// @param isValid (out) true if value was found and valid
 /// @return attribute value (with divisor/addend applied)
 double DeviceManager::getBusDeviceNamedValue(RaftDeviceID deviceID, const String& paramName, bool& isValid)
@@ -2927,17 +2927,25 @@ double DeviceManager::getBusDeviceNamedValue(RaftDeviceID deviceID, const String
     if (!devTypeRec.pollFieldDescs || devTypeRec.pollFieldCount == 0 || devTypeRec.pollStructSize == 0)
         return 0.0;
 
-    // Find the matching field by name
+    // Find the matching field by name, with an element index for an array attribute ("diffs[3]")
+    String fieldName = paramName;
+    uint16_t elemIdx = 0;
+    int bracketPos = paramName.indexOf('[');
+    if ((bracketPos > 0) && paramName.endsWith("]"))
+    {
+        fieldName = paramName.substring(0, bracketPos);
+        elemIdx = (uint16_t)strtoul(paramName.substring(bracketPos + 1, paramName.length() - 1).c_str(), nullptr, 10);
+    }
     const AttrFieldDesc* pMatchedField = nullptr;
     for (uint16_t i = 0; i < devTypeRec.pollFieldCount; i++)
     {
-        if (paramName.equalsIgnoreCase(devTypeRec.pollFieldDescs[i].name))
+        if (fieldName.equalsIgnoreCase(devTypeRec.pollFieldDescs[i].name))
         {
             pMatchedField = &devTypeRec.pollFieldDescs[i];
             break;
         }
     }
-    if (!pMatchedField)
+    if (!pMatchedField || (elemIdx >= pMatchedField->elemCount()))
         return 0.0;
 
     // Get decoded poll data from the bus
@@ -2952,36 +2960,19 @@ double DeviceManager::getBusDeviceNamedValue(RaftDeviceID deviceID, const String
     uint8_t decodedBuf[devTypeRec.pollStructSize];
     memset(decodedBuf, 0, devTypeRec.pollStructSize);
 
-    // Peek the latest value: neither drains the ring buffer (which would starve the publish
-    // pipeline) nor takes the "new" state another reader of getLatestDecodedPollResponse() uses,
-    // and gives the current value between polls rather than nothing
+    // Peek the latest value (the newest record of the latest poll): neither drains the ring buffer (which would
+    // starve the publish pipeline) nor takes the "new" state another reader of getLatestDecodedPollResponse()
+    // uses, and gives the current value between polls rather than nothing
     RaftBusDeviceDecodeState decodeState;
     if (!pDevicesIF->peekLatestDecodedPollResponse(addr, decodedBuf, devTypeRec.pollStructSize, decodeState))
         return 0.0;
 
-    // Read the value from the decoded buffer at the field's offset
-    double rawVal = 0.0;
-    const uint8_t* pField = decodedBuf + pMatchedField->offset;
-    switch (pMatchedField->type)
-    {
-        case AttrType::Float:   { float v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
-        case AttrType::Int32:   { int32_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
-        case AttrType::Uint32:  { uint32_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
-        case AttrType::Int16:   { int16_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
-        case AttrType::Uint16:  { uint16_t v; memcpy(&v, pField, sizeof(v)); rawVal = v; break; }
-        case AttrType::Int8:    { int8_t v = *reinterpret_cast<const int8_t*>(pField); rawVal = v; break; }
-        case AttrType::Uint8:   { rawVal = *pField; break; }
-        case AttrType::Bool:    { rawVal = (*pField) ? 1.0 : 0.0; break; }
-    }
-
-    // Apply what is still to be applied - the field table's divisor and addend are 1 and 0
-    // where the decode has already scaled the value (see DecodeGenerator get_field_desc_def)
-    if (pMatchedField->divisor != 0.0f && pMatchedField->divisor != 1.0f)
-        rawVal /= pMatchedField->divisor;
-    rawVal += pMatchedField->addend;
-
+    // The value, as every on-device consumer reads it
+    double value = 0.0;
+    if (!pMatchedField->getValue(decodedBuf, devTypeRec.pollStructSize, elemIdx, value))
+        return 0.0;
     isValid = true;
-    return rawVal;
+    return value;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

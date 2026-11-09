@@ -53,6 +53,64 @@ struct AttrFieldDesc
     float divisor;          // Divisor from resp.a[].d (1.0 = no division)
     float addend;           // Addend from resp.a[].a (applied after division)
     uint16_t count;         // Elements in the field (>1 for array attributes; 0 treated as 1)
+
+    // Reading a value from a decoded record. Every on-device consumer (DeviceManager named values, RaftMicroPy,
+    // RaftROS) uses these so that they all give the same value for the same field
+
+    /// @brief Number of elements (1 for a scalar attribute)
+    uint16_t elemCount() const { return count ? count : 1; }
+
+    /// @brief Bytes per element in the decoded struct
+    /// @note the type is the struct field's C type except for the few wider fields: int64 and uint64 are described
+    ///       as Int32 and Uint32 and double as Float (no RaftCore record has a double; BLEBTHome has a uint64).
+    ///       Such a field is read as its low 4 bytes, an element of an array of them at the wrong stride
+    uint32_t elemBytes() const
+    {
+        switch (type)
+        {
+            case AttrType::Float: case AttrType::Int32: case AttrType::Uint32: return 4;
+            case AttrType::Int16: case AttrType::Uint16: return 2;
+            default: return 1;
+        }
+    }
+
+    /// @brief True if the value is a whole number: an integer field with nothing still to scale
+    bool isIntegral() const
+    {
+        return (type != AttrType::Float) && ((divisor == 0.0f) || (divisor == 1.0f)) && (addend == 0.0f);
+    }
+
+    /// @brief Get one element's value from a decoded record (one poll struct)
+    /// @param pRecord the decoded record
+    /// @param recordSize the record's size (the record type's pollStructSize)
+    /// @param elemIdx element index (0 for a scalar attribute)
+    /// @param value (out) the value, with the field's divisor and addend applied - what is still to be applied
+    ///        (1 and 0 where the decode has scaled the value already, see DecodeGenerator get_field_desc_def)
+    /// @return false if the element is outside the record
+    bool getValue(const void* pRecord, uint32_t recordSize, uint16_t elemIdx, double& value) const
+    {
+        value = 0.0;
+        uint32_t bytes = elemBytes();
+        uint32_t pos = offset + (uint32_t)elemIdx * bytes;
+        if (!pRecord || (elemIdx >= elemCount()) || (pos + bytes > recordSize))
+            return false;
+        const uint8_t* p = static_cast<const uint8_t*>(pRecord) + pos;
+        switch (type)
+        {
+            case AttrType::Float:  { float v; memcpy(&v, p, sizeof(v)); value = v; break; }
+            case AttrType::Int32:  { int32_t v; memcpy(&v, p, sizeof(v)); value = v; break; }
+            case AttrType::Uint32: { uint32_t v; memcpy(&v, p, sizeof(v)); value = v; break; }
+            case AttrType::Int16:  { int16_t v; memcpy(&v, p, sizeof(v)); value = v; break; }
+            case AttrType::Uint16: { uint16_t v; memcpy(&v, p, sizeof(v)); value = v; break; }
+            case AttrType::Int8:   { value = (int8_t)*p; break; }
+            case AttrType::Uint8:  { value = *p; break; }
+            case AttrType::Bool:   { value = (*p != 0) ? 1.0 : 0.0; break; }
+        }
+        if ((divisor != 0.0f) && (divisor != 1.0f))
+            value /= divisor;
+        value += addend;
+        return true;
+    }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
