@@ -3017,7 +3017,7 @@ RaftRetCode DeviceManager::apiDevManSetName(const String &reqStr, String &respSt
 /// @param respStr (out) response string
 /// @param jsonParams JSON object containing "deviceid" and "role" fields
 /// @return RaftRetCode
-/// @note In-memory only; persistence is not handled by this endpoint
+/// @note With save=1 the role is also saved in the device settings file (kept over a restart)
 RaftRetCode DeviceManager::apiDevManSetRole(const String &reqStr, String &respStr, const RaftJson& jsonParams)
 {
     String deviceIDStr = jsonParams.getString("deviceid", "");
