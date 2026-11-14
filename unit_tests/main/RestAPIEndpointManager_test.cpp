@@ -211,6 +211,33 @@ TEST_CASE("getParamsAndNameValues - URL encoded", "[restapi]")
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Test unencodeHTTPChars decodes any %XX escape once only
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("unencodeHTTPChars - any escape, single pass", "[restapi]")
+{
+    struct { const char* in; const char* out; } cases[] = {
+        { "hello%20world", "hello world" },
+        { "c%2B%2B", "c++" },
+        { "%27quoted%27", "'quoted'" },             // was decoded as ^
+        { "%2526", "%26" },                         // decoded once only (was "&")
+        { "a%0Db%0Ac%09d", "a\rb\nc\td" },         // control characters
+        { "%40decorator", "@decorator" },
+        { "caf%C3%A9", "caf\xC3\xA9" },             // UTF-8
+        { "%2f%2F", "//" },                         // either hex case
+        { "50%", "50%" },                           // not an escape
+        { "50%zz", "50%zz" },
+        { "x%00y", "x%00y" },                       // NUL not decoded
+    };
+    for (auto& c : cases)
+    {
+        String s = c.in;
+        String r = RestAPIEndpointManager::unencodeHTTPChars(s);
+        TEST_ASSERT_EQUAL_STRING(c.out, r.c_str());
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Test getParamsAndNameValues with empty values
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

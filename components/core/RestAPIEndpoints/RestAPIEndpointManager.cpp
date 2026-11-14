@@ -373,38 +373,38 @@ int RestAPIEndpointManager::getNumArgs(const char *argStr)
 /// @return Decoded string
 String RestAPIEndpointManager::unencodeHTTPChars(String &inStr)
 {
-    inStr.replace("%20", " ");
-    inStr.replace("%21", "!");
-    inStr.replace("%22", "\"");
-    inStr.replace("%23", "#");
-    inStr.replace("%24", "$");
-    inStr.replace("%25", "%");
-    inStr.replace("%26", "&");
-    inStr.replace("%27", "^");
-    inStr.replace("%28", "(");
-    inStr.replace("%29", ")");
-    inStr.replace("%2A", "*");
-    inStr.replace("%2B", "+");
-    inStr.replace("%2C", ",");
-    inStr.replace("%2D", "-");
-    inStr.replace("%2E", ".");
-    inStr.replace("%2F", "/");
-    inStr.replace("%3A", ":");
-    inStr.replace("%3B", ";");
-    inStr.replace("%3C", "<");
-    inStr.replace("%3D", "=");
-    inStr.replace("%3E", ">");
-    inStr.replace("%3F", "?");
-    inStr.replace("%5B", "[");
-    inStr.replace("%5C", "\\");
-    inStr.replace("%5D", "]");
-    inStr.replace("%5E", "^");
-    inStr.replace("%5F", "_");
-    inStr.replace("%60", "`");
-    inStr.replace("%7B", "{");
-    inStr.replace("%7C", "|");
-    inStr.replace("%7D", "}");
-    inStr.replace("%7E", "~");
+    // Decode every %XX escape (either hex case) in a single pass so that decoded characters are never decoded
+    // again (e.g. "%2526" gives "%26", not "&"). Control characters such as %0D/%0A and UTF-8 bytes are decoded
+    // too. A "%" that isn't followed by two hex digits is kept as it is, and %00 is kept as it is because the
+    // result is a C string. "+" is not changed (encodeURIComponent() encodes a space as %20).
+    const char* pIn = inStr.c_str();
+    if (!strchr(pIn, '%'))
+        return inStr;
+    String outStr;
+    outStr.reserve(inStr.length());
+    auto hexVal = [](char c) -> int {
+        if ((c >= '0') && (c <= '9')) return c - '0';
+        if ((c >= 'a') && (c <= 'f')) return c - 'a' + 10;
+        if ((c >= 'A') && (c <= 'F')) return c - 'A' + 10;
+        return -1;
+    };
+    while (*pIn)
+    {
+        if (*pIn == '%')
+        {
+            int hi = hexVal(pIn[1]);
+            int lo = (hi >= 0) ? hexVal(pIn[2]) : -1;
+            if ((hi >= 0) && (lo >= 0) && ((hi | lo) != 0))
+            {
+                outStr.concat((char)((hi << 4) | lo));
+                pIn += 3;
+                continue;
+            }
+        }
+        outStr.concat(*pIn);
+        pIn++;
+    }
+    inStr = outStr;
     return inStr;
 }
 
