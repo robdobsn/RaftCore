@@ -1,0 +1,43 @@
+{
+  "_about": "HDLC framing as RICSerial uses it. Made from RaftCore MiniHDLC by linux_unit_tests/test_comms_framing_vectors --write - do not edit. Frame: flag, escaped(payload, CRC high, CRC low), flag. Bytes equal to the flag or escape are sent as escape, byte ^ 0x20. CRC is CRC-16/CCITT-FALSE (poly 0x1021, init 0xffff) of the payload. Decoding: bytes from one flag to the next are a frame if there are at least 2 and the last 2 are the CRC of the others (bytes before the first flag count as a frame too); otherwise they are dropped. A frame longer than maxLen (payload + CRC) is discarded at that point and decoding starts again from the next byte.",
+  "flag": "e7",
+  "escape": "d7",
+  "defaultMaxLen": 5000,
+  "crc": [
+    {"desc": "check value", "data": "313233343536373839", "crc": "29b1"},
+    {"desc": "empty", "data": "", "crc": "ffff"},
+    {"desc": "url v, msgNum 1", "data": "0102007600", "crc": "f4ca"}
+  ],
+  "encode": [
+    {"desc": "url v, msgNum 1 (RICRESTProtocol wiki example)", "payload": "0102007600", "encoded": "e70102007600f4cae7"},
+    {"desc": "url filelist, msgNum 1 (wiki example)", "payload": "01020066696c656c69737400", "encoded": "e701020066696c656c69737400d1dce7"},
+    {"desc": "url v, msgNum 0xe7: flag byte escaped (wiki example)", "payload": "e702007600", "encoded": "e7d7c7020076000243e7"},
+    {"desc": "escape byte in payload", "payload": "0102d700", "encoded": "e70102d7f70010a4e7"},
+    {"desc": "flag and escape bytes together", "payload": "e7d7e7d7", "encoded": "e7d7c7d7f7d7c7d7f783bce7"},
+    {"desc": "CRC high byte escaped", "payload": "0102007632343400", "encoded": "e70102007632343400d7f7b8e7"},
+    {"desc": "CRC low byte escaped", "payload": "0102007634363200", "encoded": "e7010200763436320034d7c7e7"},
+    {"desc": "empty payload", "payload": "", "encoded": "e7ffffe7"},
+    {"desc": "command frame (cmdName JSON)", "payload": "0502037b22636d644e616d65223a227566456e64222c2273747265616d4944223a317d00", "encoded": "e70502037b22636d644e616d65223a227566456e64222c2273747265616d4944223a317d0076f9e7"},
+    {"desc": "response (msgType 1 = 0x42)", "payload": "0542017b22726571223a2276222c2272736c74223a226f6b227d00", "encoded": "e70542017b22726571223a2276222c2272736c74223a226f6b227d00efa6e7"},
+    {"desc": "publish (msgType 2, protocol 0 = 0x80) with devbin envelope", "payload": "0080db03070008810000006a000501", "encoded": "e70080db03070008810000006a00050145a4e7"},
+    {"desc": "file block, stream 1, position 0x0102e7", "payload": "090204010102e7aad755", "encoded": "e7090204010102d7c7aad7f7559d05e7"},
+    {"desc": "every byte value", "payload": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", "encoded": "e7000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7f7d8d9dadbdcdddedfe0e1e2e3e4e5e6d7c7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff3fbde7"},
+    {"desc": "every byte and both CRC bytes escaped (longest encoding: 2 x payload + 6)", "payload": "d7d7d7e7e7e7e7e7d7e7d7", "encoded": "e7d7f7d7f7d7f7d7c7d7c7d7c7d7c7d7c7d7f7d7c7d7f7d7f7d7f7e7"}
+  ],
+  "decode": [
+    {"desc": "one frame", "stream": "e70102007600f4cae7", "frames": ["0102007600"]},
+    {"desc": "two frames, each with both flags", "stream": "e70102007600f4cae7e702020066696c656c69737400d443e7", "frames": ["0102007600", "02020066696c656c69737400"]},
+    {"desc": "three frames sharing flags", "stream": "e70102007600f4cae702020066696c656c69737400d443e700807b7dc403e7", "frames": ["0102007600", "02020066696c656c69737400", "00807b7d"]},
+    {"desc": "no opening flag: bytes before the first flag are a frame", "stream": "0102007600f4cae7", "frames": ["0102007600"]},
+    {"desc": "junk before the first flag is dropped (CRC fails)", "stream": "6a756e6be70102007600f4cae7", "frames": ["0102007600"]},
+    {"desc": "bad CRC dropped, next frame decoded", "stream": "e70102007600f4cbe7e702020066696c656c69737400d443e7", "frames": ["02020066696c656c69737400"]},
+    {"desc": "repeated flags between frames", "stream": "e7e7e7e70102007600f4cae7e7e7e702020066696c656c69737400d443e7", "frames": ["0102007600", "02020066696c656c69737400"]},
+    {"desc": "flag pairs alone: nothing", "stream": "e7e7e7e7", "frames": []},
+    {"desc": "single byte between flags: nothing", "stream": "e701e7", "frames": []},
+    {"desc": "2 bytes equal to the CRC of nothing: an empty frame", "stream": "e7ffffe7", "frames": [""]},
+    {"desc": "escape just before the flag is dropped with the frame", "stream": "e701d7e7e702020066696c656c69737400d443e7", "frames": ["02020066696c656c69737400"]},
+    {"desc": "incomplete frame at the end: nothing yet", "stream": "e70102007600f4ca", "frames": []},
+    {"desc": "frame over maxLen dropped, next frame decoded", "stream": "e711111111111111111111111111111111111111111111111111111111111111111111111111111111dffde7e70102007600f4cae7", "maxLen": 20, "frames": ["0102007600"]},
+    {"desc": "frame of exactly maxLen (payload + CRC) decoded", "stream": "e7222222222222222222222222222222222222fdfde7", "maxLen": 20, "frames": ["222222222222222222222222222222222222"]}
+  ]
+}
