@@ -293,6 +293,15 @@ RaftRetCode FileDownloadOKTOProtocol::handleAckMsg(const RICRESTMsg& ricRESTReqM
     // Handle ack
     RaftJson cmdFrame = ricRESTReqMsg.getPayloadJson();
     uint32_t oktoFilePos = cmdFrame.getLong("okto", 0);
+
+    // Any ack shows the client is receiving (see START_ACK_WAIT_MS)
+    if (!_clientReady)
+    {
+        _clientReady = true;
+        _lastBatchAckRxOrRetryMs = millis();
+        if (oktoFilePos == 0)
+            return RaftRetCode::RAFT_OK;
+    }
     if ((oktoFilePos != 0) && (oktoFilePos > _oktoFilePos))
     {
         uint32_t newBytesReceived = oktoFilePos - _oktoFilePos;
@@ -376,6 +385,7 @@ bool FileDownloadOKTOProtocol::validateFileStreamStart(const String& fileName,
     _oktoFilePos = 0;
     _lastSentUptoFilePos = 0;
     _batchBlockSendRetryCount = 0;
+    _clientReady = false;
 
     // Timing of blocks
     _lastBatchAckRxOrRetryMs = millis();
@@ -393,11 +403,7 @@ void FileDownloadOKTOProtocol::transferService()
     if (!_isDownloading || !_fileStreamBlockRead)
         return;
     
-    // Check min time between blocks
     unsigned long nowMillis = millis();
-    if (!Raft::isTimeout(millis(), _betweenBlocksMs, MIN_TIME_BETWEEN_BLOCKS_MS))
-        return;
-    _betweenBlocksMs = millis();
 
     // Check if we're finished - with the CRC at the end the session waits (a while) for dfEnd, whose reply carries it
     if (_oktoFilePos >= _fileSize)
@@ -438,6 +444,15 @@ void FileDownloadOKTOProtocol::transferService()
             // Go back to last okto position
             _lastSentUptoFilePos = _oktoFilePos;
 
+            // Nothing has been acknowledged since the last ack (or the start): the channel may not be able to
+            // deliver blocks this big (it may offer more than its transport can send), so try smaller ones.
+            // Clients place blocks by file position and take any length
+            if (_blockSize > FILE_BLOCK_SIZE_FALLBACK_MIN)
+            {
+                _blockSize = std::max(_blockSize / 2, FILE_BLOCK_SIZE_FALLBACK_MIN);
+                LOG_W(MODULE_PREFIX, "transferService no ack - block size reduced to %d", (int)_blockSize);
+            }
+
             // Update timing
             _lastBatchAckRxOrRetryMs = millis();
         }
@@ -449,6 +464,14 @@ void FileDownloadOKTOProtocol::transferService()
         }
     }
 
+    // Wait for the client to be ready for the first block (its first ack, or a short time)
+    if (!_clientReady)
+    {
+        if (!Raft::isTimeout(nowMillis, _startMs, START_ACK_WAIT_MS))
+            return;
+        _clientReady = true;
+    }
+
     uint32_t blocksOutstanding = (_lastSentUptoFilePos + (_blockSize-1) - _oktoFilePos) / _blockSize;
     if ((_lastSentUptoFilePos >= _fileSize) || (blocksOutstanding >= _batchAckSize))
     {
@@ -457,6 +480,18 @@ void FileDownloadOKTOProtocol::transferService()
                     _oktoFilePos, _lastSentUptoFilePos, blocksOutstanding, _fileSize);
 #endif
         return;
+    }
+
+    // Send at the rate the channel takes blocks: the next one goes when the last has left the channel's queue
+    // and its transport is ready for another (e.g. the serial port has sent the last frame, or BLE's queue has
+    // room). The ack window above limits how far ahead of the client this gets
+    if (_pCommsCore)
+    {
+        if (_pCommsCore->outboundQueuedCount(_commsChannelID) > 0)
+            return;
+        bool noConn = false;
+        if (!_pCommsCore->outboundCanAccept(_commsChannelID, MSG_TYPE_COMMAND, noConn))
+            return;
     }
 
     // Check if internal heap is too low to safely send - throttle to let TCP drain
@@ -477,8 +512,7 @@ void FileDownloadOKTOProtocol::transferService()
     RaftRetCode retc = _fileStreamBlockRead(block, _lastSentUptoFilePos, _blockSize);
     if (retc == RaftRetCode::RAFT_BUSY)
     {
-        // Try again on the next pass (not after the time between blocks)
-        _betweenBlocksMs = nowMillis - MIN_TIME_BETWEEN_BLOCKS_MS;
+        // Try again on the next pass
         return;
     }
     if (retc == RaftRetCode::RAFT_OK)
@@ -591,6 +625,9 @@ void FileDownloadOKTOProtocol::sendBlock(FileStreamBlockOwned& block)
     RICRESTMsg::encodeFileBlock(streamIDAndFilePos, 
                 block.getBlockData(), block.getBlockLen(), 
                 endpointMsg);
+
+    // The client acks blocks and a lost one is sent again, so the transport needn't confirm each packet
+    endpointMsg.setAckedByProtocol(true);
 
     // Send message
     if (_pCommsCore)

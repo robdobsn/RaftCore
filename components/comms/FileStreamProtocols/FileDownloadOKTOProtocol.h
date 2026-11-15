@@ -15,10 +15,17 @@ class FileDownloadOKTOProtocol : public FileStreamBase
 {
 public:
     // Consts
-    static const uint32_t MIN_TIME_BETWEEN_BLOCKS_MS = 100;
+    // Blocks are sent as fast as the channel takes them (see transferService), within the ack window. After
+    // BLOCK_MSGS_TIMEOUT_MS with nothing acknowledged the block size is halved (down to
+    // FILE_BLOCK_SIZE_FALLBACK_MIN) before resending, in case the channel can't deliver blocks that big
+    static constexpr uint32_t FILE_BLOCK_SIZE_FALLBACK_MIN = 64;
     // With the CRC at the end, how long the session waits for dfEnd (its reply carries the CRC) after the last ack
     static const uint32_t END_MSG_WAIT_MS = 2000;
     static const uint32_t BLOCK_MSGS_TIMEOUT_MS = 3000;
+    // The first block waits for the client's first dfAck (clients send one, with okto 0, as soon as they are ready
+    // to receive), or this long for a client that doesn't send one. A block sent straight after the reply to
+    // dfStart can reach a client before it has handled that reply, and it then discards the block
+    static const uint32_t START_ACK_WAIT_MS = 200;
     static const uint32_t MAX_BATCH_BLOCK_ACK_RETRIES = 10;
     static constexpr uint32_t FILE_BLOCK_SIZE_MIN = 20;
     static const uint32_t FILE_BLOCK_SIZE_DEFAULT = 5000;
@@ -134,6 +141,9 @@ private:
     uint32_t _lastSentUptoFilePos = 0;
     uint32_t _batchBlockSendRetryCount = 0;
 
+    // The client has sent an ack since the start (it is ready for blocks)
+    bool _clientReady = false;
+
     // CRC at end support
     bool _crcAtEnd = false;
     uint32_t _incrementalCrc = 0;
@@ -143,7 +153,6 @@ private:
     uint32_t _debugLastStatsMs = millis();
     static const uint32_t DEBUG_STATS_MS = 10000;
     bool _debugFinalMsgToSend = false;
-    uint32_t _betweenBlocksMs = 0;
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "FileDLOKTO";

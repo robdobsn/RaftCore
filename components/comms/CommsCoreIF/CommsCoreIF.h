@@ -68,6 +68,14 @@ public:
     // Get the max outbound message size
     virtual uint32_t outboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize) = 0;
 
+    // Number of outbound messages waiting in a channel's queue (not yet passed to its transport). A sender of
+    // many messages (e.g. a file download) sends the next when this is 0 and outboundCanAccept() is true, so it
+    // goes at the rate the channel takes them and the queue (which drops messages when full) can't fill
+    virtual uint32_t outboundQueuedCount(uint32_t channelID)
+    {
+        return 0;
+    }
+
     // Get channel IDs
     virtual int32_t getChannelIDByName(const String& channelName, const String& protocolName) = 0;
 
