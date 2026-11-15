@@ -59,6 +59,7 @@ adafruit-4754,Adafruit,BNO085 9-DOF Orientation IMU Fusion,4754,BNO085,CEVA/Bosc
 adafruit-4480,Adafruit,LSM6DS33 6-DoF Accel + Gyro IMU,4480,LSM6DS33,ST,motion,LSM6DS3,stemma-qt,3,5,"0x6a,0x6b",discontinued,,https://www.adafruit.com/product/4480,,
 adafruit-4366,Adafruit,TLV493D Triple-Axis Magnetometer,4366,TLV493D,Infineon,magnetic,TLV493D,stemma-qt,3,5,"0x5e,0x1f",active,,https://www.adafruit.com/product/4366,,
 adafruit-4554,Adafruit,ICM-20948 9-DoF IMU,4554,ICM-20948,TDK InvenSense,motion,ICM20948,stemma-qt,3,5,"0x69,0x68",active,,https://www.adafruit.com/product/4554,,"the record covers accelerometer, gyroscope and temperature (not the AK09916 magnetometer, behind the chip's I2C master) at 0x69 only"
+adafruit-3886,Adafruit,MPU-6050 6-DoF Accel and Gyro Sensor,3886,MPU-6050,TDK InvenSense,motion,MPU6050,stemma-qt,3,5,"0x68,0x69",active,,https://www.adafruit.com/product/3886,,"the record carries a _warning (identifying it writes a byte to whatever is at 0x68 or 0x69), so wildcard selections leave it out unless acknowledged"
 nexus-qwiic-sense,Nexus,QWIIC Sense,,,,,,qwiic,,,,active,,,,unknown board - fill in
 seeed-101020692,Seeed,Grove 12-bit Magnetic Rotary Position Sensor (AS5600),101020692,AS5600,ams,magnetic,AS5600,grove,,,0x36,active,,,https://look.ams-osram.com/m/7059eac7531a86fd/original/AS5600-DS000365.pdf,
 sparkfun-qwiic-led-stick-apa102c,SparkFun,Qwiic LED Stick (APA102C),,ATtiny85 + APA102C,,led,QwiicLEDStick,qwiic,,,"0x23,0x22",active,,https://learn.sparkfun.com/tutorials/qwiic-led-stick---apa102c-hookup-guide,,sheet said supported '?'
