@@ -165,6 +165,7 @@ void ProtocolRICSerial::encodeTxMsgAndSend(CommsChannelMsg& msg)
 
         // Nothing uses the encoded message after it is sent, so the channel may take its buffer
         encodedMsg.setBufTakeable(true);
+        encodedMsg.setAckedByProtocol(msg.isAckedByProtocol());
 #endif
 
         // Debug

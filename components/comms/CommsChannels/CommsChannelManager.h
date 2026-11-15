@@ -60,6 +60,9 @@ public:
     // Get the max outbound message size
     virtual uint32_t outboundMsgBlockMax(uint32_t channelID, uint32_t defaultSize) override final;
 
+    // Number of outbound messages waiting in a channel's queue
+    virtual uint32_t outboundQueuedCount(uint32_t channelID) override final;
+
 
     // Get info
     String getInfoJSON();

@@ -202,12 +202,26 @@ public:
         return _bufTakeable;
     }
 
+    // Whether the message is part of an exchange with its own acknowledgements and resends (e.g. a file block
+    // of a download, which the client acks and the sender sends again if it is lost). A transport that can send
+    // either with or without a confirmation of each packet (e.g. BLE: indications or notifications) needn't
+    // have these confirmed. Set by the sender; a protocol codec copies it to the message it encodes
+    void setAckedByProtocol(bool ackedByProtocol)
+    {
+        _ackedByProtocol = ackedByProtocol;
+    }
+    bool isAckedByProtocol() const
+    {
+        return _ackedByProtocol;
+    }
+
 private:
     uint32_t _channelID;
     CommsMsgProtocol _msgProtocol;
     uint32_t _msgNum;
     CommsMsgTypeCode _msgTypeCode;
     bool _bufTakeable = false;
+    bool _ackedByProtocol = false;
 #ifdef IMPLEMENT_NO_PSRAM_FOR_COMMS_CHANNEL_MSG
     std::vector<uint8_t> _cmdVector;
 #else
