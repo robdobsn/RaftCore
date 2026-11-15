@@ -1,0 +1,139 @@
+{
+    "_notes": "TDK InvenSense MPU-6050 6-axis IMU (also the MPU-6000's I2C interface) at 0x68 (AD0 low, the default of the GY-521 and most breakouts) or 0x69. 8-bit registers; the chip ignores bit 7 of the register address\nDetection: WHO_AM_I (0x75) = 0x68 (the same at either address). The MPU-6500 (0x70) and MPU-9250 (0x71) aren't matched: their temperature scale differs\nInit: PWR_MGMT_1 (0x6B) = 0x80 - reset, 100 ms; PWR_MGMT_1 = 0x01 - awake (it starts asleep), clock from the X gyro, 50 ms; CONFIG (0x1A) = 0x03 - low-pass filter 44 Hz (accelerometer) / 42 Hz (gyro), gyro output 1 kHz; GYRO_CONFIG (0x1B) = 0x08 - +/-500 dps; ACCEL_CONFIG (0x1C) = 0x08 - +/-4 g; SMPLRT_DIV (0x19) = 0x09 - 100 samples a second\nPoll (100 ms): ACCEL_XOUT_H to GYRO_ZOUT_L (0x3B-0x48), big-endian 16-bit: accelerometer 8192 per g, temperature = count / 340 + 36.53 degC, gyro 65.5 per dps\nSource: registers from the InvenSense MPU-6000/MPU-6050 register map (RM-MPU-6000A) and product specification",
+    "_warning": "Selecting this record makes the bus write one byte (0x75, the ID register's address) to whatever answers at 0x68 or 0x69 when identifying it. An MCP342x ADC at 0x68 takes that byte as its configuration (channel 4, continuous, 14-bit, gain 2). RaftCore's other records at these addresses (ICM20948, AMG8833) claim only 0x69 for that reason",
+    "addresses": "0x68-0x69",
+    "detectionValues": "0x75=0x68",
+    "initValues": "0x6b80=p100&0x6b01=p50&0x1a03&0x1b08&0x1c08&0x1909",
+    "pollInfo": {
+        "c": "0x3b=r14",
+        "i": 100,
+        "s": 3
+    },
+    "hwProbeEffects": {
+        "rsao": {
+            "effect": "none",
+            "basis": "bench",
+            "note": "bench (Axiom018, 2026-11-15, measuring, at 0x68): the lone 0x99 write and 9-byte read returns registers 0x19-0x21 (bit 7 of the address is ignored); registers 0x0D-0x38 and 0x63-0x6C unchanged and measuring carried on"
+        }
+    },
+    "devInfoJson": {
+        "name": "Accelerometer & Gyroscope",
+        "desc": "6-Axis IMU",
+        "manu": "TDK InvenSense",
+        "type": "MPU6050",
+        "clas": [
+            "ACC",
+            "GYRO"
+        ],
+        "resp": {
+            "b": 14,
+            "a": [
+                {
+                    "n": "ax",
+                    "at": 0,
+                    "t": ">h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float",
+                    "vt": "imu",
+                    "vo": {
+                        "gyro": [
+                            "gx",
+                            "gy",
+                            "gz"
+                        ],
+                        "accel": [
+                            "ax",
+                            "ay",
+                            "az"
+                        ]
+                    }
+                },
+                {
+                    "n": "ay",
+                    "at": 2,
+                    "t": ">h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "az",
+                    "at": 4,
+                    "t": ">h",
+                    "u": "g",
+                    "r": [
+                        -4.0,
+                        4.0
+                    ],
+                    "d": 8192,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "gx",
+                    "at": 8,
+                    "t": ">h",
+                    "u": "&deg;/s",
+                    "r": [
+                        -500,
+                        500
+                    ],
+                    "d": 65.5,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "gy",
+                    "at": 10,
+                    "t": ">h",
+                    "u": "&deg;/s",
+                    "r": [
+                        -500,
+                        500
+                    ],
+                    "d": 65.5,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "gz",
+                    "at": 12,
+                    "t": ">h",
+                    "u": "&deg;/s",
+                    "r": [
+                        -500,
+                        500
+                    ],
+                    "d": 65.5,
+                    "f": ".2f",
+                    "o": "float"
+                },
+                {
+                    "n": "temp",
+                    "at": 6,
+                    "t": ">h",
+                    "u": "&deg;C",
+                    "r": [
+                        -40,
+                        85
+                    ],
+                    "d": 340,
+                    "f": ".1f",
+                    "o": "float",
+                    "a": 36.53
+                }
+            ]
+        }
+    }
+}
