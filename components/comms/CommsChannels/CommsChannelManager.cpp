@@ -89,6 +89,15 @@ void CommsChannelManager::loop()
         // (inbound messages from other tasks are just queued and don't need the codec)
         ensureProtocolCodecExists(channelID);
 
+        // Inbound messages - possibly multiple messages. These are handled before the outbound queue is serviced
+        // so that the response to a request is sent in this pass (if the channel can take it) and not the next,
+        // which is a whole main-loop period later
+        for (int msgIdx = 0; msgIdx < MAX_INBOUND_MSGS_IN_LOOP; msgIdx++)
+        {
+            if (!pChannel->processInboundQueue())
+                break;
+        }
+
         // Check for an outbound message (its type, without copying it)
         CommsChannelMsg msg;
         CommsMsgTypeCode nextMsgType = MSG_TYPE_COMMAND;
@@ -138,12 +147,6 @@ void CommsChannelManager::loop()
             }
         }
 
-        // Inbound messages - possibly multiple messages
-        for (int msgIdx = 0; msgIdx < MAX_INBOUND_MSGS_IN_LOOP; msgIdx++)
-        {
-            if (!pChannel->processInboundQueue())
-                break;
-        }
     }
 
     // Service bridges
