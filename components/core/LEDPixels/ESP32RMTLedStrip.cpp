@@ -130,12 +130,21 @@ bool ESP32RMTLedStrip::setup(const LEDStripConfig& config, uint32_t pixelIndexSt
     };
     _ledStripEncoderConfig = ledStripEncoderConfig;
 
+    // How long to wait for a frame to go out: from the frame length and the strip's bit and reset timing (a 0 bit
+    // and a 1 bit needn't take the same time, so the longer one counts)
+    uint32_t bit0Ticks = (uint32_t)config.T0H_ticks + config.T0L_ticks;
+    uint32_t bit1Ticks = (uint32_t)config.T1H_ticks + config.T1L_ticks;
+    uint32_t frameSyms = LEDStripRMTPlan::frameSymbols(config.numPixels, config.bytesPerPixel);
+    uint32_t frameUs = LEDStripRMTPlan::frameTimeUs(frameSyms, bit0Ticks > bit1Ticks ? bit0Ticks : bit1Ticks,
+                config.reset_ticks, config.rmtResolutionHz);
+    _showWaitUs = LEDStripRMTPlan::showWaitUs(frameUs);
+
     // Now setup
     _isSetup = true;
 
 #ifdef DEBUG_ESP32RMTLEDSTRIP_SETUP
     // Debug
-    LOG_I(MODULE_PREFIX, "setup ok %s", config.debugStr().c_str());
+    LOG_I(MODULE_PREFIX, "setup ok frame %dus wait %dus %s", (int)frameUs, (int)_showWaitUs, config.debugStr().c_str());
 #endif
 
     return true;
@@ -563,8 +572,8 @@ void ESP32RMTLedStrip::waitUntilShowComplete()
 
     // We're not going to use rmt_tx_wait_all_done as it errors on timeout
 
-    // Max time to wait (WS2812B: ~30us per pixel = ~10us per byte, plus reset)
-    uint64_t maxWaitUs = WAIT_RMT_BASE_US + WAIT_RMT_PER_PIX_US * _pixelBuffer.size();
+    // Max time to wait: the frame time from the strip's timing, plus a margin (set in setup())
+    uint64_t maxWaitUs = _showWaitUs;
     uint64_t startTimeUs = micros();
     while (RaftAtomicBool_get(_txInProgress) && !Raft::isTimeout(micros(), startTimeUs, maxWaitUs))
     {

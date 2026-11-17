@@ -101,9 +101,9 @@ private:
     SpiramAwareUint8Vector _lastTxBuffer;
     bool _lastTxBufferValid = false;
 
-    // Wait for RMT complete (WS2812B: ~1.25us/bit × 8 bits = ~10us per byte, plus ~80us reset)
-    static const uint32_t WAIT_RMT_BASE_US = 150;
-    static const uint32_t WAIT_RMT_PER_PIX_US = 10;
+    // Longest wait for a frame to finish going out, from the strip's bit and reset timing (set in setup() -
+    // LEDStripRMTPlan::showWaitUs())
+    uint32_t _showWaitUs = 0;
 
     // Helpers
     bool initRMTPeripheral();
