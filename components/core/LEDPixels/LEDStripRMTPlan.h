@@ -19,6 +19,10 @@
 // A refilled frame (no DMA, or a frame longer than the DMA buffer) is helped by a higher interrupt priority (see
 // intrPriority()), but a critical section on the core still holds the interrupt off.
 //
+// Also how long a frame takes to go out (frameTimeUs()) and how long to wait for one before giving up on it
+// (showWaitUs()): from the strip's bit and reset timing, so that a frame sent while the last one is still going out
+// waits for it instead of being dropped.
+//
 // Raft-free so it can be host-tested (linux_unit_tests/test_led_strip_rmt_plan).
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,12 +75,39 @@ public:
     // to hold a frame whole
     static constexpr uint32_t DMA_MARGIN_SYMBOLS = 32;
 
+    // Least margin on the wait for a frame to go out (showWaitUs())
+    static constexpr uint32_t SHOW_WAIT_MARGIN_US = 200;
+
     /// @brief Symbols in a frame
     /// @param numPixels pixels in the strip
     /// @param bytesPerPixel bytes per pixel (3 for RGB, 5 for RGBWW)
     static uint32_t frameSymbols(uint32_t numPixels, uint32_t bytesPerPixel)
     {
         return numPixels * bytesPerPixel * 8 + RESET_SYMBOLS;
+    }
+
+    /// @brief Time a frame takes to go out
+    /// @param frameSyms symbols in the frame (frameSymbols()): one per bit, then the reset
+    /// @param bitTicks the longer bit period in RMT ticks (T0H + T0L or T1H + T1L)
+    /// @param resetTicks the reset period in RMT ticks
+    /// @param rmtResolutionHz RMT tick rate
+    /// @return microseconds, rounded up
+    static uint32_t frameTimeUs(uint32_t frameSyms, uint32_t bitTicks, uint32_t resetTicks, uint32_t rmtResolutionHz)
+    {
+        if (rmtResolutionHz == 0)
+            return 0;
+        uint32_t bits = frameSyms > RESET_SYMBOLS ? frameSyms - RESET_SYMBOLS : 0;
+        uint64_t ticks = (uint64_t)bits * bitTicks + resetTicks;
+        return (uint32_t)((ticks * 1000000 + rmtResolutionHz - 1) / rmtResolutionHz);
+    }
+
+    /// @brief Time to wait for a frame to finish going out before giving up on it (the frame time plus a margin for
+    /// the interrupt and the task that waits being late: a quarter of the frame time, at least SHOW_WAIT_MARGIN_US)
+    /// @param frameUs frame time (frameTimeUs())
+    static uint32_t showWaitUs(uint32_t frameUs)
+    {
+        uint32_t margin = frameUs / 4;
+        return frameUs + (margin > SHOW_WAIT_MARGIN_US ? margin : SHOW_WAIT_MARGIN_US);
     }
 
     /// @brief DMA buffer for a frame (the whole frame if it fits in DMA_MAX_SYMBOLS)

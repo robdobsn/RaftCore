@@ -6,6 +6,7 @@
 // - A longer frame gets DMA where the chip has it (the whole frame up to DMA_MAX_SYMBOLS), then the most RMT memory.
 // - The share of TX memory is split between strips; a configured memBlockSymbols is used as given.
 // - DMA modes; refill detection; interrupt priority.
+// - Frame time from the strip's bit and reset timing, and the wait for a frame to go out.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,31 @@ static void testFrameSymbols()
     TEST_ASSERT(Plan::frameSymbols(6, 3) == 145, "6 RGB pixels");
     TEST_ASSERT(Plan::frameSymbols(10, 5) == 401, "10 RGBWW pixels");
     TEST_ASSERT(Plan::frameSymbols(0, 3) == 1, "no pixels: reset only");
+}
+
+static void testFrameTimeUs()
+{
+    printf("Running testFrameTimeUs...\n");
+    // 10 MHz ticks. WS2812B defaults (T0H 0.4 T0L 0.85 T1H 0.8 T1L 0.45, reset 100us): the longer bit is 1.2us (12
+    // ticks; 0.85us is 8 ticks)
+    uint32_t frame14 = Plan::frameSymbols(14, 3);     // 336 bits
+    TEST_ASSERT(Plan::frameTimeUs(frame14, 12, 1000, 10000000) == 504, "14 WS2812B pixels: 403.2 + 100 us, rounded up");
+    // CogPro: T0H 0.3 T0L 0.9 T1H 0.7 T1L 0.6 (1.3us bits), 300us reset: 336 x 1.3 + 300 = 736.8us. The old fixed
+    // budget (150us + 10us per byte = 570us) gave up on this frame and dropped the next one
+    TEST_ASSERT(Plan::frameTimeUs(frame14, 13, 3000, 10000000) == 737, "14 CogPro pixels: 436.8 + 300 us");
+    TEST_ASSERT(Plan::frameTimeUs(Plan::frameSymbols(0, 3), 12, 1000, 10000000) == 100, "no pixels: the reset");
+    TEST_ASSERT(Plan::frameTimeUs(frame14, 12, 1000, 0) == 0, "no tick rate: 0");
+    // 20 MHz ticks: the same timing in twice the ticks gives the same time
+    TEST_ASSERT(Plan::frameTimeUs(frame14, 24, 2000, 20000000) == 504, "20 MHz ticks");
+    // A long strip: 300 RGBWW pixels, 12000 bits at 1.25us + 280us = 15.28ms (no 32-bit overflow in the ticks)
+    TEST_ASSERT(Plan::frameTimeUs(Plan::frameSymbols(300, 5), 25, 5600, 20000000) == 15280, "300 RGBWW pixels");
+
+    // Wait: the frame plus a quarter, at least 200us
+    TEST_ASSERT(Plan::showWaitUs(737) == 937, "737us frame: + 200us");
+    TEST_ASSERT(Plan::showWaitUs(800) == 1000, "800us frame: + 200us");
+    TEST_ASSERT(Plan::showWaitUs(804) == 1005, "804us frame: + a quarter");
+    TEST_ASSERT(Plan::showWaitUs(15280) == 19100, "15.28ms frame: + a quarter");
+    TEST_ASSERT(Plan::showWaitUs(0) == 200, "no frame: the margin");
 }
 
 static void testFitsInRMTMemory()
@@ -154,6 +180,7 @@ static void testIntrPriority()
 int main()
 {
     testFrameSymbols();
+    testFrameTimeUs();
     testFitsInRMTMemory();
     testDma();
     testShares();
