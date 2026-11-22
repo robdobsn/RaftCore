@@ -5,6 +5,7 @@
 - [ ] consider compressing device types json
 - [ ] VL53L0X reference SPAD setup from its NVM (omitted from the record, losing accuracy and range): needs read-modify-writes partway through init, so init code computing values at more than one point (run again before each slot step), and a VL53L0X to test. Design: devdocs/computed-init-values.md ("Not done: VL53L0X SPAD setup")
 - [ ] flash writes blocking the main loop: file uploads, `filehash`, Axiom DataLogger writes and the cache refresh after a file close are over the 10 ms target. Measured 2026-10-24: a write task removes SD pauses; LittleFS also needs code running from PSRAM (`CONFIG_SPIRAM_XIP_FROM_PSRAM`) or flash auto-suspend. Next: the shared file-write worker (with OTA), a lock per file system, acks after the write. Tests, results, design and costs: devdocs/flash-write-blocking-plan.md
+- [ ] RaftJson/String hot-path costs: document that RaftJson lookups scan the whole document (keep config reads out of loop/getNamedValue/publish callbacks) and audit the libraries for them; stop RaftJsonPrefixed allocating a String per lookup; add a fixed-point `Raft::appendFixed` (snprintf "%.3f" measured ~60 us per value). Found 2026-11-21 chasing SandBot's slow status messages. Details: devdocs/json-and-string-hot-path-costs.md
 
 ## Parked
 
